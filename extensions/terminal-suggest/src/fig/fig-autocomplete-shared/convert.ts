@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { makeArray } from "./utils";
+import { makeArray } from './utils';
 
-export type SuggestionType = Fig.SuggestionType | "history" | "auto-execute";
+export type SuggestionType = Fig.SuggestionType | 'history' | 'auto-execute';
 
 type Override<T, S> = Omit<T, keyof S> & S;
 export type Suggestion = Override<Fig.Suggestion, { type?: SuggestionType }>;
@@ -45,7 +45,7 @@ export type Initializer<ArgT, OptionT, SubcommandT> = {
 
 function convertOption<ArgT, OptionT>(
 	option: Fig.Option,
-	initialize: Omit<Initializer<ArgT, OptionT, never>, "subcommand">
+	initialize: Omit<Initializer<ArgT, OptionT, never>, 'subcommand'>
 ): Option<ArgT, OptionT> {
 	return {
 		...initialize.option(option),

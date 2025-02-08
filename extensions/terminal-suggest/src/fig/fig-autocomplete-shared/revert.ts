@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Option, Subcommand } from "./convert";
+import { Option, Subcommand } from './convert';
 
 function makeSingleOrArray<T>(arr: T[]): Fig.SingleOrArray<T> {
 	return arr.length === 1 ? (arr[0] as Fig.SingleOrArray<T>) : (arr as Fig.SingleOrArray<T>);

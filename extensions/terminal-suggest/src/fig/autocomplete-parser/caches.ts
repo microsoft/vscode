@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Subcommand } from "../shared/internal";
+import { Subcommand } from '../shared/internal';
 
 const allCaches: Array<Map<string, unknown>> = [];
 

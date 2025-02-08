@@ -28,35 +28,35 @@
 // program = statements
 
 export enum NodeType {
-	Program = "program",
+	Program = 'program',
 
-	AssignmentList = "assignment_list",
-	Assignment = "assignment",
-	VariableName = "variable_name",
-	Subscript = "subscript",
+	AssignmentList = 'assignment_list',
+	Assignment = 'assignment',
+	VariableName = 'variable_name',
+	Subscript = 'subscript',
 
-	CompoundStatement = "compound_statement",
-	Subshell = "subshell",
-	Command = "command",
-	Pipeline = "pipeline",
-	List = "list",
+	CompoundStatement = 'compound_statement',
+	Subshell = 'subshell',
+	Command = 'command',
+	Pipeline = 'pipeline',
+	List = 'list',
 
 	// TODO: implement <(commands)
-	ProcessSubstitution = "process_substitution",
+	ProcessSubstitution = 'process_substitution',
 
 	// Primary expressions
-	Concatenation = "concatenation",
-	Word = "word",
-	String = "string",
-	Expansion = "expansion",
-	CommandSubstitution = "command_substitution",
+	Concatenation = 'concatenation',
+	Word = 'word',
+	String = 'string',
+	Expansion = 'expansion',
+	CommandSubstitution = 'command_substitution',
 
 	// Leaf Nodes
-	RawString = "raw_string",
-	AnsiCString = "ansi_c_string",
-	SimpleExpansion = "simple_expansion",
-	SpecialExpansion = "special_expansion",
-	ArithmeticExpansion = "arithmetic_expansion",
+	RawString = 'raw_string',
+	AnsiCString = 'ansi_c_string',
+	SimpleExpansion = 'simple_expansion',
+	SpecialExpansion = 'special_expansion',
+	ArithmeticExpansion = 'arithmetic_expansion',
 }
 
 export type LiteralNode =
@@ -87,7 +87,7 @@ export interface BaseNode<Type extends NodeType = NodeType> {
 
 export interface ListNode extends BaseNode {
 	type: NodeType.List;
-	operator: "||" | "&&" | "|" | "|&";
+	operator: '||' | '&&' | '|' | '|&';
 }
 
 export interface AssignmentListNode extends BaseNode {
@@ -100,7 +100,7 @@ export interface AssignmentListNode extends BaseNode {
 
 export interface AssignmentNode extends BaseNode {
 	type: NodeType.Assignment;
-	operator: "=" | "+=";
+	operator: '=' | '+=';
 	name: BaseNode<NodeType.VariableName> | SubscriptNode;
 	children: LiteralNode[];
 }
@@ -111,13 +111,13 @@ export interface SubscriptNode extends BaseNode {
 	index: LiteralNode;
 }
 
-const operators = [";", "&", "&;", "|", "|&", "&&", "||"] as const;
+const operators = [';', '&', '&;', '|', '|&', '&&', '||'] as const;
 
 type Operator = (typeof operators)[number];
 
 const parseOperator = (str: string, index: number): Operator | null => {
 	const c = str.charAt(index);
-	if (["&", ";", "|"].includes(c)) {
+	if (['&', ';', '|'].includes(c)) {
 		const op = str.slice(index, index + 2);
 		return operators.includes(op as unknown as Operator)
 			? (op as Operator)
@@ -129,26 +129,25 @@ const parseOperator = (str: string, index: number): Operator | null => {
 const getInnerText = (node: BaseNode): string => {
 	const { children, type, complete, text } = node;
 	if (type === NodeType.Concatenation) {
-		return children.reduce((current, child) => current + child.innerText, "");
+		return children.reduce((current, child) => current + child.innerText, '');
 	}
 
-	const terminalChars = (
-		{
-			[NodeType.String]: ['"', '"'],
-			[NodeType.RawString]: ["'", "'"],
-			[NodeType.AnsiCString]: ["$'", "'"],
-		} as Record<NodeType, [string, string]>
-	)[type] || ["", ""];
+	const terminalCharsMapping: { [key: string]: [string, string] | undefined } = {
+		[NodeType.String]: ['"', '"'],
+		[NodeType.RawString]: ['\'', '\''],
+		[NodeType.AnsiCString]: ['$\'', '\''],
+	};
+	const terminalChars = terminalCharsMapping[type] ?? ['', ''];
 
 	const startChars = terminalChars[0];
-	const endChars = !complete ? "" : terminalChars[1];
+	const endChars = !complete ? '' : terminalChars[1];
 
-	let innerText = "";
+	let innerText = '';
 	for (let i = startChars.length; i < text.length - endChars.length; i += 1) {
 		const c = text.charAt(i);
-		const isWordEscape = c === "\\" && type === NodeType.Word;
+		const isWordEscape = c === '\\' && type === NodeType.Word;
 		const isStringEscape =
-			c === "\\" &&
+			c === '\\' &&
 			type === NodeType.String &&
 			'$`"\\\n'.includes(text.charAt(i + 1));
 
@@ -165,12 +164,13 @@ const createNode = <T extends BaseNode = BaseNode>(
 	str: string,
 	partial: Partial<T>,
 ): T => {
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	const node = {
 		startIndex: 0,
 		type: NodeType.Word,
 		endIndex: str.length,
-		text: "",
-		innerText: "",
+		text: '',
+		innerText: '',
 		complete: true,
 		children: [],
 		...partial,
@@ -208,14 +208,14 @@ const parseSimpleExpansion = (
 		startIndex: index,
 		type: NodeType.SimpleExpansion,
 	};
-	if (str.length > index + 1 && "*@?-$0_".includes(str.charAt(index + 1))) {
+	if (str.length > index + 1 && '*@?-$0_'.includes(str.charAt(index + 1))) {
 		return createNode<BaseNode<NodeType.SpecialExpansion>>(str, {
 			...node,
 			type: NodeType.SpecialExpansion,
 			endIndex: index + 2,
 		});
 	}
-	const terminalSymbols = ["\t", " ", "\n", "$", "\\", ...terminalChars];
+	const terminalSymbols = ['\t', ' ', '\n', '$', '\\', ...terminalChars];
 	let i = index + 1;
 	for (; i < str.length; i += 1) {
 		if (terminalSymbols.includes(str.charAt(i))) {
@@ -241,7 +241,7 @@ function parseCommandSubstitution(
 	terminalChar: string,
 ): BaseNode<NodeType.CommandSubstitution> {
 	const index =
-		str.charAt(startIndex) === "`" ? startIndex + 1 : startIndex + 2;
+		str.charAt(startIndex) === '`' ? startIndex + 1 : startIndex + 2;
 	const { statements: children, terminatorIndex } = parseStatements(
 		str,
 		index,
@@ -260,23 +260,23 @@ function parseCommandSubstitution(
 const parseString = parseLiteral<NodeType.String>(NodeType.String, '"', '"');
 const parseRawString = parseLiteral<NodeType.RawString>(
 	NodeType.RawString,
-	"'",
-	"'",
+	'\'',
+	'\'',
 );
 const parseExpansion = parseLiteral<NodeType.Expansion>(
 	NodeType.Expansion,
-	"${",
-	"}",
+	'${',
+	'}',
 );
 const parseAnsiCString = parseLiteral<NodeType.AnsiCString>(
 	NodeType.AnsiCString,
-	"$'",
-	"'",
+	'$\'',
+	'\'',
 );
 const parseArithmeticExpansion = parseLiteral<NodeType.ArithmeticExpansion>(
 	NodeType.ArithmeticExpansion,
-	"$((",
-	"))",
+	'$((',
+	'))',
 );
 
 function childAtIndex(
@@ -291,22 +291,22 @@ function childAtIndex(
 		str.charAt(index + 2),
 	];
 	switch (lookahead[0]) {
-		case "$":
-			if (lookahead[1] === "(") {
-				return lookahead[2] === "("
+		case '$':
+			if (lookahead[1] === '(') {
+				return lookahead[2] === '('
 					? parseArithmeticExpansion(str, index)
-					: parseCommandSubstitution(str, index, ")");
+					: parseCommandSubstitution(str, index, ')');
 			}
-			if (lookahead[1] === "{") {
+			if (lookahead[1] === '{') {
 				return parseExpansion(str, index);
 			}
-			if (!inString && lookahead[1] === "'") {
+			if (!inString && lookahead[1] === '\'') {
 				return parseAnsiCString(str, index);
 			}
 			return parseSimpleExpansion(str, index, terminators);
-		case "`":
-			return parseCommandSubstitution(str, index, "`");
-		case "'":
+		case '`':
+			return parseCommandSubstitution(str, index, '`');
+		case '\'':
 			return inString ? null : parseRawString(str, index);
 		case '"':
 			return inString ? null : parseString(str, index);
@@ -332,7 +332,7 @@ function parseLiteral<T extends NodeType>(
 			if (child !== null) {
 				children.push(child);
 				i = child.endIndex - 1;
-			} else if (str.charAt(i) === "\\" && type !== NodeType.RawString) {
+			} else if (str.charAt(i) === '\\' && type !== NodeType.RawString) {
 				i += 1;
 			} else if (str.slice(i, i + endChars.length) === endChars) {
 				return createNode<BaseNode<T>>(str, {
@@ -366,7 +366,7 @@ function parseStatements(
 	let i = index;
 	while (i < str.length) {
 		// Will only exit on EOF, terminalChar or terminator symbol (;, &, &;)
-		let statement = parseStatement(str, i, mustTerminate ? "" : terminalChar);
+		let statement = parseStatement(str, i, mustTerminate ? '' : terminalChar);
 
 		const opIndex = nextWordIndex(str, statement.endIndex);
 		const reachedEnd = opIndex === -1;
@@ -446,7 +446,7 @@ const parseConcatenationOrLiteralNode = (
 		argumentChildren = [];
 	};
 
-	const terminators = ["&", "|", ";", "\n", "'", '"', "`"];
+	const terminators = ['&', '|', ';', '\n', '\'', '"', '`'];
 	if (terminalChar) {
 		terminators.push(terminalChar);
 	}
@@ -464,10 +464,10 @@ const parseConcatenationOrLiteralNode = (
 			endWord(i);
 			argumentChildren.push(childNode);
 			i = childNode.endIndex - 1;
-		} else if ([" ", "\t"].includes(c)) {
+		} else if ([' ', '\t'].includes(c)) {
 			endArgument(i);
 		} else {
-			if (c === "\\") {
+			if (c === '\\') {
 				i += 1;
 			}
 			if (wordStart === -1) {
@@ -507,13 +507,13 @@ const parseAssignmentNode = (
 	str: string,
 	startIndex: number,
 ): AssignmentNode => {
-	const equalsIndex = str.indexOf("=", startIndex);
-	const operator = str.charAt(equalsIndex - 1) === "+" ? "+=" : "=";
+	const equalsIndex = str.indexOf('=', startIndex);
+	const operator = str.charAt(equalsIndex - 1) === '+' ? '+=' : '=';
 	const firstOperatorCharIndex =
-		operator === "=" ? equalsIndex : equalsIndex - 1;
+		operator === '=' ? equalsIndex : equalsIndex - 1;
 	const firstSquareBracketIndex = str
 		.slice(startIndex, firstOperatorCharIndex)
-		.indexOf("[");
+		.indexOf('[');
 	let nameNode: SubscriptNode | BaseNode<NodeType.VariableName>;
 
 	const variableName = createNode<BaseNode<NodeType.VariableName>>(str, {
@@ -545,7 +545,7 @@ const parseAssignmentNode = (
 	const { children, endIndex } = parseConcatenationOrLiteralNode(
 		str,
 		equalsIndex + 1,
-		" ",
+		' ',
 	);
 	return createNode<AssignmentNode>(str, {
 		name: nameNode,
@@ -628,10 +628,10 @@ function parseStatement(
 	let i = nextWordIndex(str, index);
 	i = i === -1 ? index : i;
 	let statement = null;
-	if (["{", "("].includes(str.charAt(i))) {
+	if (['{', '('].includes(str.charAt(i))) {
 		// Parse compound statement or subshell
-		const isCompound = str.charAt(i) === "{";
-		const endChar = isCompound ? "}" : ")";
+		const isCompound = str.charAt(i) === '{';
+		const endChar = isCompound ? '}' : ')';
 
 		const { statements: children, terminatorIndex } = parseStatements(
 			str,
@@ -664,9 +664,9 @@ function parseStatement(
 	const op = opIndex !== -1 && parseOperator(str, opIndex);
 	if (
 		!op ||
-		op === ";" ||
-		op === "&" ||
-		op === "&;" ||
+		op === ';' ||
+		op === '&' ||
+		op === '&;' ||
 		(opIndex !== -1 && terminalChar && str.charAt(opIndex) === terminalChar)
 	) {
 		return statement;
@@ -678,11 +678,11 @@ function parseStatement(
 		opIndex + op.length,
 		terminalChar,
 	);
-	if (op === "&&" || op === "||") {
+	if (op === '&&' || op === '||') {
 		return reduceStatements(str, statement, rightHandStatement, NodeType.List);
 	}
 
-	if (op === "|" || op === "|&") {
+	if (op === '|' || op === '|&') {
 		if (rightHandStatement.type === NodeType.List) {
 			const [oldFirstChild, ...otherChildren] = rightHandStatement.children;
 			const newFirstChild = reduceStatements(
@@ -711,11 +711,11 @@ function parseStatement(
 
 export const printTree = (root: BaseNode) => {
 	const getNodeText = (node: BaseNode, level = 0) => {
-		const indent = " ".repeat(level);
+		const indent = ' '.repeat(level);
 		let nodeText = `${indent}${node.type} [${node.startIndex},  ${node.endIndex}] - ${node.text}`;
 		const childrenText = node.children
 			.map((child) => getNodeText(child, level + 1))
-			.join("\n");
+			.join('\n');
 		if (childrenText) {
 			nodeText += `\n${childrenText}`;
 		}
@@ -731,5 +731,5 @@ export const parse = (str: string): BaseNode =>
 	createNode<BaseNode<NodeType.Program>>(str, {
 		startIndex: 0,
 		type: NodeType.Program,
-		children: parseStatements(str, 0, "").statements,
+		children: parseStatements(str, 0, '').statements,
 	});

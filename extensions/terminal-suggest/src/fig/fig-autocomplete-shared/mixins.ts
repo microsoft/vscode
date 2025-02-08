@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { makeArray } from "./utils";
+import { makeArray } from './utils';
 
 export type SpecMixin =
 	| Fig.Subcommand
@@ -86,7 +86,7 @@ const mergeNamedObjectArrays = <T extends NamedObject>(
 	for (let i = 0; i < partials.length; i += 1) {
 		const partial = partials[i];
 		if (!partial) {
-			throw new Error("Invalid object passed to merge");
+			throw new Error('Invalid object passed to merge');
 		}
 		const existingNames = makeArray(partial.name).filter((name) => name in existingNameIndexMap);
 		if (existingNames.length === 0) {
@@ -94,7 +94,7 @@ const mergeNamedObjectArrays = <T extends NamedObject>(
 		} else {
 			const index = existingNameIndexMap[existingNames[0]];
 			if (existingNames.some((name) => existingNameIndexMap[name] !== index)) {
-				throw new Error("Names provided for option matched multiple existing options");
+				throw new Error('Names provided for option matched multiple existing options');
 			}
 			mergedObjects[index] = mergeItems(mergedObjects[index], partial);
 		}
@@ -113,7 +113,6 @@ function mergeSubcommandArrays(
 	subcommands: Fig.Subcommand[] | undefined,
 	partials: Fig.Subcommand[] | undefined
 ): Fig.Subcommand[] | undefined {
-	// eslint-disable-next-line @typescript-eslint/no-use-before-define
 	return mergeNamedObjectArrays(subcommands, partials, mergeSubcommands);
 }
 
@@ -144,7 +143,7 @@ export const applyMixin = (
 	context: Fig.ShellContext,
 	mixin: SpecMixin
 ): Fig.Subcommand => {
-	if (typeof mixin === "function") {
+	if (typeof mixin === 'function') {
 		return mixin(spec, context);
 	}
 	const partial = mixin;

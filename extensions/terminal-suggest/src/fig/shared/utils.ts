@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { osIsWindows } from '../../helpers/os.js';
-import { createErrorInstance } from "./errors.js";
+import { createErrorInstance } from './errors.js';
 
 // Use bitwise representation of suggestion flags.
 // See here: https://stackoverflow.com/questions/39359740/what-are-enum-flags-in-typescript/
@@ -27,8 +27,8 @@ export enum SuggestionFlag {
 export type SuggestionFlags = number;
 
 export enum SpecLocationSource {
-	GLOBAL = "global",
-	LOCAL = "local",
+	GLOBAL = 'global',
+	LOCAL = 'local',
 }
 
 export function makeArray<T>(object: T | T[]): T[] {
@@ -40,7 +40,9 @@ export function firstMatchingToken(
 	chars: Set<string>,
 ): string | undefined {
 	for (const char of str) {
-		if (chars.has(char)) return char;
+		if (chars.has(char)) {
+			return char;
+		}
 	}
 	return undefined;
 }
@@ -58,7 +60,7 @@ export function isOrHasValue(
 	return Array.isArray(obj) ? obj.includes(valueToMatch) : obj === valueToMatch;
 }
 
-export const TimeoutError = createErrorInstance("TimeoutError");
+export const TimeoutError = createErrorInstance('TimeoutError');
 
 export async function withTimeout<T>(
 	time: number,
@@ -68,7 +70,7 @@ export async function withTimeout<T>(
 		promise,
 		new Promise<T>((_, reject) => {
 			setTimeout(() => {
-				reject(new TimeoutError("Function timed out"));
+				reject(new TimeoutError('Function timed out'));
 			}, time);
 		}),
 	]);
@@ -94,7 +96,9 @@ export function findLast<T>(
 	predicate: (v: T) => boolean,
 ): T | undefined {
 	for (let i = values.length - 1; i >= 0; i -= 1) {
-		if (predicate(values[i])) return values[i];
+		if (predicate(values[i])) {
+			return values[i];
+		}
 	}
 	return undefined;
 }
@@ -110,7 +114,7 @@ export function compareNamedObjectsAlphabetically<
 	B extends NamedObject,
 >(a: A, b: B): number {
 	const getName = (object: NamedObject): string =>
-		typeof object === "string" ? object : makeArray(object.name)[0] || "";
+		typeof object === 'string' ? object : makeArray(object.name)[0] || '';
 	return getName(a).localeCompare(getName(b));
 }
 
@@ -151,7 +155,7 @@ export function memoizeOne<S extends unknown[], T>(
 }
 
 function isNonNullObj(v: unknown): v is Record<string, unknown> {
-	return typeof v === "object" && v !== null;
+	return typeof v === 'object' && v !== null;
 }
 
 function isEmptyObject(v: unknown): v is Record<string, never> {
@@ -164,13 +168,19 @@ function isEmptyObject(v: unknown): v is Record<string, never> {
  * even if the objects are actually equal.
  */
 export function fieldsAreEqual<T>(A: T, B: T, fields: (keyof T)[]): boolean {
-	if (A === B || (isEmptyObject(A) && isEmptyObject(B))) return true;
-	if (!fields.length || !A || !B) return false;
+	if (A === B || (isEmptyObject(A) && isEmptyObject(B))) {
+		return true;
+	}
+	if (!fields.length || !A || !B) {
+		return false;
+	}
 	return fields.every((field) => {
 		const aField = A[field];
 		const bField = B[field];
 
-		if (typeof aField !== typeof bField) return false;
+		if (typeof aField !== typeof bField) {
+			return false;
+		}
 		if (isNonNullObj(aField) && isNonNullObj(bField)) {
 			if (Object.keys(aField).length !== Object.keys(bField).length) {
 				return false;
@@ -182,26 +192,28 @@ export function fieldsAreEqual<T>(A: T, B: T, fields: (keyof T)[]): boolean {
 }
 
 export const splitPath = (path: string): [string, string] => {
-	const idx = path.lastIndexOf("/") + 1;
+	const idx = path.lastIndexOf('/') + 1;
 	return [path.slice(0, idx), path.slice(idx)];
 };
 
 export const ensureTrailingSlash = (str: string) =>
-	str.endsWith("/") ? str : `${str}/`;
+	str.endsWith('/') ? str : `${str}/`;
 
 // Outputs CWD with trailing `/`
 export const getCWDForFilesAndFolders = (
 	cwd: string | null,
 	searchTerm: string,
 ): string => {
-	if (cwd === null) return "/";
+	if (cwd === null) {
+		return '/';
+	}
 	const [dirname] = splitPath(searchTerm);
 
-	if (dirname === "") {
+	if (dirname === '') {
 		return ensureTrailingSlash(cwd);
 	}
 
-	return dirname.startsWith("~/") || dirname.startsWith("/")
+	return dirname.startsWith('~/') || dirname.startsWith('/')
 		? dirname
 		: `${cwd}/${dirname}`;
 };
@@ -209,9 +221,9 @@ export const getCWDForFilesAndFolders = (
 export function localProtocol(domain: string, path: string) {
 	let modifiedDomain;
 	//TODO@meganrogge
-	// if (domain === "path" && !window.fig?.constants?.newUriFormat) {
-	if (domain === "path") {
-		modifiedDomain = "";
+	// if (domain === 'path' && !window.fig?.constants?.newUriFormat) {
+	if (domain === 'path') {
+		modifiedDomain = '';
 	} else {
 		modifiedDomain = domain;
 	}
@@ -250,5 +262,5 @@ export async function exponentialBackoff<T>(
 		}
 	}
 
-	throw new Error("Failed to execute function after all retries.");
+	throw new Error('Failed to execute function after all retries.');
 }

@@ -8,6 +8,6 @@ export function makeArray<T>(object: T | T[]): T[] {
 }
 
 export enum SpecLocationSource {
-	GLOBAL = "global",
-	LOCAL = "local",
+	GLOBAL = 'global',
+	LOCAL = 'local',
 }

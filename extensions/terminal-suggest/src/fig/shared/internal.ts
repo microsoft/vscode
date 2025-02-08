@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Internal, Metadata } from "../fig-autocomplete-shared";
+import { Internal, Metadata } from '../fig-autocomplete-shared';
 
 export type SpecLocation = Fig.SpecLocation & {
 	diffVersionedFile?: string;
 };
 
 type Override<T, S> = Omit<T, keyof S> & S;
-export type SuggestionType = Fig.SuggestionType | "history" | "auto-execute";
+export type SuggestionType = Fig.SuggestionType | 'history' | 'auto-execute';
 export type Suggestion<ArgT = Metadata.ArgMeta> = Override<
 	Fig.Suggestion,
 	{

@@ -6,16 +6,16 @@
 import { createErrorInstance } from '../shared/errors';
 
 // LoadSpecErrors
-export const MissingSpecError = createErrorInstance("MissingSpecError");
+export const MissingSpecError = createErrorInstance('MissingSpecError');
 export const WrongDiffVersionedSpecError = createErrorInstance(
-	"WrongDiffVersionedSpecError",
+	'WrongDiffVersionedSpecError',
 );
-export const DisabledSpecError = createErrorInstance("DisabledSpecError");
-export const LoadLocalSpecError = createErrorInstance("LoadLocalSpecError");
-export const SpecCDNError = createErrorInstance("SpecCDNError");
+export const DisabledSpecError = createErrorInstance('DisabledSpecError');
+export const LoadLocalSpecError = createErrorInstance('LoadLocalSpecError');
+export const SpecCDNError = createErrorInstance('SpecCDNError');
 
 // ParsingErrors
-export const ParsingHistoryError = createErrorInstance("ParsingHistoryError");
+export const ParsingHistoryError = createErrorInstance('ParsingHistoryError');
 
-export const ParseArgumentsError = createErrorInstance("ParseArgumentsError");
-export const UpdateStateError = createErrorInstance("UpdateStateError");
+export const ParseArgumentsError = createErrorInstance('ParseArgumentsError');
+export const UpdateStateError = createErrorInstance('UpdateStateError');

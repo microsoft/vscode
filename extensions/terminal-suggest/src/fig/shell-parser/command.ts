@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NodeType, BaseNode, createTextNode, parse } from "./parser.js";
-import { ConvertCommandError, SubstituteAliasError } from "./errors.js";
+import { NodeType, BaseNode, createTextNode, parse } from './parser.js';
+import { ConvertCommandError, SubstituteAliasError } from './errors.js';
 
-export * from "./errors.js";
+export * from './errors.js';
 
 export type Token = {
 	text: string;
@@ -71,7 +71,7 @@ export const createTextToken = (
 
 const convertCommandNodeToCommand = (tree: BaseNode): Command => {
 	if (tree.type !== NodeType.Command) {
-		throw new ConvertCommandError("Cannot get tokens from non-command node");
+		throw new ConvertCommandError('Cannot get tokens from non-command node');
 	}
 
 	const command = {
@@ -88,9 +88,9 @@ const convertCommandNodeToCommand = (tree: BaseNode): Command => {
 	if (
 		+(children.length === 0 || children[children.length - 1].endIndex) <
 		endIndex &&
-		text.endsWith(" ")
+		text.endsWith(' ')
 	) {
-		command.tokens.push(createTextToken(command, endIndex, ""));
+		command.tokens.push(createTextToken(command, endIndex, ''));
 	}
 	return command;
 };
@@ -108,7 +108,7 @@ export const substituteAlias = (
 	alias: string,
 ): Command => {
 	if (command.tokens.find((t) => t === token) === undefined) {
-		throw new SubstituteAliasError("Token not in command");
+		throw new SubstituteAliasError('Token not in command');
 	}
 	const { tree } = command;
 
@@ -118,7 +118,7 @@ export const substituteAlias = (
 	const preAliasText = `${tree.text.slice(0, preAliasChars)}`;
 	const postAliasText = postAliasChars
 		? `${tree.text.slice(postAliasChars)}`
-		: "";
+		: '';
 
 	const commandBuffer = `${preAliasText}${alias}${postAliasText}`;
 
@@ -126,7 +126,7 @@ export const substituteAlias = (
 	const parseTree = shiftByAmount(parse(commandBuffer), tree.startIndex);
 
 	if (parseTree.children.length !== 1) {
-		throw new SubstituteAliasError("Invalid alias");
+		throw new SubstituteAliasError('Invalid alias');
 	}
 
 	const newCommand = convertCommandNodeToCommand(parseTree.children[0]);
@@ -150,7 +150,7 @@ export const substituteAlias = (
 	});
 
 	if (newCommand.tokens.length - command.tokens.length !== tokenIndexDiff) {
-		throw new SubstituteAliasError("Error substituting alias");
+		throw new SubstituteAliasError('Error substituting alias');
 	}
 
 	return {
@@ -177,12 +177,12 @@ export const expandCommand = (
 		!usedAliases.has(name.text)
 	) {
 		// Remove quotes
-		const aliasValue = aliases[name.text].replace(/^'(.*)'$/g, "$1");
+		const aliasValue = aliases[name.text].replace(/^'(.*)'$/g, '$1');
 		try {
 			expanded = substituteAlias(expanded, name, aliasValue);
 		} catch (_err) {
 			// TODO(refactoring): add logger again
-			// console.error("Error substituting alias");
+			// console.error('Error substituting alias');
 		}
 		usedAliases.add(name.text);
 		[name] = expanded.tokens;

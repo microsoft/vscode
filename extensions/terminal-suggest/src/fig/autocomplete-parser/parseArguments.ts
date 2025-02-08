@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import { filepaths, folders } from "@fig/autocomplete-generators";
-import * as Internal from "../shared/internal";
+// import { filepaths, folders } from '@fig/autocomplete-generators';
+import * as Internal from '../shared/internal';
 import {
 	firstMatchingToken,
 	makeArray,
 	SpecLocationSource,
 	SuggestionFlag,
 	SuggestionFlags,
-} from "../shared/utils";
+} from '../shared/utils';
 // import {
 // 	executeCommand,
 // 	executeLoginShell,
 // 	getSetting,
 // 	isInDevMode,
 // 	SETTINGS,
-// } from "../../api-bindings-wrappers/src";
+// } from '../../api-bindings-wrappers/src';
 import {
 	Command,
 	substituteAlias,
-} from "../shell-parser";
+} from '../shell-parser';
 // import {
 // 	getSpecPath,
 // 	loadSubcommandCached,
 // 	serializeSpecLocation,
-// } from "./loadSpec.js";
+// } from './loadSpec.js';
 import {
 	ParseArgumentsError,
 	ParsingHistoryError,
 	UpdateStateError,
-} from "./errors.js";
+} from './errors.js';
 import { convertSubcommand, initializeDefault } from '../fig-autocomplete-shared';
 import { exec, type ExecException } from 'child_process';
 
@@ -43,14 +43,14 @@ type ArgArrayState = {
 };
 
 export enum TokenType {
-	None = "none",
-	Subcommand = "subcommand",
-	Option = "option",
-	OptionArg = "option_arg",
-	SubcommandArg = "subcommand_arg",
+	None = 'none',
+	Subcommand = 'subcommand',
+	Option = 'option',
+	OptionArg = 'option_arg',
+	SubcommandArg = 'subcommand_arg',
 
 	// Option chain or option passed with arg in a single token.
-	Composite = "composite",
+	Composite = 'composite',
 }
 
 export type BasicAnnotation =
@@ -113,11 +113,11 @@ export const createArgState = (args?: Internal.Arg[]): ArgArrayState => {
 
 			let updatedGenerator: Fig.Generator | undefined;
 			// TODO: Pass templates out as a result
-			if (templateArray.includes("filepaths") && templateArray.includes("folders")) {
+			if (templateArray.includes('filepaths') && templateArray.includes('folders')) {
 				updatedGenerator = { template: ['filepaths', 'folders'] };
-			} else if (templateArray.includes("filepaths")) {
+			} else if (templateArray.includes('filepaths')) {
 				updatedGenerator = { template: 'filepaths' };
-			} else if (templateArray.includes("folders")) {
+			} else if (templateArray.includes('folders')) {
 				updatedGenerator = { template: 'folders' };
 			}
 
@@ -260,7 +260,7 @@ export const findSubcommand = (
 ): Internal.Subcommand => {
 	const subcommand = spec.subcommands[token];
 	if (!subcommand) {
-		throw new UpdateStateError("Subcommand not found");
+		throw new UpdateStateError('Subcommand not found');
 	}
 	return subcommand;
 };
@@ -272,11 +272,11 @@ const updateStateForSubcommand = (
 ): ArgumentParserState => {
 	const { completionObj, haveEnteredSubcommandArgs } = state;
 	if (!completionObj.subcommands) {
-		throw new UpdateStateError("No subcommands");
+		throw new UpdateStateError('No subcommands');
 	}
 
 	if (haveEnteredSubcommandArgs) {
-		throw new UpdateStateError("Already entered subcommand args");
+		throw new UpdateStateError('Already entered subcommand args');
 	}
 
 	const newCompletionObj = findSubcommand(state.completionObj, token);
@@ -355,7 +355,7 @@ const updateStateForOptionArg = (
 	isFinalToken = false,
 ): ArgumentParserState => {
 	if (!getCurrentArg(state.optionArgState)) {
-		throw new UpdateStateError("Cannot consume option arg.");
+		throw new UpdateStateError('Cannot consume option arg.');
 	}
 
 	const annotations: Annotation[] = [
@@ -381,7 +381,7 @@ const updateStateForSubcommandArg = (
 ): ArgumentParserState => {
 	// Consume token as subcommand arg if possible.
 	if (!getCurrentArg(state.subcommandArgState)) {
-		throw new UpdateStateError("Cannot consume subcommand arg.");
+		throw new UpdateStateError('Cannot consume subcommand arg.');
 	}
 
 	const annotations: Annotation[] = [
@@ -410,11 +410,11 @@ const updateStateForChainedOptionToken = (
 	// https://en.wikipedia.org/wiki/Command-line_interface#Option_conventions_in_Unix-like_systems
 	// See https://stackoverflow.com/a/10818697
 	// Handle -- as special option flag.
-	if (isFinalToken && ["-", "--"].includes(token)) {
-		throw new UpdateStateError("Final token, not consuming as option");
+	if (isFinalToken && ['-', '--'].includes(token)) {
+		throw new UpdateStateError('Final token, not consuming as option');
 	}
 
-	if (token === "--") {
+	if (token === '--') {
 		return {
 			...state,
 			isEndOfOptions: true,
@@ -429,12 +429,12 @@ const updateStateForChainedOptionToken = (
 	const { parserDirectives } = state.completionObj;
 	const isLongOption =
 		parserDirectives?.flagsArePosixNoncompliant ||
-		token.startsWith("--") ||
-		!token.startsWith("-");
+		token.startsWith('--') ||
+		!token.startsWith('-');
 
 	if (isLongOption) {
 		const optionSeparators = new Set(
-			parserDirectives?.optionArgSeparators || "=",
+			parserDirectives?.optionArgSeparators || '=',
 		);
 		const separatorMatches = firstMatchingToken(token, optionSeparators);
 
@@ -447,7 +447,7 @@ const updateStateForChainedOptionToken = (
 
 			if ((optionState.optionArgState.args?.length ?? 0) > 1) {
 				throw new UpdateStateError(
-					"Cannot pass argument with separator: option takes multiple args",
+					'Cannot pass argument with separator: option takes multiple args',
 				);
 			}
 
@@ -486,7 +486,7 @@ const updateStateForChainedOptionToken = (
 	}
 
 	let optionState = state;
-	let optionArg = "";
+	let optionArg = '';
 	const subtokens: BasicAnnotation[] = [];
 	let { passedOptions } = state;
 
@@ -518,7 +518,7 @@ const updateStateForChainedOptionToken = (
 	if (optionArg) {
 		if ((optionState.optionArgState.args?.length ?? 0) > 1) {
 			throw new UpdateStateError(
-				"Cannot chain option argument: option takes multiple args",
+				'Cannot chain option argument: option takes multiple args',
 			);
 		}
 
@@ -601,12 +601,12 @@ const getInitialState = (
 
 const historyExecuteShellCommand: Fig.ExecuteCommandFunction = async () => {
 	throw new ParsingHistoryError(
-		"Cannot run shell command while parsing history",
+		'Cannot run shell command while parsing history',
 	);
 };
 
 const getExecuteShellCommandFunction = (isParsingHistory = false) =>
-	isParsingHistory ? historyExecuteShellCommand : () => { throw new Error("Not implemented"); };
+	isParsingHistory ? historyExecuteShellCommand : () => { throw new Error('Not implemented'); };
 
 // const getGenerateSpecCacheKey = (
 // 	completionObj: Internal.Subcommand,
@@ -616,15 +616,15 @@ const getExecuteShellCommandFunction = (isParsingHistory = false) =>
 
 // 	const generateSpecCacheKey = completionObj?.generateSpecCacheKey;
 // 	if (generateSpecCacheKey) {
-// 		if (typeof generateSpecCacheKey === "string") {
+// 		if (typeof generateSpecCacheKey === 'string') {
 // 			cacheKey = generateSpecCacheKey;
-// 		} else if (typeof generateSpecCacheKey === "function") {
+// 		} else if (typeof generateSpecCacheKey === 'function') {
 // 			cacheKey = generateSpecCacheKey({
 // 				tokens: tokenArray,
 // 			});
 // 		} else {
 // 			console.error(
-// 				"generateSpecCacheKey must be a string or function",
+// 				'generateSpecCacheKey must be a string or function',
 // 				generateSpecCacheKey,
 // 			);
 // 		}
@@ -634,7 +634,7 @@ const getExecuteShellCommandFunction = (isParsingHistory = false) =>
 // 	// if (isInDevMode()) {
 // 	// 	return undefined;
 // 	// }
-// 	if (typeof cacheKey === "string") {
+// 	if (typeof cacheKey === 'string') {
 // 		// Prepend the spec name to the cacheKey to avoid collisions between specs.
 // 		return `${tokenArray[0]}:${cacheKey}`;
 // 	}
@@ -647,7 +647,7 @@ const getExecuteShellCommandFunction = (isParsingHistory = false) =>
 // 	isParsingHistory = false,
 // 	// localconsole: console.console = console,
 // ): Promise<ArgumentParserState> => {
-// 	console.debug("generateSpec", { state, tokenArray });
+// 	console.debug('generateSpec', { state, tokenArray });
 // 	const { completionObj } = state;
 // 	const { generateSpec } = completionObj;
 // 	if (!generateSpec) {
@@ -663,7 +663,7 @@ const getExecuteShellCommandFunction = (isParsingHistory = false) =>
 // 			const exec = getExecuteShellCommandFunction(isParsingHistory);
 // 			const spec = await generateSpec(tokenArray, exec);
 // 			if (!spec) {
-// 				throw new UpdateStateError("generateSpec must return a spec");
+// 				throw new UpdateStateError('generateSpec must return a spec');
 // 			}
 // 			newSpec = convertSubcommand(
 // 				spec,
@@ -694,7 +694,7 @@ const getExecuteShellCommandFunction = (isParsingHistory = false) =>
 // 		if (!(err instanceof ParsingHistoryError)) {
 // 			console.error(
 // 				`There was an error with spec (generator owner: ${completionObj.name
-// 				}, tokens: ${tokenArray.join(", ")}) generateSpec function`,
+// 				}, tokens: ${tokenArray.join(', ')}) generateSpec function`,
 // 				err,
 // 			);
 // 		}
@@ -710,7 +710,7 @@ export const getResultFromState = (
 	const lastAnnotation: Annotation | undefined =
 		annotations[annotations.length - 1];
 	let argState = getArgState(state);
-	let searchTerm = lastAnnotation?.text ?? "";
+	let searchTerm = lastAnnotation?.text ?? '';
 
 	let onlySuggestArgs = state.isEndOfOptions;
 
@@ -754,7 +754,7 @@ export const getResultFromState = (
 
 export const initialParserState = getResultFromState(
 	getInitialState({
-		name: [""],
+		name: [''],
 		subcommands: {},
 		options: {},
 		persistentOptions: {},
@@ -779,11 +779,11 @@ export const initialParserState = getResultFromState(
 // 	specLocation: Internal.SpecLocation,
 // ): string =>
 // 	[
-// 		tokenArray.slice(0, -1).join(" "),
+// 		tokenArray.slice(0, -1).join(' '),
 // 		// serializeSpecLocation(specLocation),
 // 		context.currentWorkingDirectory,
 // 		context.currentProcess,
-// 	].join(",");
+// 	].join(',');
 
 // Parse all arguments in tokenArray.
 const parseArgumentsCached = async (
@@ -810,7 +810,7 @@ const parseArgumentsCached = async (
 	// ];
 	// console.debug({ locations });
 
-	// let cacheKey = "";
+	// let cacheKey = '';
 	// for (let i = 0; i < locations.length; i += 1) {
 	// 	cacheKey = getCacheKey(tokenText, context, locations[i]);
 	// 	if (
@@ -840,12 +840,12 @@ const parseArgumentsCached = async (
 	// 		loadSubcommandCached(specPath, context, console),
 	// 	);
 	// 	if (!specPath) {
-	// 		throw new Error("specPath is undefined");
+	// 		throw new Error('specPath is undefined');
 	// 	}
 
 	// 	if (!spec) {
 	// 		const path =
-	// 			specPath.type === SpecLocationSource.LOCAL ? specPath?.path : "";
+	// 			specPath.type === SpecLocationSource.LOCAL ? specPath?.path : '';
 	// 		console.warn(
 	// 			`Failed to load spec ${specPath.name} from ${specPath.type} ${path}`,
 	// 		);
@@ -856,7 +856,7 @@ const parseArgumentsCached = async (
 	// }
 
 	if (!spec || !specPath) {
-		throw new UpdateStateError("Failed loading spec");
+		throw new UpdateStateError('Failed loading spec');
 	}
 
 	let state: ArgumentParserState = getInitialState(
@@ -877,7 +877,7 @@ const parseArgumentsCached = async (
 	// 	token?: string,
 	// ) => {
 	// 	const loadSpecResult =
-	// 		typeof loadSpec === "function"
+	// 		typeof loadSpec === 'function'
 	// 			? token !== undefined
 	// 				? await loadSpec(token, exec)
 	// 				: undefined
@@ -946,7 +946,7 @@ const parseArgumentsCached = async (
 		const lastState = state;
 
 		state = updateState(state, token);
-		console.debug("Parser state update", { state });
+		console.debug('Parser state update', { state });
 
 		const { annotations } = state;
 		const lastAnnotation = annotations[annotations.length - 1];
@@ -963,7 +963,7 @@ const parseArgumentsCached = async (
 			const { alias } = lastArgObject.parserDirectives;
 			try {
 				const aliasValue =
-					typeof alias === "string" ? alias : await alias(token, exec);
+					typeof alias === 'string' ? alias : await alias(token, exec);
 				try {
 					currentCommand = substituteAlias(command, tokens[i], aliasValue);
 					// tokens[...i] should be the same, but tokens[i+1...] may be different.
@@ -973,7 +973,7 @@ const parseArgumentsCached = async (
 					i -= 1;
 					continue;
 				} catch (err) {
-					console.error("Error substituting alias:", err);
+					console.error('Error substituting alias:', err);
 					throw err;
 				}
 			} catch (err) {
@@ -1031,7 +1031,7 @@ const parseArgumentsCached = async (
 	}
 
 	// if (generatedSpec) {
-	// 	if (tokenText[0] === "fig") figCaches.add(cacheKey);
+	// 	if (tokenText[0] === 'fig') figCaches.add(cacheKey);
 	// 	parseArgumentsGenerateSpecCache.set(cacheKey, state);
 	// } else {
 	// 	parseArgumentsCache.set(cacheKey, state);
@@ -1041,45 +1041,45 @@ const parseArgumentsCached = async (
 };
 
 const firstTokenSpec: Internal.Subcommand = {
-	name: ["firstTokenSpec"],
+	name: ['firstTokenSpec'],
 	subcommands: {},
 	options: {},
 	persistentOptions: {},
 	loadSpec: undefined,
 	args: [
 		{
-			name: "command",
+			name: 'command',
 			generators: [
 				{
 					custom: async (_tokens, _exec, context) => {
 						let result: Fig.Suggestion[] = [];
-						if (context?.currentProcess.includes("fish")) {
+						if (context?.currentProcess.includes('fish')) {
 							const commands = await executeLoginShell({
 								command: 'complete -C ""',
 								executable: context.currentProcess,
 							});
-							result = commands.split("\n").map((commandString) => {
-								const splitIndex = commandString.indexOf("\t");
+							result = commands.split('\n').map((commandString) => {
+								const splitIndex = commandString.indexOf('\t');
 								const name = commandString.slice(0, splitIndex + 1);
 								const description = commandString.slice(splitIndex + 1);
-								return { name, description, type: "subcommand" };
+								return { name, description, type: 'subcommand' };
 							});
-						} else if (context?.currentProcess.includes("bash")) {
+						} else if (context?.currentProcess.includes('bash')) {
 							const commands = await executeLoginShell({
-								command: "compgen -c",
+								command: 'compgen -c',
 								executable: context.currentProcess,
 							});
 							result = commands
-								.split("\n")
-								.map((name) => ({ name, type: "subcommand" }));
-						} else if (context?.currentProcess.includes("zsh")) {
+								.split('\n')
+								.map((name) => ({ name, type: 'subcommand' }));
+						} else if (context?.currentProcess.includes('zsh')) {
 							const commands = await executeLoginShell({
 								command: `for key in \${(k)commands}; do echo $key; done && alias +r`,
 								executable: context.currentProcess,
 							});
 							result = commands
-								.split("\n")
-								.map((name) => ({ name, type: "subcommand" }));
+								.split('\n')
+								.map((name) => ({ name, type: 'subcommand' }));
 						}
 
 						const names = new Set();
@@ -1092,7 +1092,7 @@ const firstTokenSpec: Internal.Subcommand = {
 						});
 					},
 					cache: {
-						strategy: "stale-while-revalidate",
+						strategy: 'stale-while-revalidate',
 						ttl: 10 * 1000, // 10s
 					},
 				},
@@ -1130,22 +1130,22 @@ export const parseArguments = async (
 ): Promise<ArgumentParserResult> => {
 	const tokens = command?.tokens ?? [];
 	if (!command || tokens.length === 0) {
-		throw new ParseArgumentsError("Invalid token array");
+		throw new ParseArgumentsError('Invalid token array');
 	}
 
 	if (tokens.length === 1) {
 		const showFirstCommandCompletion = true;
-		let spec = showFirstCommandCompletion
+		const spec = showFirstCommandCompletion
 			? firstTokenSpec
 			: { ...firstTokenSpec, args: [] };
-		let specPath = { name: "firstTokenSpec", type: SpecLocationSource.GLOBAL };
-		if (tokens[0].text.includes("/")) {
+		let specPath = { name: 'firstTokenSpec', type: SpecLocationSource.GLOBAL };
+		if (tokens[0].text.includes('/')) {
 			// special-case: Symfony has "bin/console" which can be invoked directly
 			// and should not require a user to create script completions for it
-			if (tokens[0].text === "bin/console") {
-				specPath = { name: "php/bin-console", type: SpecLocationSource.GLOBAL };
+			if (tokens[0].text === 'bin/console') {
+				specPath = { name: 'php/bin-console', type: SpecLocationSource.GLOBAL };
 			} else {
-				specPath = { name: "dotslash", type: SpecLocationSource.GLOBAL };
+				specPath = { name: 'dotslash', type: SpecLocationSource.GLOBAL };
 			}
 			// spec = await loadSubcommandCached(specPath, context);
 		}
