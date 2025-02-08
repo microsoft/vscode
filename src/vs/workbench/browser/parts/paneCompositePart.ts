@@ -40,6 +40,7 @@ import { ViewsSubMenu } from './views/viewPaneContainer.js';
 import { getActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 
 export enum CompositeBarPosition {
 	TOP,
@@ -105,6 +106,31 @@ export interface IPaneCompositePart extends IView {
 	getPaneCompositeIds(): string[];
 }
 
+interface IInventoryIcon {
+	readonly id: string;
+	readonly icon: string;
+	readonly label: string;
+	readonly command: string;
+	readonly width: number; // Width when expanded
+}
+
+class InventoryIcons {
+	private static readonly icons: readonly IInventoryIcon[] = [
+		{ id: 'chat', icon: 'inventory-chat-icon', label: 'Chat', command: 'workbench.action.togglePanel', width: 70 },
+		{ id: 'creator', icon: 'inventory-creator-icon', label: 'Creator', command: 'workbench.action.toggleSidebarVisibility', width: 80 },
+		{ id: 'search', icon: 'inventory-search-icon', label: 'Search', command: 'workbench.action.findInFiles', width: 75 },
+		{ id: 'memory', icon: 'inventory-memory-icon', label: 'Memory', command: 'workbench.action.toggleZenMode', width: 85 }
+	] as const;
+
+	static getAll(): readonly IInventoryIcon[] {
+		return this.icons;
+	}
+
+	static getById(id: string): IInventoryIcon | undefined {
+		return this.icons.find(icon => icon.id === id);
+	}
+}
+
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
 
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
@@ -133,6 +159,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private blockOpening = false;
 	protected contentDimension: Dimension | undefined;
 
+	private activeInventoryIcon: string | undefined = 'chat';
+
 	constructor(
 		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,
 		partOptions: IPartOptions,
@@ -155,6 +183,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService protected readonly menuService: IMenuService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		let location = ViewContainerLocation.Sidebar;
 		let registryId = Extensions.Viewlets;
@@ -421,31 +450,47 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			// Add our icon group before the composite bar
 			const iconGroup = $('.icon-group');
 
-			const icons = [
-				{ icon: 'inventory-chat-icon', label: 'Chat' },
-				{ icon: 'inventory-creator-icon', label: 'Creator' },
-				{ icon: 'inventory-search-icon', label: 'Search' },
-				{ icon: 'inventory-memory-icon', label: 'Memory' }
-			];
-
-			icons.forEach(({ icon, label }) => {
-				// Main container
+			InventoryIcons.getAll().forEach((iconInfo) => {
 				const container = $('span');
 				container.classList.add('icon-container');
+				if (this.activeInventoryIcon === iconInfo.id) {
+					container.classList.add('active');
+				}
 
-				// Icon element
 				const iconElement = $('span');
-				iconElement.classList.add('icon-element', icon); // Add specific icon class
+				iconElement.classList.add('icon-element', iconInfo.icon);
 
-				// Label element
 				const labelElement = $('span');
 				labelElement.classList.add('icon-label');
-				labelElement.textContent = label;
+				labelElement.textContent = iconInfo.label;
 
-				// Append in order
 				container.appendChild(iconElement);
-				// container.appendChild(labelElement);
+				container.appendChild(labelElement);
 				iconGroup.appendChild(container);
+
+				// Add tooltip
+				container.title = iconInfo.label;
+
+				// Update click handler
+				this._register(addDisposableListener(container, EventType.CLICK, () => {
+					// Remove active class from all icons
+					iconGroup.querySelectorAll('.icon-container').forEach(el =>
+						el.classList.remove('active'));
+
+					if (this.activeInventoryIcon !== iconInfo.id) {
+						// Activate this icon
+						container.classList.add('active');
+						this.activeInventoryIcon = iconInfo.id;
+					} else {
+						// Deactivate if clicking the active icon
+						this.activeInventoryIcon = undefined;
+					}
+
+					this.commandService.executeCommand(iconInfo.command);
+				}));
+
+				// Add hover effect to show it's clickable
+				container.style.cursor = 'pointer';
 			});
 
 			this.paneCompositeBarContainer = prepend(newCompositeBarContainer, $('.composite-bar-container'));

@@ -56,7 +56,7 @@
     overflow: hidden;
 }
 
-/* Main container for each icon */
+/* Base state for icon containers */
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container {
     width: 24px;
     height: 24px;
@@ -65,9 +65,58 @@
     cursor: pointer;
     border-radius: 8px;
     position: relative;
-    transition: width 0.3s ease;
+    transition: all 0.2s ease-in-out;
     padding: 0;
     overflow: hidden;
+}
+
+/* Remove ALL hover-based width changes */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:hover {
+    width: 24px !important; /* Force default width on hover */
+}
+
+/* Only expand width when active */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active {
+    transition: width 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-chat-icon) {
+    width: 70px !important;
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-creator-icon) {
+    width: 80px !important;
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-search-icon) {
+    width: 75px !important;
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-memory-icon) {
+    width: 85px !important;
+}
+
+/* Glow effects only on active state */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-chat-icon) {
+    box-shadow: 0px 0px 48px 8px rgba(175, 243, 73, 0.3);
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-creator-icon) {
+    box-shadow: 0px 0px 48px 8px rgba(255, 113, 189, 0.3);
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-search-icon) {
+    box-shadow: 0px 0px 48px 8px rgba(18, 212, 205, 0.3);
+}
+
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-memory-icon) {
+    box-shadow: 0px 0px 48px 8px rgba(145, 105, 255, 0.3);
+}
+
+/* Subtle hover effect for inactive icons */
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container:not(.active):hover {
+    opacity: 0.8;
+    transform: scale(1.05);
 }
 
 /* Icon element */
@@ -88,23 +137,6 @@
     left: 28px; /* 24px (icon width) + 4px margin */
     white-space: nowrap;
     color: #E9FFC7;
-}
-
-/* Hover and active states with specific widths for each label */
-.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-chat-icon):hover {
-    width: 70px; /* Adjusted for "Chat" */
-}
-
-.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-creator-icon):hover {
-    width: 80px; /* Adjusted for "Creator" */
-}
-
-.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-search-icon):hover {
-    width: 75px; /* Adjusted for "Search" */
-}
-
-.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-memory-icon):hover {
-    width: 85px; /* Adjusted for "Memory" */
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar {
@@ -201,21 +233,4 @@
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-element.inventory-memory-icon {
     background-image: url('../../../media/inventory-memory-icon.svg');
-}
-
-/* Update hover glow colors to match their backgrounds */
-.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-chat-icon):hover {
-    box-shadow: 0px 0px 48px 8px rgba(175, 243, 73, 0.3);
-}
-
-.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-creator-icon):hover {
-    box-shadow: 0px 0px 48px 8px rgba(255, 113, 189, 0.3);
-}
-
-.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-search-icon):hover {
-    box-shadow: 0px 0px 48px 8px rgba(18, 212, 205, 0.3);
-}
-
-.monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-memory-icon):hover {
-    box-shadow: 0px 0px 48px 8px rgba(145, 105, 255, 0.3);
 }
