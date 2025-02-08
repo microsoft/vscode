@@ -183,7 +183,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService protected readonly menuService: IMenuService,
-		@ICommandService private readonly commandService: ICommandService,
+		@ICommandService protected readonly commandService: ICommandService,
 	) {
 		let location = ViewContainerLocation.Sidebar;
 		let registryId = Extensions.Viewlets;

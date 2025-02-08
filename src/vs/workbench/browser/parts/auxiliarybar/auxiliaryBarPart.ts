@@ -85,11 +85,12 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
-		@ICommandService private commandService: ICommandService,
+		@ICommandService commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(
+
 			Parts.AUXILIARYBAR_PART,
 			{
 				hasTitle: true,
@@ -114,7 +115,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			commandService
 		);
+
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
