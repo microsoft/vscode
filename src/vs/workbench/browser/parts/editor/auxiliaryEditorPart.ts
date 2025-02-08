@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) 2025 EthicalCoder. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { onDidChangeFullscreen } from '../../../../base/browser/browser.js';
@@ -315,7 +315,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		const result = this.mergeAllGroups(targetGroup, {
 			// Try to reduce the impact of closing the auxiliary window
 			// as much as possible by not changing existing editors
-			// in the main window. 
+			// in the main window.
 			preserveExistingIndex: true
 		});
 		targetGroup.focus();

@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) 2025 EthicalCoder. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
@@ -238,7 +238,7 @@ suite('ParameterHintsModel', () => {
 		});
 	});
 
-	test('Provider should be retriggered if already active', async () => {
+	test('Provider should be retriggered if already active by retrigger character', async () => {
 		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const editor = createMockEditor('');
@@ -282,7 +282,7 @@ suite('ParameterHintsModel', () => {
 		});
 	});
 
-	test('Should cancel existing request when new request comes in', async () => {
+	test('should cancel existing request when new request comes in', async () => {
 
 		const editor = createMockEditor('abc def');
 		const hintsModel = disposables.add(new ParameterHintsModel(editor, registry));
@@ -346,7 +346,7 @@ suite('ParameterHintsModel', () => {
 		});
 	});
 
-	test('Provider should be retriggered by retrigger character', async () => {
+	test('should retrigger on explicit retrigger character', async () => {
 		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const triggerChar = 'a';

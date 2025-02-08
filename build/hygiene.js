@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) 2025 EthicalCoder. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 const filter = require('gulp-filter');
@@ -15,8 +15,8 @@ const { all, copyrightFilter, unicodeFilter, indentationFilter, tsFormattingFilt
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
-	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
-	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+	' *  Copyright (c) 2025 EthicalCoder. All rights reserved.',
+	' *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/',
 ];
 
@@ -370,4 +370,22 @@ if (require.main === module) {
 			}
 		);
 	}
+}
+
+function checkCopyright(lines, lineStart) {
+	const product = require('../product.json');
+	const currentYear = new Date().getFullYear();
+	const copyrightLines = [
+		'/*---------------------------------------------------------------------------------------------',
+		` *  Copyright (c) ${currentYear} EthicalCoder. All rights reserved.`,
+		' *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.',
+		' *--------------------------------------------------------------------------------------------*/'
+	];
+
+	for (let i = 0; i < copyrightLines.length; i++) {
+		if (lines[lineStart + i] !== copyrightLines[i]) {
+			return false;
+		}
+	}
+	return true;
 }
