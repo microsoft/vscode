@@ -17,6 +17,7 @@ import { TerminalCapabilityStore } from '../../../../../../platform/terminal/com
 import { ShellEnvDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/shellEnvDetectionCapability.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
+import { count } from '../../../../../../base/common/strings.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -71,7 +72,14 @@ suite('TerminalCompletionService', () => {
 				return createFileStat(resource);
 			},
 			async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata> {
-				const children = childResources.filter(e => e.resource.fsPath.startsWith(resource.fsPath));
+				const children = childResources.filter(child => {
+					const childFsPath = child.resource.path.replace(/\/$/, '');
+					const parentFsPath = resource.path.replace(/\/$/, '');
+					return (
+						childFsPath.startsWith(parentFsPath) &&
+						count(childFsPath, '/') === count(parentFsPath, '/') + 1
+					);
+				});
 				return createFileStat(resource, undefined, undefined, undefined, children);
 			},
 		});
@@ -232,6 +240,7 @@ suite('TerminalCompletionService', () => {
 
 			resourceRequestConfig = {
 				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
+				filesRequested: true,
 				foldersRequested: true,
 				pathSeparator
 			};
@@ -245,24 +254,27 @@ suite('TerminalCompletionService', () => {
 			];
 			childResources = [
 				{ resource: URI.parse('file:///home/vscode'), isDirectory: true },
+				{ resource: URI.parse('file:///home/vscode/foo'), isDirectory: true },
+				{ resource: URI.parse('file:///home/vscode/bar.txt'), isFile: true },
 			];
 		});
 
 		test.skip('~| should return completion for ~', async () => {
 		});
+
 		test('~/| should return folder completions relative to $HOME', async () => {
 			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~/', 2, provider, capabilities), [
 				{ label: '~/', detail: '/home/' },
 				{ label: '~/vscode/', detail: '/home/vscode/' },
-				// { label: '~/', detail: '/home/vscode/bar.txt' },
 			], { replacementIndex: 0, replacementLength: 2 });
 		});
+
 		test('~/vscode/| should return folder completions relative to $HOME/vscode', async () => {
-			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~/vscode/', 2, provider, capabilities), [
+			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~/vscode/', 9, provider, capabilities), [
 				{ label: '~/vscode/', detail: '/home/vscode/' },
-				{ label: '~/vscode/foo', detail: '/home/vscode/foo' },
-				{ label: '~/vscode/bar.txt', detail: '/home/vscode/bar.txt' },
-			], { replacementIndex: 0, replacementLength: 2 });
+				{ label: '~/vscode/foo/', detail: '/home/vscode/foo/' },
+				{ label: '~/vscode/bar.txt', detail: '/home/vscode/bar.txt', kind: TerminalCompletionItemKind.File },
+			], { replacementIndex: 0, replacementLength: 9 });
 		});
 	});
 
