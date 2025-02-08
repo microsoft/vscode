@@ -46,15 +46,3 @@ export function removeArrayEntries<T>(array: T[], ...elements: T[]): T[] {
 	}
 	return array;
 }
-
-export function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
-	const env: Record<string, string> = {};
-	if (shellIntegrationEnv) {
-		for (const [key, value] of Object.entries(shellIntegrationEnv)) {
-			if (typeof value === 'string') {
-				env[key] = value;
-			}
-		}
-	}
-	return env;
-}
