@@ -51,3 +51,33 @@
 		"memory": "9gb"
 	}
 }
+  "features": {
+    "ghcr.io/devcontainers/features/desktop-lite:1": {},
+    "ghcr.io/devcontainers/features/rust:1": {}
+  },
+  
+  "containerEnv": {
+    "DISPLAY": "" 
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "resmon.show.battery": false,
+        "resmon.show.cpufreq": false
+      },
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "EditorConfig.EditorConfig", 
+        "GitHub.vscode-pull-request-github", 
+        "ms-vscode.vscode-github-issue-notebooks",
+        "ms-vscode.vscode-selfhost-test-provider", 
+        "mutantdino.resourcemonitor" 
+      ]
+    }
+  },
+  
+  "hostRequirements": {
+    "memory": "9gb"
+  }
+}
