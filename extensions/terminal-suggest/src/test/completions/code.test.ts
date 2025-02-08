@@ -44,7 +44,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} --list-extensions |`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --show-versions |`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
-		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions.filter(c => c.startsWith('a')) },
+		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions },
 
 		// Middle of command
 		{ input: `${executable} | --locale`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
