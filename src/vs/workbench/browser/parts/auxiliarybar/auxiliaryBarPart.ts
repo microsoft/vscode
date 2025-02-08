@@ -215,14 +215,16 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	// TODO@benibenj chache this
 	protected getCompositeBarPosition(): CompositeBarPosition {
-		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		switch (activityBarPosition) {
-			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
-			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
-			case ActivityBarPosition.HIDDEN: return CompositeBarPosition.TITLE;
-			case ActivityBarPosition.DEFAULT: return CompositeBarPosition.TITLE;
-			default: return CompositeBarPosition.TITLE;
-		}
+		// Fix secondary sidebar composite bar position to default
+		return CompositeBarPosition.TITLE;
+		// const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		// switch (activityBarPosition) {
+		// 	case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
+		// 	case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
+		// 	case ActivityBarPosition.HIDDEN: return CompositeBarPosition.TITLE;
+		// 	case ActivityBarPosition.DEFAULT: return CompositeBarPosition.TITLE;
+		// 	default: return CompositeBarPosition.TITLE;
+		// }
 	}
 
 	protected override createHeaderArea() {
