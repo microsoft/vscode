@@ -3,23 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+import { createErrorInstance } from '../shared/errors';
 
-'use strict';
-
-const withBrowserDefaults = require('../shared.webpack.config').browser;
-
-module.exports = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/terminalSuggestMain.ts'
-	},
-	output: {
-		filename: 'terminalSuggestMain.js'
-	},
-	resolve: {
-		fallback: {
-			'child_process': false
-		}
-	}
-});
+export const SubstituteAliasError = createErrorInstance('SubstituteAliasError');
+export const ConvertCommandError = createErrorInstance('ConvertCommandError');

@@ -3,19 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const upstreamSpecs = [
-	'echo',
-	'ls',
-	'mkdir',
-	'rm',
-	'rmdir',
-	'touch',
-	'git'
-];
+export function makeArray<T>(object: T | T[]): T[] {
+	return Array.isArray(object) ? object : [object];
+}
 
-
-export const enum SettingsIds {
-	SuggestPrefix = 'terminal.integrated.suggest',
-	CachedWindowsExecutableExtensions = 'terminal.integrated.suggest.windowsExecutableExtensions',
-	CachedWindowsExecutableExtensionsSuffixOnly = 'windowsExecutableExtensions',
+export enum SpecLocationSource {
+	GLOBAL = 'global',
+	LOCAL = 'local',
 }
