@@ -348,7 +348,7 @@ export class MockSession implements IDebugSession {
 		return Promise.resolve([]);
 	}
 
-	completions(frameId: number, threadId: number, text: string, position: Position, overwriteBefore: number): Promise<DebugProtocol.CompletionsResponse> {
+	completions(frameId: number, threadId: number, text: string, position: Position): Promise<DebugProtocol.CompletionsResponse> {
 		throw new Error('not implemented');
 	}
 
