@@ -55,6 +55,7 @@ export interface INotebookTextDiffEditor {
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
 	previousChange(): void;
 	nextChange(): void;
+	toggleInlineView(): void;
 }
 
 export interface IDiffNestedCellViewModel {

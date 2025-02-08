@@ -695,6 +695,32 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.inline.toggle',
+				title: localize('notebook.diff.inline.toggle.title', "Toggle Inline View"),
+				menu: {
+					id: MenuId.EditorTitle,
+					group: '1_diff',
+					order: 10,
+					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+				}
+			}
+		);
+	}
+	run(accessor: ServicesAccessor) {
+		const editorService: IEditorService = accessor.get(IEditorService);
+		if (editorService.activeEditorPane?.getId() !== NOTEBOOK_DIFF_EDITOR_ID) {
+			return;
+		}
+
+		const editor = editorService.activeEditorPane.getControl() as INotebookTextDiffEditor | undefined;
+		editor?.toggleInlineView();
+	}
+});
+
 
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
