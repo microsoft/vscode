@@ -23,7 +23,6 @@ import { ArgumentParserResult, parseArguments } from './fig/autocomplete-parser/
 import { getCommand, type Command } from './fig/shell-parser/command';
 import { SuggestionFlag } from './fig/shared/utils';
 import { spawnHelper } from './shell/common';
-import { getEnvAsRecord } from './test/helpers';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -457,3 +456,14 @@ function removeAnyFileExtension(label: string): string {
 	return label.replace(/\.[a-zA-Z0-9!#\$%&'\(\)\-@\^_`{}~\+,;=\[\]]+$/, '');
 }
 
+function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
+	const env: Record<string, string> = {};
+	if (shellIntegrationEnv) {
+		for (const [key, value] of Object.entries(shellIntegrationEnv)) {
+			if (typeof value === 'string') {
+				env[key] = value;
+			}
+		}
+	}
+	return env;
+}
