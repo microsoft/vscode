@@ -18,9 +18,9 @@ import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData } from '../../common/languageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { MockLanguageModelToolsService } from './mockLanguageModelToolsService.js';
+import { MockChatVariablesService } from './mockChatVariables.js';
 
 suite('ChatRequestParser', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,7 +28,7 @@ suite('ChatRequestParser', () => {
 	let instantiationService: TestInstantiationService;
 	let parser: ChatRequestParser;
 
-	let varService: MockObject<IChatVariablesService>;
+	let toolsService: MockObject<ILanguageModelToolsService>;
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
@@ -36,12 +36,11 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(ILanguageModelToolsService, new MockLanguageModelToolsService());
+		instantiationService.stub(IChatVariablesService, new MockChatVariablesService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 
-		varService = mockObject<IChatVariablesService>()({});
-		varService.getDynamicVariables.returns([]);
-		instantiationService.stub(IChatVariablesService, varService as any);
+		toolsService = mockObject<ILanguageModelToolsService>()({});
+		instantiationService.stub(ILanguageModelToolsService, toolsService as any);
 	});
 
 	test('plain text', async () => {
@@ -183,31 +182,29 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
-	// test('agents and variables and multiline', async () => {
-	// 	const agentsService = mockObject<IChatAgentService>()({});
-	// 	agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-	// 	instantiationService.stub(IChatAgentService, agentsService as any);
+	test('agents and tools and multiline', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		instantiationService.stub(IChatAgentService, agentsService as any);
 
-	// 	varService.hasVariable.returns(true);
-	// 	varService.getVariable.onCall(0).returns({ id: 'copilot.selection' });
-	// 	varService.getVariable.onCall(1).returns({ id: 'copilot.debugConsole' });
+		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
+		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
 
-	// 	parser = instantiationService.createInstance(ChatRequestParser);
-	// 	const result = parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
-	// 	await assertSnapshot(result);
-	// });
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
+		await assertSnapshot(result);
+	});
 
-	// test('agents and variables and multiline, part2', async () => {
-	// 	const agentsService = mockObject<IChatAgentService>()({});
-	// 	agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-	// 	instantiationService.stub(IChatAgentService, agentsService as any);
+	test('agents and tools and multiline, part2', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		instantiationService.stub(IChatAgentService, agentsService as any);
 
-	// 	varService.hasVariable.returns(true);
-	// 	varService.getVariable.onCall(0).returns({ id: 'copilot.selection' });
-	// 	varService.getVariable.onCall(1).returns({ id: 'copilot.debugConsole' });
+		toolsService.getToolByName.onCall(0).returns({ id: 'get_selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
+		toolsService.getToolByName.onCall(1).returns({ id: 'get_debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '' } satisfies IToolData);
 
-	// 	parser = instantiationService.createInstance(ChatRequestParser);
-	// 	const result = parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
-	// 	await assertSnapshot(result);
-	// });
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
+		await assertSnapshot(result);
+	});
 });
