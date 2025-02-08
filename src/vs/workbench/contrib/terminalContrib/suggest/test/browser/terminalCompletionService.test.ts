@@ -219,14 +219,21 @@ suite('TerminalCompletionService', () => {
 	});
 
 	suite('~ -> $HOME', () => {
-		test.skip('~| should return completion for ~', async () => {
-		});
-		test('~/| should return folder completions relative to $HOME', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
+		let resourceRequestConfig: TerminalResourceRequestConfig;
+		let shellEnvDetection: ShellEnvDetectionCapability;
+
+		setup(() => {
+			shellEnvDetection = store.add(new ShellEnvDetectionCapability());
+			shellEnvDetection.setEnvironment({
+				HOME: '/home',
+				USERPROFILE: '/home'
+			}, true);
+			capabilities.add(TerminalCapability.ShellEnvDetection, shellEnvDetection);
+
+			resourceRequestConfig = {
 				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
 				foldersRequested: true,
-				pathSeparator,
-				env: { HOME: '/home/vscode' }
+				pathSeparator
 			};
 			validResources = [
 				URI.parse('file:///test'),
@@ -237,15 +244,24 @@ suite('TerminalCompletionService', () => {
 				URI.parse('file:///home/vscode/bar.txt'),
 			];
 			childResources = [
-				{ resource: URI.parse('file:///home/vscode/foo'), isDirectory: true },
-				{ resource: URI.parse('file:///home/vscode/bar.txt'), isFile: true }
+				{ resource: URI.parse('file:///home/vscode'), isDirectory: true },
 			];
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '~/', 2, provider, capabilities);
+		});
 
-			assertCompletions(result, [
-				{ label: '~/', detail: '/home/vscode/' },
-				{ label: '~/', detail: '/home/vscode/foo' },
+		test.skip('~| should return completion for ~', async () => {
+		});
+		test('~/| should return folder completions relative to $HOME', async () => {
+			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~/', 2, provider, capabilities), [
+				{ label: '~/', detail: '/home/' },
+				{ label: '~/vscode/', detail: '/home/vscode/' },
 				// { label: '~/', detail: '/home/vscode/bar.txt' },
+			], { replacementIndex: 0, replacementLength: 2 });
+		});
+		test('~/vscode/| should return folder completions relative to $HOME/vscode', async () => {
+			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~/vscode/', 2, provider, capabilities), [
+				{ label: '~/vscode/', detail: '/home/vscode/' },
+				{ label: '~/vscode/foo', detail: '/home/vscode/foo' },
+				{ label: '~/vscode/bar.txt', detail: '/home/vscode/bar.txt' },
 			], { replacementIndex: 0, replacementLength: 2 });
 		});
 	});

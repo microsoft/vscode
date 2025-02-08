@@ -208,16 +208,26 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const cursorPrefix = promptValue.substring(0, cursorPosition);
 
-
+		// TODO: Leverage Fig's tokens array here?
 		// The last word (or argument). When the cursor is following a space it will be the empty
 		// string
-		const lastWord = cursorPrefix.endsWith(' ') ? '' : cursorPrefix.split(' ').at(-1) ?? '';
+		const lastWord = cursorPrefix.endsWith(' ') ? '' : cursorPrefix.split(/(?<!\\) /).at(-1) ?? '';
 
 		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
 		// they are what triggers changes in the directory.
 		let lastSlashIndex: number;
 		if (useWindowsStylePath) {
-			lastSlashIndex = Math.max(lastWord.lastIndexOf('\\'), lastWord.lastIndexOf('/'));
+			// TODO: Flesh out escaped path logic, it currently only partially works
+			let lastBackslashIndex = -1;
+			for (let i = lastWord.length - 1; i >= 0; i--) {
+				if (lastWord[i] === '\\') {
+					if (i === lastWord.length - 1 || lastWord[i + 1] !== ' ') {
+						lastBackslashIndex = i;
+						break;
+					}
+				}
+			}
+			lastSlashIndex = Math.max(lastBackslashIndex, lastWord.lastIndexOf('/'));
 		} else {
 			lastSlashIndex = lastWord.lastIndexOf(resourceRequestConfig.pathSeparator);
 		}
@@ -246,18 +256,20 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					const home = useWindowsStylePath ? env.get('USERPROFILE') : env.get('HOME');
 					// TODO: Handle the case where the HOME environment variable is not set
 					if (home) {
-						lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1));
+						lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 					}
 				}
 				if (!lastWordFolderResource) {
 					// Use less strong wording here as it's not as strong of a concept on Windows
 					// and could be misleading
-					lastWordFolderResource = useWindowsStylePath ? 'Home directory' : '$HOME';
+					if (lastWord.match(/^~[\\\/]$/)) {
+						lastWordFolderResource = useWindowsStylePath ? 'Home directory' : '$HOME';
+					}
 				}
 				break;
 			}
 			case 'absolute': {
-				lastWordFolderResource = URI.file(lastWordFolder);
+				lastWordFolderResource = URI.file(lastWordFolder.replaceAll('\\ ', ' '));
 				break;
 			}
 			case 'relative': {
