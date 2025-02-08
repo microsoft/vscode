@@ -154,7 +154,6 @@ interface ICommandVariableQuickPickItem extends IQuickPickItem {
 	command: Command;
 	name?: string;
 	value: unknown;
-	isDynamic: true;
 
 	icon?: ThemeIcon;
 }
@@ -469,7 +468,6 @@ export class AttachContextAction extends Action2 {
 					symbolKind: pick.symbol.kind,
 					fullName: pick.label,
 					name: pick.symbol.name,
-					isDynamic: true
 				});
 			} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
 				if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
@@ -483,7 +481,6 @@ export class AttachContextAction extends Action2 {
 							name: pick.label,
 							fullName: pick.label,
 							value: resizedImage,
-							isDynamic: true,
 							isImage: true
 						});
 					}
@@ -497,7 +494,6 @@ export class AttachContextAction extends Action2 {
 							value: pick.resource,
 							name: pick.label,
 							isFile: true,
-							isDynamic: true,
 						});
 					}
 				}
@@ -508,7 +504,6 @@ export class AttachContextAction extends Action2 {
 					value: { uri: pick.uri, range: pick.range.decoration },
 					fullName: pick.label,
 					name: pick.symbolName!,
-					isDynamic: true
 				});
 			} else if (isIOpenEditorsQuickPickItem(pick)) {
 				for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput || e instanceof NotebookEditorInput)) {
@@ -522,7 +517,6 @@ export class AttachContextAction extends Action2 {
 								value: uri,
 								name: labelService.getUriBasenameLabel(uri),
 								isFile: true,
-								isDynamic: true
 							});
 						}
 					}
@@ -538,7 +532,6 @@ export class AttachContextAction extends Action2 {
 							value: result.resource,
 							name: labelService.getUriBasenameLabel(result.resource),
 							isFile: true,
-							isDynamic: true
 						});
 					}
 				}
@@ -596,7 +589,6 @@ export class AttachContextAction extends Action2 {
 					}
 					toAttach.push({
 						...attachmentPick,
-						isDynamic: attachmentPick.isDynamic,
 						value: attachmentPick.value,
 						name: `${typeof attachmentPick.value === 'string' && attachmentPick.value.startsWith('#') ? attachmentPick.value.slice(1) : ''}${selection}`,
 						// Apply the original icon with the new name
@@ -618,7 +610,6 @@ export class AttachContextAction extends Action2 {
 						name: localize('pastedImage', 'Pasted Image'),
 						fullName: localize('pastedImage', 'Pasted Image'),
 						value: fileBuffer,
-						isDynamic: true,
 						isImage: true
 					});
 				}
@@ -695,7 +686,6 @@ export class AttachContextAction extends Action2 {
 								icon: variable.icon,
 								iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
 								value: variable.value,
-								isDynamic: true,
 								name: variable.name
 							});
 						} else {
@@ -735,7 +725,6 @@ export class AttachContextAction extends Action2 {
 				quickPickItems.push({
 					kind: 'command',
 					id: 'chatContext.notebook.kernelVariable',
-					isDynamic: true,
 					icon: ThemeIcon.fromId(Codicon.serverEnvironment.id),
 					iconClass: ThemeIcon.asClassName(Codicon.serverEnvironment),
 					value: 'kernelVariable',
