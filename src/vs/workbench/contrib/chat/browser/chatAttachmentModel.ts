@@ -69,7 +69,6 @@ export class ChatAttachmentModel extends Disposable {
 			id: uri.toString() + (range?.toString() ?? ''),
 			name: basename(uri),
 			isFile: true,
-			isDynamic: true,
 			isMarkedReadonly,
 		};
 	}

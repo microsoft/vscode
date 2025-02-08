@@ -164,7 +164,6 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
-	readonly experimentalControlOverlay?: boolean;
 }
 
 export interface IDensitySettings {
@@ -239,23 +238,15 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
-	if (isMacintosh || isWeb) {
-		return false; // only supported on a Windows/Linux desktop instances
+	if (isWeb) {
+		return false; // only supported on desktop instances
 	}
 
 	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
 	}
 
-	if (isLinux) {
-		const setting = configurationService.getValue('window.experimentalControlOverlay');
-		if (typeof setting === 'boolean') {
-			return setting;
-		}
-	}
-
-	// Default to true.
-	return true;
+	return true; // default
 }
 
 export function useNativeFullScreen(configurationService: IConfigurationService): boolean {

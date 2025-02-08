@@ -649,7 +649,7 @@ class DocumentPasteEditProvider {
 		}));
 	}
 
-	async resolvePasteEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
+	async resolvePasteEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ insertText?: string | vscode.SnippetString; additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
 		const [sessionId, itemId] = id;
 		const item = this._cache.get(sessionId, itemId);
 		if (!item || !this._provider.resolveDocumentPasteEdit) {
@@ -657,8 +657,10 @@ class DocumentPasteEditProvider {
 		}
 
 		const resolvedItem = (await this._provider.resolveDocumentPasteEdit(item, token)) ?? item;
-		const additionalEdit = resolvedItem.additionalEdit ? typeConvert.WorkspaceEdit.from(resolvedItem.additionalEdit, undefined) : undefined;
-		return { additionalEdit };
+		return {
+			insertText: resolvedItem.insertText,
+			additionalEdit: resolvedItem.additionalEdit ? typeConvert.WorkspaceEdit.from(resolvedItem.additionalEdit, undefined) : undefined
+		};
 	}
 
 	releasePasteEdits(id: number): any {

@@ -402,6 +402,32 @@ suite('TerminalCompletionService', () => {
 				{ label: './../', detail: '/' }
 			], { replacementIndex: 1, replacementLength: 9 });
 		});
+
+		test('folder/| should normalize current and parent folders', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test'),
+				foldersRequested: true,
+				pathSeparator
+			};
+			validResources = [
+				URI.parse('file:///'),
+				URI.parse('file:///test'),
+				URI.parse('file:///test/folder1'),
+				URI.parse('file:///test/folder2'),
+			];
+			childResources = [
+				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
+				{ resource: URI.parse('file:///test/folder2/'), isDirectory: true }
+			];
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'test/', 5, provider, capabilities);
+
+			assertCompletions(result, [
+				{ label: './test/', detail: '/test/' },
+				{ label: './test/folder1/', detail: '/test/folder1/' },
+				{ label: './test/folder2/', detail: '/test/folder2/' },
+				{ label: './test/../', detail: '/' }
+			], { replacementIndex: 0, replacementLength: 5 });
+		});
 	});
 
 	suite('cdpath', () => {

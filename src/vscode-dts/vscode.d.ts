@@ -6324,7 +6324,7 @@ declare module 'vscode' {
 		 * Optional method which fills in the {@linkcode DocumentPasteEdit.additionalEdit} before the edit is applied.
 		 *
 		 * This is called once per edit and should be used if generating the complete edit may take a long time.
-		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.additionalEdit}.
+		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.insertText} or {@linkcode DocumentPasteEdit.additionalEdit}.
 		 *
 		 * @param pasteEdit The {@linkcode DocumentPasteEdit} to resolve.
 		 * @param token A cancellation token.

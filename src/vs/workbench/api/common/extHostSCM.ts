@@ -412,6 +412,17 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroupLabel(this._sourceControlHandle, this.handle, label);
 	}
 
+	private _contextValue: string | undefined = undefined;
+	get contextValue(): string | undefined {
+		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
+		return this._contextValue;
+	}
+	set contextValue(contextValue: string | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
+		this._contextValue = contextValue;
+		this._proxy.$updateGroup(this._sourceControlHandle, this.handle, this.features);
+	}
+
 	private _hideWhenEmpty: boolean | undefined = undefined;
 	get hideWhenEmpty(): boolean | undefined { return this._hideWhenEmpty; }
 	set hideWhenEmpty(hideWhenEmpty: boolean | undefined) {
@@ -420,7 +431,12 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 
 	get features(): SCMGroupFeatures {
+		const contextValue = isProposedApiEnabled(this._extension, 'scmResourceGroupState')
+			? this.contextValue
+			: undefined;
+
 		return {
+			contextValue,
 			hideWhenEmpty: this.hideWhenEmpty
 		};
 	}
