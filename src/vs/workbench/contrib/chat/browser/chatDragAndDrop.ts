@@ -296,7 +296,6 @@ export class ChatDragAndDrop extends Themable {
 				symbolKind: symbol.kind,
 				fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
 				name: symbol.name,
-				isDynamic: true
 			};
 		});
 	}
@@ -422,7 +421,6 @@ function getResourceAttachContext(resource: URI, isDirectory: boolean): IChatReq
 		name: basename(resource),
 		isFile: !isDirectory,
 		isDirectory,
-		isDynamic: true
 	};
 }
 
@@ -441,7 +439,6 @@ async function getImageAttachContext(editor: EditorInput | IDraggedResourceEdito
 			fullName: editor.resource.path,
 			value: resizedImage,
 			icon: Codicon.fileMedia,
-			isDynamic: true,
 			isImage: true,
 			isFile: false,
 			references: [{ reference: editor.resource, kind: 'reference' }]

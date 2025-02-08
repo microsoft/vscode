@@ -52,8 +52,9 @@ export const chatSubcommandLeader = '/';
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
+ * @deprecated, but kept for backwards compatibility with old persisted chat requests
  */
-export class ChatRequestVariablePart implements IParsedChatRequestPart {
+class ChatRequestVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'var';
 	readonly kind = ChatRequestVariablePart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string, readonly variableId: string) { }
