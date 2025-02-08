@@ -78,6 +78,8 @@ function assertPartialCompletionsExist(actual: ITerminalCompletion[] | undefined
 	}
 }
 
+const standardTidleItem = Object.freeze({ label: '~', detail: isWindows ? 'Home directory' : '$HOME' });
+
 suite('TerminalCompletionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
@@ -156,7 +158,7 @@ suite('TerminalCompletionService', () => {
 				{ label: '.', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: '../', detail: '/' },
-				{ label: '~', detail: 'Home directory' },
+				standardTidleItem,
 			], { replacementIndex: 1, replacementLength: 0 });
 		});
 
@@ -439,7 +441,7 @@ suite('TerminalCompletionService', () => {
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './folder2/', detail: '/test/folder2/' },
 				{ label: '../', detail: '/' },
-				{ label: '~', detail: 'Home directory' }
+				standardTidleItem,
 			], { replacementIndex: 0, replacementLength: 0 });
 		});
 
