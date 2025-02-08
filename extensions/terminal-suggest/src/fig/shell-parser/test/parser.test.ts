@@ -27,6 +27,7 @@ function getData(
 	}
 	return fs
 		.readFileSync(filePath, { encoding: 'utf8' })
+		.replaceAll('\r\n', '\n')
 		.split('\n\n')
 		.map((testCase) => {
 			const firstNewline = testCase.indexOf('\n');
