@@ -1157,7 +1157,7 @@ declare namespace Fig {
 		 */
 		script?:
 		| string[]
-		| Function<string[], string[]>
+		| Function<string[], string[] | undefined> // <-- VS Code edit to make results correct
 		| ExecuteCommandInput
 		| Function<string[], ExecuteCommandInput>;
 		/**
@@ -1174,7 +1174,7 @@ declare namespace Fig {
 		 * @returns An array of `Suggestion` objects.
 		 *
 		 */
-		postProcess?: (out: string, tokens: string[]) => (Suggestion | null)[]; // <-- VS Code edit to make results correct
+		postProcess?: (out: string, tokens: string[]) => (Suggestion | null)[] | undefined; // <-- VS Code edit to make results correct
 		/**
 		 * Syntactic sugar for `postProcess` function
 		 *
