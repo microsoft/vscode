@@ -244,7 +244,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// Determine the current folder being shown
 		let lastWordFolderResource: URI | string | undefined;
 		const lastWordFolderHasDotPrefix = !!lastWordFolder.match(/^\.\.?[\\\/]/);
-		const lastWordFolderHasTildePrefix = lastWordFolder.match(/^~[\\\/]/);
+		const lastWordFolderHasTildePrefix = !!lastWordFolder.match(/^~[\\\/]?/);
 		const isAbsolutePath = useWindowsStylePath
 			? /^[a-zA-Z]:[\\\/]/.test(lastWord)
 			: lastWord.startsWith(resourceRequestConfig.pathSeparator);
@@ -279,8 +279,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// Assemble completions based on the resource of lastWordFolder. Note that on Windows the
-		// path seprators are normalized to `\`:
-		// - `./src/|` -> `.\src\`
+		// path seprators are normalized to `\`.
 		if (!lastWordFolderResource) {
 			return undefined;
 		}
@@ -307,7 +306,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// match and therefore highlight the detail, plus it improves the experience when
 		// runOnEnter is used.
 		//
-		// For example:
 		// - (relative) `|`       -> `.`
 		//   this does not have the trailing `/` intentionally as it's common to complete the
 		//   current working directory and we do not want to complete `./` when `runOnEnter` is
@@ -348,7 +346,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		// Add all direct children files or folders
 		//
-		// For example:
 		// - (relative) `cd ./src/`  -> `cd ./src/folder1/`, ...
 		// - (absolute) `cd c:/src/` -> `cd c:/src/folder1/`, ...
 		// - (tilde)    `cd ~/src/`  -> `cd ~/src/folder1/`, ...
@@ -386,6 +383,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// Support $CDPATH specially for the `cd` command only
+		//
 		// - (relative) `|` -> `/foo/vscode` (CDPATH has /foo which contains vscode folder)
 		if (type === 'relative' && foldersRequested) {
 			if (promptValue.startsWith('cd ')) {
@@ -425,7 +423,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		// Add parent directory to the bottom of the list because it's not as useful as other suggestions
 		//
-		// For example:
 		// - (relative) `|` -> `../`
 		// - (relative) `./src/|` -> `./src/../`
 		if (type === 'relative' && foldersRequested) {
@@ -439,6 +436,35 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
 				detail: getFriendlyPath(parentDir, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder),
+				replacementIndex: cursorPosition - lastWord.length,
+				replacementLength: lastWord.length
+			});
+		}
+
+		// Add tilde for home directory for relative paths when there is no path separator in the
+		// input.
+		//
+		// - (relative) `|` -> `~`
+		if (type === 'relative' && !lastWordFolder.match(/[\\\/]/)) {
+			const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env;
+			let homeResource: URI | string | undefined;
+			if (env) {
+				const home = useWindowsStylePath ? env.get('USERPROFILE') : env.get('HOME');
+				// TODO: Handle the case where the HOME environment variable is not set
+				if (home) {
+					homeResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+				}
+			}
+			if (!homeResource) {
+				// Use less strong wording here as it's not as strong of a concept on Windows
+				// and could be misleading
+				homeResource = useWindowsStylePath ? 'Home directory' : '$HOME';
+			}
+			resourceCompletions.push({
+				label: '~',
+				provider,
+				kind: TerminalCompletionItemKind.Folder,
+				detail: typeof homeResource === 'string' ? homeResource : getFriendlyPath(homeResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});

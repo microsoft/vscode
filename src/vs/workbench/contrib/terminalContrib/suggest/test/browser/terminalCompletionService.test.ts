@@ -128,6 +128,7 @@ suite('TerminalCompletionService', () => {
 				{ label: '.', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: '../', detail: '/' },
+				{ label: '~', detail: 'Home directory' },
 			], { replacementIndex: 1, replacementLength: 0 });
 		});
 
@@ -259,7 +260,12 @@ suite('TerminalCompletionService', () => {
 			];
 		});
 
-		test.skip('~| should return completion for ~', async () => {
+		test('~| should return completion for ~', async () => {
+			assertCompletions(await terminalCompletionService.resolveResources(resourceRequestConfig, '~', 1, provider, capabilities), [
+				{ label: '.', detail: '/test/folder1/' },
+				{ label: '../', detail: '/test/' },
+				{ label: '~', detail: '/home/' },
+			], { replacementIndex: 0, replacementLength: 1 });
 		});
 
 		test('~/| should return folder completions relative to $HOME', async () => {
@@ -406,7 +412,8 @@ suite('TerminalCompletionService', () => {
 				{ label: '.', detail: '/test/' },
 				{ label: './folder1/', detail: '/test/folder1/' },
 				{ label: './folder2/', detail: '/test/folder2/' },
-				{ label: '../', detail: '/' }
+				{ label: '../', detail: '/' },
+				{ label: '~', detail: 'Home directory' }
 			], { replacementIndex: 0, replacementLength: 0 });
 		});
 
@@ -507,6 +514,7 @@ suite('TerminalCompletionService', () => {
 				{ label: '.', detail: '/test/' },
 				{ label: 'folder1', detail: 'CDPATH /cdpath_value/folder1/' },
 				{ label: '../', detail: '/' },
+				{ label: '~', detail: 'Home directory' },
 			], { replacementIndex: 3, replacementLength: 0 });
 		});
 
@@ -524,6 +532,7 @@ suite('TerminalCompletionService', () => {
 				{ label: '.', detail: '/test/' },
 				{ label: '/cdpath_value/folder1/', detail: 'CDPATH' },
 				{ label: '../', detail: '/' },
+				{ label: '~', detail: 'Home directory' },
 			], { replacementIndex: 3, replacementLength: 0 });
 		});
 
@@ -566,6 +575,7 @@ suite('TerminalCompletionService', () => {
 				{ label: 'folder1', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder1/` },
 				{ label: 'folder2', detail: `CDPATH ${finalPrefix}cdpath2_value/inner_dir/folder2/` },
 				{ label: '../', detail: finalPrefix },
+				{ label: '~', detail: 'Home directory' },
 			], { replacementIndex: 3, replacementLength: 0 });
 		});
 	});
