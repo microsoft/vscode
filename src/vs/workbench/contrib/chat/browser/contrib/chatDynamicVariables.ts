@@ -240,17 +240,6 @@ export class SelectAndInsertFileAction extends Action2 {
 		};
 
 		let options: IQuickAccessOptions | undefined;
-		// If we have a `files` variable, add an option to select all files in the picker.
-		// This of course assumes that the `files` variable has the behavior that it searches
-		// through files in the workspace.
-
-		// TODO This meant to include the "codebase" variable (now a tool), do we still need this?
-		// if (chatVariablesService.hasVariable(SelectAndInsertFileAction.Name)) {
-		// 	const providerOptions: AnythingQuickAccessProviderRunOptions = {
-		// 		additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
-		// 	};
-		// 	options = { providerOptions };
-		// }
 		// TODO: have dedicated UX for this instead of using the quick access picker
 		const picks = await quickInputService.quickAccess.pick('', options);
 		if (!picks?.length) {
