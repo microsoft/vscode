@@ -362,8 +362,9 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const asVariableName = `${variable}`;
 				const label = `Kernel variable`;
 				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description });
-			} {
-				throw new Error('something went wrong'); // TODO
+			} else {
+				// Nothing else is expected to fall into here
+				templateData.label.setLabel('Unknown variable type');
 			}
 		} else if (typeof reference === 'string') {
 			templateData.label.setLabel(reference, undefined, { iconPath: URI.isUri(icon) ? icon : undefined, title: data.options?.status?.description ?? data.title });
