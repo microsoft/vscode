@@ -103,8 +103,8 @@ suite('TerminalCompletionService', () => {
 		setup(() => {
 			validResources = [URI.parse('file:///test')];
 			childResources = [
-				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true },
-				{ resource: URI.parse('file:///test/file1.txt'), isFile: true },
+				{ resource: URI.parse('file:///test/folder1/'), isDirectory: true, isFile: false },
+				{ resource: URI.parse('file:///test/file1.txt'), isDirectory: false, isFile: true },
 			];
 		});
 
@@ -166,19 +166,6 @@ suite('TerminalCompletionService', () => {
 				{ label: './../', detail: '/' },
 			], { replacementIndex: 3, replacementLength: 3 });
 		});
-		test('cd ~/| should return home folder completions', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
-				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
-				foldersRequested: true,
-				pathSeparator,
-				env: { HOME: '/test/' }
-			};
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ~/', 5, provider, capabilities);
-
-			assertCompletions(result, [
-				{ label: '~/', detail: '/test/' },
-			], { replacementIndex: 3, replacementLength: 2 });
-		});
 	});
 
 	suite('resolveResources should handle file and folder completion requests correctly', () => {
@@ -230,6 +217,39 @@ suite('TerminalCompletionService', () => {
 			], { replacementIndex: 0, replacementLength: 3 });
 		});
 	});
+
+	suite('~ -> $HOME', () => {
+		test.skip('~| should return completion for ~', async () => {
+		});
+		test('~/| should return folder completions relative to $HOME', async () => {
+			const resourceRequestConfig: TerminalResourceRequestConfig = {
+				cwd: URI.parse('file:///test/folder1'),// Updated to reflect home directory
+				foldersRequested: true,
+				pathSeparator,
+				env: { HOME: '/home/vscode' }
+			};
+			validResources = [
+				URI.parse('file:///test'),
+				URI.parse('file:///test/folder1'),
+				URI.parse('file:///home'),
+				URI.parse('file:///home/vscode'),
+				URI.parse('file:///home/vscode/foo'),
+				URI.parse('file:///home/vscode/bar.txt'),
+			];
+			childResources = [
+				{ resource: URI.parse('file:///home/vscode/foo'), isDirectory: true },
+				{ resource: URI.parse('file:///home/vscode/bar.txt'), isFile: true }
+			];
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, '~/', 2, provider, capabilities);
+
+			assertCompletions(result, [
+				{ label: '~/', detail: '/home/vscode/' },
+				{ label: '~/', detail: '/home/vscode/foo' },
+				// { label: '~/', detail: '/home/vscode/bar.txt' },
+			], { replacementIndex: 0, replacementLength: 2 });
+		});
+	});
+
 	suite('resolveResources edge cases and advanced scenarios', () => {
 		setup(() => {
 			validResources = [];
@@ -362,7 +382,7 @@ suite('TerminalCompletionService', () => {
 			], { replacementIndex: 0, replacementLength: 0 });
 		});
 
-		test('./| Large directory should handle many results gracefully', async () => {
+		test('./| should handle large directories with many results gracefully', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
@@ -382,7 +402,7 @@ suite('TerminalCompletionService', () => {
 			assert.strictEqual(result.at(-1)?.label, `.${pathSeparator}..${pathSeparator}`);
 		});
 
-		test('./folder| Folders should be resolved even if the trailing / is missing', async () => {
+		test('./folder| should include current folder with trailing / is missing', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),
 				foldersRequested: true,
