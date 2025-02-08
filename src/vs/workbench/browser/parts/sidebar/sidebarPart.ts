@@ -32,7 +32,7 @@ import { Separator } from '../../../../base/common/actions.js';
 import { ToggleActivityBarVisibilityActionId } from '../../actions/layoutActions.js';
 import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { ICommandService } from '../../../../platform/commands/common/commands';
+// import { ICommandService } from '../../../../platform/commands/common/commands';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -81,8 +81,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
-		@ICommandService commandService: ICommandService,
+		// @ICommandService commandService: ICommandService,
 	) {
+		// @ts-ignore // commandService is not injectable fix this after pearai soft release 1.8.0
 		super(
 			Parts.SIDEBAR_PART,
 
@@ -106,7 +107,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
-			commandService
+			// commandService
+			// instantiationService.invokeFunction(accessor => accessor.get(ICommandService))
 		);
 
 

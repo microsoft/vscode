@@ -234,3 +234,10 @@
 .monaco-workbench .part.auxiliarybar .icon-group .icon-element.inventory-memory-icon {
     background-image: url('../../../media/inventory-memory-icon.svg');
 }
+
+/* Hide icon group in primary sidebar and bottom panel */
+.monaco-workbench .part.sidebar .icon-group,
+.monaco-workbench .part.panel .icon-group {
+    display: none;
+}
+
