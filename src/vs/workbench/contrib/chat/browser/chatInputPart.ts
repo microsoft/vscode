@@ -185,7 +185,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				name: uri.fsPath,
 				value: uri,
 				isFile: false,
-				isDynamic: true,
 			});
 		}
 

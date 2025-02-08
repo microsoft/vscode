@@ -49,7 +49,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
-import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
@@ -71,7 +71,7 @@ export function registerChatContextActions() {
  * We fill the quickpick with these types, and enable some quick access providers
  */
 type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem |
-	IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
+	IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
 	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IPromptInstructionsQuickPickItem;
 
 /**
@@ -154,7 +154,6 @@ interface ICommandVariableQuickPickItem extends IQuickPickItem {
 	command: Command;
 	name?: string;
 	value: unknown;
-	isDynamic: true;
 
 	icon?: ThemeIcon;
 }
@@ -164,11 +163,6 @@ interface IToolQuickPickItem extends IQuickPickItem {
 	id: string;
 	name?: string;
 	icon?: ThemeIcon;
-}
-
-interface IVariableQuickPickItem extends IQuickPickItem {
-	kind: 'variable';
-	variable: IChatVariableData;
 }
 
 interface IQuickAccessQuickPickItem extends IQuickPickItem {
@@ -474,7 +468,6 @@ export class AttachContextAction extends Action2 {
 					symbolKind: pick.symbol.kind,
 					fullName: pick.label,
 					name: pick.symbol.name,
-					isDynamic: true
 				});
 			} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
 				if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
@@ -488,7 +481,6 @@ export class AttachContextAction extends Action2 {
 							name: pick.label,
 							fullName: pick.label,
 							value: resizedImage,
-							isDynamic: true,
 							isImage: true
 						});
 					}
@@ -502,7 +494,6 @@ export class AttachContextAction extends Action2 {
 							value: pick.resource,
 							name: pick.label,
 							isFile: true,
-							isDynamic: true,
 						});
 					}
 				}
@@ -513,7 +504,6 @@ export class AttachContextAction extends Action2 {
 					value: { uri: pick.uri, range: pick.range.decoration },
 					fullName: pick.label,
 					name: pick.symbolName!,
-					isDynamic: true
 				});
 			} else if (isIOpenEditorsQuickPickItem(pick)) {
 				for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput || e instanceof NotebookEditorInput)) {
@@ -527,7 +517,6 @@ export class AttachContextAction extends Action2 {
 								value: uri,
 								name: labelService.getUriBasenameLabel(uri),
 								isFile: true,
-								isDynamic: true
 							});
 						}
 					}
@@ -543,7 +532,6 @@ export class AttachContextAction extends Action2 {
 							value: result.resource,
 							name: labelService.getUriBasenameLabel(result.resource),
 							isFile: true,
-							isDynamic: true
 						});
 					}
 				}
@@ -601,7 +589,6 @@ export class AttachContextAction extends Action2 {
 					}
 					toAttach.push({
 						...attachmentPick,
-						isDynamic: attachmentPick.isDynamic,
 						value: attachmentPick.value,
 						name: `${typeof attachmentPick.value === 'string' && attachmentPick.value.startsWith('#') ? attachmentPick.value.slice(1) : ''}${selection}`,
 						// Apply the original icon with the new name
@@ -623,18 +610,7 @@ export class AttachContextAction extends Action2 {
 						name: localize('pastedImage', 'Pasted Image'),
 						fullName: localize('pastedImage', 'Pasted Image'),
 						value: fileBuffer,
-						isDynamic: true,
 						isImage: true
-					});
-				} else if (attachmentPick.kind === 'variable') {
-					// All other dynamic variables and static variables
-					toAttach.push({
-						range: undefined,
-						id: pick.id ?? '',
-						value: undefined,
-						fullName: pick.label,
-						name: attachmentPick.variable.name,
-						icon: attachmentPick.variable.icon
 					});
 				}
 			}
@@ -651,7 +627,6 @@ export class AttachContextAction extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatAgentService = accessor.get(IChatAgentService);
-		const chatVariablesService = accessor.get(IChatVariablesService);
 		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
@@ -673,22 +648,8 @@ export class AttachContextAction extends Action2 {
 		}
 		const chatEditingService = widget.location === ChatAgentLocation.EditingSession ? accessor.get(IChatEditingService) : undefined;
 
-		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
-		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
 		if (!context || !context.showFilesOnly) {
-			for (const variable of chatVariablesService.getVariables()) {
-				if (variable.fullName && (!variable.isSlow || slowSupported)) {
-					quickPickItems.push({
-						kind: 'variable',
-						variable,
-						label: variable.fullName,
-						id: variable.id,
-						iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
-					});
-				}
-			}
-
 			if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
 				const imageData = await clipboardService.readImage();
 				if (isImage(imageData)) {
@@ -725,7 +686,6 @@ export class AttachContextAction extends Action2 {
 								icon: variable.icon,
 								iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
 								value: variable.value,
-								isDynamic: true,
 								name: variable.name
 							});
 						} else {
@@ -765,7 +725,6 @@ export class AttachContextAction extends Action2 {
 				quickPickItems.push({
 					kind: 'command',
 					id: 'chatContext.notebook.kernelVariable',
-					isDynamic: true,
 					icon: ThemeIcon.fromId(Codicon.serverEnvironment.id),
 					iconClass: ThemeIcon.asClassName(Codicon.serverEnvironment),
 					value: 'kernelVariable',

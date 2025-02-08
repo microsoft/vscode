@@ -314,7 +314,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		private labels: ResourceLabels,
 		private menuId: MenuId | undefined,
 		@IThemeService private readonly themeService: IThemeService,
-		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -375,12 +374,8 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const label = `Kernel variable`;
 				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description });
 			} else {
-				const variable = this.chatVariablesService.getVariable(reference.variableName);
-				// This is a hack to get chat attachment ThemeIcons to render for resource labels
-				const asThemeIcon = variable?.icon ? `$(${variable.icon.id}) ` : '';
-				const asVariableName = `#${reference.variableName}`; // Fallback, shouldn't really happen
-				const label = `${asThemeIcon}${variable?.fullName ?? asVariableName}`;
-				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description ?? variable?.description });
+				// Nothing else is expected to fall into here
+				templateData.label.setLabel('Unknown variable type');
 			}
 		} else if (typeof reference === 'string') {
 			templateData.label.setLabel(reference, undefined, { iconPath: URI.isUri(icon) ? icon : undefined, title: data.options?.status?.description ?? data.title });
