@@ -20,6 +20,52 @@ const copyrightHeaderLines = [
 	' *--------------------------------------------------------------------------------------------*/',
 ];
 
+/**
+ * @type {string[]}
+ */
+const allowedProductJsonFields = [
+	'extensionsGallery',  // Allow OpenVSX marketplace config
+	'nameShort',
+	'nameLong',
+	'applicationName',
+	'dataFolderName',
+	'win32MutexName',
+	'licenseName',
+	'licenseUrl',
+	'serverLicenseUrl',
+	'serverGreeting',
+	'serverLicense',
+	'serverLicensePrompt',
+	'serverApplicationName',
+	'serverDataFolderName',
+	'tunnelApplicationName',
+	'win32DirName',
+	'win32NameVersion',
+	'win32RegValueName',
+	'win32AppId',
+	'win32x64AppId',
+	'win32arm64AppId',
+	'win32x64UserAppId',
+	'win32arm64UserAppId',
+	'win32AppUserModelId',
+	'win32ShellNameShort',
+	'win32TunnelServiceMutex',
+	'win32TunnelMutex',
+	'darwinBundleIdentifier',
+	'linuxIconName',
+	'licenseFileName',
+	'reportIssueUrl',
+	'nodejsRepository',
+	'urlProtocol',
+	'webviewContentExternalBaseUrlTemplate',
+	'builtInExtensions',
+	'documentationUrl',
+	'requestFeatureUrl',
+	'windowsExecutableId',
+	'linkProtectionTrustedDomains',  // Allow trusted domains config
+	'crashReporter'
+];
+
 function hygiene(some, linting = true) {
 	const eslint = require('./gulp-eslint');
 	const gulpstylelint = require('./stylelint');
@@ -30,9 +76,23 @@ function hygiene(some, linting = true) {
 	const productJson = es.through(function (file) {
 		const product = JSON.parse(file.contents.toString('utf8'));
 
+		// Check for required fields
+		for (const key in product) {
+			if (!allowedProductJsonFields.includes(key)) {
+				console.error(`product.json: Contains '${key}' which is not allowed`);
+				errorCount++;
+			}
+		}
+
+		// Check for required OpenVSX configuration
 		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
-			errorCount++;
+			const required = ['serviceUrl', 'itemUrl'];
+			for (const key of required) {
+				if (!product.extensionsGallery[key]) {
+					console.error(`product.json: Missing required extensionsGallery.${key}`);
+					errorCount++;
+				}
+			}
 		}
 
 		this.emit('data', file);
