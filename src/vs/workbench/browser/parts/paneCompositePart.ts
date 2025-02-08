@@ -116,10 +116,10 @@ interface IInventoryIcon {
 
 class InventoryIcons {
 	private static readonly icons: readonly IInventoryIcon[] = [
-		{ id: 'chat', icon: 'inventory-chat-icon', label: 'Chat', command: 'workbench.action.togglePanel', width: 70 },
-		{ id: 'creator', icon: 'inventory-creator-icon', label: 'Creator', command: 'workbench.action.toggleSidebarVisibility', width: 80 },
-		{ id: 'search', icon: 'inventory-search-icon', label: 'Search', command: 'workbench.action.findInFiles', width: 75 },
-		{ id: 'memory', icon: 'inventory-memory-icon', label: 'Memory', command: 'workbench.action.toggleZenMode', width: 85 }
+		{ id: 'chat', icon: 'inventory-chat-icon', label: 'Chat', command: 'pearai.focusContinueInputWithoutClear', width: 70 },
+		{ id: 'creator', icon: 'inventory-creator-icon', label: 'Creator', command: 'pearai.focusCreatorView', width: 80 },
+		{ id: 'search', icon: 'inventory-search-icon', label: 'Search', command: 'pearai.focusPearAISearchView', width: 75 },
+		{ id: 'memory', icon: 'inventory-memory-icon', label: 'Memory', command: 'pearai.focusPearAIMem0View', width: 85 }
 	] as const;
 
 	static getAll(): readonly IInventoryIcon[] {
