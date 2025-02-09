@@ -889,7 +889,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	removeGroup(_group: number | IEditorGroup): void { }
 	moveGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	mergeGroup(_group: number | IEditorGroup, _target: number | IEditorGroup, _options?: IMergeGroupOptions): boolean { throw new Error('not implemented'); }
-	mergeAllGroups(_group: number | IEditorGroup): boolean { throw new Error('not implemented'); }
+	mergeAllGroups(_group: number | IEditorGroup, _options?: IMergeGroupOptions): boolean { throw new Error('not implemented'); }
 	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
@@ -2135,6 +2135,7 @@ export class TestQuickInputService implements IQuickInputService {
 	back(): Promise<void> { throw new Error('not implemented.'); }
 	cancel(): Promise<void> { throw new Error('not implemented.'); }
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void { throw new Error('not implemented.'); }
+	toggleHover(): void { throw new Error('not implemented.'); }
 }
 
 class TestLanguageDetectionService implements ILanguageDetectionService {

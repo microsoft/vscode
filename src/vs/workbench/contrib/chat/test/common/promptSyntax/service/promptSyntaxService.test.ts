@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createURI } from '../testUtils/createUri.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { isWindows } from '../../../../../../../base/common/platform.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { waitRandom } from '../../../../../../../base/test/common/testUtils.js';
@@ -89,18 +89,6 @@ const assertLinks = (
 	);
 };
 
-/**
- * Creates cross-platform URI. On Windows, absolute paths
- * are prefixed with the disk name.
- */
-const createURI = (linkPath: string): URI => {
-	if (isWindows && linkPath.startsWith('/')) {
-		return URI.file('/d:' + linkPath);
-	}
-
-	return URI.file(linkPath);
-};
-
 suite('PromptSyntaxService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -111,7 +99,6 @@ suite('PromptSyntaxService', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IFileService, new TestConfigurationService());
 		instantiationService.stub(IFileService, disposables.add(instantiationService.createInstance(FileService)));
 
 		service = disposables.add(instantiationService.createInstance(PromptSyntaxService));

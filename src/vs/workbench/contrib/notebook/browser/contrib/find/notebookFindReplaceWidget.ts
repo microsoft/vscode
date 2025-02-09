@@ -223,7 +223,7 @@ export class NotebookFindInputFilterButton extends Disposable {
 		this._actionbar = this._register(new ActionBar(container, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === this._filtersAction.id) {
-					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, options, new ActionRunner());
+					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, options, this._register(new ActionRunner()));
 				}
 				return undefined;
 			}

@@ -93,6 +93,6 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 	}
 }
 
-// register this provider as a workbench contribution
+// register the provider as a workbench contribution
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(PromptLinkProvider, LifecyclePhase.Eventually);

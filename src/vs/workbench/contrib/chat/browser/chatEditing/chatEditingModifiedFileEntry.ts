@@ -180,7 +180,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			modelService.createModel(
 				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.doc.createSnapshot()),
 				languageService.createById(this.doc.getLanguageId()),
-				ChatEditingTextModelContentProvider.getFileURI(this.entryId, this.modifiedURI.path),
+				ChatEditingTextModelContentProvider.getFileURI(_telemetryInfo.sessionId, this.entryId, this.modifiedURI.path),
 				false
 			)
 		);
@@ -270,7 +270,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(requestId, this.modifiedURI.path),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			originalToCurrentEdit: this._edit,

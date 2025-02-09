@@ -102,6 +102,8 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
 
+	get contextValue(): string | undefined { return this.features.contextValue; }
+
 	constructor(
 		private readonly sourceControlHandle: number,
 		private readonly handle: number,

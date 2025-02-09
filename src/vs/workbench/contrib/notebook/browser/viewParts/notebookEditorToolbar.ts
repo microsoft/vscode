@@ -504,6 +504,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			this._deferredActionUpdate = disposableTimeout(async () => {
 				await this._setNotebookActions();
 				this.visible = true;
+				this._deferredActionUpdate?.dispose();
 				this._deferredActionUpdate = undefined;
 			}, 50);
 		}

@@ -14,7 +14,5 @@ export function convertBufferToScreenshotVariable(buffer: ArrayBufferLike): ICha
 		name: localize('screenshot', 'Screenshot'),
 		value: new Uint8Array(buffer),
 		isImage: true,
-		isDynamic: true
 	};
 }
-

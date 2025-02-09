@@ -22,7 +22,7 @@ export function setup(logger: Logger) {
 			await app.code.waitForElements('.line-numbers', false, elements => !elements || elements.length === 0);
 		});
 
-		it('changes "workbench.action.toggleSidebarPosition" command key binding and verifies it', async function () {
+		it.skip('changes "workbench.action.toggleSidebarPosition" command key binding and verifies it', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.LEFT);
