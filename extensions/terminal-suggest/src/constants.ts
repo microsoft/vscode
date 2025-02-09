@@ -10,6 +10,7 @@ export const upstreamSpecs = [
 	'rm',
 	'rmdir',
 	'touch',
+	'git'
 ];
 
 

@@ -19,6 +19,10 @@ import { getPwshGlobals } from './shell/pwsh';
 import { getTokenType, TokenType } from './tokens';
 import { PathExecutableCache } from './env/pathExecutableCache';
 import { getFriendlyResourcePath } from './helpers/uri';
+import { ArgumentParserResult, parseArguments } from './fig/autocomplete-parser/parseArguments';
+import { getCommand, type Command } from './fig/shell-parser/command';
+import { SuggestionFlag } from './fig/shared/utils';
+import { spawnHelper } from './shell/common';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -102,11 +106,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 			const commands = [...commandsInPath.completionResources, ...shellGlobals];
-
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, shellType);
-			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, token);
+			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, getEnvAsRecord(terminal.shellIntegration?.env), terminal.name, token);
 			if (terminal.shellIntegration?.env) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
 				if (homeDirCompletion && terminal.shellIntegration.env.HOME) {
@@ -226,13 +229,121 @@ export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
+export type SpecArg = Fig.Arg | Fig.Suggestion | Fig.Option | string;
+
+export async function collectCompletionItemResult(command: Command, parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
+	let filesRequested = false;
+	let foldersRequested = false;
+
+	const addSuggestions = async (specArgs: SpecArg[] | Record<string, SpecArg> | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
+		if (kind === vscode.TerminalCompletionItemKind.Argument && parsedArguments?.currentArg?.generators) {
+			const generators = parsedArguments.currentArg.generators;
+			for (const generator of generators) {
+				if (generator.template) {
+					const templates = Array.isArray(generator.template) ? generator.template : [generator.template];
+					for (const template of templates) {
+						if (template === 'filepaths') {
+							filesRequested = true;
+						} else if (template === 'folders') {
+							foldersRequested = true;
+						}
+					}
+				} else {
+					if (generator.script && Array.isArray(generator.script) && generator.postProcess) {
+						let output;
+						try {
+							output = await spawnHelper(generator.script[0], generator.script.slice(1), { encoding: 'utf8' }); //, { options });
+						} catch {
+							//ignore
+						}
+						if (!output) {
+							continue;
+						}
+						const generatedItems = generator.postProcess(output, command.tokens.map(e => e.text));
+						for (const generatedItem of generatedItems) {
+							if (!generatedItem) {
+								continue;
+							}
+							const suggestionLabels = getLabel(generatedItem);
+							if (!suggestionLabels) {
+								continue;
+							}
+							for (const label of suggestionLabels) {
+								items.push(createCompletionItem(
+									terminalContext.cursorPosition,
+									prefix,
+									{ label },
+									undefined,
+									typeof generatedItem === 'string' ? generatedItem : generatedItem.description,
+									kind
+								));
+							}
+						}
+					}
+				}
+			}
+		}
+		if (!specArgs) {
+			return { filesRequested, foldersRequested };
+		}
+
+		if (Array.isArray(specArgs)) {
+			for (const item of specArgs) {
+				const suggestionLabels = getLabel(item);
+				if (!suggestionLabels) {
+					continue;
+				}
+				for (const label of suggestionLabels) {
+					items.push(
+						createCompletionItem(
+							terminalContext.cursorPosition,
+							prefix,
+							{ label },
+							undefined,
+							typeof item === 'string' ? item : item.description,
+							kind
+						)
+					);
+				}
+			}
+		} else {
+			for (const [label, item] of Object.entries(specArgs)) {
+				items.push(
+					createCompletionItem(
+						terminalContext.cursorPosition,
+						prefix,
+						{ label },
+						undefined,
+						typeof item === 'string' ? item : item.description,
+						kind
+					)
+				);
+			}
+		}
+	};
+
+	if (parsedArguments.suggestionFlags & SuggestionFlag.Args) {
+		await addSuggestions(parsedArguments.currentArg?.suggestions, vscode.TerminalCompletionItemKind.Argument, parsedArguments);
+	}
+	if (parsedArguments.suggestionFlags & SuggestionFlag.Subcommands) {
+		await addSuggestions(parsedArguments.completionObj.subcommands, vscode.TerminalCompletionItemKind.Method);
+	}
+	if (parsedArguments.suggestionFlags & SuggestionFlag.Options) {
+		await addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag);
+	}
+
+	return { filesRequested, foldersRequested };
+}
+
 export async function getCompletionItemsFromSpecs(
 	specs: Fig.Spec[],
 	terminalContext: { commandLine: string; cursorPosition: number },
 	availableCommands: ICompletionResource[],
 	prefix: string,
 	tokenType: TokenType,
-	shellIntegrationCwd?: vscode.Uri,
+	shellIntegrationCwd: vscode.Uri | undefined,
+	env: Record<string, string>,
+	name: string,
 	token?: vscode.CancellationToken
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; cwd?: vscode.Uri }> {
 	const items: vscode.TerminalCompletionItem[] = [];
@@ -249,7 +360,6 @@ export async function getCompletionItemsFromSpecs(
 		}
 	}
 
-	let specificItemsProvided = false;
 	for (const spec of specs) {
 		const specLabels = getLabel(spec);
 
@@ -285,26 +395,23 @@ export async function getCompletionItemsFromSpecs(
 				continue;
 			}
 
-			const optionsCompletionResult = handleOptions(specLabel, spec, terminalContext, precedingText, prefix);
-			if (optionsCompletionResult) {
-				items.push(...optionsCompletionResult.items);
-				filesRequested ||= optionsCompletionResult.filesRequested;
-				foldersRequested ||= optionsCompletionResult.foldersRequested;
-				specificItemsProvided ||= optionsCompletionResult.items.length > 0;
+			const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition);
+			if (!command || !shellIntegrationCwd) {
+				continue;
 			}
-			if (!optionsCompletionResult?.isOptionArg) {
-				const argsCompletionResult = handleArguments(specLabel, spec, terminalContext, precedingText);
-				if (argsCompletionResult) {
-					items.push(...argsCompletionResult.items);
-					filesRequested ||= argsCompletionResult.filesRequested;
-					foldersRequested ||= argsCompletionResult.foldersRequested;
-					specificItemsProvided ||= argsCompletionResult.items.length > 0;
-				}
+			const parsedArguments: ArgumentParserResult = await parseArguments(
+				command,
+				{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd.fsPath, sshPrefix: '', currentProcess: name, /* TODO: pass in aliases */ },
+				spec,
+			);
+
+			const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, items);
+			if (completionItemResult) {
+				filesRequested ||= completionItemResult.filesRequested;
+				foldersRequested ||= completionItemResult.foldersRequested;
 			}
 		}
 	}
-
-
 
 	if (tokenType === TokenType.Command) {
 		// Include builitin/available commands in the results
@@ -316,15 +423,10 @@ export async function getCompletionItemsFromSpecs(
 		}
 		filesRequested = true;
 		foldersRequested = true;
-	} else {
-		const shouldShowResourceCompletions =
-			!specificItemsProvided &&
-			!filesRequested &&
-			!foldersRequested;
-		if (shouldShowResourceCompletions) {
-			filesRequested = true;
-			foldersRequested = true;
-		}
+	} else if (!items.length && !filesRequested && !foldersRequested) {
+		// Not a command and no specific args or options were provided, so show resources
+		filesRequested = true;
+		foldersRequested = true;
 	}
 
 	let cwd: vscode.Uri | undefined;
@@ -333,133 +435,6 @@ export async function getCompletionItemsFromSpecs(
 	}
 
 	return { items, filesRequested, foldersRequested, cwd };
-}
-
-function handleArguments(specLabel: string, spec: Fig.Spec, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
-	let args;
-	if ('args' in spec && spec.args && asArray(spec.args)) {
-		args = asArray(spec.args);
-	}
-	const expectedText = `${specLabel} `;
-
-	if (!precedingText.includes(expectedText)) {
-		return;
-	}
-
-	const currentPrefix = precedingText.slice(precedingText.lastIndexOf(expectedText) + expectedText.length);
-	const argsCompletions = getCompletionItemsFromArgs(args, currentPrefix, terminalContext);
-
-	if (!argsCompletions) {
-		return;
-	}
-
-	return argsCompletions;
-}
-
-function handleOptions(specLabel: string, spec: Fig.Spec, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string, prefix: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; isOptionArg: boolean } | undefined {
-	let options;
-	if ('options' in spec && spec.options) {
-		options = spec.options;
-	}
-	if (!options) {
-		return;
-	}
-
-	const optionItems: vscode.TerminalCompletionItem[] = [];
-
-	for (const option of options) {
-		const optionLabels = getLabel(option);
-
-		if (!optionLabels) {
-			continue;
-		}
-
-		for (const optionLabel of optionLabels) {
-			if (
-				// Already includes this option
-				optionItems.find((i) => i.label === optionLabel)
-			) {
-				continue;
-			}
-
-			optionItems.push(
-				createCompletionItem(
-					terminalContext.cursorPosition,
-					prefix,
-					{ label: optionLabel },
-					option.description,
-					undefined,
-					vscode.TerminalCompletionItemKind.Flag
-				)
-			);
-
-			const expectedText = `${specLabel} ${optionLabel} `;
-			if (!precedingText.includes(expectedText)) {
-				continue;
-			}
-
-			const currentPrefix = precedingText.slice(precedingText.lastIndexOf(expectedText) + expectedText.length);
-			const argsCompletions = getCompletionItemsFromArgs(option.args, currentPrefix, terminalContext);
-
-			if (argsCompletions) {
-				return { items: argsCompletions.items, filesRequested: argsCompletions.filesRequested, foldersRequested: argsCompletions.foldersRequested, isOptionArg: true };
-			}
-		}
-	}
-
-	return { items: optionItems, filesRequested: false, foldersRequested: false, isOptionArg: false };
-}
-
-
-function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } | undefined {
-	if (!args) {
-		return;
-	}
-
-	let items: vscode.TerminalCompletionItem[] = [];
-	let filesRequested = false;
-	let foldersRequested = false;
-	for (const arg of asArray(args)) {
-		if (!arg) {
-			continue;
-		}
-		if (arg.template) {
-			if (Array.isArray(arg.template) ? arg.template.includes('filepaths') : arg.template === 'filepaths') {
-				filesRequested = true;
-			}
-			if (Array.isArray(arg.template) ? arg.template.includes('folders') : arg.template === 'folders') {
-				foldersRequested = true;
-			}
-		}
-		if (arg.suggestions?.length) {
-			// there are specific suggestions to show
-			items = [];
-			for (const suggestion of arg.suggestions) {
-				const suggestionLabels = getLabel(suggestion);
-				if (!suggestionLabels) {
-					continue;
-				}
-				const twoWordsBefore = terminalContext.commandLine.slice(0, terminalContext.cursorPosition).split(' ').at(-2);
-				const wordBefore = terminalContext.commandLine.slice(0, terminalContext.cursorPosition).split(' ').at(-1);
-				for (const suggestionLabel of suggestionLabels) {
-					if (items.find(i => i.label === suggestionLabel)) {
-						continue;
-					}
-					if (!arg.isVariadic && twoWordsBefore === suggestionLabel && wordBefore?.trim() === '') {
-						return { items: [], filesRequested, foldersRequested };
-					}
-					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
-						const description = typeof suggestion !== 'string' ? suggestion.description : '';
-						items.push(createCompletionItem(terminalContext.cursorPosition, wordBefore ?? '', { label: suggestionLabel }, description, undefined, vscode.TerminalCompletionItemKind.Argument));
-					}
-				}
-			}
-			if (items.length) {
-				return { items, filesRequested, foldersRequested };
-			}
-		}
-	}
-	return { items, filesRequested, foldersRequested };
 }
 
 function getShell(shellType: TerminalShellType): string | undefined {
@@ -480,4 +455,16 @@ function getShell(shellType: TerminalShellType): string | undefined {
 
 function removeAnyFileExtension(label: string): string {
 	return label.replace(/\.[a-zA-Z0-9!#\$%&'\(\)\-@\^_`{}~\+,;=\[\]]+$/, '');
+}
+
+function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
+	const env: Record<string, string> = {};
+	if (shellIntegrationEnv) {
+		for (const [key, value] of Object.entries(shellIntegrationEnv)) {
+			if (typeof value === 'string') {
+				env[key] = value;
+			}
+		}
+	}
+	return env;
 }
