@@ -22,7 +22,9 @@ import { getFriendlyResourcePath } from './helpers/uri';
 import { ArgumentParserResult, parseArguments } from './fig/autocomplete-parser/parseArguments';
 import { getCommand, type Command } from './fig/shell-parser/command';
 import { SuggestionFlag } from './fig/shared/utils';
-import { spawnHelper } from './shell/common';
+import { createGeneratorState } from './fig/autocomplete/state/generators';
+import { Visibility, type AutocompleteState } from './fig/autocomplete/state/types';
+import type { FigState } from './fig/autocomplete/fig/hooks';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -231,7 +233,14 @@ export function asArray<T>(x: T | T[]): T[] {
 
 export type SpecArg = Fig.Arg | Fig.Suggestion | Fig.Option | string;
 
-export async function collectCompletionItemResult(command: Command, parsedArguments: ArgumentParserResult, prefix: string, terminalContext: any, items: vscode.TerminalCompletionItem[]): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
+export async function collectCompletionItemResult(
+	command: Command,
+	parsedArguments: ArgumentParserResult,
+	prefix: string,
+	terminalContext: { commandLine: string; cursorPosition: number },
+	shellIntegrationCwd: vscode.Uri | undefined,
+	items: vscode.TerminalCompletionItem[]
+): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
 
@@ -249,25 +258,42 @@ export async function collectCompletionItemResult(command: Command, parsedArgume
 						}
 					}
 				} else {
-					if (generator.script && Array.isArray(generator.script) && generator.postProcess) {
-						let output;
-						try {
-							output = await spawnHelper(generator.script[0], generator.script.slice(1), { encoding: 'utf8' }); //, { options });
-						} catch {
-							//ignore
-						}
-						if (!output) {
-							continue;
-						}
-						const generatedItems = generator.postProcess(output, command.tokens.map(e => e.text));
-						if (!generatedItems) {
-							continue;
-						}
-						for (const generatedItem of generatedItems) {
-							if (!generatedItem) {
+					const initialFigState: FigState = {
+						buffer: terminalContext.commandLine,
+						cursorLocation: terminalContext.cursorPosition,
+						cwd: shellIntegrationCwd?.fsPath ?? null,
+						processUserIsIn: null,
+						sshContextString: null,
+						aliases: {},
+						environmentVariables: {},
+						shellContext: undefined,
+					};
+					const state: AutocompleteState = {
+						figState: initialFigState,
+						parserResult: parsedArguments,
+						generatorStates: [],
+						command,
+
+						visibleState: Visibility.HIDDEN_UNTIL_KEYPRESS,
+						lastInsertedSuggestion: null,
+						justInserted: false,
+
+						selectedIndex: 0,
+						suggestions: [],
+						hasChangedIndex: false,
+
+						historyModeEnabled: false,
+						fuzzySearchEnabled: false,
+						userFuzzySearchEnabled: false,
+					};
+					const s = createGeneratorState(state);
+					const generatorResults = s.triggerGenerators(parsedArguments);
+					for (const generatorResult of generatorResults) {
+						for (const item of (await generatorResult?.request) ?? []) {
+							if (!item.name) {
 								continue;
 							}
-							const suggestionLabels = getLabel(generatedItem);
+							const suggestionLabels = getLabel(item);
 							if (!suggestionLabels) {
 								continue;
 							}
@@ -277,7 +303,7 @@ export async function collectCompletionItemResult(command: Command, parsedArgume
 									prefix,
 									{ label },
 									undefined,
-									typeof generatedItem === 'string' ? generatedItem : generatedItem.description,
+									typeof item === 'string' ? item : item.description,
 									kind
 								));
 							}
@@ -408,7 +434,7 @@ export async function getCompletionItemsFromSpecs(
 				spec,
 			);
 
-			const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, items);
+			const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, shellIntegrationCwd, items);
 			if (completionItemResult) {
 				filesRequested ||= completionItemResult.filesRequested;
 				foldersRequested ||= completionItemResult.foldersRequested;
