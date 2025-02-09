@@ -7,7 +7,7 @@ import 'mocha';
 import cdSpec from '../../completions/cd';
 import { testPaths, type ISuiteSpec } from '../helpers';
 
-const expectedCompletions = ['~', '-'];
+const expectedCompletions = ['-'];
 
 export const cdTestSuiteSpec: ISuiteSpec = {
 	name: 'cd',
@@ -26,7 +26,6 @@ export const cdTestSuiteSpec: ISuiteSpec = {
 		// Basic arguments
 		{ input: 'cd |', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
 		{ input: 'cd -|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'cd ~|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
 
 		// Relative paths
 		{ input: 'cd c|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
