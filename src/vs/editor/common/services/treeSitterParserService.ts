@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Parser } from '@vscode/tree-sitter-wasm';
+import type * as Parser from '@vscode/tree-sitter-wasm';
 import { Event } from '../../../base/common/event.js';
 import { ITextModel } from '../model.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { Range } from '../core/range.js';
+import { importAMDNodeModule } from '../../../amdX.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
 
@@ -56,4 +57,51 @@ export interface ITextModelTreeSitter {
 	 */
 	parse(languageId?: string): Promise<ITreeSitterParseResult | undefined>;
 	dispose(): void;
+}
+
+export const ITreeSitterImporter = createDecorator<ITreeSitterImporter>('treeSitterImporter');
+
+export interface ITreeSitterImporter {
+	readonly _serviceBrand: undefined;
+	getParserClass(): Promise<typeof Parser.Parser>;
+	getLanguageClass(): Promise<typeof Parser.Language>;
+	getQueryClass(): Promise<typeof Parser.Query>;
+}
+
+export class TreeSitterImporter implements ITreeSitterImporter {
+	readonly _serviceBrand: undefined;
+	private _treeSitterImport: typeof import('@vscode/tree-sitter-wasm') | undefined;
+
+	constructor() { }
+
+	private async _getTreeSitterImport() {
+		if (!this._treeSitterImport) {
+			this._treeSitterImport = await importAMDNodeModule<typeof import('@vscode/tree-sitter-wasm')>('@vscode/tree-sitter-wasm', 'wasm/tree-sitter.js');
+		}
+		return this._treeSitterImport;
+	}
+
+	private _parserClass: typeof Parser.Parser | undefined;
+	public async getParserClass() {
+		if (!this._parserClass) {
+			this._parserClass = (await this._getTreeSitterImport()).Parser;
+		}
+		return this._parserClass;
+	}
+
+	private _languageClass: typeof Parser.Language | undefined;
+	public async getLanguageClass() {
+		if (!this._languageClass) {
+			this._languageClass = (await this._getTreeSitterImport()).Language;
+		}
+		return this._languageClass;
+	}
+
+	private _queryClass: typeof Parser.Query | undefined;
+	public async getQueryClass() {
+		if (!this._queryClass) {
+			this._queryClass = (await this._getTreeSitterImport()).Query;
+		}
+		return this._queryClass;
+	}
 }

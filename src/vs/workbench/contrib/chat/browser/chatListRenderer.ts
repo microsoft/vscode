@@ -532,6 +532,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const parts: IChatContentPart[] = [];
 		if (!isFiltered) {
+
+			let inlineSlashCommandRendered = false;
+
 			value.forEach((data, index) => {
 				const context: IChatContentPartRenderContext = {
 					element,
@@ -543,6 +546,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (newPart) {
 
 					if (this.rendererOptions.renderDetectedCommandsWithRequest
+						&& !inlineSlashCommandRendered
 						&& isRequestVM(element) && element.agentOrSlashCommandDetected && element.slashCommand
 						&& data.kind === 'markdownContent' // TODO this is fishy but I didn't find a better way to render on the same inline as the MD request part
 					) {
@@ -550,6 +554,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						const cmdPart = this.instantiationService.createInstance(ChatAgentCommandContentPart, element.slashCommand, () => this._onDidClickRerunWithAgentOrCommandDetection.fire({ sessionId: element.sessionId, requestId: element.id }));
 						templateData.value.appendChild(cmdPart.domNode);
 						parts.push(cmdPart);
+						inlineSlashCommandRendered = true;
 					}
 
 					templateData.value.appendChild(newPart.domNode);
@@ -873,7 +878,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderContentReferencesListData(references: IChatReferences, labelOverride: string | undefined, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCollapsibleListContentPart {
-		const referencesPart = this.instantiationService.createInstance(ChatCollapsibleListContentPart, references.references, labelOverride, context, this._contentReferencesListPool);
+		const referencesPart = this.instantiationService.createInstance(ChatCollapsibleListContentPart, references.references, labelOverride, context, this._contentReferencesListPool, { expandedWhenEmptyResponse: this.rendererOptions.referencesExpandedWhenEmptyResponse });
 		referencesPart.addDisposable(referencesPart.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
 		}));

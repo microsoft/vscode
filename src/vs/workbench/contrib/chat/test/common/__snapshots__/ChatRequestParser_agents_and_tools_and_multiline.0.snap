@@ -1,0 +1,131 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 6
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 7
+      },
+      agent: {
+        id: "agent",
+        name: "agent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        extensionPublisherId: "",
+        locations: [ "panel" ],
+        metadata: {  },
+        slashCommands: [
+          {
+            name: "subCommand",
+            description: ""
+          }
+        ],
+        disambiguation: [  ]
+      },
+      kind: "agent"
+    },
+    {
+      range: {
+        start: 6,
+        endExclusive: 7
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 7,
+        endLineNumber: 1,
+        endColumn: 8
+      },
+      text: " ",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 7,
+        endExclusive: 18
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 8,
+        endLineNumber: 1,
+        endColumn: 19
+      },
+      command: {
+        name: "subCommand",
+        description: ""
+      },
+      kind: "subcommand"
+    },
+    {
+      range: {
+        start: 18,
+        endExclusive: 35
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 19,
+        endLineNumber: 2,
+        endColumn: 16
+      },
+      text: " \nPlease do with ",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 35,
+        endExclusive: 45
+      },
+      editorRange: {
+        startLineNumber: 2,
+        startColumn: 16,
+        endLineNumber: 2,
+        endColumn: 26
+      },
+      toolName: "selection",
+      toolId: "get_selection",
+      displayName: "",
+      icon: undefined,
+      kind: "tool"
+    },
+    {
+      range: {
+        start: 45,
+        endExclusive: 50
+      },
+      editorRange: {
+        startLineNumber: 2,
+        startColumn: 26,
+        endLineNumber: 3,
+        endColumn: 5
+      },
+      text: "\nand ",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 50,
+        endExclusive: 63
+      },
+      editorRange: {
+        startLineNumber: 3,
+        startColumn: 5,
+        endLineNumber: 3,
+        endColumn: 18
+      },
+      toolName: "debugConsole",
+      toolId: "get_debugConsole",
+      displayName: "",
+      icon: undefined,
+      kind: "tool"
+    }
+  ],
+  text: "@agent /subCommand \nPlease do with #selection\nand #debugConsole"
+}

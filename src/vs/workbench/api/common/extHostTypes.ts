@@ -1855,6 +1855,7 @@ export class InlineSuggestionList implements vscode.InlineCompletionList {
 
 export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
+	acceptedLength: number;
 }
 
 export enum PartialAcceptTriggerKind {
@@ -2168,7 +2169,6 @@ export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	}
 }
 
-
 /**
  * Represents a collection of {@link CompletionItem completion items} to be presented
  * in the editor.
@@ -2201,7 +2201,6 @@ export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
 	cwd?: vscode.Uri;
-	pathSeparator: string;
 }
 
 export enum TaskRevealKind {

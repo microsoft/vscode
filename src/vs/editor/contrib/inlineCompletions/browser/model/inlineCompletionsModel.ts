@@ -261,14 +261,6 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	private readonly _collapsedInlineEditId = observableValue<string | undefined>(this, undefined);
-
-	public collapseInlineEdit(): void {
-		const currentInlineEdit = this.inlineEditState.get()?.inlineCompletion;
-		if (!currentInlineEdit) { return; }
-		this._collapsedInlineEditId.set(currentInlineEdit.semanticId, undefined);
-	}
-
 	private readonly _inlineCompletionItems = derivedOpts({ owner: this }, reader => {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return undefined; }
@@ -379,13 +371,9 @@ export class InlineCompletionsModel extends Disposable {
 				return undefined;
 			}
 
-			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this.primaryPosition.read(reader).lineNumber);
-			const disableCollapsing = true;
-			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === inlineEditResult.semanticId);
-
 			const commands = inlineEditResult.inlineCompletion.source.inlineCompletions.commands;
 			const renderExplicitly = this._jumpedTo.read(reader);
-			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, renderExplicitly, commands ?? [], inlineEditResult.inlineCompletion);
+			const inlineEdit = new InlineEdit(edit, renderExplicitly, commands ?? [], inlineEditResult.inlineCompletion);
 
 			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: [edit], cursorAtInlineEdit };
 		}
@@ -715,11 +703,12 @@ export class InlineCompletionsModel extends Disposable {
 				const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), TextLength.ofText(partialGhostTextVal).addToPosition(ghostTextPos));
 				// This assumes that the inline completion and the model use the same EOL style.
 				const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
+				const acceptedLength = text.length;
 				completion.source.provider.handlePartialAccept(
 					completion.source.inlineCompletions,
 					completion.sourceInlineCompletion,
-					text.length,
-					{ kind, }
+					acceptedLength,
+					{ kind, acceptedLength: acceptedLength, }
 				);
 			}
 		} finally {
@@ -734,12 +723,19 @@ export class InlineCompletionsModel extends Disposable {
 
 		const source = augmentedCompletion.completion.source;
 		const sourceInlineCompletion = augmentedCompletion.completion.sourceInlineCompletion;
+
+		const completion = augmentedCompletion.completion.toInlineCompletion(undefined);
+		// This assumes that the inline completion and the model use the same EOL style.
+		const alreadyAcceptedLength = this.textModel.getValueInRange(completion.range, EndOfLinePreference.LF).length;
+		const acceptedLength = alreadyAcceptedLength + itemEdit.text.length;
+
 		source.provider.handlePartialAccept?.(
 			source.inlineCompletions,
 			sourceInlineCompletion,
 			itemEdit.text.length,
 			{
 				kind: PartialAcceptTriggerKind.Suggest,
+				acceptedLength,
 			}
 		);
 	}

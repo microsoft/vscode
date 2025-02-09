@@ -35,6 +35,10 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { EditsAttachmentModel } from '../chatAttachmentModel.js';
 
+export interface IEditingSessionActionContext {
+	widget?: IChatWidget;
+}
+
 export abstract class EditingSessionAction extends Action2 {
 
 	constructor(opts: Readonly<IAction2Options>) {
@@ -45,8 +49,10 @@ export abstract class EditingSessionAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IEditingSessionActionContext | undefined = args[0];
+
 		const chatEditingService = accessor.get(IChatEditingService);
-		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
 
 		if (chatWidget?.location !== ChatAgentLocation.EditingSession || !chatWidget.viewModel) {
 			return;
@@ -286,12 +292,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
-				{
-					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-					id: MenuId.EditorTitle,
-					order: 0,
-					group: 'navigation',
-				},
+
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
@@ -308,7 +309,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingAcceptAllAction);
 
-export class ChatEditingDiscardAllAction extends Action2 {
+export class ChatEditingDiscardAllAction extends EditingSessionAction {
 
 	constructor() {
 		super({
@@ -318,12 +319,6 @@ export class ChatEditingDiscardAllAction extends Action2 {
 			tooltip: localize('discardAllEdits', 'Discard All Edits'),
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			menu: [
-				{
-					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-					id: MenuId.EditorTitle,
-					order: 1,
-					group: 'navigation',
-				},
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
@@ -339,19 +334,15 @@ export class ChatEditingDiscardAllAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		await discardAllEditsWithConfirmation(accessor);
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+		await discardAllEditsWithConfirmation(accessor, editingSession);
 	}
 }
 registerAction2(ChatEditingDiscardAllAction);
 
-export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor): Promise<boolean> {
-	const chatEditingService = accessor.get(IChatEditingService);
+export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession): Promise<boolean> {
+
 	const dialogService = accessor.get(IDialogService);
-	const currentEditingSession = chatEditingService.globalEditingSession;
-	if (!currentEditingSession) {
-		return false;
-	}
 
 	// Ask for confirmation if there are any edits
 	const entries = currentEditingSession.entries.get();
@@ -517,8 +508,6 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-
-
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
 		const chatEditingService = accessor.get(IChatEditingService);
@@ -528,7 +517,7 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.globalEditingSession;
+		const session = chatEditingService.getEditingSession(chatModel.sessionId);
 		if (!session) {
 			return;
 		}
@@ -543,7 +532,7 @@ registerAction2(class RemoveAction extends Action2 {
 
 			const requestsToRemove = chatRequests.slice(itemIndex);
 			const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
-			const entriesModifiedInRequestsToRemove = chatEditingService.globalEditingSessionObs.get()?.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
+			const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
 			const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
 
 			let message: string;
@@ -620,17 +609,17 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		const chatModel = chatService.getSession(context.sessionId);
-		const requests = chatModel?.getRequests();
-		if (!requests) {
+		if (!chatModel) {
 			return;
 		}
-		const snapshotRequestIndex = requests?.findIndex((v, i) => i > 0 && requests[i - 1]?.id === context.requestId);
+		const requests = chatModel.getRequests();
+		const snapshotRequestIndex = requests.findIndex((v, i) => i > 0 && requests[i - 1]?.id === context.requestId);
 		if (snapshotRequestIndex < 1) {
 			return;
 		}
 		const snapshotRequestId = requests[snapshotRequestIndex]?.id;
 		if (snapshotRequestId) {
-			const snapshot = chatEditingService.globalEditingSession?.getSnapshotUri(snapshotRequestId, context.uri);
+			const snapshot = chatEditingService.getEditingSession(chatModel.sessionId)?.getSnapshotUri(snapshotRequestId, context.uri);
 			if (snapshot) {
 				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
 				if (isCodeEditor(editor)) {

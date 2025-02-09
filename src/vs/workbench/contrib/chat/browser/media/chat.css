@@ -807,10 +807,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.chat-modelPicker-item {
 		min-width: 0px;
 
-		.chat-model-label {
+		.action-label {
 			min-width: 0px;
-			overflow: hidden;
-			text-overflow: ellipsis;
+
+			.chat-model-label {
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 		}
 
 		.codicon {
@@ -996,7 +999,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 /*
  * This overly-specific CSS selector is needed to beat priority of some
- * styles applied on the the `.chat-attached-context-attachment` element.
+ * styles applied on the `.chat-attached-context-attachment` element.
  */
 .chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.error.implicit,
 .chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.warning.implicit {

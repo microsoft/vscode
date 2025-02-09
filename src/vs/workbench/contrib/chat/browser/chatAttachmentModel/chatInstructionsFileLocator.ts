@@ -83,10 +83,10 @@ export class ChatInstructionsFileLocator {
 					continue;
 				}
 
-				// if inside a workspace, consider the specified source location inside
-				// the workspace root, to allow users to use some (e.g., `.github/prompts`)
+				// if inside a multi-root workspace, consider the specified source location
+				// inside the workspace root, to allow users to use some (e.g., `.github/prompts`)
 				// folder as a top-level folder in the workspace
-				const workspaceRootUri = dirname(folders[0].uri);
+				const workspaceRootUri = dirname(folder.uri);
 				const workspaceFolderUri = extUri.resolvePath(workspaceRootUri, sourceFolderName);
 				// if we already have this folder in the list, skip it
 				if (paths.has(workspaceFolderUri)) {
@@ -117,8 +117,8 @@ export class ChatInstructionsFileLocator {
 		exclude: ReadonlySet<string>,
 	): Promise<readonly URI[]> {
 		const results = await this.fileService.resolveAll(
-			locations.map((location) => {
-				return { resource: location };
+			locations.map((resource) => {
+				return { resource };
 			}),
 		);
 
