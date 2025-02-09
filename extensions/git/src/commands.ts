@@ -155,8 +155,11 @@ class CheckoutTagItem extends RefItem {
 class BranchDeleteItem extends RefItem {
 
 	async run(repository: Repository, force?: boolean): Promise<void> {
-		if (this.ref.name) {
-			await repository.deleteBranch(this.ref.name, force);
+		if (this.ref.type === RefType.Head && this.refName) {
+			await repository.deleteBranch(this.refName, force);
+		} else if (this.ref.type === RefType.RemoteHead && this.refRemote && this.refName) {
+			const refName = this.refName.substring(this.refRemote.length + 1);
+			await repository.deleteRemoteRef(this.refRemote, refName, { force });
 		}
 	}
 }
@@ -178,7 +181,7 @@ class RemoteTagDeleteItem extends RefItem {
 
 	async run(repository: Repository, remote: string): Promise<void> {
 		if (this.ref.name) {
-			await repository.deleteRemoteTag(remote, this.ref.name);
+			await repository.deleteRemoteRef(remote, this.ref.name);
 		}
 	}
 }
@@ -2883,7 +2886,7 @@ export class CommandCenter {
 
 	@command('git.deleteBranch', { repository: true })
 	async deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
-		await this._deleteBranch(repository, name, force);
+		await this._deleteBranch(repository, undefined, name, { remote: false, force });
 	}
 
 	@command('git.graph.deleteBranch', { repository: true })
@@ -2893,22 +2896,76 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._deleteBranch(repository, historyItemRef.name);
+		// Local branch
+		if (historyItemRef.id.startsWith('refs/heads/')) {
+			if (historyItemRef.id === repository.historyProvider.currentHistoryItemRef?.id) {
+				window.showInformationMessage(l10n.t('The active branch cannot be deleted.'));
+				return;
+			}
+
+			await this._deleteBranch(repository, undefined, historyItemRef.name, { remote: false });
+			return;
+		}
+
+		// Remote branch
+		if (historyItemRef.id === repository.historyProvider.currentHistoryItemRemoteRef?.id) {
+			window.showInformationMessage(l10n.t('The remote branch of the active branch cannot be deleted.'));
+			return;
+		}
+
+		const index = historyItemRef.name.indexOf('/');
+		if (index === -1) {
+			return;
+		}
+
+		const remoteName = historyItemRef.name.substring(0, index);
+		const refName = historyItemRef.name.substring(index + 1);
+
+		await this._deleteBranch(repository, remoteName, refName, { remote: true });
 	}
 
-	private async _deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
+	@command('git.deleteRemoteBranch', { repository: true })
+	async deleteRemoteBranch(repository: Repository): Promise<void> {
+		await this._deleteBranch(repository, undefined, undefined, { remote: true });
+	}
+
+	private async _deleteBranch(repository: Repository, remote: string | undefined, name: string | undefined, options: { remote: boolean; force?: boolean }): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
-		if (typeof name === 'string') {
+
+		if (!options.remote && typeof name === 'string') {
+			// Local branch
 			run = force => repository.deleteBranch(name!, force);
+		} else if (options.remote && typeof remote === 'string' && typeof name === 'string') {
+			// Remote branch
+			run = force => repository.deleteRemoteRef(remote, name!, { force });
 		} else {
 			const getBranchPicks = async () => {
-				const refs = await repository.getRefs({ pattern: 'refs/heads' });
-				const currentHead = repository.HEAD && repository.HEAD.name;
+				const pattern = options.remote ? 'refs/remotes' : 'refs/heads';
+				const refs = await repository.getRefs({ pattern });
 
-				return refs.filter(ref => ref.name !== currentHead).map(ref => new BranchDeleteItem(ref));
+				const refsToExclude: string[] = [];
+				if (options.remote) {
+					refsToExclude.push('origin/HEAD');
+
+					if (repository.HEAD?.upstream) {
+						// Current branch's upstream
+						refsToExclude.push(`${repository.HEAD.upstream.remote}/${repository.HEAD.upstream.name}`);
+					}
+				} else {
+					if (repository.HEAD?.name) {
+						// Current branch
+						refsToExclude.push(repository.HEAD.name);
+					}
+				}
+
+				return refs.filter(ref => ref.name && !refsToExclude.includes(ref.name))
+					.map(ref => new BranchDeleteItem(ref));
 			};
 
-			const placeHolder = l10n.t('Select a branch to delete');
+			const placeHolder = !options.remote
+				? l10n.t('Select a branch to delete')
+				: l10n.t('Select a remote branch to delete');
+
 			const choice = await this.pickRef<BranchDeleteItem>(getBranchPicks(), placeHolder);
 
 			if (!choice || !choice.refName) {
@@ -2919,7 +2976,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await run(force);
+			await run(options.force);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
 				throw err;

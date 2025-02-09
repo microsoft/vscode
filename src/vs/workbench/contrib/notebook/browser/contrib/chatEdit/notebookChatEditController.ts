@@ -80,12 +80,12 @@ class NotebookChatEditorController extends Disposable {
 
 		let notebookSynchronizer: IReference<NotebookModelSynchronizer>;
 		const entryObs = derived((r) => {
-			const session = this._chatEditingService.globalEditingSessionObs.read(r);
 			const model = notebookModel.read(r);
-			if (!model || !session) {
+			if (!model) {
 				return;
 			}
-			return session.readEntry(model.uri, r);
+			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+			return sessions.map(s => s.readEntry(model.uri, r)).find(r => !!r);
 		}).recomputeInitiallyAndOnChange(this._store);
 
 

@@ -39,10 +39,6 @@ export interface IBaseChatRequestVariableEntry {
 
 	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
 	kind?: never;
-	/**
-	 * True if the variable has a value vs being a reference to a variable
-	 */
-	isDynamic?: boolean;
 	isFile?: boolean;
 	isDirectory?: boolean;
 	isTool?: boolean;
@@ -51,7 +47,6 @@ export interface IBaseChatRequestVariableEntry {
 
 export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'implicit';
-	readonly isDynamic: true;
 	readonly isFile: true;
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
@@ -76,19 +71,16 @@ export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVar
 
 export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'symbol';
-	readonly isDynamic: true;
 	readonly value: Location;
 	readonly symbolKind: SymbolKind;
 }
 
 export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'command';
-	readonly isDynamic: true;
 }
 
 export interface ILinkVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'link';
-	readonly isDynamic: true;
 	readonly value: URI;
 }
 

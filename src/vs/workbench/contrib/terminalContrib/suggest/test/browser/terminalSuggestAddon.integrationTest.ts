@@ -99,10 +99,6 @@ suite('Terminal Contrib Suggest Recordings', () => {
 					quickSuggestions: true,
 					suggestOnTriggerCharacters: true,
 					runOnEnter: 'never',
-					builtinCompletions: {
-						pwshCode: true,
-						pwshGit: true
-					},
 					providers: {
 						'terminal-suggest': true,
 						'pwsh-shell-integration': true,

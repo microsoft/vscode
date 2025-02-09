@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from '../../../base/common/event.js';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto, ITerminalCompletionContextDto } from './extHost.protocol.js';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto, ITerminalCompletionContextDto, TerminalCompletionListDto } from './extHost.protocol.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -23,7 +23,7 @@ import { TerminalDataBufferer } from '../../../platform/terminal/common/terminal
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Promises } from '../../../base/common/async.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
-import { TerminalQuickFix, ViewColumn } from './extHostTypeConverters.js';
+import { TerminalCompletionList, TerminalQuickFix, ViewColumn } from './extHostTypeConverters.js';
 import { IExtHostCommands } from './extHostCommands.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
@@ -779,7 +779,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
+	public async $provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto): Promise<vscode.TerminalCompletionItem[] | TerminalCompletionListDto | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested || !this.activeTerminal) {
 			return undefined;
@@ -792,10 +792,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 		const completions = await provider.provideTerminalCompletions(this.activeTerminal, options, token);
 		if (completions === null || completions === undefined) {
-			return;
+			return undefined;
 		}
-
-		return completions;
+		if (Array.isArray(completions)) {
+			return completions;
+		} else {
+			return TerminalCompletionList.from(completions);
+		}
 	}
 
 	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined): void {

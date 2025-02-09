@@ -223,7 +223,6 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 				name: variableName,
 				value: variableName,
 				icon: codiconsLibrary.variable,
-				isDynamic: true
 			});
 		}
 	}

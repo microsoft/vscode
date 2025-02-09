@@ -40,6 +40,7 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, DIFF_OPEN_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
+import { prepareMoveCopyEditors } from './editor.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -307,10 +308,11 @@ function registerActiveEditorMoveCopyCommand(): void {
 		}
 
 		if (targetGroup) {
+			const editorsWithOptions = prepareMoveCopyEditors(sourceGroup, editors);
 			if (isMove) {
-				sourceGroup.moveEditors(editors.map(editor => ({ editor })), targetGroup);
+				sourceGroup.moveEditors(editorsWithOptions, targetGroup);
 			} else if (sourceGroup.id !== targetGroup.id) {
-				sourceGroup.copyEditors(editors.map(editor => ({ editor })), targetGroup);
+				sourceGroup.copyEditors(editorsWithOptions, targetGroup);
 			}
 
 			targetGroup.focus();

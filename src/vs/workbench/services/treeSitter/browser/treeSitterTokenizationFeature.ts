@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Parser } from '@vscode/tree-sitter-wasm';
+import type * as Parser from '@vscode/tree-sitter-wasm';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSupport, QueryCapture, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, TreeUpdateEvent, RangeChange } from '../../../../editor/common/services/treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, TreeUpdateEvent, RangeChange, ITreeSitterImporter } from '../../../../editor/common/services/treeSitterParserService.js';
 import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -45,6 +45,7 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 	private readonly _tokenizersRegistrations: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
 
 	constructor(
+		@ITreeSitterImporter private readonly _treeSitterImporter: ITreeSitterImporter,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -92,7 +93,8 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 
 	private async _createTokenizationSupport(languageId: string): Promise<ITreeSitterTokenizationSupport & IDisposable | null> {
 		const queries = await this._fetchQueries(languageId);
-		return this._instantiationService.createInstance(TreeSitterTokenizationSupport, queries, languageId, this._languageService.languageIdCodec);
+		const Query = await this._treeSitterImporter.getQueryClass();
+		return this._instantiationService.createInstance(TreeSitterTokenizationSupport, queries, Query, languageId, this._languageService.languageIdCodec);
 	}
 }
 
@@ -105,6 +107,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	constructor(
 		private readonly _queries: TreeSitterQueries,
+		private readonly Query: typeof Parser.Query,
 		private readonly _languageId: string,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
@@ -314,12 +317,12 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			if (!language) {
 				if (!this._languageAddedListener) {
 					this._languageAddedListener = this._register(Event.onceIf(this._treeSitterService.onDidAddLanguage, e => e.id === this._languageId)((e) => {
-						this._query = e.language.query(this._queries);
+						this._query = new this.Query(e.language, this._queries);
 					}));
 				}
 				return;
 			}
-			this._query = language.query(this._queries);
+			this._query = new this.Query(language, this._queries);
 		}
 		return this._query;
 	}
