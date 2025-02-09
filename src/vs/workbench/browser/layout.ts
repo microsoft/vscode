@@ -30,7 +30,7 @@ import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { isCodeEditor } from '../../editor/browser/editorBrowser.js';
 import { coalesce } from '../../base/common/arrays.js';
-import { assertIsDefined, isDefined } from '../../base/common/types.js';
+import { assertIsDefined } from '../../base/common/types.js';
 import { INotificationService, NotificationsFilter } from '../../platform/notification/common/notification.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
@@ -538,9 +538,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.updateMenubarVisibility(!!skipLayout);
 
 		// Centered Layout
-		this.editorGroupService.whenRestored.then(() => {
-			this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED), skipLayout);
-		});
+		this.editorGroupService.whenRestored.then(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED), skipLayout));
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -1615,13 +1613,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	centerMainEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED, active);
 
-		const mainVisibleEditors = this.editorGroupService.mainPart.groups.map(g => g.activeEditor).filter(isDefined);
+		const mainVisibleEditors = coalesce(this.editorGroupService.mainPart.groups.map(group => group.activeEditor));
 		const isEditorComplex = mainVisibleEditors.some(editor => {
 			if (editor instanceof DiffEditorInput) {
 				return this.configurationService.getValue('diffEditor.renderSideBySide');
-			} else if (editor?.hasCapability(EditorInputCapabilities.MultipleEditors)) {
+			}
+
+			if (editor?.hasCapability(EditorInputCapabilities.MultipleEditors)) {
 				return true;
 			}
+
 			return false;
 		});
 
@@ -1630,7 +1631,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (layout.orientation === GroupOrientation.HORIZONTAL) {
 			hasMoreThanOneColumn = layout.groups.length > 1;
 		} else {
-			hasMoreThanOneColumn = layout.groups.some(g => g.groups && g.groups.length > 1);
+			hasMoreThanOneColumn = layout.groups.some(group => group.groups && group.groups.length > 1);
 		}
 
 		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
