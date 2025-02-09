@@ -434,7 +434,7 @@ async function executeReplInput(
 			// Just accept any existing inline chat hunk
 			const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
 			if (ctrl) {
-				ctrl.acceptHunk();
+				ctrl.acceptSession();
 			}
 
 			historyService.replaceLast(notebookDocument.uri, value);

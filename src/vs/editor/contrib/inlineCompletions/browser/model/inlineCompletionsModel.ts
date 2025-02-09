@@ -703,11 +703,12 @@ export class InlineCompletionsModel extends Disposable {
 				const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), TextLength.ofText(partialGhostTextVal).addToPosition(ghostTextPos));
 				// This assumes that the inline completion and the model use the same EOL style.
 				const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
+				const acceptedLength = text.length;
 				completion.source.provider.handlePartialAccept(
 					completion.source.inlineCompletions,
 					completion.sourceInlineCompletion,
-					text.length,
-					{ kind, }
+					acceptedLength,
+					{ kind, acceptedLength: acceptedLength, }
 				);
 			}
 		} finally {
@@ -722,12 +723,19 @@ export class InlineCompletionsModel extends Disposable {
 
 		const source = augmentedCompletion.completion.source;
 		const sourceInlineCompletion = augmentedCompletion.completion.sourceInlineCompletion;
+
+		const completion = augmentedCompletion.completion.toInlineCompletion(undefined);
+		// This assumes that the inline completion and the model use the same EOL style.
+		const alreadyAcceptedLength = this.textModel.getValueInRange(completion.range, EndOfLinePreference.LF).length;
+		const acceptedLength = alreadyAcceptedLength + itemEdit.text.length;
+
 		source.provider.handlePartialAccept?.(
 			source.inlineCompletions,
 			sourceInlineCompletion,
 			itemEdit.text.length,
 			{
 				kind: PartialAcceptTriggerKind.Suggest,
+				acceptedLength,
 			}
 		);
 	}

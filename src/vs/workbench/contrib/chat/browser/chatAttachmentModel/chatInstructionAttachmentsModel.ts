@@ -56,7 +56,6 @@ export const toChatVariable = (
 		isSelection: false,
 		enabled: true,
 		isFile: true,
-		isDynamic: true,
 		isMarkedReadonly: isPromptSnippet,
 	};
 };

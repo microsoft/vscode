@@ -14,7 +14,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { derived, IObservable, observableValue, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType, isString } from '../../../../../base/common/types.js';
@@ -50,17 +50,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 	_serviceBrand: undefined;
 
-	private readonly _currentSessionObs = observableValue<ChatEditingSession | null>(this, null);
-	private readonly _currentSessionDisposables = this._register(new DisposableStore());
 
 	private readonly _sessionsObs = observableValueOpts<LinkedList<ChatEditingSession>>({ equalsFn: (a, b) => false }, new LinkedList());
 
 	readonly editingSessionsObs: IObservable<readonly IChatEditingSession[]> = derived(r => {
 		const result = Array.from(this._sessionsObs.read(r));
-		const globalSession = this._currentSessionObs.read(r);
-		if (globalSession) {
-			result.push(globalSession);
-		}
 		return result;
 	});
 
@@ -74,7 +68,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._editingSessionFileLimit ?? defaultChatEditingMaxFileLimit;
 	}
 
-	private _restoringEditingSession: Promise<IChatEditingSession> | undefined;
+	private _restoringEditingSession: Promise<any> | undefined;
 
 	private _chatRelatedFilesProviders = new Map<number, IChatRelatedFilesProvider>();
 
@@ -118,36 +112,69 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._register(extensionService.onDidRegisterExtensions(setReadonlyFilesEnabled));
 		this._register(extensionService.onDidChangeExtensions(setReadonlyFilesEnabled));
 
-		this._register(this.lifecycleService.onWillShutdown((e) => {
-			const session = this._currentSessionObs.get();
-			if (session) {
-				storageService.store(STORAGE_KEY_EDITING_SESSION, session.chatSessionId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-				e.join(session.storeState(), { id: 'join.chatEditingSession', label: localize('join.chatEditingSession', "Saving chat edits history") });
+
+		let storageTask: Promise<any> | undefined;
+
+		this._register(storageService.onWillSaveState(() => {
+			const sessionIds: string[] = [];
+			const tasks: Promise<any>[] = [];
+
+			for (const session of this.editingSessionsObs.get()) {
+				if (!session.isGlobalEditingSession) {
+					continue;
+				}
+				sessionIds.push(session.chatSessionId);
+				tasks.push((session as ChatEditingSession).storeState());
 			}
+
+			if (sessionIds.length) {
+				storageService.store(STORAGE_KEY_EDITING_SESSION, sessionIds.join(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			}
+
+			storageTask = Promise.resolve(storageTask)
+				.then(() => Promise.all(tasks))
+				.finally(() => storageTask = undefined);
+		}));
+
+		this._register(this.lifecycleService.onWillShutdown(e => {
+			if (!storageTask) {
+				return;
+			}
+			e.join(storageTask, {
+				id: 'join.chatEditingSession',
+				label: localize('join.chatEditingSession', "Saving chat edits history")
+			});
 		}));
 
 		this._editingSessionFileLimitPromise = this._workbenchAssignmentService.getTreatment<number>(chatEditingMaxFileAssignmentName).then(value => {
 			this._editingSessionFileLimit = value ?? defaultChatEditingMaxFileLimit;
 			return this._editingSessionFileLimit;
 		});
-		void this._editingSessionFileLimitPromise;
 
-		const sessionIdToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
-		if (isString(sessionIdToRestore)) {
-			if (this._chatService.getOrRestoreSession(sessionIdToRestore)) {
-				this._restoringEditingSession = this.startOrContinueGlobalEditingSession(sessionIdToRestore);
-				this._restoringEditingSession.finally(() => {
-					this._restoringEditingSession = undefined;
-				});
-			} else {
-				logService.error(`Edit session session to restore is a non-existing chat session: ${sessionIdToRestore}`);
+		const rawSessionsToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
+		if (isString(rawSessionsToRestore)) {
+
+			const sessionIds = rawSessionsToRestore.split(',');
+
+			const tasks: Promise<any>[] = [];
+			for (const sessionId of sessionIds) {
+				const chatModel = _chatService.getOrRestoreSession(sessionId);
+				if (!chatModel) {
+					logService.error(`Edit session session to restore is a non-existing chat session: ${rawSessionsToRestore}`);
+					continue;
+				}
+				tasks.push(this.startOrContinueGlobalEditingSession(chatModel.sessionId));
 			}
+
+			this._restoringEditingSession = Promise.all(tasks).finally(() => {
+				this._restoringEditingSession = undefined;
+			});
+
 			storageService.remove(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
 		}
 	}
 
 	override dispose(): void {
-		this._currentSessionObs.get()?.dispose();
 		dispose(this._sessionsObs.get());
 		super.dispose();
 	}
@@ -155,15 +182,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	async startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
 		await this._restoringEditingSession;
 
-		const session = this._currentSessionObs.get();
+		const session = this.getEditingSession(chatSessionId);
 		if (session) {
-			if (session.chatSessionId === chatSessionId) {
-				return session;
-			} else if (session.chatSessionId !== chatSessionId) {
-				await session.stop(true);
-			}
+			return session;
 		}
-		return this._createEditingSession(chatSessionId);
+		return this.createEditingSession(chatSessionId, true);
 	}
 
 
@@ -179,38 +202,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return undefined;
 	}
 
-	private async _createEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
-		if (this._currentSessionObs.get()) {
-			throw new BugIndicatingError('Cannot have more than one active editing session');
-		}
-
-		this._currentSessionDisposables.clear();
-
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, true, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
-		await session.init();
-
-		// listen for completed responses, run the code mapper and apply the edits to this edit session
-		this._currentSessionDisposables.add(this.installAutoApplyObserver(session));
-
-		this._currentSessionDisposables.add(session.onDidDispose(() => {
-			this._currentSessionDisposables.clear();
-			this._currentSessionObs.set(null, undefined);
-		}));
-
-		this._currentSessionObs.set(session, undefined);
-		return session;
-	}
-
 	getEditingSession(chatSessionId: string): IChatEditingSession | undefined {
 		return this.editingSessionsObs.get()
 			.find(candidate => candidate.chatSessionId === chatSessionId);
 	}
 
-	async createEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
+	async createEditingSession(chatSessionId: string, global: boolean = false): Promise<IChatEditingSession> {
 
 		assertType(this.getEditingSession(chatSessionId) === undefined, 'CANNOT have more than one editing session per chat session');
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, false, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, global, this._editingSessionFileLimitPromise, this._lookupEntry.bind(this));
 		await session.init();
 
 		const list = this._sessionsObs.get();
