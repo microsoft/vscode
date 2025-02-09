@@ -111,15 +111,16 @@ interface IInventoryIcon {
 	readonly icon: string;
 	readonly label: string;
 	readonly command: string;
-	readonly width: number; // Width when expanded
+	readonly width: number;
+	readonly containerId: string;
 }
 
 class InventoryIcons {
 	private static readonly icons: readonly IInventoryIcon[] = [
-		{ id: 'chat', icon: 'inventory-chat-icon', label: 'Chat', command: 'pearai.focusContinueInputWithoutClear', width: 70 },
-		{ id: 'creator', icon: 'inventory-creator-icon', label: 'Creator', command: 'pearai.focusCreatorView', width: 80 },
-		{ id: 'search', icon: 'inventory-search-icon', label: 'Search', command: 'pearai.focusPearAISearchView', width: 75 },
-		{ id: 'memory', icon: 'inventory-memory-icon', label: 'Memory', command: 'pearai.focusPearAIMem0View', width: 85 }
+		{ id: 'chat', icon: 'inventory-chat-icon', label: 'Chat', command: 'pearai.chatView.focus', width: 10, containerId: 'pearaichat' },
+		{ id: 'creator', icon: 'inventory-creator-icon', label: 'Creator', command: 'pearai-roo-cline.focus', width: 80, containerId: 'pearaicreator' },
+		{ id: 'search', icon: 'inventory-search-icon', label: 'Search', command: 'pearai.searchView.focus', width: 75, containerId: 'pearaisearch' },
+		{ id: 'memory', icon: 'inventory-memory-icon', label: 'Memory', command: 'pearai.mem0View.focus', width: 85, containerId: 'pearaimemory' }
 	] as const;
 
 	static getAll(): readonly IInventoryIcon[] {
@@ -128,6 +129,10 @@ class InventoryIcons {
 
 	static getById(id: string): IInventoryIcon | undefined {
 		return this.icons.find(icon => icon.id === id);
+	}
+
+	static getByContainerId(containerId: string): IInventoryIcon | undefined {
+		return this.icons.find(icon => ('workbench.view.extension.' + icon.containerId.toLowerCase()) === containerId.toLowerCase());
 	}
 }
 
@@ -253,6 +258,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private onDidOpen(composite: IComposite): void {
 		this.activePaneContextKey.set(composite.getId());
+		this.updateActiveInventoryIcon(composite.getId());
 	}
 
 	private onDidClose(composite: IComposite): void {
@@ -473,20 +479,22 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 				// Update click handler
 				this._register(addDisposableListener(container, EventType.CLICK, () => {
-					// Remove active class from all icons
-					iconGroup.querySelectorAll('.icon-container').forEach(el =>
-						el.classList.remove('active'));
+					// Remove active class from all icons except the current one if it's already active
+					const isCurrentlyActive = this.activeInventoryIcon === iconInfo.id;
+					const activeCompositeId = this.getActivePaneComposite()?.getId();
+					const isViewActive = activeCompositeId === 'workbench.view.extension.' + iconInfo.containerId.toLowerCase();
 
-					if (this.activeInventoryIcon !== iconInfo.id) {
+					// Only deactivate if clicking an inactive icon
+					if (!isCurrentlyActive || !isViewActive) {
+						iconGroup.querySelectorAll('.icon-container').forEach(el =>
+							el.classList.remove('active'));
+
 						// Activate this icon
 						container.classList.add('active');
 						this.activeInventoryIcon = iconInfo.id;
-					} else {
-						// Deactivate if clicking the active icon
-						this.activeInventoryIcon = undefined;
-					}
 
-					this.commandService.executeCommand(iconInfo.command);
+						this.commandService.executeCommand(iconInfo.command);
+					}
 				}));
 
 				// Add hover effect to show it's clickable
@@ -753,4 +761,19 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected abstract shouldShowCompositeBar(): boolean;
 	protected abstract getCompositeBarOptions(): IPaneCompositeBarOptions;
 	protected abstract getCompositeBarPosition(): CompositeBarPosition;
+
+	private updateActiveInventoryIcon(compositeId: string): void {
+		const iconInfo = InventoryIcons.getByContainerId(compositeId);
+		if (iconInfo) {
+			// Update UI to reflect new active state
+			this.activeInventoryIcon = iconInfo.id;
+			const iconGroup = this.element.querySelector('.icon-group');
+			if (iconGroup) {
+				iconGroup.querySelectorAll('.icon-container').forEach(el => {
+					el.classList.toggle('active',
+						el.querySelector(`.${iconInfo.icon}`) !== null);
+				});
+			}
+		}
+	}
 }

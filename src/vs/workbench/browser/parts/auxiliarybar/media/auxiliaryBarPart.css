@@ -51,10 +51,11 @@
     align-items: center;
     gap: 8px;
     border-radius: 12px;
-    background: #161718;
-    box-shadow: 0px 0px 0px 1px rgba(255, 255, 255, 0.25) inset;
+    background: var(--vscode-sideBar-background);
+    box-shadow: 0px 0px 0px 1px var(--vscode-badge-background) inset;
     overflow: hidden;
 }
+
 
 /* Base state for icon containers */
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container {
@@ -81,36 +82,36 @@
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-chat-icon) {
-    width: 70px !important;
+    width: 60px !important;
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-creator-icon) {
-    width: 80px !important;
-}
-
-.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-search-icon) {
     width: 75px !important;
 }
 
+.monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-search-icon) {
+    width: 70px !important;
+}
+
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-memory-icon) {
-    width: 85px !important;
+    width: 80px !important;
 }
 
 /* Glow effects only on active state */
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-chat-icon) {
-    box-shadow: 0px 0px 48px 8px rgba(175, 243, 73, 0.3);
+    box-shadow: 0px 0px 57.6px 9.6px #AFF349;
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-creator-icon) {
-    box-shadow: 0px 0px 48px 8px rgba(255, 113, 189, 0.3);
+    box-shadow: 0px 0px 57.6px 9.6px #FF71BD;
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-search-icon) {
-    box-shadow: 0px 0px 48px 8px rgba(18, 212, 205, 0.3);
+    box-shadow: 0px 0px 57.6px 9.6px #14D2CB;
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-memory-icon) {
-    box-shadow: 0px 0px 48px 8px rgba(145, 105, 255, 0.3);
+    box-shadow: 0px 0px 57.6px 9.6px #8E66FC;
 }
 
 /* Subtle hover effect for inactive icons */
@@ -134,7 +135,8 @@
 /* Label element */
 .monaco-workbench .part.auxiliarybar .icon-group .icon-label {
     position: absolute;
-    left: 28px; /* 24px (icon width) + 4px margin */
+    left: 25px; /* 24px (icon width) + 4px margin */
+    margin-bottom: 2px;
     white-space: nowrap;
     color: #E9FFC7;
 }
