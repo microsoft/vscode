@@ -15,6 +15,7 @@ import { TokenType } from '../tokens';
 import type { ICompletionResource } from '../types';
 import { osIsWindows } from '../helpers/os';
 import { removeAnyFileExtension } from '../helpers/file';
+import type { EnvironmentVariable } from './api-bindings/types';
 
 export interface IFigSpecSuggestionsResult {
 	filesRequested: boolean;
@@ -109,15 +110,18 @@ async function getFigSpecSuggestions(
 	if (!command || !shellIntegrationCwd) {
 		return;
 	}
-	const parsedArguments: ArgumentParserResult = await parseArguments(
-		command,
-		{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd.fsPath, sshPrefix: '', currentProcess: name, /* TODO: pass in aliases */ },
-		spec,
-	);
+	const shellContext: Fig.ShellContext = {
+		environmentVariables: env,
+		currentWorkingDirectory: shellIntegrationCwd.fsPath,
+		sshPrefix: '',
+		currentProcess: name,
+		// TODO: pass in aliases
+	};
+	const parsedArguments: ArgumentParserResult = await parseArguments(command, shellContext, spec);
 
 	const items: vscode.TerminalCompletionItem[] = [];
 	// TODO: Pass in and respect cancellation token
-	const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, shellIntegrationCwd, items);
+	const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, shellIntegrationCwd, env, items);
 	if (token?.isCancellationRequested) {
 		return undefined;
 	}
@@ -142,6 +146,7 @@ export async function collectCompletionItemResult(
 	prefix: string,
 	terminalContext: { commandLine: string; cursorPosition: number },
 	shellIntegrationCwd: vscode.Uri | undefined,
+	env: Record<string, string>,
 	items: vscode.TerminalCompletionItem[]
 ): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
 	let filesRequested = false;
@@ -171,8 +176,11 @@ export async function collectCompletionItemResult(
 					processUserIsIn: null,
 					sshContextString: null,
 					aliases: {},
-					environmentVariables: {},
-					shellContext: undefined,
+					environmentVariables: env,
+					shellContext: {
+						currentWorkingDirectory: shellIntegrationCwd?.fsPath,
+						environmentVariables: convertEnvRecordToArray(env),
+					},
 				};
 				const state: AutocompleteState = {
 					figState: initialFigState,
@@ -267,6 +275,10 @@ export async function collectCompletionItemResult(
 	}
 
 	return { filesRequested, foldersRequested };
+}
+
+function convertEnvRecordToArray(env: Record<string, string>): EnvironmentVariable[] {
+	return Object.entries(env).map(([key, value]) => ({ key, value }));
 }
 
 export function getFixSuggestionDescription(spec: Fig.Spec): string {
