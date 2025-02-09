@@ -21,7 +21,7 @@ import { getZshGlobals } from './shell/zsh';
 import { getTokenType, TokenType } from './tokens';
 import type { ICompletionResource } from './types';
 import { createCompletionItem } from './helpers/completionItem';
-import { getFigSuggestionLabel, getFigSuggestions, getFixSuggestionDescription } from './fig/figInterface';
+import { getFigSuggestions } from './fig/figInterface';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -221,49 +221,12 @@ export async function getCompletionItemsFromSpecs(
 		}
 	}
 
-	for (const spec of specs) {
-		const specLabels = getFigSuggestionLabel(spec);
-
-		if (!specLabels) {
-			continue;
-		}
-
-		for (const specLabel of specLabels) {
-			const availableCommand = (isWindows
-				? availableCommands.find(command => command.label.match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
-				: availableCommands.find(command => command.label.startsWith(specLabel)));
-			if (!availableCommand || (token && token.isCancellationRequested)) {
-				continue;
-			}
-
-			// push it to the completion items
-			if (tokenType === TokenType.Command) {
-				if (availableCommand.kind !== vscode.TerminalCompletionItemKind.Alias) {
-					items.push(createCompletionItem(terminalContext.cursorPosition, prefix, { label: specLabel }, getFixSuggestionDescription(spec), availableCommand.detail));
-				}
-				continue;
-			}
-
-			const commandAndAliases = (isWindows
-				? availableCommands.filter(command => specLabel === removeAnyFileExtension(command.definitionCommand ?? command.label))
-				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label)));
-			if (
-				!(isWindows
-					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension(e.label)} `))
-					: commandAndAliases.some(e => precedingText.startsWith(`${e.label} `)))
-			) {
-				// the spec label is not the first word in the command line, so do not provide options or args
-				continue;
-			}
-
-			const completionItemResult = await getFigSuggestions(spec, terminalContext, prefix, shellIntegrationCwd, env, name, token);
-			if (completionItemResult) {
-				filesRequested ||= completionItemResult.filesRequested;
-				foldersRequested ||= completionItemResult.foldersRequested;
-				if (completionItemResult.items) {
-					items.push(...completionItemResult.items);
-				}
-			}
+	const result = await getFigSuggestions(specs, terminalContext, availableCommands, prefix, tokenType, shellIntegrationCwd, env, name, precedingText, token);
+	if (result) {
+		filesRequested ||= result.filesRequested;
+		foldersRequested ||= result.foldersRequested;
+		if (result.items) {
+			items.push(...result.items);
 		}
 	}
 
@@ -305,10 +268,6 @@ function getShell(shellType: TerminalShellType): string | undefined {
 			return undefined;
 		}
 	}
-}
-
-function removeAnyFileExtension(label: string): string {
-	return label.replace(/\.[a-zA-Z0-9!#\$%&'\(\)\-@\^_`{}~\+,;=\[\]]+$/, '');
 }
 
 function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {

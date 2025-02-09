@@ -11,14 +11,89 @@ import { Visibility, type AutocompleteState } from './autocomplete/state/types';
 import { SuggestionFlag } from './shared/utils';
 import { getCommand, type Command } from './shell-parser/command';
 import { createCompletionItem } from '../helpers/completionItem';
+import { TokenType } from '../tokens';
+import type { ICompletionResource } from '../types';
+import { osIsWindows } from '../helpers/os';
+import { removeAnyFileExtension } from '../helpers/file';
 
-export interface IFigSuggestionsResult {
+export interface IFigSpecSuggestionsResult {
 	filesRequested: boolean;
 	foldersRequested: boolean;
-	items: vscode.TerminalCompletionItem[] | undefined;
+	items: vscode.TerminalCompletionItem[];
 }
 
 export async function getFigSuggestions(
+	specs: Fig.Spec[],
+	terminalContext: { commandLine: string; cursorPosition: number },
+	availableCommands: ICompletionResource[],
+	prefix: string,
+	tokenType: TokenType,
+	shellIntegrationCwd: vscode.Uri | undefined,
+	env: Record<string, string>,
+	name: string,
+	precedingText: string,
+	token?: vscode.CancellationToken
+): Promise<IFigSpecSuggestionsResult> {
+	const result: IFigSpecSuggestionsResult = {
+		filesRequested: false,
+		foldersRequested: false,
+		items: []
+	};
+	for (const spec of specs) {
+		const specLabels = getFigSuggestionLabel(spec);
+
+		if (!specLabels) {
+			continue;
+		}
+
+		for (const specLabel of specLabels) {
+			const availableCommand = (osIsWindows()
+				? availableCommands.find(command => command.label.match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
+				: availableCommands.find(command => command.label.startsWith(specLabel)));
+			if (!availableCommand || (token && token.isCancellationRequested)) {
+				continue;
+			}
+
+			// push it to the completion items
+			if (tokenType === TokenType.Command) {
+				if (availableCommand.kind !== vscode.TerminalCompletionItemKind.Alias) {
+					result.items.push(createCompletionItem(
+						terminalContext.cursorPosition,
+						prefix,
+						{ label: specLabel },
+						getFixSuggestionDescription(spec),
+						availableCommand.detail)
+					);
+				}
+				continue;
+			}
+
+			const commandAndAliases = (osIsWindows()
+				? availableCommands.filter(command => specLabel === removeAnyFileExtension(command.definitionCommand ?? command.label))
+				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label)));
+			if (
+				!(osIsWindows()
+					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension(e.label)} `))
+					: commandAndAliases.some(e => precedingText.startsWith(`${e.label} `)))
+			) {
+				// the spec label is not the first word in the command line, so do not provide options or args
+				continue;
+			}
+
+			const completionItemResult = await getFigSpecSuggestions(spec, terminalContext, prefix, shellIntegrationCwd, env, name, token);
+			if (completionItemResult) {
+				result.filesRequested ||= completionItemResult.filesRequested;
+				result.foldersRequested ||= completionItemResult.foldersRequested;
+				if (completionItemResult.items) {
+					result.items.push(...completionItemResult.items);
+				}
+			}
+		}
+	}
+	return result;
+}
+
+async function getFigSpecSuggestions(
 	spec: Fig.Spec,
 	terminalContext: { commandLine: string; cursorPosition: number },
 	prefix: string,
@@ -26,7 +101,7 @@ export async function getFigSuggestions(
 	env: Record<string, string>,
 	name: string,
 	token?: vscode.CancellationToken
-): Promise<IFigSuggestionsResult | undefined> {
+): Promise<IFigSpecSuggestionsResult | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
 
