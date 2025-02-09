@@ -13,6 +13,10 @@
 	border-top-style: solid;
 }
 
+.monaco-workbench .split-view-view:has(> .part.panel.bottom) {
+	z-index: 1; /* on top of extension scroll bar #231439 */
+}
+
 .monaco-workbench.nomaineditorarea .part.panel.bottom .composite.title {
 	border-top-width: 0; /* no border when main editor area is hiden */
 }
