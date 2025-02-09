@@ -16,7 +16,7 @@ import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { INotebookEditor } from '../../notebookBrowser.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 
-const ttPolicy = createTrustedTypesPolicy('notebookDeletedCellDecoration', { createHTML: value => value });
+const ttPolicy = createTrustedTypesPolicy('notebookRenderer', { createHTML: value => value });
 
 export interface INotebookDeletedCellDecorator {
 	getTop(deletedIndex: number): number | undefined;
