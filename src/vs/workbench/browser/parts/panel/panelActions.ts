@@ -391,7 +391,10 @@ class MoveViewsBetweenPanelsAction extends Action2 {
 // Move Pear AI extension to PearAI Side Bar (Auxiliary Bar) (we want PearAI Side Bar to be default loaction for extension)
 class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
     static readonly ID = 'workbench.action.movePearExtensionToAuxBar';
-		readonly PearExtensionId;
+	readonly PearAIChatExtensionId;
+	readonly PearAISearchExtensionId;
+	readonly PearAIMemoryExtensionId;
+	readonly PearAIROOExtensionId;
 
     constructor() {
         super(ViewContainerLocation.Sidebar, ViewContainerLocation.AuxiliaryBar, {
@@ -400,7 +403,10 @@ class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
             category: Categories.View,
             f1: true
         });
-        this.PearExtensionId = 'workbench.view.extension.PearAI';
+        this.PearAIChatExtensionId = 'workbench.view.extension.pearaiChat';
+		this.PearAISearchExtensionId = 'workbench.view.extension.pearaiSearch';
+		this.PearAIMemoryExtensionId = 'workbench.view.extension.pearaiMemory';
+		this.PearAIROOExtensionId = 'workbench.view.extension.pearai-roo-cline';
     }
 
     override run(accessor: ServicesAccessor): void {
@@ -408,13 +414,32 @@ class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
         const layoutService = accessor.get(IWorkbenchLayoutService);
         const viewsService = accessor.get(IViewsService);
 
-        const viewContainer = viewDescriptorService.getViewContainerById(this.PearExtensionId);
-				const destination = ViewContainerLocation.AuxiliaryBar;
+        const chatViewContainer = viewDescriptorService.getViewContainerById(this.PearAIChatExtensionId);
+		const searchViewContainer = viewDescriptorService.getViewContainerById(this.PearAISearchExtensionId);
+		const memoryViewContainer = viewDescriptorService.getViewContainerById(this.PearAIMemoryExtensionId);
+		const creatorViewContainer = viewDescriptorService.getViewContainerById(this.PearAIROOExtensionId);
+		
+		const destination = ViewContainerLocation.AuxiliaryBar;
 
-        if (viewContainer) {
-            viewDescriptorService.moveViewContainerToLocation(viewContainer, destination, undefined, this.desc.id);
+        if (chatViewContainer) {
+            viewDescriptorService.moveViewContainerToLocation(chatViewContainer, destination, undefined, this.desc.id);
             layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-            viewsService.openViewContainer(viewContainer.id, true);
+            viewsService.openViewContainer(chatViewContainer.id, true);
+        }
+		if (searchViewContainer) {
+            viewDescriptorService.moveViewContainerToLocation(searchViewContainer, destination, undefined, this.desc.id);
+            layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+            // viewsService.openViewContainer(searchViewContainer.id, true);
+        }
+		if (memoryViewContainer) {
+            viewDescriptorService.moveViewContainerToLocation(memoryViewContainer, destination, undefined, this.desc.id);
+            layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+            // viewsService.openViewContainer(memoryViewContainer.id, true);
+        }
+		if (creatorViewContainer) {
+            viewDescriptorService.moveViewContainerToLocation(creatorViewContainer, destination, undefined, this.desc.id);
+            layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+            // viewsService.openViewContainer(creatorViewContainer.id, true);
         }
     }
 }
