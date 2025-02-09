@@ -44,6 +44,7 @@ export async function spawnHelper2(command: string, args: string[], options: Spa
 		const child = spawn(command, args, options);
 		child.stdout.on('data', (data) => stdout.push(data));
 		child.stderr.on('data', (data) => stderr.push(data));
+		child.on('error', (error) => reject(error));
 		child.on('close', (code) => {
 			resolve({
 				stdout: stdout.join(''),

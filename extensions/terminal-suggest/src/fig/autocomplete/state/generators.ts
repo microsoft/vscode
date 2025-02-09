@@ -7,9 +7,9 @@ import { getScriptSuggestions } from '../generators/scriptSuggestionsGenerator';
 // import { getCustomSuggestions } from '../generators/customSuggestionsGenerator';
 import { AutocompleteState } from './types';
 import { GeneratorState, GeneratorContext } from '../generators/helpers';
-// import { isTemplateSuggestion } from '../suggestions';
 import { sleep } from '../../shared/utils';
 import type { ArgumentParserResult } from '../../autocomplete-parser/parseArguments';
+import { getCustomSuggestions } from '../generators/customSuggestionsGenerator';
 
 export const shellContextSelector = ({
 	figState,
@@ -95,11 +95,9 @@ export const createGeneratorState = (
 			);
 		}
 		else {
-			// TODO: Implement custom generators
-			request = Promise.resolve(undefined);
-			// request = getCustomSuggestions(generator, context);
-			// // filepaths/folders templates are now a sugar for two custom generators, we need to filter
-			// // the suggestion created by those two custom generators
+			request = getCustomSuggestions(generator, context);
+			// filepaths/folders templates are now a sugar for two custom generators, we need to filter
+			// the suggestion created by those two custom generators
 			// if (generator.filterTemplateSuggestions) {
 			// 	request = (async () => {
 			// 		// TODO: use symbols to detect if the the generator fn is filepaths/folders
