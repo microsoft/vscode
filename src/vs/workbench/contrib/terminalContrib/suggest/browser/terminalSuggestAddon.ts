@@ -306,51 +306,71 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _sync(promptInputState: IPromptInputModelState): void {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
-		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
-			// If input has been added
+		{
 			let sent = false;
 
-			// Quick suggestions - Trigger whenever a new non-whitespace character is used
-			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
-				if (config.quickSuggestions) {
-					if (promptInputState.prefix.match(/[^\s]$/)) {
+			// If the cursor moved to the right
+			if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
+				// Quick suggestions - Trigger whenever a new non-whitespace character is used
+				if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
+					if (config.quickSuggestions) {
+						if (promptInputState.prefix.match(/[^\s]$/)) {
+							if (!this._wasLastInputArrowKey()) {
+								this.requestCompletions();
+								sent = true;
+							}
+						}
+					}
+				}
+
+				// Trigger characters - this happens even if the widget is showing
+				if (config.suggestOnTriggerCharacters && !sent) {
+					const prefix = promptInputState.prefix;
+					if (
+						// Only trigger on `-` if it's after a space. This is required to not clear
+						// completions when typing the `-` in `git cherry-pick`
+						prefix?.match(/\s[\-]$/) ||
+						// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
+						// with git branches in particular
+						this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
+					) {
 						if (!this._wasLastInputArrowKey()) {
 							this.requestCompletions();
 							sent = true;
 						}
 					}
+					if (!sent) {
+						for (const provider of this._terminalCompletionService.providers) {
+							if (!provider.triggerCharacters) {
+								continue;
+							}
+							for (const char of provider.triggerCharacters) {
+								if (prefix?.endsWith(char)) {
+									if (!this._wasLastInputArrowKey()) {
+										this.requestCompletions();
+										sent = true;
+									}
+									break;
+								}
+							}
+						}
+					}
 				}
 			}
 
-			// Trigger characters - this happens even if the widget is showing
-			if (config.suggestOnTriggerCharacters && !sent) {
-				const prefix = promptInputState.prefix;
-				if (
-					// Only trigger on `-` if it's after a space. This is required to not clear
-					// completions when typing the `-` in `git cherry-pick`
-					prefix?.match(/\s[\-]$/) ||
-					// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-					// with git branches in particular
-					this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
-				) {
-					if (!this._wasLastInputArrowKey()) {
-						this.requestCompletions();
-						sent = true;
-					}
-				}
-				if (!sent) {
-					for (const provider of this._terminalCompletionService.providers) {
-						if (!provider.triggerCharacters) {
-							continue;
-						}
-						for (const char of provider.triggerCharacters) {
-							if (prefix?.endsWith(char)) {
-								if (!this._wasLastInputArrowKey()) {
-									this.requestCompletions();
-									sent = true;
-								}
-								break;
-							}
+			// If the cursor moved to the left
+			if (this._mostRecentPromptInputState && promptInputState.cursorIndex < this._mostRecentPromptInputState.cursorIndex) {
+				// Backspace or left past a trigger character
+				if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
+					const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
+					if (
+						// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
+						// with git branches in particular
+						this._isFilteringDirectories && char.match(/[\\\/]$/)
+					) {
+						if (!this._wasLastInputArrowKey()) {
+							this.requestCompletions();
+							sent = true;
 						}
 					}
 				}

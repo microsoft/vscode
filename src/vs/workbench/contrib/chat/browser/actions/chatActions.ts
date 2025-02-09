@@ -37,15 +37,15 @@ import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../exten
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
-import { IChatQuotasService, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, quotaToButtonMessage } from '../chatQuotasService.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
-import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
+import { IChatQuotasService, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, quotaToButtonMessage } from '../chatQuotasService.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -63,9 +63,9 @@ export interface IChatViewOpenOptions {
 	 */
 	isPartialQuery?: boolean;
 	/**
-	 * A list of simple variables that will be resolved and attached if they exist.
+	 * A list of tools IDs with `canBeReferencedInPrompt` that will be resolved and attached if they exist.
 	 */
-	variableIds?: string[];
+	toolIds?: string[];
 	/**
 	 * Any previous chat requests and responses that should be shown in the chat view.
 	 */
@@ -112,7 +112,7 @@ class OpenChatGlobalAction extends Action2 {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
-		const chatVariablesService = accessor.get(IChatVariablesService);
+		const toolsService = accessor.get(ILanguageModelToolsService);
 		const viewsService = accessor.get(IViewsService);
 		const hostService = accessor.get(IHostService);
 
@@ -138,17 +138,17 @@ class OpenChatGlobalAction extends Action2 {
 				chatWidget.acceptInput(opts.query);
 			}
 		}
-		if (opts?.variableIds && opts.variableIds.length > 0) {
-			const actualVariables = chatVariablesService.getVariables();
-			for (const actualVariable of actualVariables) {
-				if (opts.variableIds.includes(actualVariable.id)) {
+		if (opts?.toolIds && opts.toolIds.length > 0) {
+			for (const toolId of opts.toolIds) {
+				const tool = toolsService.getTool(toolId);
+				if (tool) {
 					chatWidget.attachmentModel.addContext({
-						range: undefined,
-						id: actualVariable.id ?? '',
+						id: tool.id,
+						name: tool.displayName,
+						fullName: tool.displayName,
 						value: undefined,
-						fullName: actualVariable.fullName,
-						name: actualVariable.name,
-						icon: actualVariable.icon
+						icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
+						isTool: true
 					});
 				}
 			}
