@@ -264,7 +264,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 	) {
 		this._inlineCompletions = inlineCompletionProviderResult.completions.map(
-			completion => new InlineCompletionWithUpdatedRange(completion, this._textModel, this._versionId, this.request)
+			completion => new InlineCompletionWithUpdatedRange(completion, undefined, this._textModel, this._versionId, this.request)
 		);
 	}
 
@@ -289,7 +289,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 			inlineCompletion.source.addRef();
 		}
 
-		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, this._textModel, this._versionId, this.request));
+		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, range, this._textModel, this._versionId, this.request));
 		this._prependedInlineCompletionItems.push(inlineCompletion);
 	}
 }
@@ -327,13 +327,14 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
+		updatedRange: Range | undefined,
 		private readonly _textModel: ITextModel,
 		private readonly _modelVersion: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		public readonly request: UpdateRequest,
 	) {
 		super();
 
-		this._updatedEdit = this._register(this._toUpdatedEdit(this.inlineCompletion.range, this.inlineCompletion.insertText));
+		this._updatedEdit = this._register(this._toUpdatedEdit(updatedRange ?? this.inlineCompletion.range, this.inlineCompletion.insertText));
 	}
 
 	private _toInlineCompletionEdit(editRange: Range, replaceText: string): UpdatedEdit {
@@ -346,14 +347,14 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 		return new UpdatedEdit(offsetEdit, this._textModel, this._modelVersion, false);
 	}
 
-	private _toUpdatedEdit(editRange: Range, _replaceText: string): UpdatedEdit {
+	private _toUpdatedEdit(editRange: Range, replaceText: string): UpdatedEdit {
 		if (!this.isInlineEdit) {
-			return this._toInlineCompletionEdit(this.inlineCompletion.range, this.inlineCompletion.insertText);
+			return this._toInlineCompletionEdit(editRange, replaceText);
 		}
 
 		const eol = this._textModel.getEOL();
 		const editOriginalText = this._textModel.getValueInRange(editRange);
-		const editReplaceText = _replaceText.replace(/\r\n|\r|\n/g, eol);
+		const editReplaceText = replaceText.replace(/\r\n|\r|\n/g, eol);
 
 		const diffAlgorithm = linesDiffComputers.getDefault();
 		const lineDiffs = diffAlgorithm.computeDiff(
