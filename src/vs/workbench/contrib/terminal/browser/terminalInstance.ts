@@ -2328,7 +2328,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				return;
 			}
+			// Ensure paste only executes once
+			if (rightClickBehavior === 'paste') {
+				if (!event.defaultPrevented) { // Check if the event has not been prevented already
+					event.preventDefault(); // Prevent default context menu
+					this._paste(); // Call paste function
+					return { cancelContextMenu: true }; // Ensure no duplicate context menu actions
+				}
+			}
 		}
+
 	}
 }
 
