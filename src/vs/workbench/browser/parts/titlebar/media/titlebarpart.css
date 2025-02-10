@@ -89,11 +89,10 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right {
-	order: 2;
+	/* order: 2;
 	width: 20%;
-	min-width: min-content;
 	flex-grow: 2;
-	justify-content: flex-end;
+	justify-content: flex-end; */
 }
 
 
@@ -277,7 +276,7 @@
 .monaco-workbench .part.titlebar .titlebar-right {
 	position: absolute;
 	left: 0;
-	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px)) !important;
+	width: env(titlebar-area-x) !important;
 	height: env(titlebar-area-height, 35px) !important;
 	border: 1px solid red;
 }
