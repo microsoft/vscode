@@ -216,7 +216,7 @@ export interface ISaveDialogOptions {
 	/**
 	 * A human-readable string for the ok button
 	 */
-	readonly saveLabel?: { readonly withMnemonic: string; readonly withoutMnemonic: string } | string;
+	readonly saveLabel?: string;
 
 	/**
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
