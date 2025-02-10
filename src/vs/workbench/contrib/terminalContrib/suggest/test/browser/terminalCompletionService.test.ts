@@ -78,7 +78,11 @@ function assertPartialCompletionsExist(actual: ITerminalCompletion[] | undefined
 	}
 }
 
-const standardTidleItem = Object.freeze({ label: '~', detail: isWindows ? 'Home directory' : '$HOME' });
+let homeDir = isWindows ? process.env['USERPROFILE'] : process.env['HOME'];
+if (!homeDir!.endsWith('/')) {
+	homeDir += '/';
+}
+const standardTidleItem = Object.freeze({ label: '~', detail: homeDir });
 
 suite('TerminalCompletionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

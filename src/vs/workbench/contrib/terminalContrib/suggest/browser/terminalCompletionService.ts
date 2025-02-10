@@ -14,6 +14,7 @@ import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../.
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
+import { env as processEnv } from '../../../../../base/common/process.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -87,6 +88,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+
 		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
@@ -251,13 +253,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const type = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
 		switch (type) {
 			case 'tilde': {
-				const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env;
-				if (env) {
-					const home = useWindowsStylePath ? env.get('USERPROFILE') : env.get('HOME');
-					// TODO: Handle the case where the HOME environment variable is not set
-					if (home) {
-						lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
-					}
+				const home = getHomeDir(useWindowsStylePath, capabilities);
+				if (home) {
+					lastWordFolderResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 				}
 				if (!lastWordFolderResource) {
 					// Use less strong wording here as it's not as strong of a concept on Windows
@@ -389,7 +387,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (promptValue.startsWith('cd ')) {
 				const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
 				if (config === 'absolute' || config === 'relative') {
-					const cdPath = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.get('CDPATH');
+					const cdPath = getEnvVar('CDPATH', capabilities);
 					if (cdPath) {
 						const cdPathEntries = cdPath.split(useWindowsStylePath ? ';' : ':');
 						for (const cdPathEntry of cdPathEntries) {
@@ -446,14 +444,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		//
 		// - (relative) `|` -> `~`
 		if (type === 'relative' && !lastWordFolder.match(/[\\\/]/)) {
-			const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env;
 			let homeResource: URI | string | undefined;
-			if (env) {
-				const home = useWindowsStylePath ? env.get('USERPROFILE') : env.get('HOME');
-				// TODO: Handle the case where the HOME environment variable is not set
-				if (home) {
-					homeResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
-				}
+			const home = getHomeDir(useWindowsStylePath, capabilities);
+			if (home) {
+				homeResource = URI.joinPath(URI.file(home), lastWordFolder.slice(1).replaceAll('\\ ', ' '));
 			}
 			if (!homeResource) {
 				// Use less strong wording here as it's not as strong of a concept on Windows
@@ -472,6 +466,18 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		return resourceCompletions;
 	}
+}
+
+function getEnvVar(key: string, capabilities: ITerminalCapabilityStore): string | undefined {
+	const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env;
+	if (env) {
+		return env.get(key);
+	}
+	return processEnv[key];
+}
+
+function getHomeDir(useWindowsStylePath: boolean, capabilities: ITerminalCapabilityStore): string | undefined {
+	return useWindowsStylePath ? getEnvVar('USERPROFILE', capabilities) : getEnvVar('HOME', capabilities);
 }
 
 function getFriendlyPath(uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind): string {
