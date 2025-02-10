@@ -78,7 +78,6 @@ interface IReconnectionTaskData {
 }
 
 const ReconnectionType = 'Task';
-const terminalTabActions = [{ id: RerunForActiveTerminalCommandId, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
 
 class VariableResolver {
 	private static _regex = /\$\{(.*?)\}/g;
@@ -199,6 +198,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _reconnectedTerminals: ITerminalInstance[] | undefined;
+	private _terminalTabActions = [{ id: RerunForActiveTerminalCommandId, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
+
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
 		return (
@@ -1263,7 +1264,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
 		shellLaunchConfig.useShellEnvironment = true;
-		shellLaunchConfig.tabActions = terminalTabActions;
+		shellLaunchConfig.tabActions = this._terminalTabActions;
 		return shellLaunchConfig;
 	}
 
@@ -1464,7 +1465,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
 		this._terminals[terminalKey] = terminalData;
-		terminal.shellLaunchConfig.tabActions = terminalTabActions;
+		terminal.shellLaunchConfig.tabActions = this._terminalTabActions;
 		return [terminal, undefined];
 	}
 
