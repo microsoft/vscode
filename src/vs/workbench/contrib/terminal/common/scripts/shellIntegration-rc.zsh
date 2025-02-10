@@ -32,6 +32,15 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 	fi
 fi
 
+zsh_version=${ZSH_VERSION}
+use_associative_array=0
+
+# Associative array are only available in zsh 4.3 or later
+if (( zsh_version >= 4.3 )); then
+	use_associative_array=1
+	declare -A vsc_aa_env
+fi
+
 # Apply EnvironmentVariableCollections if needed
 if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_REPLACE"
@@ -89,7 +98,7 @@ __vsc_escape_value() {
 		out+="$token"
 	done
 
-	builtin print -r "$out"
+	builtin print -r -- "$out"
 }
 
 __vsc_in_command_execution="1"
@@ -111,6 +120,49 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "${PWD}")"
 }
 
+__update_env_cache_aa() {
+	local key="$1"
+	local value="$2"
+	if [ $use_associative_array -eq 1 ]; then
+		if [[ "${vsc_aa_env["$key"]}" != "$value" ]]; then
+			vsc_aa_env["$key"]="$value"
+			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+		fi
+	fi
+}
+
+__track_missing_env_vars_aa() {
+	if [ $use_associative_array -eq 1 ]; then
+		declare -A currentEnvMap
+
+	fi
+}
+
+######### $$$$$$$ #####################################################################################
+__vsc_update_env() {
+	# Should we disable for older windows and also check __vscode_disable_env_reporting (conpty dll stuff)?
+	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
+
+	if [ $use_associative_array -eq 1 ]; then
+		if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
+			# Associative array is empty, do not diff, just add
+			while IFS='=' read -r key value; do
+				vsc_aa_env["$key"]="$value"
+				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			done < <(env)
+		else
+			builtin printf 'we are doing diff approach bc vsc_aa_env is not empty\n'
+			# Diff approach for associative array
+			while IFS='=' read -r key value; do
+				__update_env_cache_aa "$key" "$value"
+			done < <(env)
+			# TODO: Track missing env vars AA
+
+		fi
+	fi
+
+}
+######### $$$$$$$ ######################################################################################
 __vsc_command_output_start() {
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 	builtin printf '\e]633;C\a'
@@ -173,6 +225,8 @@ __vsc_precmd() {
 		# non null
 		__vsc_update_prompt
 	fi
+	# TODO: only run for insiders
+	__vsc_update_env
 }
 
 __vsc_preexec() {
