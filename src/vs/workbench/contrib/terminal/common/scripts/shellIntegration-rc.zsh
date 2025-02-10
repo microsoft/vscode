@@ -126,7 +126,7 @@ __update_env_cache_aa() {
 	if [ $use_associative_array -eq 1 ]; then
 		if [[ "${vsc_aa_env["$key"]}" != "$value" ]]; then
 			vsc_aa_env["$key"]="$value"
-			# builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 		fi
 	fi
 }
@@ -150,18 +150,18 @@ __track_missing_env_vars_aa() {
 
 ######### $$$$$$$ #####################################################################################
 __vsc_update_env() {
+
 	# Should we disable for older windows and also check __vscode_disable_env_reporting (conpty dll stuff)?
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
-
 	if [ $use_associative_array -eq 1 ]; then
 		if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
 			# Associative array is empty, do not diff, just add
 			while IFS='=' read -r key value; do
 				vsc_aa_env["$key"]="$value"
 				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				# builtin printf 'key: %s, value: %s\n' "$key" "$value"
 			done < <(env)
 
+			# Code to iterate through env associative array ->
 			# for k in "${(@k)vsc_aa_env}"; do
 			# 	builtin printf 'Key: %s | Value: %s\n' "$k" "${vsc_aa_env[$k]}"
 			# done
@@ -172,11 +172,12 @@ __vsc_update_env() {
 			while IFS='=' read -r key value; do
 				__update_env_cache_aa "$key" "$value"
 			done < <(env)
-			# TODO: Track missing env vars AA
 			__track_missing_env_vars_aa
 
 		fi
 	fi
+
+	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 
 }
 ######### $$$$$$$ ######################################################################################
