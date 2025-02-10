@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { ChatAgentLocation } from '../../../common/chatAgents.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -13,7 +11,6 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { BasePromptParser } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IActiveCodeEditor, isCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IChatUsePromptActionOptions, USE_PROMPT_ACTION_ID } from '../../actions/chatContextActions.js';
@@ -21,9 +18,6 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platfor
 
 /**
  * TODO: @legomushroom
- *  - chat panel support
- *  - chat edits support
- *  - inline edits support
  *  - terminal support
  *  - notebooks support
  *  - make the shortcut configurable
@@ -31,7 +25,6 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platfor
  */
 
 export const USE_PROMPT_COMMAND_ID = 'use-prompt';
-const USE_PROMPT_LABEL = nls.localize2(USE_PROMPT_COMMAND_ID, "Use Prompt");
 
 // import { Schemas } from '../../../../../../base/common/network.js';
 // import { ResourceContextKey } from '../../../../../common/contextkeys.js';
@@ -182,30 +175,50 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 // TODO: @legomushroom - remove for now?
-const USE_PROMPT_IN_NOTEBOOKS_COMMAND_ID = `${USE_PROMPT_COMMAND_ID}.editor`;
+const USE_PROMPT_IN_NOTEBOOKS_COMMAND_ID = `${USE_PROMPT_COMMAND_ID}.notebook`;
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: USE_PROMPT_IN_NOTEBOOKS_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: USE_COMMAND_KEY_BINDINGS,
-	handler: usePromptCommandFactory(ChatAgentLocation.Editor),
+	handler: usePromptCommandFactory(ChatAgentLocation.Notebook),
 	when: ContextKeyExpr.and(
-		ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
+		ChatContextKeys.location.isEqualTo(ChatAgentLocation.Notebook),
 	),
 });
 
-// Command Palette
+// TODO: @legomushroom - add command palette item?
+// // Command Palette
 
-appendToCommandPalette({
-	id: USE_PROMPT_COMMAND_ID,
-	title: USE_PROMPT_LABEL,
-	category: CHAT_CATEGORY,
-});
+// import * as nls from '../../../../../../nls.js';
+// import { CHAT_CATEGORY } from '../../actions/chatActions.js';
+// import { appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
+// const USE_PROMPT_LABEL = nls.localize2(USE_PROMPT_COMMAND_ID, "Use Prompt");
+// appendToCommandPalette(
+// 	{
+// 		id: USE_PROMPT_COMMAND_ID,
+// 		title: USE_PROMPT_LABEL,
+// 		category: CHAT_CATEGORY,
+// 	},
+// 	ContextKeyExpr.and(
+// 		ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+// 		ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor),
+// 		ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Panel),
+// 		ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Terminal),
+// 		ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Notebook),
+// 	),
+// );
 
-// From an active chat input
-
-
-// ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
-
+// appendToCommandPalette(
+// 	{
+// 		id: USE_PROMPT_IN_EDITS_COMMAND_ID,
+// 		title: USE_PROMPT_LABEL,
+// 		// title: USE_PROMPT_LABEL + '(Edits)', // TODO: @legomushroom
+// 		category: CHAT_CATEGORY,
+// 	},
+// 	ContextKeyExpr.and(
+// 		ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+// 	),
+// );
 
 // TODO: @legomushroom - do we need this?
 // // File editor context menu

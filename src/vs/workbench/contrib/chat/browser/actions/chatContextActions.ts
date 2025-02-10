@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -11,6 +12,7 @@ import { isElectron, isLinux, isWindows } from '../../../../../base/common/platf
 import { basename, dirname, extUri } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { assertDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -573,15 +575,35 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				await selectAndAttachPrompt({
-					widget,
-					resource: undefined,
-					location: undefined, // TODO: @legomushroom - add location here
-					initService,
-					quickInputService,
-					labelService,
-					openerService,
+				// const commandService = accessor.get(ICommandService);
+
+				// const options: IChatUsePromptActionOptions = {
+				// 	resource: getActivePromptUri(resource, accessor),
+				// 	location,
+				// };
+
+				// TODO: @legomushroom - use command name constant instead
+				await commandService.executeCommand(USE_PROMPT_ACTION_ID, {
+					location: widget.location,
 				});
+				// const selection = await selectPrompt({
+				// 	resource: undefined,
+				// 	location: undefined, // TODO: @legomushroom - add location here
+				// 	initService,
+				// 	quickInputService,
+				// 	labelService,
+				// 	openerService,
+				// });
+
+				// if (!selection) {
+				// 	continue;
+				// }
+
+				// const { selected } = selection;
+				// widget
+				// 	.attachmentModel
+				// 	.promptInstructions
+				// 	.add(selected.value);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -901,12 +923,12 @@ interface ISelectPromptOptions {
 	openerService: IOpenerService;
 }
 
-/**
- * Options for the {@link selectAndAttachPrompt} function.
- */
-interface ISelectAndAttachPromptOptions extends ISelectPromptOptions {
-	widget: IChatWidget;
-}
+// /**
+//  * Options for the {@link selectAndAttachPrompt} function.
+//  */
+// interface ISelectAndAttachPromptOptions extends ISelectPromptOptions {
+// 	widget: IChatWidget;
+// }
 
 /**
  * Type for an obejct with its `value` property being a `URI`.
@@ -918,7 +940,7 @@ type WithUriValue<T> = T & { value: URI };
  */
 interface IPromptSelectionResult {
 	selected: WithUriValue<IQuickPickItem>;
-	location: ChatAgentLocation;
+	altOption: boolean;
 }
 
 /**
@@ -1027,7 +1049,7 @@ const selectPrompt = async (options: ISelectPromptOptions): Promise<IPromptSelec
 	}
 
 	// otherwise show the prompt file selection dialog
-	let { location } = options;
+	const { location } = options;
 	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
 		placeHolder: getPickerPlaceholder(location),
 		activeItem,
@@ -1035,11 +1057,11 @@ const selectPrompt = async (options: ISelectPromptOptions): Promise<IPromptSelec
 		matchOnDescription: true,
 	};
 
+	let altOption = false;
 	if (!location) {
-		location = ChatAgentLocation.Panel;
 		pickOptions.onKeyMods = (keyMods) => {
 			if (keyMods.alt) {
-				location = ChatAgentLocation.EditingSession;
+				altOption = true;
 			}
 		};
 	}
@@ -1052,39 +1074,8 @@ const selectPrompt = async (options: ISelectPromptOptions): Promise<IPromptSelec
 
 	return {
 		selected: maybeSelectedFile,
-		location,
+		altOption,
 	};
-};
-
-/**
- * Attaches a prompt to the chat widget.
- */
-const attachPrompt = (
-	promptUri: URI,
-	widget: IChatWidget,
-): void => {
-	// add the selected file to chat attachments
-	widget
-		.attachmentModel
-		.promptInstructions
-		.add(promptUri);
-};
-
-/**
- * Open the prompt files selection dialog and adds
- * selected prompt(s) to the chat attachments model.
- */
-const selectAndAttachPrompt = async (options: ISelectAndAttachPromptOptions): Promise<void> => {
-	const selectionResult = await selectPrompt(options);
-
-	if (!selectionResult) {
-		return;
-	}
-
-	attachPrompt(
-		selectionResult.selected.value,
-		options.widget,
-	);
 };
 
 function getEditingSession(chatEditingService: IChatEditingService, chatWidget: IChatWidget) {
@@ -1099,7 +1090,6 @@ function getEditingSession(chatEditingService: IChatEditingService, chatWidget: 
  */
 export interface IChatUsePromptActionOptions {
 	resource?: URI;
-	// allowSelection?: boolean;
 	location?: ChatAgentLocation;
 }
 
@@ -1119,79 +1109,85 @@ registerAction2(class UsePromptAction extends Action2 {
 			title: localize2('workbench.action.chat.use.prompt.label', "Use Prompt"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			// precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
 		});
 	}
 
 	/**
 	 * TODO: @legomushroom
 	 */
-	private async select(
-		accessor: ServicesAccessor,
+	private async showChatWidget(
 		options: IChatUsePromptActionOptions,
-	): Promise<IPromptSelectionResult | null> {
-		const labelService = accessor.get(ILabelService);
-		const openerService = accessor.get(IOpenerService);
-		const initService = accessor.get(IInstantiationService);
-		const quickInputService = accessor.get(IQuickInputService);
+		altOption: boolean,
+		viewsService: IViewsService,
+		chatWidgetService: IChatWidgetService,
+	): Promise<IChatWidget | undefined> {
+		const { location } = options;
 
-		const { resource, location } = options;
+		// if no location is present, the command was triggered from outside of any
+		// chat input, so we reveal a chat widget window based on the `alt/option`
+		// key modifier state when a prompt was selected from the picker UI dialog
+		if (!location) {
+			return (altOption)
+				? await showEditsView(viewsService)
+				: await showChatView(viewsService);
+		}
 
-		// if (allowSelection === false) {
-		// 	assertDefined(
-		// 		resource,
-		// 		'Expected `resource` to be defined when `allowSelection` is `false`.',
-		// 	);
+		const { lastFocusedWidget } = chatWidgetService;
 
-		// 	return {
-		// 		selected: createPickItem(resource, labelService),
-		// 		location: ChatAgentLocation.Panel,
-		// 	};
-		// }
+		// if location is set, the last focused widged must always be set
+		assertDefined(
+			lastFocusedWidget,
+			'Expected last focused chat widget reference to be present.',
+		);
 
-		return await selectPrompt({
-			resource,
-			location,
-			initService,
-			labelService,
-			quickInputService,
-			openerService,
-		});
+		// when location is set, the last focused widget must have the same one
+		assert(
+			lastFocusedWidget.location === location,
+			`Last forcused chat widget location must be '${location}', got '${lastFocusedWidget.location}'.`,
+		);
+
+		return lastFocusedWidget;
 	}
 
 	public override async run(
 		accessor: ServicesAccessor,
 		options: IChatUsePromptActionOptions,
 	): Promise<void> {
+		const labelService = accessor.get(ILabelService);
 		const viewsService = accessor.get(IViewsService);
-		// const { resource } = options;
-		// if (allowSelection === false) {
-		// 	assertDefined(
-		// 		resource,
-		// 		'Expected `resource` to be defined when `allowSelection` is `false`.',
-		// 	);
-		// }
+		const openerService = accessor.get(IOpenerService);
+		const initService = accessor.get(IInstantiationService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
-		const selectionResult = await this.select(accessor, options);
+		const selectionResult = await selectPrompt({
+			resource: options.resource,
+			location: options.location,
+			initService,
+			labelService,
+			quickInputService,
+			openerService,
+		});
 
 		// no prompt selected, nothing to do
 		if (!selectionResult) {
 			return;
 		}
 
-		const { selected, location } = selectionResult;
+		const { selected, altOption } = selectionResult;
 
-		// TODO: @legomushroom - reuse existing chat widget, if present
-		const widget = (location === ChatAgentLocation.Panel)
-			? await showChatView(viewsService)
-			: await showEditsView(viewsService);
-
+		// reveal appropriate chat widget
+		const widget = await this.showChatWidget(options, altOption, viewsService, chatWidgetService);
 		if (!widget || !widget.viewModel) {
 			// TODO: @legomushroom - log an error here?
 			return;
 		}
 
-		attachPrompt(selected.value, widget);
+		widget
+			.attachmentModel
+			.promptInstructions
+			.add(selected.value);
+
 		widget.focusInput();
 	}
 });
