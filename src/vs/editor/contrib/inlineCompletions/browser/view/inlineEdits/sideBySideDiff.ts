@@ -110,19 +110,20 @@ const ENABLE_OVERFLOW = false;
 export class InlineEditsSideBySideDiff extends Disposable implements IInlineEditsView {
 
 	// This is an approximation and should be improved by using the real parameters used bellow
-	static fitsInsideViewport(editor: ICodeEditor, edit: InlineEditWithChanges, reader: IReader): boolean {
+	static fitsInsideViewport(editor: ICodeEditor, edit: InlineEditWithChanges, originalDisplayRange: LineRange, reader: IReader): boolean {
 		const editorObs = observableCodeEditor(editor);
 		const editorWidth = editorObs.layoutInfoWidth.read(reader);
 		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
-		const editorVerticalScrollBar = editor.getLayoutInfo().verticalScrollbarWidth;
+		const editorVerticalScrollbar = editor.getLayoutInfo().verticalScrollbarWidth;
 		const w = editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const minimapWidth = editorObs.layoutInfoMinimap.read(reader).minimapLeft !== 0 ? editorObs.layoutInfoMinimap.read(reader).minimapWidth : 0;
 
-		const maxOriginalContent = maxContentWidthInRange(editorObs, edit.originalLineRange, undefined/* do not reconsider on each layout info change */);
+		const maxOriginalContent = maxContentWidthInRange(editorObs, originalDisplayRange, undefined/* do not reconsider on each layout info change */);
 		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, line.length * w), 0);
 		const endOfEditorPadding = 20; // padding after last line of editor
 		const editorsPadding = edit.modifiedLineRange.length <= edit.originalLineRange.length ? PADDING * 3 + endOfEditorPadding : 60 + endOfEditorPadding * 2;
 
-		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollBar;
+		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
 	}
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -206,7 +207,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 	private readonly toolbarRef = n.ref<HTMLDivElement>();
 
 	private readonly _editorContainer = n.div({
-		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.experimental.useGutterIndicator && 'showHover')],
+		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.useGutterIndicator && 'showHover')],
 		style: { position: 'absolute', overflow: 'hidden' },
 	}, [
 		n.div({ class: 'preview', style: {}, ref: this.previewRef }),
@@ -314,6 +315,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 	private _activeViewZones: string[] = [];
 	private readonly _updatePreviewEditor = derived(reader => {
 		this._editorContainer.readEffect(reader);
+		this._previewEditorObs.model.read(reader); // update when the model is set
 
 		// Setting this here explicitly to make sure that the preview editor is
 		// visible when needed, we're also checking that these fields are defined
@@ -669,7 +671,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 					0,
 					{ topLeft: layoutInfo.borderRadius, bottomLeft: layoutInfo.borderRadius, topRight: 0, bottomRight: 0 },
 					{ hideRight: true, hideLeft: layoutInfo.codeScrollLeft !== 0 }
-				).build()),
+				)),
 				style: {
 					fill: 'var(--vscode-inlineEdit-originalBackground, transparent)',
 					stroke: 'var(--vscode-inlineEdit-originalBorder)',

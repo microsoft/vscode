@@ -224,15 +224,6 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				detectedParticipant(participant, command) {
-					throwIfDone(this.detectedParticipant);
-					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
-
-					const part = new extHostTypes.ChatResponseDetectedParticipantPart(participant, command);
-					const dto = typeConvert.ChatResponseDetectedParticipantPart.from(part);
-					_report(dto);
-					return this;
-				},
 				confirmation(title, message, data, buttons) {
 					throwIfDone(this.confirmation);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -248,7 +239,6 @@ class ChatAgentResponseStream {
 					if (
 						part instanceof extHostTypes.ChatResponseTextEditPart ||
 						part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart ||
-						part instanceof extHostTypes.ChatResponseDetectedParticipantPart ||
 						part instanceof extHostTypes.ChatResponseWarningPart ||
 						part instanceof extHostTypes.ChatResponseConfirmationPart ||
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
@@ -714,7 +704,6 @@ class ExtHostChatAgent {
 	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
-	private _supportsSlowReferences: boolean | undefined;
 	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
 
 	constructor(
@@ -827,7 +816,6 @@ class ExtHostChatAgent {
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
 					requester: this._requester,
-					supportsSlowVariables: this._supportsSlowReferences,
 				});
 				updateScheduled = false;
 			});
@@ -956,15 +944,6 @@ class ExtHostChatAgent {
 			},
 			get requester() {
 				return that._requester;
-			},
-			set supportsSlowReferences(v) {
-				checkProposedApiEnabled(that.extension, 'chatParticipantPrivate');
-				that._supportsSlowReferences = v;
-				updateMetadataSoon();
-			},
-			get supportsSlowReferences() {
-				checkProposedApiEnabled(that.extension, 'chatParticipantPrivate');
-				return that._supportsSlowReferences;
 			},
 			dispose() {
 				disposed = true;

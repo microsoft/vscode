@@ -145,7 +145,6 @@ export interface IChatAgentMetadata {
 	followupPlaceholder?: string;
 	isSticky?: boolean;
 	requester?: IChatRequesterInformation;
-	supportsSlowVariables?: boolean;
 }
 
 
@@ -209,7 +208,7 @@ export interface IChatAgentService {
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
 	readonly onDidChangeToolsAgentModeEnabled: Event<void>;
 	readonly toolsAgentModeEnabled: boolean;
-	toggleToolsAgentMode(): void;
+	toggleToolsAgentMode(enabled?: boolean): void;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
@@ -427,8 +426,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return !!this._hasToolsAgentContextKey.get() && !!this._agentModeContextKey.get();
 	}
 
-	toggleToolsAgentMode(): void {
-		this._agentModeContextKey.set(!this._agentModeContextKey.get());
+	toggleToolsAgentMode(enabled?: boolean): void {
+		this._agentModeContextKey.set(enabled ?? !this._agentModeContextKey.get());
 		this._onDidChangeToolsAgentModeEnabled.fire();
 		this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.EditingSession));
 	}

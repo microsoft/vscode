@@ -26,17 +26,17 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * @param isRoot If the reference is the root reference in the references tree.
  * 				 This object most likely was explicitly attached by the user.
  */
-const toChatVariable = (
+export const toChatVariable = (
 	reference: Pick<IPromptFileReference, 'uri' | 'isPromptSnippet'>,
 	isRoot: boolean,
 ): IChatRequestVariableEntry => {
-	const { uri } = reference;
+	const { uri, isPromptSnippet } = reference;
 
 	// default `id` is the stringified `URI`
 	let id = `${uri}`;
 
 	// for prompt files, we add a prefix to the `id`
-	if (reference.isPromptSnippet) {
+	if (isPromptSnippet) {
 		// the default prefix that is used for all prompt files
 		let prefix = 'vscode.prompt.instructions';
 		// if the reference is the root object, add the `.root` suffix
@@ -56,8 +56,7 @@ const toChatVariable = (
 		isSelection: false,
 		enabled: true,
 		isFile: true,
-		isDynamic: true,
-		isMarkedReadonly: true,
+		isMarkedReadonly: isPromptSnippet,
 	};
 };
 

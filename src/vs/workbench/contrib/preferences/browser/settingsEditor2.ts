@@ -50,7 +50,7 @@ import { Settings2EditorModel, nullRange } from '../../../services/preferences/c
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -539,6 +539,7 @@ export class SettingsEditor2 extends EditorPane {
 			// Wait for editor to be removed from DOM #106303
 			setTimeout(() => {
 				this.searchWidget.onHide();
+				this.settingRenderers.cancelSuggesters();
 			}, 0);
 		}
 	}
@@ -669,7 +670,7 @@ export class SettingsEditor2 extends EditorPane {
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
-		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
+		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target)));
 		this._register(DOM.addDisposableListener(targetWidgetContainer, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.DownArrow) {
@@ -792,7 +793,7 @@ export class SettingsEditor2 extends EditorPane {
 			if (options?.revealSetting) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 				const configurationScope = configurationProperties[options?.revealSetting.key]?.scope;
-				if (configurationScope === ConfigurationScope.APPLICATION) {
+				if (configurationScope && APPLICATION_SCOPES.includes(configurationScope)) {
 					return this.preferencesService.openApplicationSettings(openOptions);
 				}
 			}
@@ -1596,10 +1597,7 @@ export class SettingsEditor2 extends EditorPane {
 				separatorBorder: Color.transparent
 			});
 		} else {
-			this.splitView.setViewVisible(0, true);
-			this.splitView.style({
-				separatorBorder: this.theme.getColor(settingsSashBorder)!
-			});
+			this.layoutSplitView(this.dimension);
 		}
 	}
 
@@ -1658,8 +1656,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
-				// Always show the ToC when leaving search mode
-				this.splitView.setViewVisible(0, true);
+				this.layoutSplitView(this.dimension);
 			}
 		}
 		progressRunner.done();

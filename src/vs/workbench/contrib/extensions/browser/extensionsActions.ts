@@ -1161,8 +1161,8 @@ export abstract class DropDownExtensionAction extends ExtensionAction {
 		return this._actionViewItem;
 	}
 
-	public override run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][]; disposeActionsOnHide: boolean }): Promise<any> {
-		this._actionViewItem?.showMenu(actionGroups, disposeActionsOnHide);
+	public override run(actionGroups: IAction[][]): Promise<any> {
+		this._actionViewItem?.showMenu(actionGroups);
 		return Promise.resolve();
 	}
 }
@@ -1177,7 +1177,7 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 		super(null, action, { ...options, icon: true, label: true });
 	}
 
-	public showMenu(menuActionGroups: IAction[][], disposeActionsOnHide: boolean): void {
+	public showMenu(menuActionGroups: IAction[][]): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
 			const elementPosition = DOM.getDomNodePagePosition(this.element);
@@ -1186,7 +1186,7 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
-				onHide: () => { if (disposeActionsOnHide) { disposeIfDisposable(actions); } }
+				onHide: () => disposeIfDisposable(actions)
 			});
 		}
 	}
@@ -1359,7 +1359,7 @@ export class ManageExtensionAction extends DropDownExtensionAction {
 
 	override async run(): Promise<any> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
-		return super.run({ actionGroups: await this.getActionGroups(), disposeActionsOnHide: true });
+		return super.run(await this.getActionGroups());
 	}
 
 	update(): void {
@@ -1393,7 +1393,7 @@ export class ExtensionEditorManageExtensionAction extends DropDownExtensionActio
 				extensionAction.extension = this.extension;
 			}
 		}));
-		return super.run({ actionGroups, disposeActionsOnHide: true });
+		return super.run(actionGroups);
 	}
 
 }
@@ -2473,16 +2473,14 @@ export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 	}
 
 	override async run(): Promise<any> {
-		return super.run({
-			actionGroups: [
-				[
-					new Action(
-						'extensions.syncignore',
-						this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension!) ? localize('sync', "Sync this extension") : localize('do not sync', "Do not sync this extension")
-						, undefined, true, () => this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(this.extension!))
-				]
-			], disposeActionsOnHide: true
-		});
+		return super.run([
+			[
+				new Action(
+					'extensions.syncignore',
+					this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension!) ? localize('sync', "Sync this extension") : localize('do not sync', "Do not sync this extension")
+					, undefined, true, () => this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(this.extension!))
+			]
+		]);
 	}
 }
 

@@ -125,7 +125,6 @@ async function getImageAttachContext(data: Uint8Array, mimeType: string, token: 
 		name: displayName,
 		isImage: true,
 		icon: Codicon.fileMedia,
-		isDynamic: true,
 		mimeType
 	};
 }
@@ -250,7 +249,6 @@ function getCopiedContext(code: string, file: URI, language: string, range: IRan
 		id: `${fileName}${start}${end}${range.startColumn}${range.endColumn}`,
 		name: `${fileName} ${pastedLines}`,
 		icon: Codicon.code,
-		isDynamic: true,
 		pastedLines,
 		language,
 		fileName: file.toString(),

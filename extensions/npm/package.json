@@ -251,6 +251,28 @@
           "default": "auto",
           "description": "%config.npm.packageManager%"
         },
+        "npm.scriptRunner": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "auto",
+            "npm",
+            "yarn",
+            "pnpm",
+            "bun",
+            "node"
+          ],
+          "enumDescriptions": [
+            "%config.npm.scriptRunner.auto%",
+            "%config.npm.scriptRunner.npm%",
+            "%config.npm.scriptRunner.yarn%",
+            "%config.npm.scriptRunner.pnpm%",
+            "%config.npm.scriptRunner.bun%",
+            "%config.npm.scriptRunner.node%"
+          ],
+          "default": "auto",
+          "description": "%config.npm.scriptRunner%"
+        },
         "npm.exclude": {
           "type": [
             "string",
@@ -341,18 +363,18 @@
       }
     ],
     "terminalQuickFixes": [
-        {
-          "id": "ms-vscode.npm-command",
-          "commandLineMatcher": "npm",
-          "commandExitResult": "error",
-          "outputMatcher": {
-            "anchor": "bottom",
-            "length": 8,
-            "lineMatcher": "Did you mean (?:this|one of these)\\?((?:\\n.+?npm .+ #.+)+)",
-            "offset": 2
-          }
+      {
+        "id": "ms-vscode.npm-command",
+        "commandLineMatcher": "npm",
+        "commandExitResult": "error",
+        "outputMatcher": {
+          "anchor": "bottom",
+          "length": 8,
+          "lineMatcher": "Did you mean (?:this|one of these)\\?((?:\\n.+?npm .+ #.+)+)",
+          "offset": 2
         }
-      ]
+      }
+    ]
   },
   "repository": {
     "type": "git",

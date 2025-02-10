@@ -29,6 +29,10 @@ import './quickInputActions.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { Platform, platform } from '../../../base/common/platform.js';
+import { getTitleBarStyle, TitlebarStyle } from '../../window/common/window.js';
+import { getZoomFactor } from '../../../base/browser/browser.js';
 
 const $ = dom.$;
 
@@ -258,6 +262,11 @@ export class QuickInputController extends Disposable {
 			if (this.endOfQuickInputBoxContext.get() !== value) {
 				this.endOfQuickInputBoxContext.set(value);
 			}
+			// Allow screenreaders to read what's in the input
+			// Note: this works for arrow keys and selection changes,
+			// but not for deletions since that often triggers a
+			// change in the list.
+			inputBox.removeAttribute('aria-activedescendant');
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
@@ -309,21 +318,14 @@ export class QuickInputController extends Disposable {
 							selectors.push('.quick-input-html-widget');
 						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
-						if (event.shiftKey && event.target === stops[0]) {
-							// Clear the focus from the list in order to allow
-							// screen readers to read operations in the input box.
-							dom.EventHelper.stop(event, true);
-							list.clearFocus();
-						} else if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
+						if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
 							dom.EventHelper.stop(event, true);
 							stops[0].focus();
 						}
-					}
-					break;
-				case KeyCode.Space:
-					if (event.ctrlKey) {
-						dom.EventHelper.stop(event, true);
-						this.getUI().list.toggleHover();
+						if (event.shiftKey && dom.isAncestor(event.target, stops[0])) {
+							dom.EventHelper.stop(event, true);
+							stops[stops.length - 1].focus();
+						}
 					}
 					break;
 			}
@@ -758,6 +760,12 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
+	toggleHover() {
+		if (this.isVisible() && this.controller instanceof QuickPick) {
+			this.getUI().list.toggleHover();
+		}
+	}
+
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
 		if (this.isVisible() && this.getUI().list.displayed) {
 			this.getUI().list.focus(next ? QuickPickFocus.Next : QuickPickFocus.Previous);
@@ -900,6 +908,9 @@ class QuickInputDragAndDropController extends Disposable {
 	private readonly _snapThreshold = 20;
 	private readonly _snapLineHorizontalRatio = 0.25;
 
+	private readonly _controlsOnLeft: boolean;
+	private readonly _controlsOnRight: boolean;
+
 	private _quickInputAlignmentContext = QuickInputAlignmentContextKey.bindTo(this._contextKeyService);
 
 	constructor(
@@ -908,9 +919,16 @@ class QuickInputDragAndDropController extends Disposable {
 		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean }[],
 		initialViewState: QuickInputViewState | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+		const customTitleBar = getTitleBarStyle(this.configurationService) === TitlebarStyle.CUSTOM;
+
+		// Do not allow the widget to overflow or underflow window controls.
+		// Use CSS calculations to avoid having to force layout with `.clientWidth`
+		this._controlsOnLeft = customTitleBar && platform === Platform.Mac;
+		this._controlsOnRight = customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
 		this._registerLayoutListener();
 		this.registerMouseListeners();
 		this.dndViewState.set({ ...initialViewState, done: true }, undefined);
@@ -1021,6 +1039,15 @@ class QuickInputDragAndDropController extends Disposable {
 		const snapCoordinateX = this._getCenterXSnapValue();
 		// Make sure the quick input is not moved outside the container
 		topCoordinate = Math.max(0, Math.min(topCoordinate, this._container.clientHeight - this._quickInputContainer.clientHeight));
+
+		if (topCoordinate < this._layoutService.activeContainerOffset.top) {
+			if (this._controlsOnLeft) {
+				leftCoordinate = Math.max(leftCoordinate, 80 / getZoomFactor(dom.getActiveWindow()));
+			} else if (this._controlsOnRight) {
+				leftCoordinate = Math.min(leftCoordinate, this._container.clientWidth - this._quickInputContainer.clientWidth - (140 / getZoomFactor(dom.getActiveWindow())));
+			}
+		}
+
 		const snappingToTop = Math.abs(topCoordinate - snapCoordinateYTop) < this._snapThreshold;
 		topCoordinate = snappingToTop ? snapCoordinateYTop : topCoordinate;
 		const snappingToCenter = Math.abs(topCoordinate - snapCoordinateY) < this._snapThreshold;

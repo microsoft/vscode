@@ -140,7 +140,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			layoutInfo.padding,
 			layoutInfo.borderRadius,
 			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
-		).build();
+		);
 
 		return [
 			n.svgElem('path', {

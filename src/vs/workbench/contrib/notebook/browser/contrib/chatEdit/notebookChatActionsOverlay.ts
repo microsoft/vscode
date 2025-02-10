@@ -18,7 +18,7 @@ import { autorun, autorunWithStore, IObservable, ISettableObservable, observable
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { INotebookDeletedCellDecorator } from './notebookCellDecorators.js';
-import { AcceptAction, navigationBearingFakeActionId, RejectAction } from '../../../../chat/browser/chatEditorActions.js';
+import { AcceptAction, navigationBearingFakeActionId, RejectAction } from '../../../../chat/browser/chatEditing/chatEditingEditorActions.js';
 
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(
@@ -33,9 +33,13 @@ export class NotebookChatActionsOverlayController extends Disposable {
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 
 		this._register(autorunWithStore((r, store) => {
-			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const model = notebookModel.read(r);
-			if (!model || !session) {
+			if (!model) {
+				return;
+			}
+			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+			const session = sessions.find(s => s.readEntry(model.uri, r));
+			if (!session) {
 				return;
 			}
 

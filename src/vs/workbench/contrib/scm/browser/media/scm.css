@@ -151,8 +151,8 @@
 	stroke: var(--vscode-sideBar-background);
 }
 
-.scm-view .monaco-list-row:hover .history-item > .graph-container > .graph > circle {
-	stroke: var(--vscode-list-hoverBackground);
+.scm-view .monaco-list-row:hover .history-item > .graph-container > .graph > circle:first-of-type {
+	stroke: transparent;
 }
 
 .scm-view .monaco-list-row .history-item > .label-container {
@@ -558,6 +558,8 @@
 	padding: 2px 4px;
 }
 
+.monaco-workbench .part.sidebar > .title > .title-actions .action-label.scm-graph-repository-picker,
+.monaco-workbench .part.sidebar > .title > .title-actions .action-label.scm-graph-history-item-picker,
 .monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-repository-picker,
 .monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-history-item-picker,
 .monaco-workbench .part.panel > .title > .title-actions .action-label.scm-graph-repository-picker,

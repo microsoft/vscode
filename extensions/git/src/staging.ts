@@ -178,6 +178,13 @@ export function toLineChanges(diffInformation: TextEditorDiffInformation): LineC
 	});
 }
 
+export function getIndexDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {
+	// Diff Editor (Index)
+	return textEditor.diffInformation?.find(diff =>
+		diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === 'HEAD' &&
+		diff.modified && isGitUri(diff.modified) && fromGitUri(diff.modified).ref === '');
+}
+
 export function getWorkingTreeDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {
 	// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
 	return getDiffInformation(textEditor, '~') ?? getDiffInformation(textEditor, '');

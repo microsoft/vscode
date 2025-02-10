@@ -50,7 +50,7 @@ export class DefaultExtensionsInitializer extends Disposable {
 			return;
 		}
 
-		const vsixs = stat.children.filter(child => child.name.endsWith('.vsix'));
+		const vsixs = stat.children.filter(child => child.name.toLowerCase().endsWith('.vsix'));
 		if (vsixs.length === 0) {
 			this.logService.debug('There are no default extensions to initialize', extensionsLocation.toString());
 			return;

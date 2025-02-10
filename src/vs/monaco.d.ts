@@ -4604,16 +4604,6 @@ declare namespace monaco.editor {
 		 * Font family for inline suggestions.
 		 */
 		fontFamily?: string | 'default';
-		edits?: {
-			experimental?: {
-				enabled?: boolean;
-				useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
-				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
-				useCodeOverlay?: 'never' | 'whenPossible' | 'moveCodeWhenPossible';
-				useMultiLineGhostText?: boolean;
-				useGutterIndicator?: boolean;
-			};
-		};
 	}
 
 	type RequiredRecursive<T> = {
@@ -7154,6 +7144,7 @@ declare namespace monaco.languages {
 	 */
 	export interface PartialAcceptInfo {
 		kind: PartialAcceptTriggerKind;
+		acceptedLength: number;
 	}
 
 	/**
@@ -7318,6 +7309,7 @@ declare namespace monaco.languages {
 		handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 		/**
 		 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
+		 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
 		 */
 		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 		handleRejection?(completions: T, item: T['items'][number]): void;
@@ -7989,6 +7981,7 @@ declare namespace monaco.languages {
 		resource: Uri;
 		textEdit: TextEdit & {
 			insertAsSnippet?: boolean;
+			keepWhitespace?: boolean;
 		};
 		versionId: number | undefined;
 		metadata?: WorkspaceEditMetadata;

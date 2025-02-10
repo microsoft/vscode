@@ -4211,15 +4211,30 @@ export interface IInlineSuggestOptions {
 	fontFamily?: string | 'default';
 
 	edits?: {
-		experimental?: {
-			enabled?: boolean;
-			useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
-			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
-			useCodeOverlay?: 'never' | 'whenPossible' | 'moveCodeWhenPossible';
-			useMultiLineGhostText?: boolean;
+		codeShifting?: boolean;
 
-			useGutterIndicator?: boolean;
-		};
+		renderSideBySide?: 'never' | 'auto';
+
+		/**
+		* @internal
+		*/
+		enabled?: boolean;
+		/**
+		* @internal
+		*/
+		useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
+		/**
+		* @internal
+		*/
+		useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+		/**
+		* @internal
+		*/
+		useMultiLineGhostText?: boolean;
+		/**
+		* @internal
+		*/
+		useGutterIndicator?: boolean;
 	};
 }
 
@@ -4246,14 +4261,13 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			fontFamily: 'default',
 			syntaxHighlightingEnabled: false,
 			edits: {
-				experimental: {
-					enabled: true,
-					useMixedLinesDiff: 'forStableInsertions',
-					useInterleavedLinesDiff: 'never',
-					useGutterIndicator: true,
-					useCodeOverlay: 'moveCodeWhenPossible',
-					useMultiLineGhostText: false
-				},
+				enabled: true,
+				useMixedLinesDiff: 'forStableInsertions',
+				useInterleavedLinesDiff: 'never',
+				renderSideBySide: 'auto',
+				useGutterIndicator: true,
+				codeShifting: true,
+				useMultiLineGhostText: true
 			},
 		};
 
@@ -4291,39 +4305,45 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.fontFamily,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
-				'editor.inlineSuggest.edits.experimental.enabled': {
-					type: 'boolean',
-					default: defaults.edits.experimental.enabled,
-					description: nls.localize('inlineSuggest.edits.experimental.enabled', "Controls whether to enable experimental edits in inline suggestions.")
-				},
-				'editor.inlineSuggest.edits.experimental.useMixedLinesDiff': {
+				/* 'editor.inlineSuggest.edits.useMixedLinesDiff': {
 					type: 'string',
-					default: defaults.edits.experimental.useMixedLinesDiff,
-					description: nls.localize('inlineSuggest.edits.experimental.useMixedLinesDiff', "Controls whether to enable experimental mixed lines diff in inline suggestions."),
+					default: defaults.edits.useMixedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.useMixedLinesDiff', "Controls whether to enable mixed lines diff in inline suggestions."),
 					enum: ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible'],
-				},
-				'editor.inlineSuggest.edits.experimental.useCodeOverlay': {
-					type: 'string',
-					default: defaults.edits.experimental.useCodeOverlay,
-					description: nls.localize('inlineSuggest.edits.experimental.useCodeOverlay', "Controls whether suggestions may be shown above the code."),
-					enum: ['never', 'whenPossible', 'moveCodeWhenPossible'],
-				},
-				'editor.inlineSuggest.edits.experimental.useMultiLineGhostText': {
+				}, */
+				'editor.inlineSuggest.edits.codeShifting': {
 					type: 'boolean',
-					default: defaults.edits.experimental.useMultiLineGhostText,
-					description: nls.localize('inlineSuggest.edits.experimental.useMultiLineGhostText', "Controls whether multi line insertions can be shown with Ghost text."),
+					default: defaults.edits.codeShifting,
+					description: nls.localize('inlineSuggest.edits.codeShifting', "Controls whether showing a suggestion will shift the code to make space for the suggestion inline."),
+					tags: ['nextEditSuggestions']
 				},
-				'editor.inlineSuggest.edits.experimental.useInterleavedLinesDiff': {
+				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
-					default: defaults.edits.experimental.useInterleavedLinesDiff,
-					description: nls.localize('inlineSuggest.edits.experimental.useInterleavedLinesDiff', "Controls whether to enable experimental interleaved lines diff in inline suggestions."),
+					default: defaults.edits.renderSideBySide,
+					description: nls.localize('inlineSuggest.edits.renderSideBySide', "Controls whether larger suggestions can be shown side by side."),
+					enum: ['auto', 'never'],
+					enumDescriptions: [
+						nls.localize('editor.inlineSuggest.edits.renderSideBySide.auto', "Larger suggestions will show side by side if there is enough space, otherwise they will be shown bellow."),
+						nls.localize('editor.inlineSuggest.edits.renderSideBySide.never', "Larger suggestions are never shown side by side and will always be shown bellow."),
+					],
+					tags: ['nextEditSuggestions']
+				},
+				/* 'editor.inlineSuggest.edits.useMultiLineGhostText': {
+					type: 'boolean',
+					default: defaults.edits.useMultiLineGhostText,
+					description: nls.localize('inlineSuggest.edits.useMultiLineGhostText', "Controls whether multi line insertions can be shown with Ghost text."),
+				}, */
+				/* 'editor.inlineSuggest.edits.useInterleavedLinesDiff': {
+					type: 'string',
+					default: defaults.edits.useInterleavedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.useInterleavedLinesDiff', "Controls whether to enable interleaved lines diff in inline suggestions."),
 					enum: ['never', 'always', 'afterJump'],
-				},
-				'editor.inlineSuggest.edits.experimental.useGutterIndicator': {
+				}, */
+				/* 'editor.inlineSuggest.edits.useGutterIndicator': {
 					type: 'boolean',
-					default: defaults.edits.experimental.useGutterIndicator,
-					description: nls.localize('inlineSuggest.edits.experimental.useGutterIndicator', "Controls whether to show a gutter indicator for inline suggestions.")
-				},
+					default: defaults.edits.useGutterIndicator,
+					description: nls.localize('inlineSuggest.edits.useGutterIndicator', "Controls whether to show a gutter indicator for inline suggestions.")
+				}, */
 			}
 		);
 	}
@@ -4342,14 +4362,13 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 			edits: {
-				experimental: {
-					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
-					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
-					useCodeOverlay: stringSet(input.edits?.experimental?.useCodeOverlay, this.defaultValue.edits.experimental.useCodeOverlay, ['never', 'whenPossible', 'moveCodeWhenPossible']),
-					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
-					useGutterIndicator: boolean(input.edits?.experimental?.useGutterIndicator, this.defaultValue.edits.experimental.useGutterIndicator),
-					useMultiLineGhostText: boolean(input.edits?.experimental?.useMultiLineGhostText, this.defaultValue.edits.experimental.useMultiLineGhostText),
-				},
+				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
+				useMixedLinesDiff: stringSet(input.edits?.useMixedLinesDiff, this.defaultValue.edits.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
+				codeShifting: boolean(input.edits?.codeShifting, this.defaultValue.edits.codeShifting),
+				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
+				useInterleavedLinesDiff: stringSet(input.edits?.useInterleavedLinesDiff, this.defaultValue.edits.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
+				useGutterIndicator: boolean(input.edits?.useGutterIndicator, this.defaultValue.edits.useGutterIndicator),
+				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
 			},
 		};
 	}

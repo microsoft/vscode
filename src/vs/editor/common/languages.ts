@@ -27,7 +27,7 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { IModelTokensChangedEvent } from './textModelEvents.js';
-import type { Parser } from '@vscode/tree-sitter-wasm';
+import type * as Parser from '@vscode/tree-sitter-wasm';
 import { ITextModel } from './model.js';
 import { TokenUpdate } from './model/tokenStore.js';
 
@@ -620,6 +620,7 @@ export interface CompletionList {
  */
 export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
+	acceptedLength: number;
 }
 
 /**
@@ -829,6 +830,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	/**
 	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
+	 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
 	 */
 	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 
@@ -1814,7 +1816,7 @@ export interface IWorkspaceFileEdit {
 
 export interface IWorkspaceTextEdit {
 	resource: URI;
-	textEdit: TextEdit & { insertAsSnippet?: boolean };
+	textEdit: TextEdit & { insertAsSnippet?: boolean; keepWhitespace?: boolean };
 	versionId: number | undefined;
 	metadata?: WorkspaceEditMetadata;
 }

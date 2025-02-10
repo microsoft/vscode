@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { InstructionsAttachmentWidget } from './instructionsAttachment.js';
@@ -18,14 +19,30 @@ import { ChatInstructionAttachmentsModel } from '../../chatAttachmentModel/chatI
  */
 export class InstructionAttachmentsWidget extends Disposable {
 	/**
-	 * The root DOM node of the widget.
-	 */
-	public readonly domNode: HTMLElement;
-
-	/**
 	 * List of child instruction attachment widgets.
 	 */
 	private children: InstructionsAttachmentWidget[] = [];
+
+	/**
+	 * Event that fires when number of attachments change
+	 *
+	 * See {@linkcode onAttachmentsCountChange}.
+	 */
+	private _onAttachmentsCountChange = this._register(new Emitter<void>());
+	/**
+	 * Subscribe to the `onAttachmentsCountChange` event.
+	 * @param callback Function to invoke when number of attachments change.
+	 */
+	public onAttachmentsCountChange(callback: () => unknown): this {
+		this._register(this._onAttachmentsCountChange.event(callback));
+
+		return this;
+	}
+
+	/**
+	 * The root DOM node of the widget.
+	 */
+	public readonly domNode: HTMLElement;
 
 	/**
 	 * Get all `URI`s of all valid references, including all
@@ -72,12 +89,15 @@ export class InstructionAttachmentsWidget extends Disposable {
 			);
 
 			// handle the child widget disposal event, removing it from the list
-			widget.onDispose(this.onChildDispose.bind(this, widget));
+			widget.onDispose(this.handleAttachmentDispose.bind(this, widget));
 
 			// register the new child widget
 			this.children.push(widget);
 			this.domNode.appendChild(widget.domNode);
 			this.render();
+
+			// fire the event to notify about the change in the number of attachments
+			this._onAttachmentsCountChange.fire();
 		});
 	}
 
@@ -85,7 +105,7 @@ export class InstructionAttachmentsWidget extends Disposable {
 	 * Handle child widget disposal.
 	 * @param widget The child widget that was disposed.
 	 */
-	public onChildDispose(widget: InstructionsAttachmentWidget): this {
+	public handleAttachmentDispose(widget: InstructionsAttachmentWidget): this {
 		// common prefix for all log messages
 		const logPrefix = `[onChildDispose] Widget for instructions attachment '${widget.uri.path}'`;
 
@@ -122,7 +142,12 @@ export class InstructionAttachmentsWidget extends Disposable {
 		this.domNode.removeChild(widget.domNode);
 
 		// re-render the whole widget
-		return this.render();
+		this.render();
+
+		// fire the event to notify about the change in the number of attachments
+		this._onAttachmentsCountChange.fire();
+
+		return this;
 	}
 
 	/**
