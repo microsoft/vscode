@@ -260,6 +260,9 @@ export async function collectCompletionItemResult(command: Command, parsedArgume
 							continue;
 						}
 						const generatedItems = generator.postProcess(output, command.tokens.map(e => e.text));
+						if (!generatedItems) {
+							continue;
+						}
 						for (const generatedItem of generatedItems) {
 							if (!generatedItem) {
 								continue;
