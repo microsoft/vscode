@@ -70,7 +70,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _decorationsProvider: TabDecorationsProvider | undefined;
 	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 	private _isSplitContextKey: IContextKey<boolean>;
-	private _taskTerminalActive: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -191,7 +190,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		this._terminalTabsSingleSelectedContextKey = TerminalContextKeys.tabsSingularSelection.bindTo(contextKeyService);
 		this._isSplitContextKey = TerminalContextKeys.splitTerminal.bindTo(contextKeyService);
-		this._taskTerminalActive = TerminalContextKeys.taskTerminalActive.bindTo(contextKeyService);
 
 		this.disposables.add(this.onDidChangeSelection(e => this._updateContextKey()));
 		this.disposables.add(this.onDidChangeFocus(() => this._updateContextKey()));
@@ -241,7 +239,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _updateContextKey() {
 		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 		const instance = this.getFocusedElements();
-		this._taskTerminalActive.set(instance.length > 0 && instance[0].shellLaunchConfig.type === 'Task');
 		this._isSplitContextKey.set(instance.length > 0 && this._terminalGroupService.instanceIsSplit(instance[0]));
 	}
 }

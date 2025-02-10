@@ -20,7 +20,7 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatus
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from '../../../services/output/common/output.js';
 
-import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE } from '../common/tasks.js';
+import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE, TASK_TERMINAL_ACTIVE } from '../common/tasks.js';
 import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -574,8 +574,8 @@ registerAction2(class extends Action2 {
 			id: RerunForActiveTerminalCommandId,
 			icon: rerunTaskIcon,
 			title: nls.localize2('workbench.action.tasks.rerunForActiveTerminal', 'Rerun Task'),
-			precondition: TerminalContextKeys.taskTerminalActive,
-			menu: [{ id: MenuId.TerminalInstanceContext, when: TerminalContextKeys.taskTerminalActive }, { id: MenuId.TerminalTabContext, when: TerminalContextKeys.taskTerminalActive }],
+			precondition: TASK_TERMINAL_ACTIVE,
+			menu: [{ id: MenuId.TerminalInstanceContext, when: TASK_TERMINAL_ACTIVE }, { id: MenuId.TerminalTabContext, when: TASK_TERMINAL_ACTIVE }],
 			keybinding: {
 				when: TerminalContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
