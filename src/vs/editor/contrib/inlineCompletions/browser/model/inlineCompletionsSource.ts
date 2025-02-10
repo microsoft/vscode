@@ -500,7 +500,7 @@ class UpdatedEdit extends Disposable {
 
 	protected readonly _updatedEdit = derivedHandleChanges<OffsetEdit | undefined | null, OffsetEdit[]>({
 		owner: this,
-		equalityComparer: equalsIfDefined(itemEquals()),
+		equalityComparer: equalsIfDefined((a, b) => a?.equals(b)),
 		createEmptyChangeSummary: () => [] as OffsetEdit[],
 		handleChange: (context, changeSummary) => {
 			if (context.didChange(this._modelVersion) && context.change) {
