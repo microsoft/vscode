@@ -72,7 +72,6 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 		{ input: 'ls -a|', expectedCompletions: allOptions },
 
 		// Duplicate option
-		// TODO: Duplicate options should not be presented https://github.com/microsoft/vscode/issues/239607
 		{ input: 'ls -a -|', expectedCompletions: allOptions.filter(o => o !== '-a'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Relative paths
