@@ -1088,6 +1088,10 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 		if (metadata.supportsResolve) {
 			this.resolveDocumentPasteEdit = async (edit: languages.DocumentPasteEdit, token: CancellationToken) => {
 				const resolved = await this._proxy.$resolvePasteEdit(this._handle, (<IPasteEditDto>edit)._cacheId!, token);
+				if (typeof resolved.insertText !== 'undefined') {
+					edit.insertText = resolved.insertText;
+				}
+
 				if (resolved.additionalEdit) {
 					edit.additionalEdit = reviveWorkspaceEditDto(resolved.additionalEdit, this._uriIdentService);
 				}
