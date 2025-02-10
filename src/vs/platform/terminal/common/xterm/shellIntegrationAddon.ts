@@ -477,7 +477,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				if (arg0 !== undefined) {
 					try {
 						const env = JSON.parse(deserializeMessage(arg0));
-						this._createOrGetShellEnvDetection().applyEnvironmentDiff(env, arg1 === this._nonce);
+						this._createOrGetShellEnvDetection().setEnvironment(env, arg1 === this._nonce);
 					} catch (e) {
 						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
 					}
@@ -490,6 +490,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.EnvSingleDelete: {
 				const arg0 = args[0];
+
 				const arg1 = args[1];
 				const arg2 = args[2];
 				if (arg0 !== undefined && arg1 !== undefined) {
