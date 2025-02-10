@@ -289,14 +289,17 @@ export async function collectCompletionItemResult(command: Command, parsedArgume
 		if (!specArgs) {
 			return { filesRequested, foldersRequested };
 		}
-
+		const flagsToExclude = kind === vscode.TerminalCompletionItemKind.Flag ? parsedArguments?.passedOptions.map(option => option.name).flat() : undefined;
 		if (Array.isArray(specArgs)) {
 			for (const item of specArgs) {
 				const suggestionLabels = getLabel(item);
-				if (!suggestionLabels) {
+				if (!suggestionLabels?.length) {
 					continue;
 				}
 				for (const label of suggestionLabels) {
+					if (flagsToExclude?.includes(label)) {
+						continue;
+					}
 					items.push(
 						createCompletionItem(
 							terminalContext.cursorPosition,
@@ -311,6 +314,9 @@ export async function collectCompletionItemResult(command: Command, parsedArgume
 			}
 		} else {
 			for (const [label, item] of Object.entries(specArgs)) {
+				if (flagsToExclude?.includes(label)) {
+					continue;
+				}
 				items.push(
 					createCompletionItem(
 						terminalContext.cursorPosition,
@@ -332,7 +338,7 @@ export async function collectCompletionItemResult(command: Command, parsedArgume
 		await addSuggestions(parsedArguments.completionObj.subcommands, vscode.TerminalCompletionItemKind.Method);
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Options) {
-		await addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag);
+		await addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag, parsedArguments);
 	}
 
 	return { filesRequested, foldersRequested };
@@ -363,6 +369,7 @@ export async function getCompletionItemsFromSpecs(
 		}
 	}
 
+	let hasCurrentArg = false;
 	for (const spec of specs) {
 		const specLabels = getLabel(spec);
 
@@ -407,7 +414,7 @@ export async function getCompletionItemsFromSpecs(
 				{ environmentVariables: env, currentWorkingDirectory: shellIntegrationCwd.fsPath, sshPrefix: '', currentProcess: name, /* TODO: pass in aliases */ },
 				spec,
 			);
-
+			hasCurrentArg ||= !!parsedArguments.currentArg;
 			const completionItemResult = await collectCompletionItemResult(command, parsedArguments, prefix, terminalContext, items);
 			if (completionItemResult) {
 				filesRequested ||= completionItemResult.filesRequested;
@@ -426,7 +433,7 @@ export async function getCompletionItemsFromSpecs(
 		}
 		filesRequested = true;
 		foldersRequested = true;
-	} else if (!items.length && !filesRequested && !foldersRequested) {
+	} else if (!items.length && !filesRequested && !foldersRequested && !hasCurrentArg) {
 		// Not a command and no specific args or options were provided, so show resources
 		filesRequested = true;
 		foldersRequested = true;
