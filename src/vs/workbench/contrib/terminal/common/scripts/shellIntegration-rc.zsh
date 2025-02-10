@@ -126,7 +126,7 @@ __update_env_cache_aa() {
 	if [ $use_associative_array -eq 1 ]; then
 		if [[ "${vsc_aa_env["$key"]}" != "$value" ]]; then
 			vsc_aa_env["$key"]="$value"
-			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			# builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 		fi
 	fi
 }
@@ -134,7 +134,17 @@ __update_env_cache_aa() {
 __track_missing_env_vars_aa() {
 	if [ $use_associative_array -eq 1 ]; then
 		declare -A currentEnvMap
+		while IFS='=' read -r key value; do
+			currentEnvMap["$key"]="$value"
+		done < <(env)
 
+		for k in "${(@k)vsc_aa_env}"; do
+			# if currentEnvMap does not have the key, then it is missing
+			if ! [[ -v currentEnvMap[$k] ]]; then
+				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "$k" "$(__vsc_escape_value "${vsc_aa_env[$k]}")" "$__vsc_nonce"
+				unset "vsc_aa_env[$k]"
+			fi
+		done
 	fi
 }
 
@@ -149,7 +159,13 @@ __vsc_update_env() {
 			while IFS='=' read -r key value; do
 				vsc_aa_env["$key"]="$value"
 				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+				# builtin printf 'key: %s, value: %s\n' "$key" "$value"
 			done < <(env)
+
+			# for k in "${(@k)vsc_aa_env}"; do
+			# 	builtin printf 'Key: %s | Value: %s\n' "$k" "${vsc_aa_env[$k]}"
+			# done
+
 		else
 			builtin printf 'we are doing diff approach bc vsc_aa_env is not empty\n'
 			# Diff approach for associative array
@@ -157,6 +173,7 @@ __vsc_update_env() {
 				__update_env_cache_aa "$key" "$value"
 			done < <(env)
 			# TODO: Track missing env vars AA
+			__track_missing_env_vars_aa
 
 		fi
 	fi
