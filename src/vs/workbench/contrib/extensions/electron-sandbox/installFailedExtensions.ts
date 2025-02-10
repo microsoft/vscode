@@ -34,23 +34,26 @@ export class InstallFailedExtensions extends Disposable implements IWorkbenchCon
 				}
 
 				logService.trace(`Received '${failed.length}' failed extensions relayed from server`);
-				const failedGalleryExtensions = failed.reduce<GalleryExtension[]>((acc, f) => {
-					const { extension, installOptions } = f;
-					if (typeof extension === 'string') {
-						acc.push({ id: extension, installOptions });
-					}
-					// NOTE: Handle VSIX URIs here
-					return acc;
-				}, []);
-
 				const alreadyInstalled = await this._extensionManagementService.getInstalled(ExtensionType.User);
-				const missing = failedGalleryExtensions.filter(
-					({ id }) => !alreadyInstalled.some(e => areSameExtensions(e.identifier, { id }))
-				);
+				const missing = failed
+					.reduce<GalleryExtension[]>((acc, f) => {
+						const { extension, installOptions } = f;
+						if (typeof extension === 'string') {
+							acc.push({ id: extension, installOptions });
+						}
+						// NOTE: Handle VSIX URIs here
+						return acc;
+					}, [])
+					.filter(({ id }) => !alreadyInstalled.some(e => areSameExtensions(e.identifier, { id })));
+
+				if (missing.length === 0) {
+					logService.trace('No missing extensions in set relayed from server');
+					return;
+				}
 
 				logService.info(`Processing '${missing.length}' missing extensions relayed from server`);
-				for (const ext of await this._extensionGalleryService.getExtensions(failedGalleryExtensions, CancellationToken.None)) {
-					const installOptions = failedGalleryExtensions.find(g => g.id === ext.identifier.id)?.installOptions;
+				for (const ext of await this._extensionGalleryService.getExtensions(missing, CancellationToken.None)) {
+					const installOptions = missing.find(g => g.id === ext.identifier.id)?.installOptions;
 					try {
 						await this._extensionManagementService.installFromGallery(ext, installOptions);
 					} catch (e) {
