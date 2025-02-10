@@ -78,7 +78,7 @@ export class InlineCompletionsSource extends Disposable {
 
 	public readonly loading = observableValue(this, false);
 
-	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined): Promise<boolean> {
+	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined, withDebounce: boolean): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions : this.inlineCompletions;
@@ -97,7 +97,8 @@ export class InlineCompletionsSource extends Disposable {
 		const source = new CancellationTokenSource();
 
 		const promise = (async () => {
-			const shouldDebounce = updateOngoing || context.triggerKind === InlineCompletionTriggerKind.Automatic;
+			// Debounce in any case if update is ongoing
+			const shouldDebounce = updateOngoing || (withDebounce && context.triggerKind === InlineCompletionTriggerKind.Automatic);
 			if (shouldDebounce) {
 				// This debounces the operation
 				await wait(this._debounceValue.get(this._textModel), source.token);
