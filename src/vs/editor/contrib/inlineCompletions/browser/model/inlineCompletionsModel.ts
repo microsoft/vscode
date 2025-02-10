@@ -96,9 +96,9 @@ export class InlineCompletionsModel extends Disposable {
 				return;
 			}
 			for (const inlineCompletion of inlineCompletions.inlineCompletions) {
-				const singleEdit = inlineCompletion.toSingleTextEdit(reader);
-				if (singleEdit.isEmpty) {
+				if (inlineCompletion.updatedEdit.read(reader) === undefined) {
 					this.stop();
+					break;
 				}
 			}
 		}));
