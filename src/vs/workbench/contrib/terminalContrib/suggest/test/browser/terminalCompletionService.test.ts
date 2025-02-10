@@ -8,7 +8,7 @@ import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from
 import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert, { fail } from 'assert';
-import { isWindows } from '../../../../../../base/common/platform.js';
+import { isWindows, type IProcessEnvironment } from '../../../../../../base/common/platform.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { createFileStat } from '../../../../../test/common/workbenchTestServices.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -78,7 +78,12 @@ function assertPartialCompletionsExist(actual: ITerminalCompletion[] | undefined
 	}
 }
 
-let homeDir = isWindows ? process.env['USERPROFILE'] : process.env['HOME'];
+const testEnv: IProcessEnvironment = {
+	HOME: '/home/user',
+	USERPROFILE: '/home/user'
+};
+
+let homeDir = isWindows ? testEnv['USERPROFILE'] : testEnv['HOME'];
 if (!homeDir!.endsWith('/')) {
 	homeDir += '/';
 }
@@ -118,6 +123,7 @@ suite('TerminalCompletionService', () => {
 			},
 		});
 		terminalCompletionService = store.add(instantiationService.createInstance(TerminalCompletionService));
+		terminalCompletionService.processEnv = testEnv;
 		validResources = [];
 		childResources = [];
 		capabilities = store.add(new TerminalCapabilityStore());
