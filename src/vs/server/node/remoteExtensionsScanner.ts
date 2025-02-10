@@ -12,8 +12,8 @@ import { Event } from '../../base/common/event.js';
 import { IURITransformer, transformOutgoingURIs } from '../../base/common/uriIpc.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterEqualsExpr, ContextKeyGreaterExpr, ContextKeyInExpr, ContextKeyNotEqualsExpr, ContextKeyNotExpr, ContextKeyNotInExpr, ContextKeyRegexExpr, ContextKeySmallerEqualsExpr, ContextKeySmallerExpr, IContextKeyExprMapper } from '../../platform/contextkey/common/contextkey.js';
-import { IExtensionGalleryService, InstallExtensionsResult, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
-import { FailedExtensionInstallationError, ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
+import { IExtensionGalleryService, IExtensionManagementService, InstallExtensionsResult, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { IExtensionsScannerService, toExtensionDescription } from '../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ExtensionType, IExtensionDescription } from '../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -23,6 +23,7 @@ import { dedupExtensions } from '../../workbench/services/extensions/common/exte
 import { Schemas } from '../../base/common/network.js';
 import { IRemoteExtensionsScannerService } from '../../platform/remote/common/remoteExtensionsScanner.js';
 import { ILanguagePackService } from '../../platform/languagePacks/common/languagePacks.js';
+import { areSameExtensions } from '../../platform/extensionManagement/common/extensionManagementUtil.js';
 
 export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
 
@@ -38,7 +39,8 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		private readonly _extensionsScannerService: IExtensionsScannerService,
 		private readonly _logService: ILogService,
 		private readonly _extensionGalleryService: IExtensionGalleryService,
-		private readonly _languagePackService: ILanguagePackService
+		private readonly _languagePackService: ILanguagePackService,
+		private readonly _extensionManagementService: IExtensionManagementService,
 	) {
 		const builtinExtensionsToInstall = environmentService.args['install-builtin-extension'];
 		if (builtinExtensionsToInstall) {
@@ -66,25 +68,29 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 			};
 			this._whenExtensionsReady = this._whenBuiltinExtensionsReady
 				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], installOptions, !!environmentService.args['force']))
-				.then(() => {
+				.then(async () => {
 					_logService.trace('Finished installing extensions');
 					return { failed: [] };
-				}, error => {
+				}, async error => {
 					_logService.error(error);
-					if (error instanceof FailedExtensionInstallationError) {
-						_logService.error(`Failure while installing extensions`);
-						return {
-							failed: error.failed.map(
-								e => {
-									return {
-										extension: e,
-										installOptions
-									};
-								}
-							)
-						};
+
+					const failed: {
+						extension: string | URI;
+						installOptions: InstallOptions;
+					}[] = [];
+					const alreadyInstalled = await this._extensionManagementService.getInstalled(ExtensionType.User);
+					for (const ext of this._asExtensionIdOrVSIX(extensionsToInstall)) {
+						if (typeof ext === 'string') {
+							if (!alreadyInstalled.some(e => areSameExtensions(e.identifier, { id: ext }))) {
+								failed.push({ extension: ext, installOptions });
+							}
+							// NOTE: Collect VSIX URIs here
+						}
 					}
-					return { failed: [] };
+					if (failed.length) {
+						_logService.trace(`Reporting the following extensions as failed to install: ${failed.map(f => f.extension).join(', ')}`);
+					}
+					return { failed };
 				});
 		}
 	}
