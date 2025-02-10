@@ -49,6 +49,7 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -504,6 +505,27 @@ export function registerChatActions() {
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 			extensionsWorkbenchService.openSearch(`@feature:${CopilotUsageExtensionFeatureId}`);
+		}
+	});
+
+	registerAction2(class ConfigureCopilotCompletions extends Action2 {
+
+		constructor() {
+			super({
+				id: 'workbench.action.chat.configureCodeCompletions',
+				title: localize2('configureCompletions', "Configure Code Completions..."),
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ChatCommandCenter,
+					group: 'f_completions',
+					order: 10,
+				}
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			commandService.executeCommand('github.copilot.toggleStatusMenu');
 		}
 	});
 }
