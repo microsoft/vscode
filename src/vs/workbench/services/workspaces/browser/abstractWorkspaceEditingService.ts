@@ -62,7 +62,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			availableFileSystems.unshift(Schemas.vscodeRemote);
 		}
 		let workspacePath = await this.fileDialogService.showSaveDialog({
-			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
+			saveLabel: mnemonicButtonLabel(localize('save', "Save")).withMnemonic,
 			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
 			defaultUri: joinPath(await this.fileDialogService.defaultWorkspacePath(), this.getNewWorkspaceName()),

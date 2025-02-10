@@ -240,7 +240,7 @@ export interface IOpenDialogOptions {
 	/**
 	 * A human-readable string for the open button.
 	 */
-	readonly openLabel?: string;
+	readonly openLabel?: { withMnemonic: string; withoutMnemonic: string } | string;
 
 	/**
 	 * Allow to select files, defaults to `true`.
@@ -716,7 +716,7 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 		}
 	}
 
-	massagedOptions.buttons = buttons;
+	massagedOptions.buttons = buttons.map(button => button.withMnemonic);
 	massagedOptions.defaultId = defaultId;
 	massagedOptions.cancelId = cancelId;
 	massagedOptions.noLink = true;

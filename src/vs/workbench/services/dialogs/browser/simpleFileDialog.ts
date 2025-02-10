@@ -31,7 +31,7 @@ import { createCancelablePromise, CancelablePromise } from '../../../../base/com
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ICommandHandler } from '../../../../platform/commands/common/commands.js';
 import { IEditorService } from '../../editor/common/editorService.js';
-import { normalizeDriveLetter, removeMnemonic } from '../../../../base/common/labels.js';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import { SaveReason } from '../../../common/editor.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -283,7 +283,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.sortByLabel = false;
 			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;
-			this.filePickBox.okLabel = this.options.openLabel ? removeMnemonic(this.options.openLabel) : undefined;
+			this.filePickBox.okLabel = typeof this.options.openLabel === 'string' ? this.options.openLabel : this.options.openLabel?.withoutMnemonic;
 			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');

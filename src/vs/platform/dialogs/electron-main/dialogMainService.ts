@@ -71,7 +71,7 @@ export class DialogMainService implements IDialogMainService {
 
 	pickWorkspace(options: INativeOpenDialogOptions, window?: electron.BrowserWindow): Promise<string[] | undefined> {
 		const title = localize('openWorkspaceTitle', "Open Workspace from File");
-		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
+		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")).withMnemonic;
 		const filters = WORKSPACE_FILTER;
 
 		return this.doPick({ ...options, pickFiles: true, title, filters, buttonLabel }, window);
