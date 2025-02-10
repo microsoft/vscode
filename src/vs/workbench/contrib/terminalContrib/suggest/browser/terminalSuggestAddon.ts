@@ -161,8 +161,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	activate(xterm: Terminal): void {
 		this._terminal = xterm;
-		this._register(xterm.onData(async e => {
-			this._lastUserData = e;
+		this._register(xterm.onKey(async e => {
+			this._lastUserData = e.key;
 			this._lastUserDataTimestamp = Date.now();
 		}));
 
