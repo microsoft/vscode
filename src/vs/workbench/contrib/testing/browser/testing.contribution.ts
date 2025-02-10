@@ -33,12 +33,12 @@ import { TestCommandId, Testing } from '../common/constants.js';
 import { ITestCoverageService, TestCoverageService } from '../common/testCoverageService.js';
 import { ITestExplorerFilterState, TestExplorerFilterState } from '../common/testExplorerFilterState.js';
 import { TestId, TestPosition } from '../common/testId.js';
-import { ITestProfileService, TestProfileService } from '../common/testProfileService.js';
+import { canUseProfileWithTest, ITestProfileService, TestProfileService } from '../common/testProfileService.js';
 import { ITestResultService, TestResultService } from '../common/testResultService.js';
 import { ITestResultStorage, TestResultStorage } from '../common/testResultStorage.js';
 import { ITestService } from '../common/testService.js';
 import { TestService } from '../common/testServiceImpl.js';
-import { ITestItem, TestRunProfileBitset } from '../common/testTypes.js';
+import { ITestItem, ITestRunProfileReference, TestRunProfileBitset } from '../common/testTypes.js';
 import { TestingContentProvider } from '../common/testingContentProvider.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService, TestingContinuousRunService } from '../common/testingContinuousRunService.js';
@@ -48,6 +48,7 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { allTestActions, discoverAndRunTests } from './testExplorerActions.js';
 import './testingConfigurationUi.js';
+import { URI } from '../../../../base/common/uri.js';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
@@ -153,6 +154,34 @@ CommandsRegistry.registerCommand({
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId, focus);
 	}
 });
+CommandsRegistry.registerCommand({
+	id: TestCommandId.StartContinousRunFromExtension,
+	handler: async (accessor: ServicesAccessor, profileRef: ITestRunProfileReference, tests: readonly ITestItem[]) => {
+		const profiles = accessor.get(ITestProfileService);
+		const collection = accessor.get(ITestService).collection;
+		const profile = profiles.getControllerProfiles(profileRef.controllerId).find(p => p.profileId === profileRef.profileId);
+		if (!profile?.supportsContinuousRun) {
+			return;
+		}
+
+		const crService = accessor.get(ITestingContinuousRunService);
+		for (const test of tests) {
+			const found = collection.getNodeById(test.extId);
+			if (found && canUseProfileWithTest(profile, found)) {
+				crService.start([profile], found.item.extId);
+			}
+		}
+	}
+});
+CommandsRegistry.registerCommand({
+	id: TestCommandId.StopContinousRunFromExtension,
+	handler: async (accessor: ServicesAccessor, tests: readonly ITestItem[]) => {
+		const crService = accessor.get(ITestingContinuousRunService);
+		for (const test of tests) {
+			crService.stop(test.extId);
+		}
+	}
+});
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.peekTestError',
@@ -248,6 +277,14 @@ CommandsRegistry.registerCommand({
 		return [...testService.collection.rootItems]
 			.filter(r => r.children.size > 0)
 			.map(r => r.controllerId);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'vscode.testing.getTestsInFile',
+	handler: async (accessor: ServicesAccessor, uri: URI) => {
+		const testService = accessor.get(ITestService);
+		return [...testService.collection.getNodeByUrl(uri)].map(t => TestId.split(t.item.extId));
 	}
 });
 

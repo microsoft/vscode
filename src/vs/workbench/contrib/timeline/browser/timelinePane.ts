@@ -233,6 +233,7 @@ class LoadMoreCommand {
 
 export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true, true);
 export const TimelineExcludeSources = new RawContextKey<string>('timelineExcludeSources', '[]', true);
+export const TimelineViewFocusedContext = new RawContextKey<boolean>('timelineFocused', true);
 
 export class TimelinePane extends ViewPane {
 	static readonly TITLE: ILocalizedString = localize2('timeline', "Timeline");
@@ -925,7 +926,7 @@ export class TimelinePane extends ViewPane {
 			}
 		});
 
-		this.tree = <WorkbenchObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(WorkbenchObjectTree, 'TimelinePane',
+		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree<TreeElement, FuzzyScore>, 'TimelinePane',
 			this.$tree, new TimelineListVirtualDelegate(), [this.treeRenderer], {
 			identityProvider: new TimelineIdentityProvider(),
 			accessibilityProvider: {
@@ -949,6 +950,8 @@ export class TimelinePane extends ViewPane {
 			multipleSelectionSupport: false,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 		});
+
+		TimelineViewFocusedContext.bindTo(this.tree.contextKeyService);
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
 		this._register(this.tree.onDidChangeSelection(e => this.ensureValidItems()));
@@ -1159,7 +1162,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IThemeService private themeService: IThemeService,
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', false, {
+		this._hoverDelegate = this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, {
 			position: {
 				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
 			}
@@ -1229,6 +1232,10 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		if (isLoadMoreCommand(item)) {
 			setTimeout(() => this._onDidScrollToEnd.fire(item), 0);
 		}
+	}
+
+	disposeElement(element: ITreeNode<TreeElement, FuzzyScore>, index: number, templateData: TimelineElementTemplate, height: number | undefined): void {
+		templateData.actionBar.actionRunner.dispose();
 	}
 
 	disposeTemplate(template: TimelineElementTemplate): void {

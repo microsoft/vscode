@@ -58,6 +58,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._register(this._contentHoverWidget.onDidResize(() => {
 			this._participants.forEach(participant => participant.handleResize?.());
 		}));
+		this._register(this._contentHoverWidget.onDidScroll((e) => {
+			this._participants.forEach(participant => participant.handleScroll?.(e));
+		}));
 		return participants;
 	}
 
@@ -231,7 +234,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
 		};
-		return { hide, onContentsChanged, setMinimumDimensions };
+		const focus = () => this.focus();
+		return { hide, onContentsChanged, setMinimumDimensions, focus };
 	}
 
 
@@ -329,6 +333,11 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public focus(): void {
+		const hoverPartsCount = this._renderedContentHover?.hoverPartsCount;
+		if (hoverPartsCount === 1) {
+			this.focusHoverPartWithIndex(0);
+			return;
+		}
 		this._contentHoverWidget.focus();
 	}
 

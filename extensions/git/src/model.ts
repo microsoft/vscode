@@ -12,13 +12,14 @@ import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fromGitUri } from './uri';
-import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider } from './api/git';
+import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider, SourceControlHistoryItemDetailsProvider } from './api/git';
 import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IBranchProtectionProviderRegistry } from './branchProtection';
+import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -170,7 +171,7 @@ class UnsafeRepositoriesManager {
 	}
 }
 
-export class Model implements IRepositoryResolver, IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
+export class Model implements IRepositoryResolver, IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry, ISourceControlHistoryItemDetailsProviderRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -236,6 +237,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	readonly onDidChangeBranchProtectionProviders = this._onDidChangeBranchProtectionProviders.event;
 
 	private pushErrorHandlers = new Set<PushErrorHandler>();
+	private historyItemDetailsProviders = new Set<SourceControlHistoryItemDetailsProvider>();
 
 	private _unsafeRepositoriesManager: UnsafeRepositoriesManager;
 	get unsafeRepositories(): string[] {
@@ -272,6 +274,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
+		window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
 
 		const fsWatcher = workspace.createFileSystemWatcher('**');
@@ -519,6 +522,31 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 	}
 
+	private onDidChangeActiveTextEditor(): void {
+		const textEditor = window.activeTextEditor;
+
+		if (textEditor === undefined) {
+			commands.executeCommand('setContext', 'git.activeResourceHasUnstagedChanges', false);
+			commands.executeCommand('setContext', 'git.activeResourceHasStagedChanges', false);
+			return;
+		}
+
+		const repository = this.getRepository(textEditor.document.uri);
+		if (!repository) {
+			commands.executeCommand('setContext', 'git.activeResourceHasUnstagedChanges', false);
+			commands.executeCommand('setContext', 'git.activeResourceHasStagedChanges', false);
+			return;
+		}
+
+		const indexResource = repository.indexGroup.resourceStates
+			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
+		const workingTreeResource = repository.workingTreeGroup.resourceStates
+			.find(resource => pathEquals(resource.resourceUri.fsPath, textEditor.document.uri.fsPath));
+
+		commands.executeCommand('setContext', 'git.activeResourceHasStagedChanges', indexResource !== undefined);
+		commands.executeCommand('setContext', 'git.activeResourceHasUnstagedChanges', workingTreeResource !== undefined);
+	}
+
 	@sequentialize
 	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
@@ -607,7 +635,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// Open repository
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
-			const repository = new Repository(this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger), this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
+			const repository = new Repository(this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger), this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
@@ -727,8 +755,10 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const statusListener = repository.onDidRunGitStatus(() => {
 			checkForSubmodules();
 			updateMergeChanges();
+			this.onDidChangeActiveTextEditor();
 		});
 		checkForSubmodules();
+		this.onDidChangeActiveTextEditor();
 
 		const updateOperationInProgressContext = () => {
 			let operationInProgress = false;
@@ -843,7 +873,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 
 		if (hint instanceof ApiRepository) {
-			return this.openRepositories.filter(r => r.repository === hint.repository)[0];
+			hint = hint.rootUri;
 		}
 
 		if (typeof hint === 'string') {
@@ -972,6 +1002,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	getPushErrorHandlers(): PushErrorHandler[] {
 		return [...this.pushErrorHandlers];
+	}
+
+	registerSourceControlHistoryItemDetailsProvider(provider: SourceControlHistoryItemDetailsProvider): Disposable {
+		this.historyItemDetailsProviders.add(provider);
+		return toDisposable(() => this.historyItemDetailsProviders.delete(provider));
+	}
+
+	getSourceControlHistoryItemDetailsProviders(): SourceControlHistoryItemDetailsProvider[] {
+		return [...this.historyItemDetailsProviders];
 	}
 
 	getUnsafeRepositoryPath(repository: string): string | undefined {

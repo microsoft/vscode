@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as codesign from 'electron-osx-sign';
+import fs from 'fs';
+import path from 'path';
+import codesign from 'electron-osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
 
 const root = path.dirname(path.dirname(__dirname));

@@ -35,7 +35,6 @@ import { events as windows11_pwsh_filename_same_case_change_forward_slash } from
 import { events as windows11_pwsh_getcontent_delete_ghost } from './recordings/windows11_pwsh_getcontent_delete_ghost.js';
 import { events as windows11_pwsh_input_ls_complete_ls } from './recordings/windows11_pwsh_input_ls_complete_ls.js';
 import { events as windows11_pwsh_namespace_same_prefix } from './recordings/windows11_pwsh_namespace_same_prefix.js';
-import { events as windows11_pwsh_single_char } from './recordings/windows11_pwsh_single_char.js';
 import { events as windows11_pwsh_type_before_prompt } from './recordings/windows11_pwsh_type_before_prompt.js';
 import { events as windows11_pwsh_writehost_multiline } from './recordings/windows11_pwsh_writehost_multiline.js';
 import { events as windows11_pwsh_writehost_multiline_nav_up } from './recordings/windows11_pwsh_writehost_multiline_nav_up.js';
@@ -60,7 +59,6 @@ const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_namespace_same_prefix', events: windows11_pwsh_namespace_same_prefix as any as RecordedSessionEvent[] },
-	{ name: 'windows11_pwsh_single_char', events: windows11_pwsh_single_char as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_type_before_prompt', events: windows11_pwsh_type_before_prompt as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_writehost_multiline_nav_up', events: windows11_pwsh_writehost_multiline_nav_up as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_writehost_multiline', events: windows11_pwsh_writehost_multiline as any as RecordedSessionEvent[] },
@@ -95,29 +93,24 @@ suite('Terminal Contrib Suggest Recordings', () => {
 
 	setup(async () => {
 		const terminalConfig = {
-			fontFamily: 'monospace',
-			fontSize: 12,
-			fontWeight: 'normal',
-			letterSpacing: 0,
-			lineHeight: 1,
 			integrated: {
 				suggest: {
 					enabled: true,
 					quickSuggestions: true,
 					suggestOnTriggerCharacters: true,
 					runOnEnter: 'never',
-					builtinCompletions: {
-						pwshCode: true,
-						pwshGit: true
+					providers: {
+						'terminal-suggest': true,
+						'pwsh-shell-integration': true,
 					},
-					enableExtensionCompletions: false
 				} satisfies ITerminalSuggestConfiguration
 			}
 		};
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
 				files: { autoSave: false },
-				terminal: terminalConfig
+				terminal: terminalConfig,
+				editor: { fontSize: 14, fontFamily: 'Arial', lineHeight: 12, fontWeight: 'bold' }
 			})
 		}, store);
 		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
@@ -126,7 +119,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		instantiationService.stub(ITerminalCompletionService, store.add(completionService));
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
 		pwshCompletionProvider = store.add(instantiationService.createInstance(PwshCompletionProviderAddon, new Set(parseCompletionsFromShell(testRawPwshCompletions, -1, -1)), shellIntegrationAddon.capabilities));
-		store.add(completionService.registerTerminalCompletionProvider('builtin-pwsh', 'pwsh', pwshCompletionProvider));
+		store.add(completionService.registerTerminalCompletionProvider('builtin-pwsh', PwshCompletionProviderAddon.ID, pwshCompletionProvider));
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		capabilities = shellIntegrationAddon.capabilities;

@@ -300,7 +300,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		const editorMenu = this._commentMenus.getCommentEditorActions(this._contextKeyService);
 		this._register(editorMenu);
 		this._register(editorMenu.onDidChange(() => {
-			this._commentEditorActions.setActions(editorMenu);
+			this._commentEditorActions.setActions(editorMenu, true);
 		}));
 
 		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, async (action: IAction) => {
@@ -359,11 +359,11 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.clearAndExpandReplyArea()));
 		this._register(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.clearAndExpandReplyArea()));
 
-		commentEditor.onDidBlurEditorWidget(() => {
+		this._register(commentEditor.onDidBlurEditorWidget(() => {
 			if (commentEditor.getModel()!.getValueLength() === 0 && commentForm.classList.contains('expand')) {
 				commentForm.classList.remove('expand');
 			}
-		});
+		}));
 	}
 
 	override dispose(): void {

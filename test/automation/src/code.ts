@@ -27,6 +27,7 @@ export interface LaunchOptions {
 	readonly remote?: boolean;
 	readonly web?: boolean;
 	readonly tracing?: boolean;
+	snapshots?: boolean;
 	readonly headless?: boolean;
 	readonly browser?: 'chromium' | 'webkit' | 'firefox';
 	readonly quality: Quality;
@@ -243,6 +244,10 @@ export class Code {
 
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
 		await this.poll(() => this.driver.typeInEditor(selector, text), () => true, `type in editor '${selector}'`);
+	}
+
+	async waitForEditorSelection(selector: string, accept: (selection: { selectionStart: number; selectionEnd: number }) => boolean): Promise<void> {
+		await this.poll(() => this.driver.getEditorSelection(selector), accept, `get editor selection '${selector}'`);
 	}
 
 	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {

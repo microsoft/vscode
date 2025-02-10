@@ -42,6 +42,8 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, buttons));
 		confirmationWidget.setShowButtons(!confirmation.isUsed);
 
+		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (isResponseVM(element)) {
 				const prompt = `${e.label}: "${confirmation.title}"`;

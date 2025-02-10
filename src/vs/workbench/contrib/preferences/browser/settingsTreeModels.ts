@@ -22,6 +22,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { USER_LOCAL_AND_REMOTE_SETTINGS } from '../../../../platform/request/common/request.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -253,16 +254,21 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			} else {
 				this.valueType = SettingValueType.Complex;
 			}
-		} else if (isObjectSetting(this.setting)) {
-			if (this.setting.allKeysAreBoolean) {
-				this.valueType = SettingValueType.BooleanObject;
-			} else {
-				this.valueType = SettingValueType.Object;
-			}
-		} else if (this.setting.isLanguageTagSetting) {
-			this.valueType = SettingValueType.LanguageTag;
 		} else {
-			this.valueType = SettingValueType.Complex;
+			const schemaType = getObjectSettingSchemaType(this.setting);
+			if (schemaType) {
+				if (this.setting.allKeysAreBoolean) {
+					this.valueType = SettingValueType.BooleanObject;
+				} else if (schemaType === 'simple') {
+					this.valueType = SettingValueType.Object;
+				} else {
+					this.valueType = SettingValueType.ComplexObject;
+				}
+			} else if (this.setting.isLanguageTagSetting) {
+				this.valueType = SettingValueType.LanguageTag;
+			} else {
+				this.valueType = SettingValueType.Complex;
+			}
 		}
 	}
 
@@ -420,12 +426,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		if (configTarget === ConfigurationTarget.USER_REMOTE) {
-			return REMOTE_MACHINE_SCOPES.includes(this.setting.scope);
+			return REMOTE_MACHINE_SCOPES.includes(this.setting.scope) || USER_LOCAL_AND_REMOTE_SETTINGS.includes(this.setting.key);
 		}
 
 		if (configTarget === ConfigurationTarget.USER_LOCAL) {
 			if (isRemote) {
-				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope);
+				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope) || USER_LOCAL_AND_REMOTE_SETTINGS.includes(this.setting.key);
 			}
 		}
 
@@ -798,25 +804,63 @@ export function objectSettingSupportsRemoveDefaultValue(key: string): boolean {
 	return key === 'workbench.editor.customLabels.patterns';
 }
 
-function isObjectRenderableSchema({ type }: IJSONSchema, key: string): boolean {
-	if (type === 'string' || type === 'boolean' || type === 'integer' || type === 'number') {
-		return true;
+function isSimpleType(type: string | undefined): boolean {
+	return type === 'string' || type === 'boolean' || type === 'integer' || type === 'number';
+}
+
+function getObjectRenderableSchemaType(schema: IJSONSchema, key: string): 'simple' | 'complex' | false {
+	const { type } = schema;
+
+	if (Array.isArray(type)) {
+		if (objectSettingSupportsRemoveDefaultValue(key) && type.length === 2) {
+			if (type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'))) {
+				return 'simple';
+			}
+		}
+
+		for (const t of type) {
+			if (!isSimpleType(t)) {
+				return false;
+			}
+		}
+		return 'complex';
 	}
 
-	if (objectSettingSupportsRemoveDefaultValue(key) && Array.isArray(type) && type.length === 2) {
-		return type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'));
+	if (isSimpleType(type)) {
+		return 'simple';
+	}
+
+	if (type === 'array') {
+		if (schema.items) {
+			const itemSchemas = Array.isArray(schema.items) ? schema.items : [schema.items];
+			for (const { type } of itemSchemas) {
+				if (Array.isArray(type)) {
+					for (const t of type) {
+						if (!isSimpleType(t)) {
+							return false;
+						}
+					}
+					return 'complex';
+				}
+				if (!isSimpleType(type)) {
+					return false;
+				}
+				return 'complex';
+			}
+		}
+		return false;
 	}
 
 	return false;
 }
 
-function isObjectSetting({
+function getObjectSettingSchemaType({
 	key,
 	type,
 	objectProperties,
 	objectPatternProperties,
 	objectAdditionalProperties
-}: ISetting): boolean {
+}: ISetting): 'simple' | 'complex' | false {
 	if (type !== 'object') {
 		return false;
 	}
@@ -845,15 +889,20 @@ function isObjectSetting({
 		schemas.push(objectAdditionalProperties);
 	}
 
-	// Flatten anyof schemas
-	const flatSchemas = schemas.map((schema): IJSONSchema[] => {
-		if (Array.isArray(schema.anyOf)) {
-			return schema.anyOf;
+	let schemaType: 'simple' | 'complex' | false = 'simple';
+	for (const schema of schemas) {
+		for (const subSchema of Array.isArray(schema.anyOf) ? schema.anyOf : [schema]) {
+			const subSchemaType = getObjectRenderableSchemaType(subSchema, key);
+			if (subSchemaType === false) {
+				return false;
+			}
+			if (subSchemaType === 'complex') {
+				schemaType = 'complex';
+			}
 		}
-		return [schema];
-	}).flat();
+	}
 
-	return flatSchemas.every((schema) => isObjectRenderableSchema(schema, key));
+	return schemaType;
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
@@ -911,6 +960,10 @@ export class SearchResultModel extends SettingsTreeModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
+			} else if (a.matchType === SettingMatchType.KeyMatch) {
+				// The match types are the same and are KeyMatch.
+				// Sort by the number of words matched in the key.
+				return b.keyMatchScore - a.keyMatchScore;
 			} else if (a.matchType === SettingMatchType.RemoteMatch) {
 				// The match types are the same and are RemoteMatch.
 				// Sort by score.

@@ -978,6 +978,7 @@ export const NotebookSetting = {
 	cellToolbarLocation: 'notebook.cellToolbarLocation',
 	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
 	showCellStatusBar: 'notebook.showCellStatusBar',
+	cellExecutionTimeVerbosity: 'notebook.cellExecutionTimeVerbosity',
 	textDiffEditorPreview: 'notebook.diff.enablePreview',
 	diffOverviewRuler: 'notebook.diff.overviewRuler',
 	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
@@ -1028,10 +1029,12 @@ export const NotebookSetting = {
 	cellChat: 'notebook.experimental.cellChat',
 	cellGenerate: 'notebook.experimental.generate',
 	notebookVariablesView: 'notebook.variablesView',
+	notebookInlineValues: 'notebook.inlineValues',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
 	multiCursor: 'notebook.multiCursor.enabled',
+	markupFontFamily: 'notebook.markup.fontFamily',
 } as const;
 
 export const enum CellStatusbarAlignment {

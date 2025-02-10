@@ -19,7 +19,8 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -36,7 +37,7 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
-import { chatEditingWidgetFileStateContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { chatEditingWidgetFileReadonlyContextKey, chatEditingWidgetFileStateContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
@@ -51,9 +52,14 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	description?: string;
 	state?: WorkingSetEntryState;
 	excluded?: boolean;
+	isMarkedReadonly?: boolean;
 }
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
+
+export interface IChatCollapsibleListOptions {
+	expandedWhenEmptyResponse?: boolean;
+}
 
 export class ChatCollapsibleListContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -68,6 +74,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		labelOverride: string | undefined,
 		context: IChatContentPartRenderContext,
 		contentReferencesListPool: CollapsibleListPool,
+		options: IChatCollapsibleListOptions,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -81,7 +88,13 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1));
 		const iconElement = $('.chat-used-context-icon');
-		const icon = (element: IChatResponseViewModel) => element.usedReferencesExpanded ? Codicon.chevronDown : Codicon.chevronRight;
+		const isExpanded = () =>
+			element.usedReferencesExpanded ?? (
+				options.expandedWhenEmptyResponse && element.response.value.length === 0
+			);
+		const icon = (element: IChatResponseViewModel) => {
+			return isExpanded() ? Codicon.chevronDown : Codicon.chevronRight;
+		};
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 		const buttonElement = $('.chat-used-context-label', undefined);
 
@@ -98,15 +111,15 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		this.domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 		collapseButton.element.prepend(iconElement);
-		this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
-		this.domNode.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+		this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
+		this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
 		this._register(collapseButton.onDidClick(() => {
 			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
-			element.usedReferencesExpanded = !element.usedReferencesExpanded;
+			element.usedReferencesExpanded = !isExpanded();
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
-			this.domNode.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+			this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
 			this._onDidChangeHeight.fire();
-			this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
+			this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
 		}));
 
 		const ref = this._register(contentReferencesListPool.get());
@@ -301,7 +314,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		private labels: ResourceLabels,
 		private menuId: MenuId | undefined,
 		@IThemeService private readonly themeService: IThemeService,
-		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -362,12 +374,8 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const label = `Kernel variable`;
 				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description });
 			} else {
-				const variable = this.chatVariablesService.getVariable(reference.variableName);
-				// This is a hack to get chat attachment ThemeIcons to render for resource labels
-				const asThemeIcon = variable?.icon ? `$(${variable.icon.id}) ` : '';
-				const asVariableName = `#${reference.variableName}`; // Fallback, shouldn't really happen
-				const label = `${asThemeIcon}${variable?.fullName ?? asVariableName}`;
-				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description ?? variable?.description });
+				// Nothing else is expected to fall into here
+				templateData.label.setLabel('Unknown variable type');
 			}
 		} else if (typeof reference === 'string') {
 			templateData.label.setLabel(reference, undefined, { iconPath: URI.isUri(icon) ? icon : undefined, title: data.options?.status?.description ?? data.title });
@@ -434,8 +442,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			if (templateData.toolbar) {
 				templateData.toolbar.context = arg;
 			}
-			if (templateData.contextKeyService && data.state !== undefined) {
-				chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+			if (templateData.contextKeyService) {
+				if (data.state !== undefined) {
+					chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+				}
+				chatEditingWidgetFileReadonlyContextKey.bindTo(templateData.contextKeyService).set(!!data.isMarkedReadonly);
 			}
 		}
 	}
@@ -476,7 +487,7 @@ registerAction2(class AddToChatAction extends Action2 {
 				id: MenuId.ChatAttachmentsContext,
 				group: 'chat',
 				order: 1,
-				when: ExplorerFolderContext.negate(),
+				when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext.negate()),
 			}]
 		});
 	}
@@ -495,6 +506,31 @@ registerAction2(class AddToChatAction extends Action2 {
 		}
 
 		variablesService.attachContext('file', resource, widget.location);
+	}
+});
+
+registerAction2(class OpenChatReferenceLinkAction extends Action2 {
+
+	static readonly id = 'workbench.action.chat.copyLink';
+
+	constructor() {
+		super({
+			id: OpenChatReferenceLinkAction.id,
+			title: {
+				...localize2('copyLink', "Copy Link"),
+			},
+			f1: false,
+			menu: [{
+				id: MenuId.ChatAttachmentsContext,
+				group: 'chat',
+				order: 0,
+				when: ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.http), ResourceContextKey.Scheme.isEqualTo(Schemas.https)),
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
+		await accessor.get(IClipboardService).writeResources([resource]);
 	}
 });
 

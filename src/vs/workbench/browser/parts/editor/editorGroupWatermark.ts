@@ -38,8 +38,8 @@ const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "F
 const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
 const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
 const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', "Open Settings"), id: 'workbench.action.openSettings' };
-const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: ContextKeyExpr.equals('chatPanelParticipantRegistered', true), web: ContextKeyExpr.equals('chatPanelParticipantRegistered', true) } };
-const openCopilotEdits: WatermarkEntry = { text: localize('watermark.openCopilotEdits', "Open Copilot Edits"), id: 'workbench.action.chat.openEditSession', when: { native: ContextKeyExpr.equals('chatEditingParticipantRegistered', true), web: ContextKeyExpr.equals('chatEditingParticipantRegistered', true) } };
+const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: ContextKeyExpr.equals('chatSetupInstalled', true), web: ContextKeyExpr.equals('chatSetupInstalled', true) } };
+const openCopilotEdits: WatermarkEntry = { text: localize('watermark.openCopilotEdits', "Open Copilot Edits"), id: 'workbench.action.chat.openEditSession', when: { native: ContextKeyExpr.equals('chatSetupInstalled', true), web: ContextKeyExpr.equals('chatSetupInstalled', true) } };
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
 	showCommands,

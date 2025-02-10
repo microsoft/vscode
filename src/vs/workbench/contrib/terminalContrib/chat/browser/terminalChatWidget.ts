@@ -127,6 +127,8 @@ export class TerminalChatWidget extends Disposable {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 					options: {
 						buttonConfigProvider: action => ({
+							showLabel: action.id !== TerminalChatCommandId.RerunRequest,
+							showIcon: action.id === TerminalChatCommandId.RerunRequest,
 							isSecondary: action.id !== TerminalChatCommandId.RunCommand && action.id !== TerminalChatCommandId.RunFirstCommand
 						})
 					}
@@ -326,6 +328,12 @@ export class TerminalChatWidget extends Disposable {
 				const model = this._model.value;
 				if (model) {
 					this._inlineChatWidget.setChatModel(model, this._loadViewState());
+					model.waitForInitialization().then(() => {
+						if (token.isCancellationRequested) {
+							return;
+						}
+						this._resetPlaceholder();
+					});
 				}
 				if (!this._model.value) {
 					throw new Error('Failed to start chat session');

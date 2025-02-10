@@ -9,7 +9,7 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { IObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
-import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
+import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
 import { OffsetEdit, SingleOffsetEdit } from '../../../../../common/core/offsetEdit.js';
@@ -18,7 +18,6 @@ import { Range } from '../../../../../common/core/range.js';
 import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from '../../../../../common/model.js';
-import { LineEditWithAdditionalLines } from '../../../../../common/tokenizationTextModelPart.js';
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
@@ -40,6 +39,11 @@ export class GhostTextView extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _model: IGhostTextWidgetModel,
+		private readonly _options: IObservable<{
+			extraClasses?: string[];
+			syntaxHighlightingEnabled: boolean;
+		}>,
+		private readonly _shouldKeepCursorStable: boolean,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
@@ -48,7 +52,16 @@ export class GhostTextView extends Disposable {
 		this._register(this._editorObs.setDecorations(this.decorations));
 	}
 
-	private readonly _useSyntaxHighlighting = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.syntaxHighlightingEnabled);
+	private readonly _useSyntaxHighlighting = this._options.map(o => o.syntaxHighlightingEnabled);
+
+	private readonly _extraClassNames = derived(this, reader => {
+		const extraClasses = [...this._options.read(reader).extraClasses ?? []];
+		if (this._useSyntaxHighlighting.read(reader)) {
+			extraClasses.push('syntax-highlighted');
+		}
+		const extraClassNames = extraClasses.map(c => ` ${c}`).join('');
+		return extraClassNames;
+	});
 
 	private readonly uiState = derived(this, reader => {
 		if (this._isDisposed.read(reader)) { return undefined; }
@@ -60,19 +73,17 @@ export class GhostTextView extends Disposable {
 		const replacedRange = ghostText instanceof GhostTextReplacement ? ghostText.columnRange : undefined;
 
 		const syntaxHighlightingEnabled = this._useSyntaxHighlighting.read(reader);
-		const extraClassName = syntaxHighlightingEnabled ? ' syntax-highlighted' : '';
-		const { inlineTexts, additionalLines, hiddenRange } = computeGhostTextViewData(ghostText, textModel, 'ghost-text' + extraClassName);
+		const extraClassNames = this._extraClassNames.read(reader);
+		const { inlineTexts, additionalLines, hiddenRange } = computeGhostTextViewData(ghostText, textModel, 'ghost-text' + extraClassNames);
 
+		const currentLine = textModel.getLineContent(ghostText.lineNumber);
 		const edit = new OffsetEdit(inlineTexts.map(t => SingleOffsetEdit.insert(t.column - 1, t.text)));
-		const tokens = syntaxHighlightingEnabled ? textModel.tokenization.tokenizeLineWithEdit(ghostText.lineNumber, new LineEditWithAdditionalLines(
-			edit,
-			additionalLines.map(l => l.content)
-		)) : undefined;
+		const tokens = syntaxHighlightingEnabled ? textModel.tokenization.tokenizeLinesAt(ghostText.lineNumber, [edit.apply(currentLine), ...additionalLines.map(l => l.content)]) : undefined;
 		const newRanges = edit.getNewTextRanges();
-		const inlineTextsWithTokens = inlineTexts.map((t, idx) => ({ ...t, tokens: tokens?.mainLineTokens?.getTokensInRange(newRanges[idx]) }));
+		const inlineTextsWithTokens = inlineTexts.map((t, idx) => ({ ...t, tokens: tokens?.[0]?.getTokensInRange(newRanges[idx]) }));
 
 		const tokenizedAdditionalLines: LineData[] = additionalLines.map((l, idx) => ({
-			content: tokens?.additionalLines?.[idx] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec),
+			content: tokens?.[idx + 1] ?? LineTokens.createEmpty(l.content, this._languageService.languageIdCodec),
 			decorations: l.decorations,
 		}));
 
@@ -94,12 +105,12 @@ export class GhostTextView extends Disposable {
 
 		const decorations: IModelDeltaDecoration[] = [];
 
-		const extraClassName = uiState.syntaxHighlightingEnabled ? ' syntax-highlighted' : '';
+		const extraClassNames = this._extraClassNames.read(reader);
 
 		if (uiState.replacedRange) {
 			decorations.push({
 				range: uiState.replacedRange.toRange(uiState.lineNumber),
-				options: { inlineClassName: 'inline-completion-text-to-replace' + extraClassName, description: 'GhostTextReplacement' }
+				options: { inlineClassName: 'inline-completion-text-to-replace' + extraClassNames, description: 'GhostTextReplacement' }
 			});
 		}
 
@@ -118,7 +129,7 @@ export class GhostTextView extends Disposable {
 					after: {
 						content: p.text,
 						tokens: p.tokens,
-						inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' + extraClassName,
+						inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' + extraClassNames,
 						cursorStops: InjectedTextCursorStops.Left
 					},
 					showIfCollapsed: true,
@@ -141,9 +152,15 @@ export class GhostTextView extends Disposable {
 					minReservedLineCount: uiState.additionalReservedLineCount,
 					targetTextModel: uiState.targetTextModel,
 				} : undefined;
-			})
+			}),
+			this._shouldKeepCursorStable
 		)
 	);
+
+	public readonly height = derived(this, reader => {
+		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
+		return lineHeight + (this.additionalLinesWidget.viewZoneHeight.read(reader) ?? 0);
+	});
 
 	public ownsViewZone(viewZoneId: string): boolean {
 		return this.additionalLinesWidget.viewZoneId === viewZoneId;
@@ -218,8 +235,11 @@ function computeGhostTextViewData(ghostText: GhostText | GhostTextReplacement, t
 }
 
 export class AdditionalLinesWidget extends Disposable {
-	private _viewZoneId: string | undefined = undefined;
-	public get viewZoneId(): string | undefined { return this._viewZoneId; }
+	private _viewZoneInfo: { viewZoneId: string; heightInLines: number; lineNumber: number } | undefined;
+	public get viewZoneId(): string | undefined { return this._viewZoneInfo?.viewZoneId; }
+
+	private _viewZoneHeight = observableValue<undefined | number>('viewZoneHeight', undefined);
+	public get viewZoneHeight(): IObservable<number | undefined> { return this._viewZoneHeight; }
 
 	private readonly editorOptionsChanged = observableSignalFromEvent('editorOptionChanged', Event.filter(
 		this.editor.onDidChangeConfiguration,
@@ -239,7 +259,8 @@ export class AdditionalLinesWidget extends Disposable {
 			lineNumber: number;
 			additionalLines: LineData[];
 			minReservedLineCount: number;
-		} | undefined>
+		} | undefined>,
+		private readonly shouldKeepCursorStable: boolean
 	) {
 		super();
 
@@ -263,10 +284,7 @@ export class AdditionalLinesWidget extends Disposable {
 
 	private clear(): void {
 		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = undefined;
-			}
+			this.removeActiveViewZone(changeAccessor);
 		});
 	}
 
@@ -279,24 +297,54 @@ export class AdditionalLinesWidget extends Disposable {
 		const { tabSize } = textModel.getOptions();
 
 		this.editor.changeViewZones((changeAccessor) => {
-			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
-				this._viewZoneId = undefined;
-			}
+			this.removeActiveViewZone(changeAccessor);
 
 			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
 			if (heightInLines > 0) {
 				const domNode = document.createElement('div');
 				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions());
 
-				this._viewZoneId = changeAccessor.addZone({
-					afterLineNumber: lineNumber,
-					heightInLines: heightInLines,
-					domNode,
-					afterColumnAffinity: PositionAffinity.Right
-				});
+				this.addViewZone(changeAccessor, lineNumber, heightInLines, domNode);
 			}
 		});
+	}
+
+	private addViewZone(changeAccessor: IViewZoneChangeAccessor, afterLineNumber: number, heightInLines: number, domNode: HTMLElement): void {
+		const id = changeAccessor.addZone({
+			afterLineNumber: afterLineNumber,
+			heightInLines: heightInLines,
+			domNode,
+			afterColumnAffinity: PositionAffinity.Right,
+			onComputedHeight: (height: number) => {
+				this._viewZoneHeight.set(height, undefined); // TODO: can a transaction be used to avoid flickering?
+			}
+		});
+
+		this.keepCursorStable(afterLineNumber, heightInLines);
+
+		this._viewZoneInfo = { viewZoneId: id, heightInLines, lineNumber: afterLineNumber };
+	}
+
+	private removeActiveViewZone(changeAccessor: IViewZoneChangeAccessor): void {
+		if (this._viewZoneInfo) {
+			changeAccessor.removeZone(this._viewZoneInfo.viewZoneId);
+
+			this.keepCursorStable(this._viewZoneInfo.lineNumber, -this._viewZoneInfo.heightInLines);
+
+			this._viewZoneInfo = undefined;
+			this._viewZoneHeight.set(undefined, undefined);
+		}
+	}
+
+	private keepCursorStable(lineNumber: number, heightInLines: number): void {
+		if (!this.shouldKeepCursorStable) {
+			return;
+		}
+
+		const cursorLineNumber = this.editor.getSelection()?.getStartPosition()?.lineNumber;
+		if (cursorLineNumber !== undefined && lineNumber < cursorLineNumber) {
+			this.editor.setScrollTop(this.editor.getScrollTop() + heightInLines * this.editor.getOption(EditorOption.lineHeight));
+		}
 	}
 }
 

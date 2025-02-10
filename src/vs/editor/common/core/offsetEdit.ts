@@ -228,6 +228,10 @@ export class SingleOffsetEdit {
 		return new SingleOffsetEdit(OffsetRange.emptyAt(offset), text);
 	}
 
+	public static replace(range: OffsetRange, text: string): SingleOffsetEdit {
+		return new SingleOffsetEdit(range, text);
+	}
+
 	constructor(
 		public readonly replaceRange: OffsetRange,
 		public readonly newText: string,
@@ -239,6 +243,14 @@ export class SingleOffsetEdit {
 
 	get isEmpty() {
 		return this.newText.length === 0 && this.replaceRange.length === 0;
+	}
+
+	apply(str: string): string {
+		return str.substring(0, this.replaceRange.start) + this.newText + str.substring(this.replaceRange.endExclusive);
+	}
+
+	getRangeAfterApply(): OffsetRange {
+		return new OffsetRange(this.replaceRange.start, this.replaceRange.start + this.newText.length);
 	}
 }
 

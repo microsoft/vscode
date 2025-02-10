@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Event } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
 const $ = dom.$;
@@ -82,13 +82,20 @@ export class ChatViewWelcomeController extends Disposable {
 		this.renderDisposables.clear();
 		dom.clearNode(this.element!);
 
-		const enabledDescriptor = descriptors.find(d => this.contextKeyService.contextMatchesRules(d.when));
+		const matchingDescriptors = descriptors.filter(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
+		let enabledDescriptor: IChatViewsWelcomeDescriptor | undefined;
+		for (const descriptor of matchingDescriptors) {
+			if (typeof descriptor.content === 'function') {
+				enabledDescriptor = descriptor; // when multiple descriptors match, prefer a "core" one over a "descriptive" one
+				break;
+			}
+		}
+		enabledDescriptor = enabledDescriptor ?? matchingDescriptors.at(0);
 		if (enabledDescriptor) {
 			const content: IChatViewWelcomeContent = {
 				icon: enabledDescriptor.icon,
 				title: enabledDescriptor.title,
-				message: enabledDescriptor.content,
-				disableFirstLinkToButton: enabledDescriptor.disableFirstLinkToButton,
+				message: enabledDescriptor.content
 			};
 			const welcomeView = this.renderDisposables.add(this.instantiationService.createInstance(ChatViewWelcomePart, content, { firstLinkToButton: true, location: this.location }));
 			this.element!.appendChild(welcomeView.element);
@@ -102,14 +109,14 @@ export class ChatViewWelcomeController extends Disposable {
 export interface IChatViewWelcomeContent {
 	icon?: ThemeIcon;
 	title: string;
-	message: IMarkdownString;
-	disableFirstLinkToButton?: boolean;
+	message: IMarkdownString | ((disposables: DisposableStore) => HTMLElement);
 	tips?: IMarkdownString;
 }
 
 export interface IChatViewWelcomeRenderOptions {
 	firstLinkToButton?: boolean;
 	location: ChatAgentLocation;
+	isWidgetWelcomeViewContent?: boolean;
 }
 
 export class ChatViewWelcomePart extends Disposable {
@@ -121,43 +128,57 @@ export class ChatViewWelcomePart extends Disposable {
 		@IOpenerService private openerService: IOpenerService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
 
 		try {
+			const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+
+			// Icon
 			const icon = dom.append(this.element, $('.chat-welcome-view-icon'));
-			const title = dom.append(this.element, $('.chat-welcome-view-title'));
-
-			if (options?.location === ChatAgentLocation.EditingSession) {
-				const featureIndicator = dom.append(this.element, $('.chat-welcome-view-indicator'));
-				featureIndicator.textContent = localize('preview', 'PREVIEW');
-			}
-
-			const message = dom.append(this.element, $('.chat-welcome-view-message'));
-
 			if (content.icon) {
 				icon.appendChild(renderIcon(content.icon));
 			}
 
+			// Title
+			const title = dom.append(this.element, $('.chat-welcome-view-title'));
 			title.textContent = content.title;
-			const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-			const messageResult = this._register(renderer.render(content.message));
-			const firstLink = options?.firstLinkToButton && !content.disableFirstLinkToButton ? messageResult.element.querySelector('a') : undefined;
-			if (firstLink) {
-				const target = firstLink.getAttribute('data-href');
-				const button = this._register(new Button(firstLink.parentElement!, defaultButtonStyles));
-				button.label = firstLink.textContent ?? '';
-				if (target) {
-					this._register(button.onDidClick(() => {
-						this.openerService.open(target, { allowCommands: true });
-					}));
-				}
-				firstLink.replaceWith(button.element);
+
+			// Preview indicator
+			if (options?.location === ChatAgentLocation.EditingSession && typeof content.message !== 'function' && chatAgentService.toolsAgentModeEnabled && options.isWidgetWelcomeViewContent) {
+				// Override welcome message for the agent. Sort of a hack, should it come from the participant? This case is different because the welcome content typically doesn't change per ChatWidget
+				const agentMessage = localize({ key: 'agentMessage', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.\n\nCopilot is powered by AI, so mistakes are possible. Review output carefully before use.", 'https://aka.ms/vscode-copilot-agent');
+				content.message = new MarkdownString(agentMessage);
+				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
+				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
+				dom.append(container, $('.chat-welcome-view-indicator', undefined, localize('experimental', "EXPERIMENTAL")));
 			}
 
-			dom.append(message, messageResult.element);
+			// Message
+			const message = dom.append(this.element, $('.chat-welcome-view-message'));
+			if (typeof content.message === 'function') {
+				dom.append(message, content.message(this._register(new DisposableStore())));
+			} else {
+				const messageResult = this._register(renderer.render(content.message));
+				const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
+				if (firstLink) {
+					const target = firstLink.getAttribute('data-href');
+					const button = this._register(new Button(firstLink.parentElement!, defaultButtonStyles));
+					button.label = firstLink.textContent ?? '';
+					if (target) {
+						this._register(button.onDidClick(() => {
+							this.openerService.open(target, { allowCommands: true });
+						}));
+					}
+					firstLink.replaceWith(button.element);
+				}
 
+				dom.append(message, messageResult.element);
+			}
+
+			// Tips
 			if (content.tips) {
 				const tips = dom.append(this.element, $('.chat-welcome-view-tips'));
 				const tipsResult = this._register(renderer.render(content.tips));

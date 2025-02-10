@@ -372,8 +372,8 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	public get currentUri() { return this._currentUri; }
 
 	private _currentUri?: URI;
-	private readonly expectedWidget = new MutableDisposable<ExpectedLensContentWidget>();
-	private readonly actualWidget = new MutableDisposable<ActualLensContentWidget>();
+	private readonly expectedWidget = this._register(new MutableDisposable<ExpectedLensContentWidget>());
+	private readonly actualWidget = this._register(new MutableDisposable<ActualLensContentWidget>());
 
 	private readonly errorContentWidgets = this._register(new DisposableMap<ITestMessage, TestErrorContentWidget>());
 	private readonly loggedMessageDecorations = new Map<ITestMessage, {
@@ -1374,7 +1374,7 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 
 		let text: string;
 		if (message.expected !== undefined && message.actual !== undefined) {
-			text = `${truncateMiddle(message.actual, 15)} != ${truncateMiddle(message.expected, 15)}`;
+			text = `${truncateMiddle(message.actual.replace(/\s+/g, ' '), 30)} != ${truncateMiddle(message.expected.replace(/\s+/g, ' '), 30)}`;
 		} else {
 			const msg = renderStringAsPlaintext(message.message);
 			const lf = msg.indexOf('\n');

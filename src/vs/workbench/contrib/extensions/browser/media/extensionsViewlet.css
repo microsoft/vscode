@@ -9,7 +9,7 @@
 }
 
 .extensions-viewlet .hidden {
-	display: none;
+	display: none !important;
 	visibility: hidden;
 }
 
@@ -126,7 +126,7 @@
 }
 
 .extensions-viewlet > .extensions .message-container {
-	padding: 5px 9px 5px 16px;
+	padding: 5px 9px 5px 20px;
 	cursor: default;
 	display: flex;
 }

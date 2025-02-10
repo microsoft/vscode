@@ -26,6 +26,17 @@ import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from '../../../../editor/c
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 
+interface ITextFileEditorModelToRestore {
+	readonly source: URI;
+	readonly target: URI;
+	readonly snapshot?: ITextSnapshot;
+	readonly language?: {
+		readonly id: string;
+		readonly explicit: boolean;
+	};
+	readonly encoding?: string;
+}
+
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
 	private readonly _onDidCreate = this._register(new Emitter<TextFileEditorModel>({ leakWarningThreshold: 500 /* increased for users with hundreds of inputs opened */ }));
@@ -171,13 +182,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[]>();
+	private readonly mapCorrelationIdToModelsToRestore = new Map<number, ITextFileEditorModelToRestore[]>();
 
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: remember models to restore after the operation
 		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
-			const modelsToRestore: { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[] = [];
+			const modelsToRestore: ITextFileEditorModelToRestore[] = [];
 
 			for (const { source, target } of e.files) {
 				if (source) {
@@ -210,10 +221,14 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 							targetModelResource = joinPath(target, sourceModelResource.path.substr(source.path.length + 1));
 						}
 
+						const languageId = sourceModel.getLanguageId();
 						modelsToRestore.push({
 							source: sourceModelResource,
 							target: targetModelResource,
-							languageId: sourceModel.getLanguageId(),
+							language: languageId ? {
+								id: languageId,
+								explicit: sourceModel.languageChangeSource === 'user'
+							} : undefined,
 							encoding: sourceModel.getEncoding(),
 							snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
 						});
@@ -286,16 +301,22 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 								encoding: modelToRestore.encoding
 							});
 
-							// restore previous language only if the language is now unspecified and it was specified
-							// but not when the file was explicitly stored with the plain text extension
-							// (https://github.com/microsoft/vscode/issues/125795)
-							if (
-								modelToRestore.languageId &&
-								modelToRestore.languageId !== PLAINTEXT_LANGUAGE_ID &&
-								restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID &&
-								extname(target) !== PLAINTEXT_EXTENSION
-							) {
-								restoredModel.updateTextEditorModel(undefined, modelToRestore.languageId);
+							// restore model language only if it is specific
+							if (modelToRestore.language?.id && modelToRestore.language.id !== PLAINTEXT_LANGUAGE_ID) {
+
+								// an explicitly set language is restored via `setLanguageId`
+								// to preserve it as explicitly set by the user.
+								// (https://github.com/microsoft/vscode/issues/203648)
+								if (modelToRestore.language.explicit) {
+									restoredModel.setLanguageId(modelToRestore.language.id);
+								}
+
+								// otherwise, a model language is applied via lower level
+								// APIs to not confuse it with an explicitly set language.
+								// (https://github.com/microsoft/vscode/issues/125795)
+								else if (restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID && extname(target) !== PLAINTEXT_EXTENSION) {
+									restoredModel.updateTextEditorModel(undefined, modelToRestore.language.id);
+								}
 							}
 						}));
 					}
@@ -373,7 +394,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						try {
 							await model.resolve(options);
 						} catch (error) {
-							onUnexpectedError(error);
+							if (!model.isDisposed()) {
+								onUnexpectedError(error); // only log if the model is still around
+							}
 						}
 					})();
 				}

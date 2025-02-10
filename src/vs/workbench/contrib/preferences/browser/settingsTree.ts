@@ -64,7 +64,7 @@ import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, 
 import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from './settingsWidgets.js';
 import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from '../common/preferences.js';
 import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
-import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ISetting, ISettingsGroup, SETTINGS_AUTHORITY, SettingValueType } from '../../../services/preferences/common/preferences.js';
@@ -171,7 +171,8 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 	const data = element.isConfigured ?
 		{ ...elementDefaultValue, ...elementScopeValue } :
-		elementDefaultValue;
+		element.hasPolicyValue ? element.scopeValue :
+			elementDefaultValue;
 
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
 	const patternsAndSchemas = Object
@@ -689,6 +690,10 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 	validationErrorMessageElement: HTMLElement;
 }
 
+interface ISettingComplexObjectItemTemplate extends ISettingComplexItemTemplate {
+	objectSettingWidget: ObjectSettingDropdownWidget;
+}
+
 interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undefined> {
 	listWidget: ListSettingWidget<IListDataItem>;
 	validationErrorMessageElement: HTMLElement;
@@ -725,6 +730,7 @@ const SETTINGS_INCLUDE_TEMPLATE_ID = 'settings.include.template';
 const SETTINGS_OBJECT_TEMPLATE_ID = 'settings.object.template';
 const SETTINGS_BOOL_OBJECT_TEMPLATE_ID = 'settings.boolObject.template';
 const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
+const SETTINGS_COMPLEX_OBJECT_TEMPLATE_ID = 'settings.complexObject.template';
 const SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID = 'settings.newExtensions.template';
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.group.template';
 const SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID = 'settings.extensionToggle.template';
@@ -835,7 +841,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	) {
 		super();
 
-		this.markdownRenderer = this._register(_instantiationService.createInstance(MarkdownRenderer, {}));
+		this.markdownRenderer = _instantiationService.createInstance(MarkdownRenderer, {});
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -1202,6 +1208,47 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		}
 
 		template.containerElement.classList.remove('invalid-input');
+	}
+}
+
+class SettingComplexObjectRenderer extends SettingComplexRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingComplexObjectItemTemplate> {
+
+	override templateId = SETTINGS_COMPLEX_OBJECT_TEMPLATE_ID;
+
+	override renderTemplate(container: HTMLElement): ISettingComplexObjectItemTemplate {
+		const common = this.renderCommonTemplate(null, container, 'list');
+
+		const objectSettingWidget = common.toDispose.add(this._instantiationService.createInstance(ObjectSettingDropdownWidget, common.controlElement));
+		objectSettingWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+
+		const openSettingsButton = DOM.append(DOM.append(common.controlElement, $('.complex-object-edit-in-settings-button-container')), $('a.complex-object.edit-in-settings-button'));
+		openSettingsButton.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		openSettingsButton.role = 'button';
+
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		common.containerElement.appendChild(validationErrorMessageElement);
+
+		const template: ISettingComplexObjectItemTemplate = {
+			...common,
+			button: openSettingsButton,
+			validationErrorMessageElement,
+			objectSettingWidget
+		};
+
+		this.addSettingElementFocusHandler(template);
+
+		return template;
+	}
+
+	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexObjectItemTemplate, onChange: (value: string) => void): void {
+		const items = getObjectDisplayValue(dataElement);
+		template.objectSettingWidget.setValue(items, {
+			settingKey: dataElement.setting.key,
+			showAddButton: false,
+			isReadOnly: true,
+		});
+		template.button.parentElement?.classList.toggle('hide', dataElement.hasPolicyValue);
+		super.renderValue(dataElement, template, onChange);
 	}
 }
 
@@ -2128,6 +2175,7 @@ export class SettingTreeRenderers extends Disposable {
 			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingArrayRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingComplexRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingComplexObjectRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingMultilineTextRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions, actionFactory),
@@ -2159,7 +2207,7 @@ export class SettingTreeRenderers extends Disposable {
 
 	private getActionsForSetting(setting: ISetting, settingTarget: SettingsTarget): IAction[] {
 		const actions: IAction[] = [];
-		if (setting.scope !== ConfigurationScope.APPLICATION && settingTarget === ConfigurationTarget.USER_LOCAL) {
+		if (!(setting.scope && APPLICATION_SCOPES.includes(setting.scope)) && settingTarget === ConfigurationTarget.USER_LOCAL) {
 			actions.push(this._instantiationService.createInstance(ApplySettingToAllProfilesAction, setting));
 		}
 		if (this._userDataSyncEnablementService.isEnabled() && !setting.disallowSyncIgnore) {
@@ -2417,6 +2465,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 				return SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
 			}
 
+			if (element.valueType === SettingValueType.ComplexObject) {
+				return SETTINGS_COMPLEX_OBJECT_TEMPLATE_ID;
+			}
+
 			if (element.valueType === SettingValueType.LanguageTag) {
 				return SETTINGS_COMPLEX_TEMPLATE_ID;
 			}
@@ -2508,6 +2560,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
+				scrollToActiveElement: true,
 				identityProvider: {
 					getId(e) {
 						return e.id;

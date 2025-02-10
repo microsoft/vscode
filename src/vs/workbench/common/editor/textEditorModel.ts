@@ -75,13 +75,22 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		return true;
 	}
 
-	private _hasLanguageSetExplicitly: boolean = false;
-	get hasLanguageSetExplicitly(): boolean { return this._hasLanguageSetExplicitly; }
+	private _blockLanguageChangeListener = false;
+	private _languageChangeSource: 'user' | 'api' | undefined = undefined;
+	get languageChangeSource() { return this._languageChangeSource; }
+	get hasLanguageSetExplicitly() {
+		// This is technically not 100% correct, because 'api' can also be
+		// set as source if a model is resolved as text first and then
+		// transitions into the resolved language. But to preserve the current
+		// behaviour, we do not change this property. Rather, `languageChangeSource`
+		// can be used to get more fine grained information.
+		return typeof this._languageChangeSource === 'string';
+	}
 
 	setLanguageId(languageId: string, source?: string): void {
 
 		// Remember that an explicit language was set
-		this._hasLanguageSetExplicitly = true;
+		this._languageChangeSource = 'user';
 
 		this.setLanguageIdInternal(languageId, source);
 	}
@@ -95,18 +104,26 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			return;
 		}
 
-		this.textEditorModel.setLanguage(this.languageService.createById(languageId), source);
+		this._blockLanguageChangeListener = true;
+		try {
+			this.textEditorModel.setLanguage(this.languageService.createById(languageId), source);
+		} finally {
+			this._blockLanguageChangeListener = false;
+		}
 	}
 
 	protected installModelListeners(model: ITextModel): void {
 
 		// Setup listener for lower level language changes
-		const disposable = this._register(model.onDidChangeLanguage((e) => {
-			if (e.source === LanguageDetectionLanguageEventSource) {
+		const disposable = this._register(model.onDidChangeLanguage(e => {
+			if (
+				e.source === LanguageDetectionLanguageEventSource ||
+				this._blockLanguageChangeListener
+			) {
 				return;
 			}
 
-			this._hasLanguageSetExplicitly = true;
+			this._languageChangeSource = 'api';
 			disposable.dispose();
 		}));
 	}

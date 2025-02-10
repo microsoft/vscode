@@ -7,9 +7,9 @@
 
 (async function () {
 
-	type IBootstrapWindow = import('vs/platform/window/electron-sandbox/window.js').IBootstrapWindow;
-	type IProcessExplorerMain = import('vs/code/electron-sandbox/processExplorer/processExplorerMain.js').IProcessExplorerMain;
-	type ProcessExplorerWindowConfiguration = import('vs/platform/process/common/process.js').ProcessExplorerWindowConfiguration;
+	type IBootstrapWindow = import('../../../platform/window/electron-sandbox/window.js').IBootstrapWindow;
+	type IProcessExplorerMain = import('./processExplorerMain.js').IProcessExplorerMain;
+	type ProcessExplorerWindowConfiguration = import('../../../platform/process/common/process.js').ProcessExplorerWindowConfiguration;
 
 	const bootstrapWindow: IBootstrapWindow = (window as any).MonacoBootstrapWindow; // defined by bootstrap-window.ts
 

@@ -10,8 +10,11 @@ import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.j
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IStateService } from '../../state/node/state.js';
-import { IPartsSplash } from '../common/themeService.js';
+import { IPartsSplash, IPartsSplashWorkspaceOverride } from '../common/themeService.js';
 import { IColorScheme } from '../../window/common/window.js';
+import { ThemeTypeSelector } from '../common/theme.js';
+import { IBaseWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { coalesce } from '../../../base/common/arrays.js';
 
 // These default colors match our default themes
 // editor background color ("Dark Modern", etc...)
@@ -22,10 +25,13 @@ const DEFAULT_BG_HC_LIGHT = '#FFFFFF';
 
 const THEME_STORAGE_KEY = 'theme';
 const THEME_BG_STORAGE_KEY = 'themeBackground';
-const THEME_WINDOW_SPLASH = 'windowSplash';
+
+const THEME_WINDOW_SPLASH_KEY = 'windowSplash';
+const THEME_WINDOW_SPLASH_WORKSPACE_OVERRIDE_KEY = 'windowSplashWorkspaceOverride';
 
 namespace ThemeSettings {
 	export const DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme';
+	export const DETECT_HC = 'window.autoDetectHighContrast';
 	export const SYSTEM_COLOR_THEME = 'window.systemColorTheme';
 }
 
@@ -39,8 +45,8 @@ export interface IThemeMainService {
 
 	getBackgroundColor(): string;
 
-	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void;
-	getWindowSplash(): IPartsSplash | undefined;
+	saveWindowSplash(windowId: number | undefined, workspace: IBaseWorkspaceIdentifier | undefined, splash: IPartsSplash): void;
+	getWindowSplash(workspace: IBaseWorkspaceIdentifier | undefined): IPartsSplash | undefined;
 
 	getColorScheme(): IColorScheme;
 }
@@ -82,9 +88,9 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 					electron.nativeTheme.themeSource = 'light';
 					break;
 				case 'auto':
-					switch (this.getBaseTheme()) {
-						case 'vs': electron.nativeTheme.themeSource = 'light'; break;
-						case 'vs-dark': electron.nativeTheme.themeSource = 'dark'; break;
+					switch (this.getPreferredBaseTheme() ?? this.getStoredBaseTheme()) {
+						case ThemeTypeSelector.VS: electron.nativeTheme.themeSource = 'light'; break;
+						case ThemeTypeSelector.VS_DARK: electron.nativeTheme.themeSource = 'dark'; break;
 						default: electron.nativeTheme.themeSource = 'system';
 					}
 					break;
@@ -98,7 +104,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	getColorScheme(): IColorScheme {
 		if (isWindows) {
-			// high contrast is refelected by the shouldUseInvertedColorScheme property
+			// high contrast is reflected by the shouldUseInvertedColorScheme property
 			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				// shouldUseInvertedColorScheme is dark, !shouldUseInvertedColorScheme is light
 				return { dark: electron.nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
@@ -120,43 +126,59 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		};
 	}
 
-	getBackgroundColor(): string {
+	getPreferredBaseTheme(): ThemeTypeSelector | undefined {
 		const colorScheme = this.getColorScheme();
-		if (colorScheme.highContrast && this.configurationService.getValue('window.autoDetectHighContrast')) {
-			return colorScheme.dark ? DEFAULT_BG_HC_BLACK : DEFAULT_BG_HC_LIGHT;
+		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && colorScheme.highContrast) {
+			return colorScheme.dark ? ThemeTypeSelector.HC_BLACK : ThemeTypeSelector.HC_LIGHT;
 		}
+		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			return colorScheme.dark ? ThemeTypeSelector.VS_DARK : ThemeTypeSelector.VS;
+		}
+		return undefined;
+	}
 
-		let background = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
-		if (!background) {
-			switch (this.getBaseTheme()) {
-				case 'vs': background = DEFAULT_BG_LIGHT; break;
-				case 'hc-black': background = DEFAULT_BG_HC_BLACK; break;
-				case 'hc-light': background = DEFAULT_BG_HC_LIGHT; break;
-				default: background = DEFAULT_BG_DARK;
+	getBackgroundColor(): string {
+		const preferred = this.getPreferredBaseTheme();
+		const stored = this.getStoredBaseTheme();
+
+		// If the stored theme has the same base as the preferred, we can return the stored background
+		if (preferred === undefined || preferred === stored) {
+			const storedBackground = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
+			if (storedBackground) {
+				return storedBackground;
 			}
 		}
-
-		return background;
-	}
-
-	private getBaseTheme(): 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' {
-		const baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
-		switch (baseTheme) {
-			case 'vs': return 'vs';
-			case 'hc-black': return 'hc-black';
-			case 'hc-light': return 'hc-light';
-			default: return 'vs-dark';
+		// Otherwise we return the default background for the preferred base theme. If there's no preferred, use the stored one.
+		switch (preferred ?? stored) {
+			case ThemeTypeSelector.VS: return DEFAULT_BG_LIGHT;
+			case ThemeTypeSelector.HC_BLACK: return DEFAULT_BG_HC_BLACK;
+			case ThemeTypeSelector.HC_LIGHT: return DEFAULT_BG_HC_LIGHT;
+			default: return DEFAULT_BG_DARK;
 		}
 	}
 
-	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void {
+	private getStoredBaseTheme(): ThemeTypeSelector {
+		const baseTheme = this.stateService.getItem<ThemeTypeSelector>(THEME_STORAGE_KEY, ThemeTypeSelector.VS_DARK).split(' ')[0];
+		switch (baseTheme) {
+			case ThemeTypeSelector.VS: return ThemeTypeSelector.VS;
+			case ThemeTypeSelector.HC_BLACK: return ThemeTypeSelector.HC_BLACK;
+			case ThemeTypeSelector.HC_LIGHT: return ThemeTypeSelector.HC_LIGHT;
+			default: return ThemeTypeSelector.VS_DARK;
+		}
+	}
+
+	saveWindowSplash(windowId: number | undefined, workspace: IBaseWorkspaceIdentifier | undefined, splash: IPartsSplash): void {
+
+		// Update override as needed
+		const splashOverride = this.updateWindowSplashOverride(workspace, splash);
 
 		// Update in storage
-		this.stateService.setItems([
+		this.stateService.setItems(coalesce([
 			{ key: THEME_STORAGE_KEY, data: splash.baseTheme },
 			{ key: THEME_BG_STORAGE_KEY, data: splash.colorInfo.background },
-			{ key: THEME_WINDOW_SPLASH, data: splash }
-		]);
+			{ key: THEME_WINDOW_SPLASH_KEY, data: splash },
+			splashOverride ? { key: THEME_WINDOW_SPLASH_WORKSPACE_OVERRIDE_KEY, data: splashOverride } : undefined
+		]));
 
 		// Update in opened windows
 		if (typeof windowId === 'number') {
@@ -165,6 +187,35 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 		// Update system theme
 		this.updateSystemColorTheme();
+	}
+
+	private updateWindowSplashOverride(workspace: IBaseWorkspaceIdentifier | undefined, splash: IPartsSplash): IPartsSplashWorkspaceOverride | undefined {
+		let splashOverride: IPartsSplashWorkspaceOverride | undefined = undefined;
+		let changed = false;
+		if (workspace) {
+			splashOverride = { ...this.getWindowSplashOverride() }; // make a copy for modifications
+
+			const [auxiliarySideBarWidth, workspaceIds] = splashOverride.layoutInfo.auxiliarySideBarWidth;
+			if (splash.layoutInfo?.auxiliarySideBarWidth) {
+				if (auxiliarySideBarWidth !== splash.layoutInfo.auxiliarySideBarWidth) {
+					splashOverride.layoutInfo.auxiliarySideBarWidth[0] = splash.layoutInfo.auxiliarySideBarWidth;
+					changed = true;
+				}
+
+				if (!workspaceIds.includes(workspace.id)) {
+					workspaceIds.push(workspace.id);
+					changed = true;
+				}
+			} else {
+				const index = workspaceIds.indexOf(workspace.id);
+				if (index > -1) {
+					workspaceIds.splice(index, 1);
+					changed = true;
+				}
+			}
+		}
+
+		return changed ? splashOverride : undefined;
 	}
 
 	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
@@ -176,7 +227,34 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 	}
 
-	getWindowSplash(): IPartsSplash | undefined {
-		return this.stateService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH);
+	getWindowSplash(workspace: IBaseWorkspaceIdentifier | undefined): IPartsSplash | undefined {
+		const partSplash = this.stateService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH_KEY);
+		if (!partSplash?.layoutInfo) {
+			return partSplash; // return early: overrides currently only apply to layout info
+		}
+
+		// Apply workspace specific overrides
+		let auxiliarySideBarWidthOverride: number | undefined;
+		if (workspace) {
+			const [auxiliarySideBarWidth, workspaceIds] = this.getWindowSplashOverride().layoutInfo.auxiliarySideBarWidth;
+			if (workspaceIds.includes(workspace.id)) {
+				auxiliarySideBarWidthOverride = auxiliarySideBarWidth;
+			}
+		}
+
+		return {
+			...partSplash,
+			layoutInfo: {
+				...partSplash.layoutInfo,
+				// Only apply an auxiliary bar width when we have a workspace specific
+				// override. Auxiliary bar is not visible by default unless explicitly
+				// opened in a workspace.
+				auxiliarySideBarWidth: typeof auxiliarySideBarWidthOverride === 'number' ? auxiliarySideBarWidthOverride : 0
+			}
+		};
+	}
+
+	private getWindowSplashOverride(): IPartsSplashWorkspaceOverride {
+		return this.stateService.getItem<IPartsSplashWorkspaceOverride>(THEME_WINDOW_SPLASH_WORKSPACE_OVERRIDE_KEY, { layoutInfo: { auxiliarySideBarWidth: [0, []] } });
 	}
 }

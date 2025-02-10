@@ -165,8 +165,8 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		return this.model.items;
 	}
 
-	get inReadMode(): boolean {
-		return this.model.items.every(item => !item.editing);
+	protected get isReadOnly(): boolean {
+		return false;
 	}
 
 	constructor(
@@ -373,6 +373,10 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			return;
 		}
 
+		if (this.isReadOnly) {
+			return;
+		}
+
 		const item = this.model.items[targetIdx];
 		if (item) {
 			this.editSetting(targetIdx);
@@ -481,6 +485,9 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	}
 
 	protected getActionsForItem(item: TListDataItem, idx: number): IAction[] {
+		if (this.isReadOnly) {
+			return [];
+		}
 		return [
 			{
 				class: ThemeIcon.asClassName(settingsEditIcon),
@@ -520,7 +527,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	}
 
 	protected addDragAndDrop(rowElement: HTMLElement, item: TListDataItem, idx: number) {
-		if (this.inReadMode) {
+		if (this.model.items.every(item => !item.editing)) {
 			rowElement.draggable = true;
 			rowElement.classList.add('draggable');
 		} else {
@@ -898,8 +905,9 @@ export interface IObjectKeySuggester {
 interface IObjectSetValueOptions {
 	settingKey: string;
 	showAddButton: boolean;
-	keySuggester: IObjectKeySuggester;
-	valueSuggester: IObjectValueSuggester;
+	isReadOnly?: boolean;
+	keySuggester?: IObjectKeySuggester;
+	valueSuggester?: IObjectValueSuggester;
 }
 
 interface IObjectRenderEditWidgetOptions {
@@ -911,6 +919,7 @@ interface IObjectRenderEditWidgetOptions {
 }
 
 export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObjectDataItem> {
+	private editable: boolean = true;
 	private currentSettingKey: string = '';
 	private showAddButton: boolean = true;
 	private keySuggester: IObjectKeySuggester = () => undefined;
@@ -926,6 +935,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	}
 
 	override setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
+		this.editable = !options?.isReadOnly;
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
 		this.keySuggester = options?.keySuggester ?? this.keySuggester;
 		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
@@ -947,6 +957,10 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		return this.showAddButton;
 	}
 
+	protected override get isReadOnly(): boolean {
+		return !this.editable;
+	}
+
 	protected getEmptyItem(): IObjectDataItem {
 		return {
 			key: { type: 'string', data: '' },
@@ -961,6 +975,10 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	}
 
 	protected getActionsForItem(item: IObjectDataItem, idx: number): IAction[] {
+		if (this.isReadOnly) {
+			return [];
+		}
+
 		const actions: IAction[] = [
 			{
 				class: ThemeIcon.asClassName(settingsEditIcon),

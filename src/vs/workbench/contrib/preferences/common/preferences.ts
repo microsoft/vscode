@@ -176,5 +176,5 @@ export function compareTwoNullableNumbers(a: number | undefined, b: number | und
 	}
 }
 
-export const PREVIEW_INDICATOR_DESCRIPTION = localize('previewIndicatorDescription', "This setting controls a new feature that is still under refinement yet ready to use. Feedback is welcome.");
-export const EXPERIMENTAL_INDICATOR_DESCRIPTION = localize('experimentalIndicatorDescription', "This setting controls a new feature that is actively being developed and may be unstable. It is subject to change or removal.");
+export const PREVIEW_INDICATOR_DESCRIPTION = localize('previewIndicatorDescription', "Preview setting: this setting controls a new feature that is still under refinement yet ready to use. Feedback is welcome.");
+export const EXPERIMENTAL_INDICATOR_DESCRIPTION = localize('experimentalIndicatorDescription', "Experimental setting: this setting controls a new feature that is actively being developed and may be unstable. It is subject to change or removal.");

@@ -7,7 +7,7 @@ import { IDragAndDropData } from '../../dnd.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListStyles } from '../list/listWidget.js';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent } from './abstractTree.js';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions } from './abstractTree.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
@@ -24,7 +24,7 @@ import { isIterable } from '../../../common/types.js';
 import { CancellationToken, CancellationTokenSource } from '../../../common/cancellation.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { FuzzyScore } from '../../../common/filters.js';
-import { splice } from '../../../common/arrays.js';
+import { insertInto, splice } from '../../../common/arrays.js';
 import { localize } from '../../../../nls.js';
 
 interface IAsyncDataTreeNode<TInput, T> {
@@ -227,8 +227,10 @@ export interface IAsyncFindToggles {
 	findMode: TreeFindMode;
 }
 
-export interface IAsyncFindResultMetadata {
+export interface IAsyncFindResult<T> {
 	warningMessage?: string;
+	matchCount: number;
+	isMatch(element: T): boolean;
 }
 
 export interface IAsyncFindProvider<T> {
@@ -241,7 +243,7 @@ export interface IAsyncFindProvider<T> {
 	/**
 	 * `find` is called when the user types one or more character into the find input.
 	 */
-	find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata>;
+	find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResult<T> | undefined>;
 
 	/**
 	 * `isVisible` is called to check if an element should be visible.
@@ -285,8 +287,10 @@ class AsyncFindFilter<T> extends FindFilter<T> {
 
 }
 
+// TODO Fix types
 class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFilterData> {
 	private activeTokenSource: CancellationTokenSource | undefined;
+	private activeFindMetadata: IAsyncFindResult<T> | undefined;
 	private activeSession = false;
 	private asyncWorkInProgress = false;
 	private taskQueue = new ThrottledDelayer(250);
@@ -342,13 +346,15 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 		}
 
 		this.asyncWorkInProgress = true;
+		this.activeFindMetadata = undefined;
 
 		const findMetadata = await this.findProvider.find(pattern, { matchType: this.matchType, findMode: this.mode }, token);
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || findMetadata === undefined) {
 			return;
 		}
 
 		this.asyncWorkInProgress = false;
+		this.activeFindMetadata = findMetadata;
 
 		this.filter.reset();
 		super.applyPattern(pattern);
@@ -371,8 +377,15 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 	}
 
 	protected override render(): void {
-		if (!this.asyncWorkInProgress) {
-			super.render();
+		if (this.asyncWorkInProgress || !this.activeFindMetadata) {
+			return;
+		}
+
+		const showNotFound = this.activeFindMetadata.matchCount === 0 && this.pattern.length > 0;
+		this.renderMessage(showNotFound);
+
+		if (this.pattern.length) {
+			this.alertResults(this.activeFindMetadata.matchCount);
 		}
 	}
 
@@ -384,6 +397,23 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 		this.placeholder = this.mode === TreeFindMode.Filter ? localize('type to filter', "Type to filter") : localize('type to search', "Type to search");
 
 		this.applyPattern(this.pattern);
+	}
+
+	override shouldAllowFocus(node: ITreeNode<T, TFilterData>): boolean {
+		return this.shouldFocusWhenNavigating(node as ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>);
+	}
+
+	shouldFocusWhenNavigating(node: ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>): boolean {
+		if (!this.activeSession || !this.activeFindMetadata) {
+			return true;
+		}
+
+		const element = node.element?.element as T | undefined;
+		if (element && this.activeFindMetadata.isMatch(element)) {
+			return true;
+		}
+
+		return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
 	}
 }
 
@@ -534,6 +564,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate> { return this.tree.onDidUpdateOptions; }
 
+	private focusNavigationFilter: ((node: ITreeNode<IAsyncDataTreeNode<TInput, T> | null, TFilterData>) => boolean) | undefined;
+
 	readonly onDidChangeFindOpenState: Event<boolean>;
 	get onDidChangeStickyScrollFocused(): Event<boolean> { return this.tree.onDidChangeStickyScrollFocused; }
 
@@ -597,9 +629,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.onDidChangeCollapseState(this._onDidChangeCollapseState, this, this.disposables);
 
 		if (asyncFindEnabled) {
-			const findOptions = { styles: options.findWidgetStyles, showNotFoundMessage: options.showNotFoundMessage };
+			const findOptions: IFindControllerOptions = {
+				styles: options.findWidgetStyles,
+				showNotFoundMessage: options.showNotFoundMessage,
+				defaultFindMatchType: options.defaultFindMatchType,
+				defaultFindMode: options.defaultFindMode,
+			};
 			this.findController = this.disposables.add(new AsyncFindController(this.tree, options.findProvider!, findFilter!, this.tree.options.contextViewProvider!, findOptions));
 
+			this.focusNavigationFilter = node => this.findController!.shouldFocusWhenNavigating(node);
 			this.onDidChangeFindOpenState = this.findController!.onDidChangeOpenState;
 			this.onDidChangeFindMode = this.findController!.onDidChangeMode;
 			this.onDidChangeFindMatchType = this.findController!.onDidChangeMatchType;
@@ -624,8 +662,18 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return new ObjectTree(user, container, objectTreeDelegate, objectTreeRenderers, objectTreeOptions);
 	}
 
-	updateOptions(options: IAsyncDataTreeOptionsUpdate = {}): void {
-		this.tree.updateOptions(options);
+	updateOptions(optionsUpdate: IAsyncDataTreeOptionsUpdate = {}): void {
+		if (this.findController) {
+			if (optionsUpdate.defaultFindMode !== undefined) {
+				this.findController.mode = optionsUpdate.defaultFindMode;
+			}
+
+			if (optionsUpdate.defaultFindMatchType !== undefined) {
+				this.findController.matchType = optionsUpdate.defaultFindMatchType;
+			}
+		}
+
+		this.tree.updateOptions(optionsUpdate);
 	}
 
 	get options(): IAsyncDataTreeOptions<T, TFilterData> {
@@ -935,27 +983,27 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.tree.focusNext(n, loop, browserEvent);
+		this.tree.focusNext(n, loop, browserEvent, this.focusNavigationFilter);
 	}
 
 	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.tree.focusPrevious(n, loop, browserEvent);
+		this.tree.focusPrevious(n, loop, browserEvent, this.focusNavigationFilter);
 	}
 
 	focusNextPage(browserEvent?: UIEvent): Promise<void> {
-		return this.tree.focusNextPage(browserEvent);
+		return this.tree.focusNextPage(browserEvent, this.focusNavigationFilter);
 	}
 
 	focusPreviousPage(browserEvent?: UIEvent): Promise<void> {
-		return this.tree.focusPreviousPage(browserEvent);
+		return this.tree.focusPreviousPage(browserEvent, this.focusNavigationFilter);
 	}
 
 	focusLast(browserEvent?: UIEvent): void {
-		this.tree.focusLast(browserEvent);
+		this.tree.focusLast(browserEvent, this.focusNavigationFilter);
 	}
 
 	focusFirst(browserEvent?: UIEvent): void {
-		this.tree.focusFirst(browserEvent);
+		this.tree.focusFirst(browserEvent, this.focusNavigationFilter);
 	}
 
 	getFocus(): T[] {
@@ -1317,7 +1365,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				expanded.push(getId(node.element!.element as T));
 			}
 
-			stack.push(...node.children);
+			insertInto(stack, stack.length, node.children);
 		}
 
 		return { focus, selection, expanded, scrollTop: this.scrollTop };
@@ -1478,10 +1526,6 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 			incompressible: this.compressionDelegate.isIncompressible(node.element as T),
 			...super.asTreeElement(node, viewStateContext)
 		};
-	}
-
-	override updateOptions(options: ICompressibleAsyncDataTreeOptionsUpdate = {}): void {
-		this.tree.updateOptions(options);
 	}
 
 	override getViewState(): IAsyncDataTreeViewState {

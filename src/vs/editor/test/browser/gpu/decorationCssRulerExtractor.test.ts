@@ -5,7 +5,7 @@
 
 import { deepStrictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { DecorationCssRuleExtractor } from '../../../browser/gpu/decorationCssRuleExtractor.js';
+import { DecorationCssRuleExtractor } from '../../../browser/gpu/css/decorationCssRuleExtractor.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { $, getActiveDocument } from '../../../../base/browser/dom.js';
 
@@ -78,6 +78,17 @@ suite('DecorationCssRulerExtractor', () => {
 		assertStyles(testClassName, [
 			`.${testClassName} { color: red; opacity: 0.5; }`,
 			`.${testClassName}:hover { opacity: 1; }`,
+		]);
+	});
+
+	test('should not pick up styles from selectors where the prefix is the class', () => {
+		addStyleElement([
+			`.${testClassName} { color: red; }`,
+			`.${testClassName}-ignoreme { opacity: 1; }`,
+			`.${testClassName}fake { opacity: 1; }`,
+		].join('\n'));
+		assertStyles(testClassName, [
+			`.${testClassName} { color: red; }`,
 		]);
 	});
 });

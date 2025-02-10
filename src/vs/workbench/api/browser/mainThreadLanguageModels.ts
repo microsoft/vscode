@@ -20,6 +20,7 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
+import { LanguageModelError } from '../common/extHostTypes.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModels)
 export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
@@ -97,7 +98,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		if (data) {
 			this._pendingProgress.delete(requestId);
 			if (err) {
-				const error = transformErrorFromSerialization(err);
+				const error = LanguageModelError.tryDeserialize(err) ?? transformErrorFromSerialization(err);
 				data.stream.reject(error);
 				data.defer.error(error);
 			} else {
@@ -122,7 +123,13 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
 		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
 
-		const response = await this._chatProviderService.sendChatRequest(providerId, extension, messages, options, token);
+		let response: ILanguageModelChatResponse;
+		try {
+			response = await this._chatProviderService.sendChatRequest(providerId, extension, messages, options, token);
+		} catch (err) {
+			this._logService.error('[CHAT] request FAILED', extension.value, requestId, err);
+			throw err;
+		}
 
 		// !!! IMPORTANT !!!
 		// This method must return before the response is done (has streamed all parts)

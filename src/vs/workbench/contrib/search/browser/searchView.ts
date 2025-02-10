@@ -900,6 +900,8 @@ export class SearchView extends ViewPane {
 				}
 			}));
 
+		Constants.SearchContext.SearchResultListFocusedKey.bindTo(this.tree.contextKeyService);
+
 		this.tree.setInput(this.viewModel.searchResult);
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
@@ -970,13 +972,22 @@ export class SearchView extends ViewPane {
 
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
+		const selection = this.tree.getSelection();
+		let arg: any;
+		let context: any;
+		if (selection && selection.length > 0) {
+			arg = e.element;
+			context = selection;
+		} else {
+			context = e.element;
+		}
 
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.SearchContext,
-			menuActionOptions: { shouldForwardArgs: true },
+			menuActionOptions: { shouldForwardArgs: true, arg },
 			contextKeyService: this.contextKeyService,
 			getAnchor: () => e.anchor,
-			getActionsContext: () => e.element,
+			getActionsContext: () => context,
 		});
 	}
 
@@ -1646,12 +1657,21 @@ export class SearchView extends ViewPane {
 			await this.refreshAndUpdateCount();
 		}
 
-		const hasResults = !this.viewModel.searchResult.isEmpty();
+		const allResults = !this.viewModel.searchResult.isEmpty();
+		const aiResults = this.searchResult.getCachedSearchComplete(true);
 		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
 			return;
 		}
 
-		if (!hasResults) {
+		// Special case for when we have an AI provider registered
+		if (this.shouldShowAIResults()) {
+			Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(!!aiResults);
+			if (!aiResults) {
+				return;
+			}
+		}
+
+		if (!allResults) {
 			const hasExcludes = !!excludePatternText;
 			const hasIncludes = !!includePatternText;
 			let message: string;
