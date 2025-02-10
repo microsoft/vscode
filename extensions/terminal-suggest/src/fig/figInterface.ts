@@ -20,6 +20,7 @@ import type { EnvironmentVariable } from './api-bindings/types';
 export interface IFigSpecSuggestionsResult {
 	filesRequested: boolean;
 	foldersRequested: boolean;
+	hasCurrentArg: boolean;
 	items: vscode.TerminalCompletionItem[];
 }
 
@@ -38,7 +39,8 @@ export async function getFigSuggestions(
 	const result: IFigSpecSuggestionsResult = {
 		filesRequested: false,
 		foldersRequested: false,
-		items: []
+		hasCurrentArg: false,
+		items: [],
 	};
 	for (const spec of specs) {
 		const specLabels = getFigSuggestionLabel(spec);
@@ -82,6 +84,7 @@ export async function getFigSuggestions(
 			}
 
 			const completionItemResult = await getFigSpecSuggestions(spec, terminalContext, prefix, shellIntegrationCwd, env, name, token);
+			result.hasCurrentArg ||= !!completionItemResult?.hasCurrentArg;
 			if (completionItemResult) {
 				result.filesRequested ||= completionItemResult.filesRequested;
 				result.foldersRequested ||= completionItemResult.foldersRequested;
@@ -132,9 +135,10 @@ async function getFigSpecSuggestions(
 	}
 
 	return {
-		items: items,
 		filesRequested,
-		foldersRequested
+		foldersRequested,
+		hasCurrentArg: !!parsedArguments.currentArg,
+		items: items,
 	};
 }
 
