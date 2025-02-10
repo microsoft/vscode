@@ -38,7 +38,7 @@ use_associative_array=0
 # Associative array are only available in zsh 4.3 or later
 if (( zsh_version >= 4.3 )); then
 	use_associative_array=1
-	declare -A vsc_aa_env
+	typeset -A vsc_aa_env
 fi
 
 # Apply EnvironmentVariableCollections if needed
@@ -133,7 +133,7 @@ __update_env_cache_aa() {
 
 __track_missing_env_vars_aa() {
 	if [ $use_associative_array -eq 1 ]; then
-		declare -A currentEnvMap
+		typeset -A currentEnvMap
 		while IFS='=' read -r key value; do
 			currentEnvMap["$key"]="$value"
 		done < <(env)
@@ -141,8 +141,8 @@ __track_missing_env_vars_aa() {
 		for k in "${(@k)vsc_aa_env}"; do
 			# if currentEnvMap does not have the key, then it is missing
 			if ! [[ -v currentEnvMap[$k] ]]; then
-				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "$k" "$(__vsc_escape_value "${vsc_aa_env[$k]}")" "$__vsc_nonce"
-				unset "vsc_aa_env[$k]"
+				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${(Q)k}" "$(__vsc_escape_value "${vsc_aa_env[$k]}")" "$__vsc_nonce"
+				builtin unset "vsc_aa_env[$k]"
 			fi
 		done
 	fi
