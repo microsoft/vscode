@@ -428,7 +428,12 @@ export async function getCompletionItemsFromSpecs(
 		const labels = new Set(items.map((i) => i.label));
 		for (const command of availableCommands) {
 			if (!labels.has(command.label)) {
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
+				items.push(createCompletionItem(
+					terminalContext.cursorPosition,
+					prefix,
+					command,
+					command.detail
+				));
 			}
 		}
 		filesRequested = true;
