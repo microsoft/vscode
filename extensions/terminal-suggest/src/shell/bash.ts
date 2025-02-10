@@ -5,27 +5,13 @@
 
 import type { ICompletionResource } from '../types';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
-import { execHelper, getAliasesHelper } from './common';
+import { getAliasesHelper, getZshBashBuiltins } from './common';
 
 export async function getBashGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
 		...await getAliases(options),
-		...await getBuiltins(options, existingCommands)
+		...await getZshBashBuiltins(options, 'compgen -b', existingCommands)
 	];
-}
-
-async function getBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
-	const compgenOutput = await execHelper('compgen -b', options);
-	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
-	let builtins: (string | ICompletionResource)[] = compgenOutput.split('\n').filter(filter);
-	if (builtins.find(r => r === '.')) {
-		builtins = builtins.filter(r => r !== '.');
-		builtins.push({
-			label: '.',
-			detail: 'Source a file in the current shell'
-		});
-	}
-	return builtins;
 }
 
 async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {

@@ -4,28 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ICompletionResource } from '../types';
-import { execHelper, getAliasesHelper } from './common';
+import { getAliasesHelper, getZshBashBuiltins } from './common';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
 		...await getAliases(options),
-		...await getBuiltins(options, existingCommands),
+		...await getZshBashBuiltins(options, 'printf "%s\\n" ${(k)builtins}', existingCommands),
 	];
-}
-
-async function getBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
-	const compgenOutput = await execHelper('printf "%s\\n" ${(k)builtins}', options);
-	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
-	let builtins: (string | ICompletionResource)[] = compgenOutput.split('\n').filter(filter);
-	if (builtins.find(r => r === '.')) {
-		builtins = builtins.filter(r => r !== '.');
-		builtins.push({
-			label: '.',
-			detail: 'Source a file in the current shell'
-		});
-	}
-	return builtins;
 }
 
 async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
