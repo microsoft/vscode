@@ -440,11 +440,14 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				if (this._isCellStyledLikeGhostText(cell)) {
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
+				} else if (x >= buffer.cursorX) {
+					//TODO: check if shell is fish
+					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
+					break;
 				}
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
-
 		return ghostTextIndex;
 	}
 
