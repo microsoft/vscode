@@ -422,7 +422,13 @@ export async function getCompletionItemsFromSpecs(
 		const labels = new Set(items.map((i) => i.label));
 		for (const command of availableCommands) {
 			if (!labels.has(command.label)) {
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
+				let detail = command.detail;
+				const isSourceCommand = command.label === '.';
+
+				if (isSourceCommand) {
+					detail = 'Source a file in the current shell';
+				}
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, detail));
 			}
 		}
 		filesRequested = true;
