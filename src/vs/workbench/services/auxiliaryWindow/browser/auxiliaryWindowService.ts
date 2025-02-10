@@ -21,7 +21,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
+import { DEFAULT_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
 import { BaseWindow } from '../../../browser/window.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -225,7 +225,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly DEFAULT_SIZE = { width: 1024, height: 768 };
+	private static readonly DEFAULT_SIZE = DEFAULT_AUX_WINDOW_SIZE;
 
 	private static WINDOW_IDS = getWindowId(mainWindow) + 1; // start from the main window ID + 1
 

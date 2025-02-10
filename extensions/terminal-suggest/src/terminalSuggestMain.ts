@@ -228,22 +228,22 @@ export async function getCompletionItemsFromSpecs(
 		if (result.items) {
 			items.push(...result.items);
 		}
-	}
-
-	if (tokenType === TokenType.Command) {
-		// Include builitin/available commands in the results
-		const labels = new Set(items.map((i) => i.label));
-		for (const command of availableCommands) {
-			if (!labels.has(command.label)) {
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
+	} else {
+		if (tokenType === TokenType.Command) {
+			// Include builitin/available commands in the results
+			const labels = new Set(items.map((i) => i.label));
+			for (const command of availableCommands) {
+				if (!labels.has(command.label)) {
+					items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, command.detail));
+				}
 			}
+			filesRequested = true;
+			foldersRequested = true;
+		} else if (!items.length && !filesRequested && !foldersRequested) {
+			// Not a command and no specific args or options were provided, so show resources
+			filesRequested = true;
+			foldersRequested = true;
 		}
-		filesRequested = true;
-		foldersRequested = true;
-	} else if (!items.length && !filesRequested && !foldersRequested) {
-		// Not a command and no specific args or options were provided, so show resources
-		filesRequested = true;
-		foldersRequested = true;
 	}
 
 	let cwd: vscode.Uri | undefined;
