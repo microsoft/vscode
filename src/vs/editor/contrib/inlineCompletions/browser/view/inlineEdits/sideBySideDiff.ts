@@ -116,13 +116,14 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
 		const editorVerticalScrollbar = editor.getLayoutInfo().verticalScrollbarWidth;
 		const w = editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const minimapWidth = editorObs.layoutInfoMinimap.read(reader).minimapLeft !== 0 ? editorObs.layoutInfoMinimap.read(reader).minimapWidth : 0;
 
 		const maxOriginalContent = maxContentWidthInRange(editorObs, originalDisplayRange, undefined/* do not reconsider on each layout info change */);
 		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, line.length * w), 0);
 		const endOfEditorPadding = 20; // padding after last line of editor
 		const editorsPadding = edit.modifiedLineRange.length <= edit.originalLineRange.length ? PADDING * 3 + endOfEditorPadding : 60 + endOfEditorPadding * 2;
 
-		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollbar;
+		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
 	}
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
