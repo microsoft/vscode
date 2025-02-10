@@ -463,7 +463,7 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return getWindow(el).getComputedStyle(el, null);
 }
 
-export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dimension {
+export function getClientArea(element: HTMLElement, defaultValue?: Dimension, fallbackElement?: HTMLElement): Dimension {
 	const elWindow = getWindow(element);
 	const elDocument = elWindow.document;
 
@@ -492,20 +492,15 @@ export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dim
 		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
 	}
 
-	if (fallback) {
-		return getClientArea(fallback);
+	if (fallbackElement) {
+		return getClientArea(fallbackElement, defaultValue);
+	}
+
+	if (defaultValue) {
+		return defaultValue;
 	}
 
 	throw new Error('Unable to figure out browser width and height');
-}
-
-export function safeGetClientArea(element: HTMLElement, def: Dimension, fallback?: HTMLElement): Dimension {
-	try {
-		return getClientArea(element, fallback);
-	} catch (e) {
-		console.error(e);
-		return def;
-	}
 }
 
 class SizeUtils {

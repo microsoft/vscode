@@ -83,6 +83,8 @@ export interface IAuxiliaryWindow extends IDisposable {
 	createState(): IAuxiliaryWindowOpenOptions;
 }
 
+const DEFAULT_AUX_WINDOW_DIMENSIONS = new Dimension(DEFAULT_AUX_WINDOW_SIZE.width, DEFAULT_AUX_WINDOW_SIZE.height);
+
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	private readonly _onWillLayout = this._register(new Emitter<Dimension>());
@@ -193,7 +195,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		// in the `onWillLayout` phase and then let other compoments
 		// react when the overall layout has finished in `onDidLayout`.
 
-		const dimension = getClientArea(this.window.document.body, this.container);
+		const dimension = getClientArea(this.window.document.body, DEFAULT_AUX_WINDOW_DIMENSIONS, this.container);
 		this._onWillLayout.fire(dimension);
 		this._onDidLayout.fire(dimension);
 	}
