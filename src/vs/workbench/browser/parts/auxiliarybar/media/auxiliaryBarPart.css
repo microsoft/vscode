@@ -8,6 +8,18 @@
 	visibility: hidden !important;
 }
 
+.monaco-workbench .part.auxiliarybar {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.monaco-workbench .part.auxiliarybar > .content {
+	flex: 1;
+	min-height: 0; /* Required for proper flex behavior */
+	position: relative;
+}
+
 .monaco-workbench .part.auxiliarybar > .content .monaco-editor,
 .monaco-workbench .part.auxiliarybar > .content .monaco-editor .margin,
 .monaco-workbench .part.auxiliarybar > .content .monaco-editor .monaco-editor-background {
@@ -24,13 +36,18 @@
 
 .monaco-workbench .part.auxiliarybar > .title {
 	background-color: var(--vscode-sideBarTitle-background);
-	/* border: 1px solid red; */
 	padding: 0px;
-	margin-top: 12px;
+	margin-top: 6px;
 	margin-left: 12px;
 	margin-right: 12px;
+	margin-bottom: 0px;
+	flex: 0 0 auto;
+	/* min-height: 34px; */
+	display: flex;
+	align-items: center;
+	position: relative;
+	/* z-index: 20000; */
 }
-
 
 .monaco-workbench .part.auxiliarybar > .title > .title-label {
 	flex: 1;
@@ -42,20 +59,23 @@
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container {
 	flex: 1;
+	/* padding: 12px 12px 0 12px; */
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group {
-    display: flex;
-    padding: 4px 8px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 8px;
-    border-radius: 12px;
-    background: var(--vscode-sideBar-background);
-    box-shadow: 0px 0px 0px 1px var(--vscode-badge-background) inset;
-    overflow: hidden;
+	display: flex;
+	padding: 4px 8px;
+	justify-content: flex-start;
+	align-items: center;
+	gap: 8px;
+	border-radius: 12px;
+	background: var(--vscode-sideBar-background);
+	box-shadow: 0px 0px 0px 1px var(--vscode-badge-background) inset;
+	overflow: hidden;
+	/* margin-bottom: 12px; */
+	position: relative;
+	/* z-index: 200000; */
 }
-
 
 /* Base state for icon containers */
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container {
