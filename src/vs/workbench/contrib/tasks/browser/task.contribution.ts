@@ -42,7 +42,7 @@ import { isString } from '../../../../base/common/types.js';
 import { promiseWithResolvers } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { TerminalCommandId } from '../../terminal/common/terminal.js';
+
 import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
@@ -567,13 +567,13 @@ configurationRegistry.registerConfiguration({
 });
 
 export const rerunTaskIcon = registerIcon('rerun-task', Codicon.rerunTask, nls.localize('rerunTaskIcon', 'View icon of the rerun task.'));
-
+export const RerunForActiveTerminalCommandId = 'workbench.action.tasks.rerunForActiveTerminal';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: TerminalCommandId.RerunTask,
+			id: RerunForActiveTerminalCommandId,
 			icon: rerunTaskIcon,
-			title: nls.localize2('workbench.action.terminal.rerunTaskTerminal', 'Rerun Task'),
+			title: nls.localize2('workbench.action.tasks.rerunForActiveTerminal', 'Rerun Task'),
 			precondition: TerminalContextKeys.taskTerminalActive,
 			menu: [{ id: MenuId.TerminalInstanceContext, when: TerminalContextKeys.taskTerminalActive }, { id: MenuId.TerminalTabContext, when: TerminalContextKeys.taskTerminalActive }],
 			keybinding: {

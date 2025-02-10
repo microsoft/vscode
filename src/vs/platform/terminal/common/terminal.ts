@@ -644,7 +644,7 @@ export interface IShellLaunchConfig {
 	tabActions?: ITerminalTabAction[];
 }
 
-interface ITerminalTabAction {
+export interface ITerminalTabAction {
 	id: string;
 	label: string;
 	icon?: ThemeIcon;

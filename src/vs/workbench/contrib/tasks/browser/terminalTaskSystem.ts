@@ -44,13 +44,13 @@ import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrde
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/browser/terminalEscapeSequences.js';
 import { TerminalProcessExtHostProxy } from '../../terminal/browser/terminalProcessExtHostProxy.js';
-import { ITerminalProfileResolverService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../terminal/common/terminal.js';
+import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from '../../terminal/common/terminal.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
-import { rerunTaskIcon } from './task.contribution.js';
+import { RerunForActiveTerminalCommandId, rerunTaskIcon } from './task.contribution.js';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -78,6 +78,7 @@ interface IReconnectionTaskData {
 }
 
 const ReconnectionType = 'Task';
+const terminalTabActions = [{ id: RerunForActiveTerminalCommandId, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
 
 class VariableResolver {
 	private static _regex = /\$\{(.*?)\}/g;
@@ -1111,7 +1112,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				env: { ...defaultProfile.env },
 				icon,
 				color: task.configurationProperties.icon?.color || undefined,
-				waitOnExit,
+				waitOnExit
 			};
 			let shellSpecified: boolean = false;
 			const shellOptions: IShellConfiguration | undefined = task.command.options && task.command.options.shell;
@@ -1262,7 +1263,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
 		shellLaunchConfig.useShellEnvironment = true;
-		shellLaunchConfig.tabActions = [{ id: TerminalCommandId.RerunTask, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
+		shellLaunchConfig.tabActions = terminalTabActions;
 		return shellLaunchConfig;
 	}
 
@@ -1463,7 +1464,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
 		this._terminals[terminalKey] = terminalData;
-		terminal.shellLaunchConfig.tabActions = [{ id: TerminalCommandId.RerunTask, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
+		terminal.shellLaunchConfig.tabActions = terminalTabActions;
 		return [terminal, undefined];
 	}
 
