@@ -193,6 +193,7 @@ export interface IPtyHostAttachTarget {
 	type?: TerminalType;
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
 }
 
 export interface IReconnectionProperties {
@@ -558,6 +559,7 @@ export interface IShellLaunchConfig {
 		hideFromUser?: boolean;
 		isFeatureTerminal?: boolean;
 		shellIntegrationNonce: string;
+		tabActions?: ITerminalTabAction[];
 	};
 
 	/**
@@ -680,6 +682,7 @@ export interface IShellLaunchConfigDto {
 	reconnectionProperties?: IReconnectionProperties;
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
+	tabActions?: ITerminalTabAction[];
 }
 
 /**

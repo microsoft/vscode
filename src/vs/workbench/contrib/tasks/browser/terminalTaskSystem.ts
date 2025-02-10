@@ -50,6 +50,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { rerunTaskIcon } from './task.contribution.js';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -1111,7 +1112,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				icon,
 				color: task.configurationProperties.icon?.color || undefined,
 				waitOnExit,
-				tabActions: [{ id: TerminalCommandId.RerunTask, label: nls.localize('rerunTask', 'Rerun Task'), icon: Codicon.debugRestart }],
 			};
 			let shellSpecified: boolean = false;
 			const shellOptions: IShellConfiguration | undefined = task.command.options && task.command.options.shell;
@@ -1262,6 +1262,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
 		shellLaunchConfig.useShellEnvironment = true;
+		shellLaunchConfig.tabActions = [{ id: TerminalCommandId.RerunTask, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
 		return shellLaunchConfig;
 	}
 
@@ -1462,6 +1463,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
 		this._terminals[terminalKey] = terminalData;
+		terminal.shellLaunchConfig.tabActions = [{ id: TerminalCommandId.RerunTask, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
 		return [terminal, undefined];
 	}
 

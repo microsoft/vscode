@@ -419,6 +419,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._shellLaunchConfig.type = this._shellLaunchConfig.attachPersistentProcess.type;
 		}
 
+		if (this._shellLaunchConfig.attachPersistentProcess?.tabActions) {
+			this._shellLaunchConfig.tabActions = this._shellLaunchConfig.attachPersistentProcess.tabActions;
+		}
+
 		if (this.shellLaunchConfig.cwd) {
 			const cwdUri = typeof this._shellLaunchConfig.cwd === 'string' ? URI.from({
 				scheme: Schemas.file,

@@ -8,7 +8,7 @@ import * as nls from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 
 import { ProblemMatcherRegistry } from '../common/problemMatcher.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -40,6 +40,12 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry.js';
 import { TerminalMenuBarGroup } from '../../terminal/browser/terminalMenus.js';
 import { isString } from '../../../../base/common/types.js';
 import { promiseWithResolvers } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { TerminalCommandId } from '../../terminal/common/terminal.js';
+import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
@@ -557,5 +563,35 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('task.verboseLogging', "Enable verbose logging for tasks."),
 			default: false
 		},
+	}
+});
+
+export const rerunTaskIcon = registerIcon('rerun-task', Codicon.rerunTask, nls.localize('rerunTaskIcon', 'View icon of the rerun task.'));
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: TerminalCommandId.RerunTask,
+			icon: rerunTaskIcon,
+			title: nls.localize2('workbench.action.terminal.rerunTaskTerminal', 'Rerun Task'),
+			precondition: TerminalContextKeys.taskTerminalActive,
+			menu: [{ id: MenuId.TerminalInstanceContext, when: TerminalContextKeys.taskTerminalActive }, { id: MenuId.TerminalTabContext, when: TerminalContextKeys.taskTerminalActive }],
+			keybinding: {
+				when: TerminalContextKeys.focus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
+				},
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, args: any): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const taskSystem = accessor.get(ITaskService);
+		const instance = args as ITerminalInstance ?? terminalService.activeInstance;
+		if (instance) {
+			await taskSystem.rerun(instance.instanceId);
+		}
 	}
 });

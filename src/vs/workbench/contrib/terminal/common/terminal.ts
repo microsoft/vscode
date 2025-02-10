@@ -240,6 +240,13 @@ export interface IRemoteTerminalAttachTarget {
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
+}
+
+interface ITerminalTabAction {
+	id: string;
+	label: string;
+	icon?: ThemeIcon;
 }
 
 export interface IBeforeProcessDataEvent {

@@ -62,7 +62,6 @@ import { editorGroupToColumn } from '../../../services/editor/common/editorGroup
 import { InstanceContext } from './terminalContextMenu.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { TerminalTabList } from './terminalTabsList.js';
-import { ITaskService } from '../../tasks/common/taskService.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1433,30 +1432,6 @@ export function registerTerminalActions() {
 			} else {
 				console.warn(`Unmatched terminal item: "${item}"`);
 			}
-		}
-	});
-
-	registerTerminalAction({
-		id: TerminalCommandId.RerunTask,
-		icon: Codicon.debugRestart,
-		title: localize2('workbench.action.terminal.rerunTaskTerminal', 'Rerun Task'),
-		precondition: ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.taskTerminalActive),
-		run: async (c, accessor, args) => {
-			const terminalService = c.service;
-			const taskSystem = accessor.get(ITaskService);
-			const instance = args as ITerminalInstance ?? terminalService.activeInstance;
-			if (instance) {
-				await taskSystem.rerun(instance.instanceId);
-			}
-		},
-		menu: [{ id: MenuId.TerminalInstanceContext, when: TerminalContextKeys.taskTerminalActive }, { id: MenuId.TerminalTabContext, when: TerminalContextKeys.taskTerminalActive }],
-		keybinding: {
-			when: TerminalContextKeys.focus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
-			mac: {
-				primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
-			},
-			weight: KeybindingWeight.WorkbenchContrib
 		}
 	});
 }

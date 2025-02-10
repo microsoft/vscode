@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { UriComponents } from '../../../base/common/uri.js';
 import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from './environmentVariable.js';
 import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from './terminal.js';
@@ -58,6 +59,13 @@ export interface IProcessDetails {
 	type?: TerminalType;
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
+}
+
+interface ITerminalTabAction {
+	id: string;
+	label: string;
+	icon?: ThemeIcon;
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
