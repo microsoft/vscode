@@ -93,9 +93,8 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		testSpecs: [
 			{ input: 'foo |', expectedCompletions: ['--bar', '--baz'] },
 			{ input: 'foo bar|', expectedCompletions: ['--bar', '--baz'] },
-			// TODO: Duplicate options should not be presented https://github.com/microsoft/vscode/issues/239607
-			// { input: 'foo --bar |', expectedCompletions: ['--baz'] },
-			// { input: 'foo --baz |', expectedCompletions: ['--bar'] },
+			{ input: 'foo --bar |', expectedCompletions: ['--baz'] },
+			{ input: 'foo --baz |', expectedCompletions: ['--bar'] },
 		]
 	},
 	{
