@@ -716,7 +716,7 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 		}
 	}
 
-	massagedOptions.buttons = buttons.map(button => button);
+	massagedOptions.buttons = buttons;
 	massagedOptions.defaultId = defaultId;
 	massagedOptions.cancelId = cancelId;
 	massagedOptions.noLink = true;
