@@ -20,8 +20,8 @@ execute "cd $submodule_dir" "Failed to change directory to $submodule_dir"
 execute "./scripts/install-and-build.sh" "Failed to install dependencies for the submodule"
 execute "cd ../../" "Failed to change back to the root directory"
 
-# Install dependencies using yarn
-execute "yarn" "Failed to install dependencies using yarn"
+# Install dependencies using npm
+execute "npm install" "Failed to install dependencies with npm"
 
 # Success message
 echo "Dependencies Installed Completed Successfully! ⭐"
