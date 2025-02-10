@@ -575,7 +575,7 @@ registerAction2(class extends Action2 {
 			icon: rerunTaskIcon,
 			title: nls.localize2('workbench.action.tasks.rerunForActiveTerminal', 'Rerun Task'),
 			precondition: TASK_TERMINAL_ACTIVE,
-			menu: [{ id: MenuId.TerminalInstanceContext, when: TASK_TERMINAL_ACTIVE }, { id: MenuId.TerminalTabContext, when: TASK_TERMINAL_ACTIVE }],
+			menu: [{ id: MenuId.TerminalInstanceContext, when: TASK_TERMINAL_ACTIVE }],
 			keybinding: {
 				when: TerminalContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
