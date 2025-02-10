@@ -828,7 +828,7 @@ export class FileDownload {
 
 		const destination = await this.fileDialogService.showSaveDialog({
 			availableFileSystems: [Schemas.file],
-			saveLabel: mnemonicButtonLabel(localize('downloadButton', "Download")),
+			saveLabel: mnemonicButtonLabel(localize('downloadButton', "Download")).withMnemonic,
 			title: localize('chooseWhereToDownload', "Choose Where to Download"),
 			defaultUri
 		});
