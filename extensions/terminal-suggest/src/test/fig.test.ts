@@ -124,10 +124,9 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		testSpecs: [
 			{ input: 'foo |', expectedCompletions: ['--bar'] },
 			{ input: 'foo --bar |', expectedCompletions: ['a', 'b', 'c'] },
-			// TODO: All options should be suggested here? https://github.com/microsoft/vscode/issues/239713
-			// { input: 'foo --bar a|', expectedCompletions: ['a', 'b', 'c'] },
-			// { input: 'foo --bar b|', expectedCompletions: ['a', 'b', 'c'] },
-			// { input: 'foo --bar c|', expectedCompletions: ['a', 'b', 'c'] },
+			{ input: 'foo --bar a|', expectedCompletions: ['a', 'b', 'c'] },
+			{ input: 'foo --bar b|', expectedCompletions: ['a', 'b', 'c'] },
+			{ input: 'foo --bar c|', expectedCompletions: ['a', 'b', 'c'] },
 		]
 	}
 ];
