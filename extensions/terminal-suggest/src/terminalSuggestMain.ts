@@ -426,7 +426,7 @@ export async function getCompletionItemsFromSpecs(
 					terminalContext.cursorPosition,
 					prefix,
 					command,
-					command.label === '.' ? 'Source a file in the current shell' : command.detail
+					command.detail
 				));
 			}
 		}

@@ -14,10 +14,18 @@ export async function getZshGlobals(options: ExecOptionsWithStringEncoding, exis
 	];
 }
 
-async function getBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<string[]> {
+async function getBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	const compgenOutput = await execHelper('printf "%s\\n" ${(k)builtins}', options);
 	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
-	return compgenOutput.split('\n').filter(filter);
+	let builtins: (string | ICompletionResource)[] = compgenOutput.split('\n').filter(filter);
+	if (builtins.find(r => r === '.')) {
+		builtins = builtins.filter(r => r !== '.');
+		builtins.push({
+			label: '.',
+			detail: 'Source a file in the current shell'
+		});
+	}
+	return builtins;
 }
 
 async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
