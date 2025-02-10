@@ -186,7 +186,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this.shellType) {
 			return;
 		}
-
+		this._ensureSuggestWidget(terminal);
+		await sleep(2000);
 		let doNotRequestExtensionCompletions = false;
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
@@ -208,7 +209,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
 
-		if (!providedCompletions?.length || token.isCancellationRequested) {
+		if (token.isCancellationRequested) {
 			return;
 		}
 		this._onDidReceiveCompletions.fire();
@@ -216,10 +217,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cursorIndexDelta = this._promptInputModel.cursorIndex - this._requestedCompletionsIndex;
 		this._leadingLineContent = this._promptInputModel.prefix.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
 
-		const completions = providedCompletions.flat();
-		if (!completions?.length) {
-			return;
-		}
+		const completions = providedCompletions?.flat() || [];
 
 		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
 		// This is a TabExpansion2 result
@@ -487,6 +485,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		this._model = model;
+
 		const dimensions = this._getTerminalDimensions();
 		if (!dimensions.width || !dimensions.height) {
 			return;
@@ -518,6 +517,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
 				listInactiveFocusOutline: activeContrastBorder
 			}));
+			this._suggestWidget.showTriggered(true, 250);
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
@@ -703,4 +703,8 @@ export function normalizePathSeparator(path: string, sep: string): string {
 		return path.replaceAll('\\', '/');
 	}
 	return path.replaceAll('/', '\\');
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise(r => setTimeout(r, ms));
 }
