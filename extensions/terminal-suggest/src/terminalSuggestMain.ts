@@ -289,7 +289,7 @@ export async function collectCompletionItemResult(command: Command, parsedArgume
 		if (!specArgs) {
 			return { filesRequested, foldersRequested };
 		}
-		const excludeSet = kind === vscode.TerminalCompletionItemKind.Flag ? parsedArguments?.passedOptions.map(option => option.name).flat() : undefined;
+		const flagsToExclude = kind === vscode.TerminalCompletionItemKind.Flag ? parsedArguments?.passedOptions.map(option => option.name).flat() : undefined;
 		if (Array.isArray(specArgs)) {
 			for (const item of specArgs) {
 				const suggestionLabels = getLabel(item);
@@ -297,7 +297,7 @@ export async function collectCompletionItemResult(command: Command, parsedArgume
 					continue;
 				}
 				for (const label of suggestionLabels) {
-					if (excludeSet?.includes(label)) {
+					if (flagsToExclude?.includes(label)) {
 						continue;
 					}
 					items.push(
@@ -314,7 +314,7 @@ export async function collectCompletionItemResult(command: Command, parsedArgume
 			}
 		} else {
 			for (const [label, item] of Object.entries(specArgs)) {
-				if (excludeSet?.includes(label)) {
+				if (flagsToExclude?.includes(label)) {
 					continue;
 				}
 				items.push(
