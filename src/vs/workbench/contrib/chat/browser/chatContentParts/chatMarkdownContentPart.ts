@@ -295,7 +295,7 @@ class CollapsedCodeBlock extends Disposable {
 	private readonly _progressStore = this._store.add(new DisposableStore());
 
 	constructor(
-		sessionId: string,
+		private readonly sessionId: string,
 		requestId: string,
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -335,7 +335,7 @@ class CollapsedCodeBlock extends Disposable {
 		this._uri = uri;
 
 		const iconText = this.labelService.getUriBasenameLabel(uri);
-		const modifiedEntry = this.chatEditingService.globalEditingSession?.getEntry(uri);
+		const modifiedEntry = this.chatEditingService.getEditingSession(this.sessionId)?.getEntry(uri);
 		const isComplete = !modifiedEntry?.isCurrentlyBeingModified.get();
 
 		let iconClasses: string[] = [];

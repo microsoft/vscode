@@ -151,7 +151,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 				}
 
 				if (isAttachmentPartialOrOmitted) {
-					hoverElement.textContent = localize('chat.imageAttachmentHover', "Image was not sent to the model.");
+					hoverElement.textContent = localize('chat.imageAttachmentHover', "Selected model does not support images.");
 					textLabel.style.textDecoration = 'line-through';
 					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
 				} else {

@@ -56,6 +56,16 @@ export interface IPromptReference extends IDisposable {
 	readonly linkRange: IRange | undefined;
 
 	/**
+	 * Text of the reference as it appears in the source.
+	 */
+	readonly text: string;
+
+	/**
+	 * Original link path as it appears in the source.
+	 */
+	readonly path: string;
+
+	/**
 	 * Whether the current reference points to a prompt snippet file.
 	 */
 	readonly isPromptSnippet: boolean;
@@ -90,16 +100,21 @@ export interface IPromptReference extends IDisposable {
 	readonly topError: IResolveError | undefined;
 
 	/**
+	 * Direct references of the current reference.
+	 */
+	references: readonly IPromptReference[];
+
+	/**
 	 * All references that the current reference may have,
-	 * including the all possible nested child references.
+	 * including all possible nested child references.
 	 */
 	allReferences: readonly IPromptReference[];
 
 	/**
 	 * All *valid* references that the current reference may have,
-	 * including the all possible nested child references.
+	 * including all possible nested child references.
 	 *
-	 * A valid reference is the one that points to an existing resource,
+	 * A valid reference is one that points to an existing resource,
 	 * without creating a circular reference loop or having any other
 	 * issues that would make the reference resolve logic to fail.
 	 */

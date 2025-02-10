@@ -8,9 +8,9 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { dirname, extUri } from '../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
 
 /**
  * Class to locate prompt instructions files.
@@ -83,10 +83,10 @@ export class ChatInstructionsFileLocator {
 					continue;
 				}
 
-				// if inside a workspace, consider the specified source location inside
-				// the workspace root, to allow users to use some (e.g., `.github/prompts`)
+				// if inside a multi-root workspace, consider the specified source location
+				// inside the workspace root, to allow users to use some (e.g., `.github/prompts`)
 				// folder as a top-level folder in the workspace
-				const workspaceRootUri = dirname(folders[0].uri);
+				const workspaceRootUri = dirname(folder.uri);
 				const workspaceFolderUri = extUri.resolvePath(workspaceRootUri, sourceFolderName);
 				// if we already have this folder in the list, skip it
 				if (paths.has(workspaceFolderUri)) {
@@ -117,8 +117,8 @@ export class ChatInstructionsFileLocator {
 		exclude: ReadonlySet<string>,
 	): Promise<readonly URI[]> {
 		const results = await this.fileService.resolveAll(
-			locations.map((location) => {
-				return { resource: location };
+			locations.map((resource) => {
+				return { resource };
 			}),
 		);
 
@@ -141,7 +141,7 @@ export class ChatInstructionsFileLocator {
 					continue;
 				}
 
-				if (!name.endsWith(PROMPT_SNIPPET_FILE_EXTENSION)) {
+				if (!name.endsWith(PROMPT_FILE_EXTENSION)) {
 					continue;
 				}
 

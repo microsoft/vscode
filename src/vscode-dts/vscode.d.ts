@@ -6324,7 +6324,7 @@ declare module 'vscode' {
 		 * Optional method which fills in the {@linkcode DocumentPasteEdit.additionalEdit} before the edit is applied.
 		 *
 		 * This is called once per edit and should be used if generating the complete edit may take a long time.
-		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.additionalEdit}.
+		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.insertText} or {@linkcode DocumentPasteEdit.additionalEdit}.
 		 *
 		 * @param pasteEdit The {@linkcode DocumentPasteEdit} to resolve.
 		 * @param token A cancellation token.
@@ -11906,7 +11906,7 @@ declare module 'vscode' {
 	 * A map containing a mapping of the mime type of the corresponding transferred data.
 	 *
 	 * Drag and drop controllers that implement {@link TreeDragAndDropController.handleDrag `handleDrag`} can add additional mime types to the
-	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
+	 * data transfer. These additional mime types will only be included in the `handleDrop` when the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
 	export class DataTransfer implements Iterable<[mimeType: string, item: DataTransferItem]> {

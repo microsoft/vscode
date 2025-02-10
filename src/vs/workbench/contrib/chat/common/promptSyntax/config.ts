@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../../nls.js';
-import { PROMPT_SNIPPET_FILE_EXTENSION } from './contentProviders/promptContentsProviderBase.js';
+import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from './constants.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
@@ -118,11 +118,6 @@ export namespace PromptFilesConfig {
 	export const CONFIG_KEY: string = 'chat.promptFiles';
 
 	/**
-	 * Documentation link for the prompt snippets feature.
-	 */
-	export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
-
-	/**
 	 * Default prompt instructions source folder paths.
 	 */
 	const DEFAULT_LOCATION = Object.freeze(['.github/prompts']);
@@ -140,17 +135,18 @@ export namespace PromptFilesConfig {
 		}
 
 		if (typeof configValue === 'string') {
-			const cleanValue = configValue.trim().toLowerCase();
+			const trimmedValue = configValue.trim();
+			const lowercasedValue = trimmedValue.toLowerCase();
 
-			if (!cleanValue) {
+			if (!lowercasedValue) {
 				return undefined;
 			}
 
-			if (asBoolean(cleanValue) !== undefined) {
-				return asBoolean(cleanValue);
+			if (asBoolean(lowercasedValue) !== undefined) {
+				return asBoolean(lowercasedValue);
 			}
 
-			return cleanValue;
+			return trimmedValue;
 		}
 
 		if (typeof configValue === 'boolean') {
@@ -158,9 +154,11 @@ export namespace PromptFilesConfig {
 		}
 
 		if (Array.isArray(configValue)) {
-			return configValue.filter((item) => {
-				return typeof item === 'string';
+			const cleanArray = configValue.filter((item) => {
+				return typeof item === 'string' && !!item.trim();
 			});
+
+			return Object.freeze(cleanArray);
 		}
 
 		// note! this would be also true for `null` and `array`,
@@ -218,13 +216,13 @@ export namespace PromptFilesConfig {
 
 	const usageExample1 = nls.localize(
 		`chat.promptFiles.config.description.example1`,
-		"Enable with the default location of the prompt files (`{0}`):\n{1}",
+		"Enable with the default location of prompt files (`{0}`):\n{1}",
 		DEFAULT_LOCATION[0],
 		`\`\`\`json\n{\n  "${CONFIG_KEY}": true,\n}\n\`\`\``,
 	);
 	const usageExample2 = nls.localize(
 		`chat.promptFiles.config.description.example2`,
-		"Specify custom location(s) of the prompt files:\n{0}",
+		"Specify custom location(s) of prompt files:\n{0}",
 		`\`\`\`json\n{\n  "${CONFIG_KEY}": {\n    ".github/prompts": true,\n    "/Users/vscode/prompts": true,\n}\n\`\`\``,
 	);
 
@@ -233,8 +231,8 @@ export namespace PromptFilesConfig {
 	 */
 	export const CONFIG_DESCRIPTION = nls.localize(
 		'chat.promptFiles.config.description',
-		"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nSet to `true` or use the `{ \"/path/to/folder\": boolean }` notation to specify a different path (or a couple of them). Relative paths are resolved from the root folder(s) of your workspace, and the default value of `{2}` is used if no other paths provided.\n#### Examples\n{3}\n{4}",
-		PROMPT_SNIPPET_FILE_EXTENSION,
+		"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nSet to `true` or use the `{ \"/path/to/folder\": boolean }` notation to specify a different path (or multiple). Relative paths are resolved from the root folder(s) of your workspace, and the default value of `{2}` is used if no other paths provided.\n#### Examples\n{3}\n{4}",
+		PROMPT_FILE_EXTENSION,
 		DOCUMENTATION_URL,
 		DEFAULT_LOCATION[0],
 		usageExample1,

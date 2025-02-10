@@ -39,10 +39,6 @@ export interface IBaseChatRequestVariableEntry {
 
 	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
 	kind?: never;
-	/**
-	 * True if the variable has a value vs being a reference to a variable
-	 */
-	isDynamic?: boolean;
 	isFile?: boolean;
 	isDirectory?: boolean;
 	isTool?: boolean;
@@ -51,7 +47,6 @@ export interface IBaseChatRequestVariableEntry {
 
 export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'implicit';
-	readonly isDynamic: true;
 	readonly isFile: true;
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
@@ -76,19 +71,16 @@ export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVar
 
 export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'symbol';
-	readonly isDynamic: true;
 	readonly value: Location;
 	readonly symbolKind: SymbolKind;
 }
 
 export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'command';
-	readonly isDynamic: true;
 }
 
 export interface ILinkVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'link';
-	readonly isDynamic: true;
 	readonly value: URI;
 }
 
@@ -1342,12 +1334,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
-		} else if (progress.kind === 'agentDetection') {
-			const agent = this.chatAgentService.getAgent(progress.agentId);
-			if (agent) {
-				request.response.setAgent(agent, progress.command);
-				this._onDidChange.fire({ kind: 'setAgent', agent, command: progress.command });
-			}
 		} else if (progress.kind === 'codeCitation') {
 			request.response.applyCodeCitation(progress);
 		} else if (progress.kind === 'move') {
