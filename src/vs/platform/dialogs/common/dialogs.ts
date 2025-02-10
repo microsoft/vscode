@@ -639,7 +639,7 @@ export interface IMassagedMessageBoxOptions {
 export function massageMessageBoxOptions(options: MessageBoxOptions, productService: IProductService): IMassagedMessageBoxOptions {
 	const massagedOptions = deepClone(options);
 
-	let buttons = (massagedOptions.buttons ?? []).map(button => mnemonicButtonLabel(button));
+	let buttons = (massagedOptions.buttons ?? []).map(button => mnemonicButtonLabel(button).withMnemonic);
 	let buttonIndeces = (options.buttons || []).map((button, index) => index);
 
 	let defaultId = 0; // by default the first button is default button
@@ -715,7 +715,7 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 		}
 	}
 
-	massagedOptions.buttons = buttons.map(button => button.withMnemonic);
+	massagedOptions.buttons = buttons.map(button => button);
 	massagedOptions.defaultId = defaultId;
 	massagedOptions.cancelId = cancelId;
 	massagedOptions.noLink = true;
