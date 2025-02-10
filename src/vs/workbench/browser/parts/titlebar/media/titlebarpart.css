@@ -274,9 +274,12 @@
 }
 
 /* Window Controls Container Web: Apply WCO environment variables (https://developer.mozilla.org/en-US/docs/Web/CSS/env#titlebar-area-x) */
-.monaco-workbench.web .part.titlebar .titlebar-right .window-controls-container {
-	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
-	height: env(titlebar-area-height, 35px);
+.monaco-workbench .part.titlebar .titlebar-right {
+	position: absolute;
+	left: 0;
+	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px)) !important;
+	height: env(titlebar-area-height, 35px) !important;
+	border: 1px solid red;
 }
 
 .monaco-workbench.web .part.titlebar .titlebar-left .window-controls-container {
