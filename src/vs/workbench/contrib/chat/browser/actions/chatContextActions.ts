@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isElectron } from '../../../../../base/common/platform.js';
+import { isElectron, isLinux, isWindows } from '../../../../../base/common/platform.js';
 import { basename, dirname, extUri } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -27,7 +27,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
@@ -576,6 +576,7 @@ export class AttachContextAction extends Action2 {
 				await selectAndAttachPrompt({
 					widget,
 					resource: undefined,
+					location: undefined, // TODO: @legomushroom - add location here
 					initService,
 					quickInputService,
 					labelService,
@@ -893,6 +894,7 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
  */
 interface ISelectPromptOptions {
 	resource: URI | undefined;
+	location: ChatAgentLocation | undefined;
 	initService: IInstantiationService;
 	labelService: ILabelService;
 	quickInputService: IQuickInputService;
@@ -922,6 +924,47 @@ interface IPromptSelectionResult {
 /**
  * TODO: @legomushroom
  */
+const createPickItem = (
+	file: URI,
+	labelService: ILabelService,
+): WithUriValue<IQuickPickItem> => {
+	const fileBasename = basename(file);
+	const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
+
+	return {
+		type: 'item',
+		label: fileWithoutExtension,
+		description: labelService.getUriLabel(dirname(file), { relative: true }),
+		tooltip: file.fsPath,
+		value: file,
+		// picked: extUri.isEqual(file, resource), // TODO: @legomushroom - this can be used with multi-select
+	};
+};
+
+/**
+ * TODO: @legomushroom
+ */
+const getPickerPlaceholder = (location?: ChatAgentLocation): string => {
+	let result = localize('selectPromptPlaceholder', 'Select a prompt to use');
+
+	// if target chat location is the `EditingSession`, add a note to the placeholder
+	if (location === ChatAgentLocation.EditingSession) {
+		result += ' ' + localize('selectPromptPlaceholder.inEdits', 'in Edits');
+	}
+
+	// if no location is provided, add the `alt/option` key modifier note
+	if (!location) {
+		const key = (isWindows || isLinux) ? 'alt' : 'option';
+
+		result += ' ' + localize('selectPromptPlaceholder.holdAltOption', '(hold `{0}` to use in Edits)', key);
+	}
+
+	return result;
+};
+
+/**
+ * TODO: @legomushroom
+ */
 const selectPrompt = async (options: ISelectPromptOptions): Promise<IPromptSelectionResult | null> => {
 	const { resource, initService, labelService } = options;
 	const promptsLocator = initService.createInstance(ChatInstructionsFileLocator);
@@ -931,18 +974,7 @@ const selectPrompt = async (options: ISelectPromptOptions): Promise<IPromptSelec
 	const files = await promptsLocator.listFiles([])
 		.then((files) => {
 			return files.map((file) => {
-				const fileBasename = basename(file);
-				const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
-				const result: WithUriValue<IQuickPickItem> = {
-					type: 'item',
-					label: fileWithoutExtension,
-					description: labelService.getUriLabel(dirname(file), { relative: true }),
-					tooltip: file.fsPath,
-					value: file,
-					// picked: extUri.isEqual(file, resource), // TODO: @legomushroom - this can be used with multi-select
-				};
-
-				return result;
+				return createPickItem(file, labelService);
 			});
 		});
 
@@ -995,20 +1027,24 @@ const selectPrompt = async (options: ISelectPromptOptions): Promise<IPromptSelec
 	}
 
 	// otherwise show the prompt file selection dialog
-	let location = ChatAgentLocation.Panel;
-	const maybeSelectedFile = await quickInputService.pick(
-		files,
-		{
-			placeHolder: localize('selectPrompt', 'Select a prompt to use (hold `alt` to use in Edits)'),
-			activeItem,
-			canPickMany: false,
-			matchOnDescription: true,
-			onKeyMods(keyMods) {
-				if (keyMods.alt) {
-					location = ChatAgentLocation.EditingSession;
-				}
-			},
-		});
+	let { location } = options;
+	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
+		placeHolder: getPickerPlaceholder(location),
+		activeItem,
+		canPickMany: false,
+		matchOnDescription: true,
+	};
+
+	if (!location) {
+		location = ChatAgentLocation.Panel;
+		pickOptions.onKeyMods = (keyMods) => {
+			if (keyMods.alt) {
+				location = ChatAgentLocation.EditingSession;
+			}
+		};
+	}
+
+	const maybeSelectedFile = await quickInputService.pick(files, pickOptions);
 
 	if (!maybeSelectedFile) {
 		return null;
@@ -1063,7 +1099,8 @@ function getEditingSession(chatEditingService: IChatEditingService, chatWidget: 
  */
 export interface IChatUsePromptActionOptions {
 	resource?: URI;
-	// location: ChatAgentLocation;
+	// allowSelection?: boolean;
+	location?: ChatAgentLocation;
 }
 
 /**
@@ -1086,25 +1123,56 @@ registerAction2(class UsePromptAction extends Action2 {
 		});
 	}
 
-	public override async run(
+	/**
+	 * TODO: @legomushroom
+	 */
+	private async select(
 		accessor: ServicesAccessor,
 		options: IChatUsePromptActionOptions,
-	): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
+	): Promise<IPromptSelectionResult | null> {
 		const labelService = accessor.get(ILabelService);
 		const openerService = accessor.get(IOpenerService);
 		const initService = accessor.get(IInstantiationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const { resource } = options;
+		const { resource, location } = options;
 
-		const selectionResult = await selectPrompt({
+		// if (allowSelection === false) {
+		// 	assertDefined(
+		// 		resource,
+		// 		'Expected `resource` to be defined when `allowSelection` is `false`.',
+		// 	);
+
+		// 	return {
+		// 		selected: createPickItem(resource, labelService),
+		// 		location: ChatAgentLocation.Panel,
+		// 	};
+		// }
+
+		return await selectPrompt({
 			resource,
+			location,
 			initService,
 			labelService,
 			quickInputService,
 			openerService,
 		});
+	}
+
+	public override async run(
+		accessor: ServicesAccessor,
+		options: IChatUsePromptActionOptions,
+	): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		// const { resource } = options;
+		// if (allowSelection === false) {
+		// 	assertDefined(
+		// 		resource,
+		// 		'Expected `resource` to be defined when `allowSelection` is `false`.',
+		// 	);
+		// }
+
+		const selectionResult = await this.select(accessor, options);
 
 		// no prompt selected, nothing to do
 		if (!selectionResult) {
