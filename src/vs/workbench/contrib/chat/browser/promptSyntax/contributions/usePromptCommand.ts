@@ -6,7 +6,6 @@
 // import * as nls from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 // import { CHAT_CATEGORY } from '../../actions/chatActions.js';
-import { ChatAgentLocation } from '../../../common/chatAgents.js';
 // import { Schemas } from '../../../../../../base/common/network.js';
 // import { ResourceContextKey } from '../../../../../common/contextkeys.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -24,11 +23,9 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platfor
 
 /**
  * TODO: @legomushroom
- *  - update picker hint text to show chat type destination
- *  - use `onKeyMods` instead of 2 separate commands
- *  - chat input support
  *  - chat edits support
  *  - inline edits support
+ *  - file editor context menu support
  *  - file tree context support
  *  - command palette support
  *  - what to do with the "current file" context when using a current file as a prompt?
@@ -96,32 +93,32 @@ const getActivePromptUri = (
  * Implementation of the "Use Prompt" command.
  */
 const usePromptCommand = async (
-	location: ChatAgentLocation,
+	// location: ChatAgentLocation,
 	accessor: ServicesAccessor,
 	resource?: URI,
 ): Promise<void> => {
 	const commandService = accessor.get(ICommandService);
 
 	const options: IChatUsePromptActionOptions = {
-		location,
+		// location,
 		resource: getActivePromptUri(resource, accessor),
 	};
 
 	await commandService.executeCommand(USE_PROMPT_ACTION_ID, options);
 };
 
-const usePromptCommandFactory = (
-	location: ChatAgentLocation,
-) => {
-	return async (
-		accessor: ServicesAccessor,
-		// TODO: @legomushroom - uncomment for the code editor context menu actions
-		// resource?: URI,
-	): Promise<void> => {
-		const resource = undefined;
-		return await usePromptCommand(location, accessor, resource);
-	};
-};
+// const usePromptCommandFactory = (
+// 	location: ChatAgentLocation,
+// ) => {
+// 	return async (
+// 		accessor: ServicesAccessor,
+// 		// TODO: @legomushroom - uncomment for the code editor context menu actions
+// 		// resource?: URI,
+// 	): Promise<void> => {
+// 		const resource = undefined;
+// 		return await usePromptCommand(location, accessor, resource);
+// 	};
+// };
 
 // Key bindings
 
@@ -130,7 +127,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: USE_PROMPT_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: BASE_KEYS | KeyCode.KeyR,
-	handler: usePromptCommandFactory(ChatAgentLocation.Panel),
+	handler: usePromptCommand,
 	// when: USE_PROMPT_WHEN_CONTEXT,
 });
 
@@ -138,7 +135,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: USE_PROMPT_IN_EDITS_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: BASE_KEYS | KeyCode.KeyE,
-	handler: usePromptCommandFactory(ChatAgentLocation.EditingSession),
+	handler: usePromptCommand,
 	// when: USE_PROMPT_WHEN_CONTEXT,
 });
 

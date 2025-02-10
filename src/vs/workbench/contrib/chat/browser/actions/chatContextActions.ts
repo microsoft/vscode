@@ -914,7 +914,15 @@ type WithUriValue<T> = T & { value: URI };
 /**
  * TODO: @legomushroom
  */
-const selectPrompt = async (options: ISelectPromptOptions): Promise<WithUriValue<IQuickPickItem> | undefined> => {
+interface IPromptSelectionResult {
+	selected: WithUriValue<IQuickPickItem>;
+	location: ChatAgentLocation;
+}
+
+/**
+ * TODO: @legomushroom
+ */
+const selectPrompt = async (options: ISelectPromptOptions): Promise<IPromptSelectionResult | null> => {
 	const { resource, initService, labelService } = options;
 	const promptsLocator = initService.createInstance(ChatInstructionsFileLocator);
 
@@ -954,16 +962,17 @@ const selectPrompt = async (options: ISelectPromptOptions): Promise<WithUriValue
 		const result = await quickInputService.pick(
 			[docsQuickPick],
 			{
-				placeHolder: localize('noPromptFilesFoundLabel', 'No prompt files found.'),
+				placeHolder: localize('noPromptFilesFoundLabel', 'No prompts found.'),
 				canPickMany: false,
 			});
 
 		if (!result) {
-			return;
+			return null;
 		}
 
 		await openerService.open(result.value);
-		return;
+
+		return null;
 	}
 
 	let activeItem: WithUriValue<IQuickPickItem> | undefined;
@@ -986,23 +995,33 @@ const selectPrompt = async (options: ISelectPromptOptions): Promise<WithUriValue
 	}
 
 	// otherwise show the prompt file selection dialog
+	let location = ChatAgentLocation.Panel;
 	const maybeSelectedFile = await quickInputService.pick(
 		files,
 		{
-			placeHolder: localize('selectPromptFile', 'Select a prompt file'),
+			placeHolder: localize('selectPrompt', 'Select a prompt to use (hold `alt` to use in Edits)'),
 			activeItem,
 			canPickMany: false,
 			matchOnDescription: true,
 			onKeyMods(keyMods) {
-				console.log(keyMods);
+				if (keyMods.alt) {
+					location = ChatAgentLocation.EditingSession;
+				}
 			},
 		});
 
-	return maybeSelectedFile;
+	if (!maybeSelectedFile) {
+		return null;
+	}
+
+	return {
+		selected: maybeSelectedFile,
+		location,
+	};
 };
 
 /**
- * TODO: @legomushroom
+ * Attaches a prompt to the chat widget.
  */
 const attachPrompt = (
 	promptUri: URI,
@@ -1015,20 +1034,19 @@ const attachPrompt = (
 		.add(promptUri);
 };
 
-
 /**
  * Open the prompt files selection dialog and adds
  * selected prompt(s) to the chat attachments model.
  */
 const selectAndAttachPrompt = async (options: ISelectAndAttachPromptOptions): Promise<void> => {
-	const selectedFile = await selectPrompt(options);
+	const selectionResult = await selectPrompt(options);
 
-	if (!selectedFile) {
+	if (!selectionResult) {
 		return;
 	}
 
 	attachPrompt(
-		selectedFile.value,
+		selectionResult.selected.value,
 		options.widget,
 	);
 };
@@ -1045,7 +1063,7 @@ function getEditingSession(chatEditingService: IChatEditingService, chatWidget: 
  */
 export interface IChatUsePromptActionOptions {
 	resource?: URI;
-	location: ChatAgentLocation;
+	// location: ChatAgentLocation;
 }
 
 /**
@@ -1078,9 +1096,9 @@ registerAction2(class UsePromptAction extends Action2 {
 		const initService = accessor.get(IInstantiationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const { resource, location } = options;
+		const { resource } = options;
 
-		const selectedPrompt = await selectPrompt({
+		const selectionResult = await selectPrompt({
 			resource,
 			initService,
 			labelService,
@@ -1089,9 +1107,11 @@ registerAction2(class UsePromptAction extends Action2 {
 		});
 
 		// no prompt selected, nothing to do
-		if (!selectedPrompt) {
+		if (!selectionResult) {
 			return;
 		}
+
+		const { selected, location } = selectionResult;
 
 		// TODO: @legomushroom - reuse existing chat widget, if present
 		const widget = (location === ChatAgentLocation.Panel)
@@ -1103,7 +1123,7 @@ registerAction2(class UsePromptAction extends Action2 {
 			return;
 		}
 
-		attachPrompt(selectedPrompt.value, widget);
+		attachPrompt(selected.value, widget);
 		widget.focusInput();
 	}
 });
