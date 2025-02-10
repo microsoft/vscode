@@ -216,7 +216,7 @@ export interface ISaveDialogOptions {
 	/**
 	 * A human-readable string for the ok button
 	 */
-	readonly saveLabel?: string;
+	readonly saveLabel?: { readonly withMnemonic: string; readonly withoutMnemonic: string } | string;
 
 	/**
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
@@ -240,7 +240,7 @@ export interface IOpenDialogOptions {
 	/**
 	 * A human-readable string for the open button.
 	 */
-	readonly openLabel?: { withMnemonic: string; withoutMnemonic: string } | string;
+	readonly openLabel?: { readonly withMnemonic: string; readonly withoutMnemonic: string } | string;
 
 	/**
 	 * Allow to select files, defaults to `true`.

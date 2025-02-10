@@ -108,7 +108,7 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 
 		const buttonBar = this._register(new ButtonBar(buttonContainer));
 		const primaryButton = this._register(buttonBar.addButtonWithDescription({ title: true, secondary: false, ...defaultButtonStyles }));
-		primaryButton.label = mnemonicButtonLabel(buttonText, true).withMnemonic;
+		primaryButton.label = mnemonicButtonLabel(buttonText, true);
 
 		this._register(primaryButton.onDidClick(async () => {
 			await this.executeCommand(buttonAction);

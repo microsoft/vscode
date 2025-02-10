@@ -417,16 +417,18 @@ export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean
  * - Windows: Supported via & character (replace && with & and & with && for escaping)
  * -   Linux: Supported via _ character (replace && with _)
  * -   macOS: Unsupported (replace && with empty string)
- * When forceDisableMnemonics is set, the withMnemonic and withoutMnemonic values will be equal.
+ * When forceDisableMnemonics is set, returns just the label without mnemonics.
  */
-export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): { withMnemonic: string; withoutMnemonic: string } {
-	let withMnemonic: string;
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics: true): string;
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: false): { readonly withMnemonic: string; readonly withoutMnemonic: string };
+export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): { readonly withMnemonic: string; readonly withoutMnemonic: string } | string {
 	const withoutMnemonic = label.replace(/\(&&\w\)|&&/g, '');
 
 	if (isMacintosh || forceDisableMnemonics) {
-		return { withMnemonic: withoutMnemonic, withoutMnemonic };
+		return withoutMnemonic;
 	}
 
+	let withMnemonic: string;
 	if (isWindows) {
 		withMnemonic = label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
 	} else {
