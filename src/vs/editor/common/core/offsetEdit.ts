@@ -354,3 +354,70 @@ function joinEdits(edits1: OffsetEdit, edits2: OffsetEdit): OffsetEdit {
 
 	return new OffsetEdit(result).normalize();
 }
+
+export function applyEditsToRanges(sortedRanges: OffsetRange[], edits: OffsetEdit): OffsetRange[] {
+	sortedRanges = sortedRanges.slice();
+
+	// treat edits as deletion of the replace range and then as insertion that extends the first range
+	const result: OffsetRange[] = [];
+
+	let offset = 0;
+
+	for (const e of edits.edits) {
+		while (true) {
+			// ranges before the current edit
+			const r = sortedRanges[0];
+			if (!r || r.endExclusive >= e.replaceRange.start) {
+				break;
+			}
+			sortedRanges.shift();
+			result.push(r.delta(offset));
+		}
+
+		const intersecting: OffsetRange[] = [];
+		while (true) {
+			const r = sortedRanges[0];
+			if (!r || !r.intersectsOrTouches(e.replaceRange)) {
+				break;
+			}
+			sortedRanges.shift();
+			intersecting.push(r);
+		}
+
+		for (let i = intersecting.length - 1; i >= 0; i--) {
+			let r = intersecting[i];
+
+			const overlap = r.intersect(e.replaceRange)!.length;
+			r = r.deltaEnd(-overlap + (i === 0 ? e.newText.length : 0));
+
+			const rangeAheadOfReplaceRange = r.start - e.replaceRange.start;
+			if (rangeAheadOfReplaceRange > 0) {
+				r = r.delta(-rangeAheadOfReplaceRange);
+			}
+
+			if (i !== 0) {
+				r = r.delta(e.newText.length);
+			}
+
+			// We already took our offset into account.
+			// Because we add r back to the queue (which then adds offset again),
+			// we have to remove it here.
+			r = r.delta(-(e.newText.length - e.replaceRange.length));
+
+			sortedRanges.unshift(r);
+		}
+
+		offset += e.newText.length - e.replaceRange.length;
+	}
+
+	while (true) {
+		const r = sortedRanges[0];
+		if (!r) {
+			break;
+		}
+		sortedRanges.shift();
+		result.push(r.delta(offset));
+	}
+
+	return result;
+}
