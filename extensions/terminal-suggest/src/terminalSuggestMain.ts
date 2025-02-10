@@ -423,9 +423,7 @@ export async function getCompletionItemsFromSpecs(
 		for (const command of availableCommands) {
 			if (!labels.has(command.label)) {
 				let detail = command.detail;
-				const isSourceCommand = command.label === '.';
-
-				if (isSourceCommand) {
+				if (command.label === '.') {
 					detail = 'Source a file in the current shell';
 				}
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command, detail));
