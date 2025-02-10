@@ -11,6 +11,7 @@ export const upstreamSpecs = [
 	'rmdir',
 	'touch',
 	'pwd',
+	'brew',
 	'cp',
 	'mv',
 	'cat',
