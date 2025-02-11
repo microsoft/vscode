@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Relay } from '../../../../../base/common/event.js';
+import { Emitter, Relay, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -22,6 +22,13 @@ import { ChatTreeItem } from '../chat.js';
 import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatProgressContentPart } from './chatProgressContentPart.js';
+import { ChatTerminalToolView } from './chatTerminalToolInvocationPart.js';
+
+export interface IChatToolInvocationView extends IDisposable {
+	domNode: HTMLElement;
+	onDidChangeHeight: Event<void>;
+	onNeedsRerender: Event<void>;
+}
 import { ChatCollapsibleListContentPart, CollapsibleListPool, IChatCollapsibleListItem } from './chatReferencesContentPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
@@ -35,7 +42,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		context: IChatContentPartRenderContext,
 		renderer: MarkdownRenderer,
 		listPool: CollapsibleListPool,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -52,7 +59,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			dom.clearNode(this.domNode);
 			partStore.clear();
 
-			const subPart = partStore.add(instantiationService.createInstance(ChatToolInvocationSubPart, toolInvocation, context, renderer, listPool));
+			const subPart = partStore.add(this.createView(toolInvocation, context, renderer, listPool));
 			this.domNode.appendChild(subPart.domNode);
 			partStore.add(subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			partStore.add(subPart.onNeedsRerender(() => {
@@ -61,6 +68,17 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}));
 		};
 		render();
+	}
+
+	private createView(
+		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		context: IChatContentPartRenderContext,
+		renderer: MarkdownRenderer,): IChatToolInvocationView {
+		if (toolInvocation.toolInvocation?.toolId === 'copilot_findFiles') {
+			return this.instantiationService.createInstance(ChatTerminalToolView, toolInvocation, context, renderer);
+		} else {
+			return this.instantiationService.createInstance(GenericChatToolInvocationView, toolInvocation, context, renderer);
+		}
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
@@ -72,7 +90,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 }
 
-class ChatToolInvocationSubPart extends Disposable {
+class GenericChatToolInvocationView extends Disposable implements IChatToolInvocationView {
 	public readonly domNode: HTMLElement;
 
 	private _onNeedsRerender = this._register(new Emitter<void>());

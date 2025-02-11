@@ -184,7 +184,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					await tool.impl.prepareToolInvocation(dto.parameters, token)
 					: undefined;
 
-				toolInvocation = new ChatToolInvocation(prepared, tool.data);
+				toolInvocation = new ChatToolInvocation(dto, prepared, tool.data);
 				model.acceptResponseProgress(request, toolInvocation);
 				if (prepared?.confirmationMessages) {
 					const userConfirmed = await toolInvocation.confirmed.p;

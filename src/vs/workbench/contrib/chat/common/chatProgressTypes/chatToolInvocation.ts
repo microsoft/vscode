@@ -7,7 +7,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
-import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolResult } from '../languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolConfirmationMessages, IToolInvocation, IToolData, IToolResult } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
@@ -43,7 +43,10 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	private _confirmationMessages: IToolConfirmationMessages | undefined;
 	public readonly presentation: IPreparedToolInvocation['presentation'];
 
-	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData) {
+	constructor(
+		preparedInvocation: IPreparedToolInvocation | undefined,
+		public readonly toolInvocation: IToolInvocation,
+		toolData: IToolData) {
 		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
 		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
 		this.invocationMessage = invocationMessage;
@@ -83,6 +86,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	public toJSON(): IChatToolInvocationSerialized {
 		return {
+			toolInvocation: this.toolInvocation,
 			kind: 'toolInvocationSerialized',
 			presentation: this.presentation,
 			invocationMessage: this.invocationMessage,
