@@ -453,8 +453,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 						}
 
 						if (!this._cellStylesMatch(ghostTextCell, cell)) {
-							ghostTextIndex = -1;
-							break;
+							return -1;
 						}
 
 					}
