@@ -124,19 +124,23 @@
 
 /* Glow effects only on active state */
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-chat-icon) {
-    box-shadow: 0px 0px 57.6px 9.6px #AFF349;
+    box-shadow: 0px 0px 57.6px 9.6px #AFF349, /* Outer glow */
+                inset 0px 0px 0px 1px #FFFFFF80; /* Inner border effect */
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-creator-icon) {
-    box-shadow: 0px 0px 57.6px 9.6px #FF71BD;
+    box-shadow: 0px 0px 57.6px 9.6px #FF71BD, /* Outer glow */
+                inset 0px 0px 0px 1px #FFFFFF80; /* Inner border effect */
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-search-icon) {
-    box-shadow: 0px 0px 57.6px 9.6px #14D2CB;
+    box-shadow: 0px 0px 57.6px 9.6px #14D2CB, /* Outer glow */
+                inset 0px 0px 0px 1px #FFFFFF80; /* Inner border effect */
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-memory-icon) {
-    box-shadow: 0px 0px 57.6px 9.6px #8E66FC;
+    box-shadow: 0px 0px 57.6px 9.6px #8E66FC, /* Outer glow */
+                inset 0px 0px 0px 1px #FFFFFF80; /* Inner border effect */
 }
 
 /* Subtle hover effect for inactive icons */
