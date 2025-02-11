@@ -292,6 +292,7 @@
 	"config.diagnosticsCommitHook.Severity.information": "Errors, warnings, and information",
 	"config.diagnosticsCommitHook.Severity.hint": "Errors, warnings, information, and hints",
 	"config.diagnosticsCommitHook.Source": "Controls the list of diagnostics sources for which Git should check before committing.",
+	"config.untrackedChangesSoftDelete": "Controls whether discarding untracked changes moves the file(s) to the Recycle Bin (Windows), Trash (macOS, Linux) instead of deleting them.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
