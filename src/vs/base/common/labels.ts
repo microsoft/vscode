@@ -424,8 +424,11 @@ export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: false
 export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): { readonly withMnemonic: string; readonly withoutMnemonic: string } | string {
 	const withoutMnemonic = label.replace(/\(&&\w\)|&&/g, '');
 
-	if (isMacintosh || forceDisableMnemonics) {
+	if (forceDisableMnemonics) {
 		return withoutMnemonic;
+	}
+	if (isMacintosh) {
+		return { withMnemonic: withoutMnemonic, withoutMnemonic };
 	}
 
 	let withMnemonic: string;
