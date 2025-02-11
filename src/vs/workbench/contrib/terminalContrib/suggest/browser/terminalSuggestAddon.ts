@@ -176,6 +176,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		detail: 'Inline suggestion',
 		kind: TerminalCompletionItemKind.InlineSuggestion,
 	};
+	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
 		// Nothing to handle if the terminal is not attached
@@ -253,7 +254,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Add any "ghost text" suggestion suggested by the shell. This aligns with behavior of the
 		// editor and how it interacts with inline completions. This object is tracked and reused as
 		// it may change on input.
-		completions.push(this._inlineCompletion);
 		this._refreshInlineCompletion();
 
 		// Add any missing icons based on the completion item kind
@@ -265,7 +265,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new TerminalCompletionModel(
-			completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c)),
+			[
+				...completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c)),
+				this._inlineCompletionItem,
+			],
 			lineContext
 		);
 		if (token.isCancellationRequested) {
@@ -450,13 +453,33 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _refreshInlineCompletion() {
+		const oldIsInvalid = this._inlineCompletionItem.isInvalid;
 		if (!this._currentPromptInputState || this._currentPromptInputState.ghostTextIndex === -1) {
-			this._inlineCompletion.label = '';
+			this._inlineCompletionItem.isInvalid = true;
 		} else {
+			this._inlineCompletionItem.isInvalid = false;
+			// Update properties
 			const suggestion = this._currentPromptInputState.value;
 			this._inlineCompletion.label = suggestion;
 			this._inlineCompletion.replacementIndex = 0;
 			this._inlineCompletion.replacementLength = this._currentPromptInputState.ghostTextIndex;
+			// Reset the completion item as the object reference must remain the same but its
+			// contents will differ across syncs. This is done so we don't need to reassign the
+			// model and the slowdown/flickering that could potentially cause.
+			const x = new TerminalCompletionItem(this._inlineCompletion);
+			this._inlineCompletionItem.idx = x.idx;
+			this._inlineCompletionItem.score = x.score;
+			this._inlineCompletionItem.labelLow = x.labelLow;
+			this._inlineCompletionItem.fileExtLow = x.fileExtLow;
+			this._inlineCompletionItem.labelLowExcludeFileExt = x.labelLowExcludeFileExt;
+			this._inlineCompletionItem.labelLowNormalizedPath = x.labelLowNormalizedPath;
+			this._inlineCompletionItem.underscorePenalty = x.underscorePenalty;
+			this._inlineCompletionItem.word = x.word;
+		}
+
+		// Force a filter all in order to re-evaluate the inline completion
+		if (this._inlineCompletionItem.isInvalid !== oldIsInvalid) {
+			this._model?.forceRefilterAll();
 		}
 	}
 
