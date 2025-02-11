@@ -135,7 +135,7 @@ export namespace PromptFilesConfig {
 	 */
 	export const getValue = (
 		configService: IConfigurationService,
-	): string | readonly string[] | Map<string, boolean> | boolean | undefined => {
+	): string | string[] | Record<string, boolean> | boolean | undefined => {
 		const configValue = configService.getValue(CONFIG_KEY);
 
 		if (configValue === undefined || configValue === null) {
@@ -166,13 +166,13 @@ export namespace PromptFilesConfig {
 				return typeof item === 'string' && !!item.trim();
 			});
 
-			return Object.freeze(cleanArray);
+			return cleanArray;
 		}
 
 		// note! this would be also true for `null` and `array`,
 		// 		 but those cases are already handled above
 		if (typeof configValue === 'object') {
-			const paths: Map<string, boolean> = new Map();
+			const paths: Record<string, boolean> = {};
 
 			for (const [path, value] of Object.entries(configValue)) {
 				const cleanPath = path.trim();
@@ -181,11 +181,11 @@ export namespace PromptFilesConfig {
 				// if value can be mapped to a boolean, and the clean
 				// path is not empty, add it to the map
 				if ((booleanValue !== undefined) && cleanPath) {
-					paths.set(cleanPath, booleanValue);
+					paths[cleanPath] = booleanValue;
 				}
 			}
 
-			return Object.freeze(paths);
+			return paths;
 		}
 
 		return undefined;
@@ -208,11 +208,11 @@ export namespace PromptFilesConfig {
 	 */
 	export const sourceLocations = (
 		configService: IConfigurationService,
-	): readonly string[] => {
+	): string[] => {
 		const value = getValue(configService);
 
 		if (value === true) {
-			return Object.freeze([DEFAULT_LOCATION]);
+			return [DEFAULT_LOCATION];
 		}
 
 		if (typeof value === 'string') {
@@ -223,41 +223,41 @@ export namespace PromptFilesConfig {
 				result.push(trimmedValue);
 			}
 
-			return Object.freeze(result);
+			return result;
 		}
 
 		if (Array.isArray(value)) {
 			const result = [DEFAULT_LOCATION];
 
-			return Object.freeze([
+			return [
 				...result,
 				...value.filter((item) => {
 					return item !== DEFAULT_LOCATION;
 				}),
-			]);
+			];
 		}
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
-		if (value && (value instanceof Map)) {
+		if (value && (typeof value === 'object')) {
 			const paths: string[] = [];
 
 			// if the default location is not explicitly disabled, add it
-			if (value.get(DEFAULT_LOCATION) !== false) {
+			if (value[DEFAULT_LOCATION] !== false) {
 				paths.push(DEFAULT_LOCATION);
 			}
 
 			// copy all the enabled paths to the result list
-			for (const [path, enabled] of value.entries()) {
+			for (const [path, enabled] of Object.entries(value)) {
 				if (enabled && path !== DEFAULT_LOCATION) {
 					paths.push(path);
 				}
 			}
 
-			return Object.freeze(paths);
+			return paths;
 		}
 
 		// `undefined`, `null`, and `false` cases
-		return Object.freeze([]);
+		return [];
 	};
 
 	const usageExample1 = nls.localize(
