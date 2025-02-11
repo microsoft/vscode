@@ -187,7 +187,6 @@ __track_missing_env_vars() {
 			fi;
 		done;
 		if [ "$found" = 0 ]; then
-			builtin printf 'I am getting rid of this key: %s\n' "${vsc_env_keys[$i]}"
 			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${vsc_env_keys[$i]}" "$(__vsc_escape_value "${vsc_env_values[$i]}")" "$__vsc_nonce";
 			unset "vsc_env_keys[$i]";
 			unset "vsc_env_values[$i]";
@@ -203,29 +202,22 @@ __track_missing_env_vars() {
 __vsc_update_env() {
 	# Should we disable for older windows and also check __vscode_disable_env_reporting (conpty dll stuff)?
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
-	# if [ $use_associative_array -eq 1 ]; then
-	# 	if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
-	# 		# Associative array is empty, do not diff, just add
-	# 		while IFS='=' read -r key value; do
-	# 			vsc_aa_env["$key"]="$value"
-	# 			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-	# 		done < <(env)
+	if [ $use_associative_array -eq 1 ]; then
+		if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
+			# Associative array is empty, do not diff, just add
+			while IFS='=' read -r key value; do
+				vsc_aa_env["$key"]="$value"
+				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			done < <(env)
+		else
+			# Diff approach for associative array
+			while IFS='=' read -r key value; do
+				__update_env_cache_aa "$key" "$value"
+			done < <(env)
+			__track_missing_env_vars_aa
 
-	# 		# Code to iterate through env associative array ->
-	# 		# for k in "${(@k)vsc_aa_env}"; do
-	# 		# 	builtin printf 'Key: %s | Value: %s\n' "$k" "${vsc_aa_env[$k]}"
-	# 		# done
-
-	# 	else
-	# 		builtin printf 'we are doing diff approach bc vsc_aa_env is not empty\n'
-	# 		# Diff approach for associative array
-	# 		while IFS='=' read -r key value; do
-	# 			__update_env_cache_aa "$key" "$value"
-	# 		done < <(env)
-	# 		__track_missing_env_vars_aa
-
-	# 	fi
-	# else
+		fi
+	else
 		# Two arrays approach
 		if [[ ${#vsc_env_keys[@]} -eq 0 ]] && [[ ${#vsc_env_values[@]} -eq 0 ]]; then
 			# Non-associative arrays are both empty, do not diff, just add
@@ -234,11 +226,6 @@ __vsc_update_env() {
 				vsc_env_values+=("$value")
 				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 			done < <(env)
-
-			# #loop through vsc_env_keys and vsc_env_values
-			# for (( i=1; i <= $#vsc_env_keys; i++ )); do
-			# 	builtin printf 'this is the key value pair: %s*******************%s\n' "${vsc_env_keys[$i]}" "${vsc_env_values[$i]}"
-			# done
 		else
 			# Diff approach for non-associative arrays
 			while IFS='=' read -r key value; do
@@ -247,7 +234,7 @@ __vsc_update_env() {
 			__track_missing_env_vars
 
 		fi
-	# fi
+	fi
 
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
 }
