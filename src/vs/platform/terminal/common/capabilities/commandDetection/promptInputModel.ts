@@ -457,7 +457,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 							break;
 						}
 
-						potentialGhostIndexOffset += cell.getChars().length;
 					}
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					return ghostTextIndex;

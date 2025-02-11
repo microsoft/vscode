@@ -25,7 +25,7 @@ import { SuggestionFlag } from './fig/shared/utils';
 import { spawnHelper } from './shell/common';
 
 // TODO: remove once API is finalized
-export const enum TerminalShellType {
+export enum TerminalShellType {
 	Sh = 1,
 	Bash = 2,
 	Fish = 3,
@@ -64,18 +64,22 @@ const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithS
 
 async function getShellGlobals(shellType: TerminalShellType, existingCommands?: Set<string>): Promise<ICompletionResource[] | undefined> {
 	try {
+		console.log(`Fetching shell globals for shell type: ${TerminalShellType[shellType]}`);
 		const cachedCommands = cachedGlobals.get(shellType);
 		if (cachedCommands) {
+			console.log('Returning cached shell globals');
 			return cachedCommands;
 		}
 		const shell = getShell(shellType);
 		if (!shell) {
+			console.log('Shell not found');
 			return;
 		}
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
 		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
 		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
 		cachedGlobals.set(shellType, normalizedCommands);
+		console.log('Shell globals fetched and cached');
 		return normalizedCommands;
 
 	} catch (error) {
@@ -85,6 +89,7 @@ async function getShellGlobals(shellType: TerminalShellType, existingCommands?: 
 }
 
 export async function activate(context: vscode.ExtensionContext) {
+	console.log('Activating terminal-suggest extension');
 	pathExecutableCache = new PathExecutableCache();
 	context.subscriptions.push(pathExecutableCache);
 
@@ -92,17 +97,20 @@ export async function activate(context: vscode.ExtensionContext) {
 		id: 'terminal-suggest',
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string; cursorPosition: number }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
 			if (token.isCancellationRequested) {
+				console.log('Completion request cancelled');
 				return;
 			}
 
 			const shellType: TerminalShellType | undefined = 'shellType' in terminal.state ? terminal.state.shellType as TerminalShellType : undefined;
 			if (!shellType) {
+				console.log('Shell type not found in terminal state');
 				return;
 			}
 
 			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env);
 			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
+				console.log('No completion resources found in path');
 				return;
 			}
 			const commands = [...commandsInPath.completionResources, ...shellGlobals];
@@ -119,11 +127,14 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
+				console.log('Returning terminal completion list with files and folders requested');
 				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, env: terminal.shellIntegration?.env });
 			}
+			console.log('Returning terminal completion items');
 			return result.items;
 		}
 	}, '/', '\\'));
+	console.log('Terminal-suggest extension activated');
 }
 
 /**
