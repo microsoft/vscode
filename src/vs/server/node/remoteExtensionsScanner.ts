@@ -334,9 +334,8 @@ export class RemoteExtensionsScannerChannel implements IServerChannel {
 	async call(context: any, command: string, args?: any): Promise<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (command) {
-			case 'whenExtensionsReady': {
-				return await this.service.whenExtensionsReady();
-			}
+			case 'whenExtensionsReady': return await this.service.whenExtensionsReady();
+
 			case 'scanExtensions': {
 				const language = args[0];
 				const profileLocation = args[1] ? URI.revive(uriTransformer.transformIncoming(args[1])) : undefined;
