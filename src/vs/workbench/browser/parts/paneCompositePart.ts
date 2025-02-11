@@ -118,7 +118,7 @@ interface IInventoryIcon {
 class InventoryIcons {
 	private static readonly icons: readonly IInventoryIcon[] = [
 		{ id: 'chat', icon: 'inventory-chat-icon', label: 'Chat', command: 'pearai.chatView.focus', width: 10, containerId: 'pearaichat' },
-		{ id: 'creator', icon: 'inventory-creator-icon', label: 'Creator', command: 'pearai-roo-cline.focus', width: 80, containerId: 'pearaicreator' },
+		{ id: 'creator', icon: 'inventory-creator-icon', label: 'Agent', command: 'pearai-roo-cline.focus', width: 80, containerId: 'pearaicreator' },
 		{ id: 'search', icon: 'inventory-search-icon', label: 'Search', command: 'pearai.searchView.focus', width: 75, containerId: 'pearaisearch' },
 		{ id: 'memory', icon: 'inventory-memory-icon', label: 'Memory', command: 'pearai.mem0View.focus', width: 85, containerId: 'pearaimemory' }
 	] as const;

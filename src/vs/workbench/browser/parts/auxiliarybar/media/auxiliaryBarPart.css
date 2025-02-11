@@ -64,7 +64,7 @@
 
 .monaco-workbench .part.auxiliarybar .icon-group {
 	display: flex;
-	padding: 4px 8px;
+	padding: 4px;
 	justify-content: flex-start;
 	align-items: center;
 	gap: 8px;
@@ -106,7 +106,7 @@
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-creator-icon) {
-    width: 75px !important;
+    width: 67px !important;
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-search-icon) {
@@ -136,6 +136,7 @@
 
 /* Subtle hover effect for inactive icons */
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container:not(.active):hover {
+	z-index: 40000;
     opacity: 0.8;
     transform: scale(1.05);
 }
@@ -158,7 +159,6 @@
     left: 25px; /* 24px (icon width) + 4px margin */
     margin-bottom: 2px;
     white-space: nowrap;
-    color: #E9FFC7;
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar {
@@ -225,18 +225,22 @@
 
 /* Icon specific styles with their unique backgrounds */
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-chat-icon) {
+    color: #E9FFC7 !important;
     background: linear-gradient(180deg, #AFF349 0%, #1B9400 100%);
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-creator-icon) {
+	color: #FFCEE3 !important;
     background: linear-gradient(180deg, #FF71BD 0%, #CD237E 100%);
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-search-icon) {
+	color: #C1FFF3 !important;
     background: linear-gradient(180deg, #12D4CD 0%, #008972 100%);
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container:has(.inventory-memory-icon) {
+	color: #E0D5FF !important;
     background: linear-gradient(180deg, #9169FF 0%, #582BD3 100%);
 }
 
