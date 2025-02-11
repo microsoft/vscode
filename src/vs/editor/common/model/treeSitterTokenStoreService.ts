@@ -104,7 +104,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 			return undefined;
 		}
 		const lineStartOffset = model.getOffsetAt({ lineNumber: line, column: 1 });
-		const lineTokens = tokens.getTokensInRange(lineStartOffset, model.getOffsetAt({ lineNumber: line, column: model.getLineMaxColumn(line) }) + 1);
+		const lineTokens = tokens.getTokensInRange(lineStartOffset, model.getOffsetAt({ lineNumber: line, column: model.getLineLength(line) }) + 1);
 		const result = new Uint32Array(lineTokens.length * 2);
 		for (let i = 0; i < lineTokens.length; i++) {
 			result[i * 2] = lineTokens[i].startOffsetInclusive - lineStartOffset + lineTokens[i].length;

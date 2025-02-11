@@ -361,7 +361,10 @@ export class TokenStore implements IDisposable {
 			if (isLeaf(node)) {
 				let clippedLength = node.length;
 				let clippedOffset = offset;
-				if (offset < startOffsetInclusive) {
+				if ((offset < startOffsetInclusive) && (offset + node.length > endOffsetExclusive)) {
+					clippedOffset = startOffsetInclusive;
+					clippedLength = endOffsetExclusive - startOffsetInclusive;
+				} else if (offset < startOffsetInclusive) {
 					clippedLength -= (startOffsetInclusive - offset);
 					clippedOffset = startOffsetInclusive;
 				} else if (offset + node.length > endOffsetExclusive) {
