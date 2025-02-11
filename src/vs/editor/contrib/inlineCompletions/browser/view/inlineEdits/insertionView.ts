@@ -6,6 +6,7 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, constObservable, derived, derivedWithStore, observableValue } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
@@ -20,7 +21,8 @@ import { TokenArray } from '../../../../../common/tokens/tokenArray.js';
 import { GhostText, GhostTextPart } from '../../model/ghostText.js';
 import { GhostTextView } from '../ghostText/ghostTextView.js';
 import { IInlineEditsView } from './sideBySideDiff.js';
-import { createRectangle, mapOutFalsy, n } from './utils.js';
+import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from './theme.js';
+import { createRectangle, InlineEditTabAction, mapOutFalsy, n } from './utils.js';
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -52,6 +54,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			ghostText: this._ghostText,
 			minReservedLineCount: constObservable(0),
 			targetTextModel: this._editorObs.model.map(model => model ?? undefined),
+			warning: constObservable(undefined),
 		},
 		observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
 		true,
@@ -64,6 +67,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			startColumn: number;
 			text: string;
 		} | undefined>,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
@@ -140,7 +144,12 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 	});
 
 	public readonly startLineOffset = this._trimVertically.map(v => v.top);
-	public readonly originalLines = this._state.map(s => s ? new LineRange(s.lineNumber, s.lineNumber + 2) : undefined);
+	public readonly originalLines = this._state.map(s => s ?
+		new LineRange(
+			s.lineNumber,
+			Math.min(s.lineNumber + 2, this._editor.getModel()!.getLineCount() + 1)
+		) : undefined
+	);
 
 	private readonly _overlayLayout = derivedWithStore(this, (reader, store) => {
 		this._ghostText.read(reader);
@@ -204,13 +213,15 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
 		);
 
+		const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+
 		return [
 			n.svgElem('path', {
 				class: 'originalOverlay',
 				d: rectangleOverlay,
 				style: {
-					fill: 'var(--vscode-inlineEdit-modifiedChangedLineBackground, transparent)',
-					stroke: 'var(--vscode-inlineEdit-modifiedBorder)',
+					fill: asCssVariable(modifiedChangedLineBackgroundColor),
+					stroke: modifiedBorderColor,
 					strokeWidth: '1px',
 				}
 			}),

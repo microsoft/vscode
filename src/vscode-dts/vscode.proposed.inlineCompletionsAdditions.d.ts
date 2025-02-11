@@ -29,6 +29,13 @@ declare module 'vscode' {
 		 * Defaults to `false`.
 		*/
 		completeBracketPairs?: boolean;
+
+		warning?: InlineCompletionWarning;
+	}
+
+	export interface InlineCompletionWarning {
+		message: MarkdownString | string;
+		icon?: ThemeIcon;
 	}
 
 	export interface InlineCompletionItemProviderMetadata {

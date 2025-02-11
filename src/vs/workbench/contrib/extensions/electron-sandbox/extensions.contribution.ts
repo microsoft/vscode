@@ -23,6 +23,7 @@ import { DebugExtensionHostAction, DebugExtensionsContribution } from './debugEx
 import { ExtensionHostProfileService } from './extensionProfileService.js';
 import { CleanUpExtensionsFolderAction, OpenExtensionsFolderAction } from './extensionsActions.js';
 import { ExtensionsAutoProfiler } from './extensionsAutoProfiler.js';
+import { InstallFailedExtensions } from './installFailedExtensions.js';
 import { RemoteExtensionsInitializerContribution } from './remoteExtensionsInit.js';
 import { IExtensionHostProfileService, OpenExtensionHostProfileACtion, RuntimeExtensionsEditor, SaveExtensionHostProfileAction, StartExtensionHostProfileAction, StopExtensionHostProfileAction } from './runtimeExtensionsEditor.js';
 
@@ -72,6 +73,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, Lifecyc
 workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(DebugExtensionsContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(InstallFailedExtensions, LifecyclePhase.Restored);
 
 // Register Commands
 

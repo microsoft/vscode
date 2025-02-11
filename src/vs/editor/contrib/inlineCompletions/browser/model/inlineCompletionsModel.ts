@@ -476,6 +476,10 @@ export class InlineCompletionsModel extends Disposable {
 		return augmentedCompletion;
 	}
 
+	public readonly warning = derived(this, reader => {
+		return this.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.warning;
+	});
+
 	public readonly ghostTexts = derivedOpts({ owner: this, equalsFn: ghostTextsOrReplacementsEqual }, reader => {
 		const v = this.inlineCompletionState.read(reader);
 		if (!v) {

@@ -794,7 +794,19 @@ export interface InlineCompletion {
 	readonly isInlineEdit?: boolean;
 
 	readonly showRange?: IRange;
+
+	readonly warning?: InlineCompletionWarning;
 }
+
+export interface InlineCompletionWarning {
+	message: IMarkdownString | string;
+	icon?: IconPath;
+}
+
+/**
+ * TODO: add `| URI | { light: URI; dark: URI }`.
+*/
+export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];

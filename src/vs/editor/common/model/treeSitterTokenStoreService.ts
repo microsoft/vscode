@@ -18,6 +18,7 @@ export interface ITreeSitterTokenizationStoreService {
 	markForRefresh(model: ITextModel, range: Range): void;
 	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[];
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
+	hasFullParseTokens(model: ITextModel): boolean;
 }
 
 export const ITreeSitterTokenizationStoreService = createDecorator<ITreeSitterTokenizationStoreService>('treeSitterTokenizationStoreService');
@@ -30,14 +31,14 @@ export interface TokenInformation {
 class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStoreService, IDisposable {
 	readonly _serviceBrand: undefined;
 
-	private readonly tokens = new Map<ITextModel, { store: TokenStore; accurateVersion: number; guessVersion: number; readonly disposables: DisposableStore }>();
+	private readonly tokens = new Map<ITextModel, { store: TokenStore; accurateVersion: number; guessVersion: number; readonly disposables: DisposableStore; hasFullParseTokens: boolean }>();
 
 	constructor() { }
 
-	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
+	setTokens(model: ITextModel, tokens: TokenUpdate[], isParseGuess: boolean = false): void {
 		const disposables = new DisposableStore();
 		const store = disposables.add(new TokenStore(model));
-		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: model.getVersionId() });
+		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: model.getVersionId(), hasFullParseTokens: !isParseGuess });
 
 		store.buildStore(tokens);
 		disposables.add(model.onDidChangeContent(e => {
@@ -77,6 +78,14 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		}));
 	}
 
+	hasFullParseTokens(model: ITextModel): boolean {
+		const tokens = this.tokens.get(model);
+		if (!tokens) {
+			return false;
+		}
+		return tokens.hasFullParseTokens;
+	}
+
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean {
 		const tokens = this.tokens.get(model);
 		if (!tokens) {
@@ -95,7 +104,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 			return undefined;
 		}
 		const lineStartOffset = model.getOffsetAt({ lineNumber: line, column: 1 });
-		const lineTokens = tokens.getTokensInRange(lineStartOffset, model.getOffsetAt({ lineNumber: line, column: model.getLineMaxColumn(line) }) + 1);
+		const lineTokens = tokens.getTokensInRange(lineStartOffset, model.getOffsetAt({ lineNumber: line, column: model.getLineLength(line) }) + 1);
 		const result = new Uint32Array(lineTokens.length * 2);
 		for (let i = 0; i < lineTokens.length; i++) {
 			result[i * 2] = lineTokens[i].startOffsetInclusive - lineStartOffset + lineTokens[i].length;

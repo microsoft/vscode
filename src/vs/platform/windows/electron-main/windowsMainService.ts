@@ -1579,6 +1579,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration.extensionEnvironment = currentWindowConfig.extensionEnvironment;
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
+				configuration['disable-extension'] = currentWindowConfig['disable-extension'];
 			}
 			configuration.loggers = configuration.loggers;
 		}

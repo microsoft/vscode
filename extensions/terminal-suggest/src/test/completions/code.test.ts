@@ -41,8 +41,8 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --sync |`, expectedCompletions: syncOptions },
 		{ input: `${executable} --extensions-dir |`, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: `${executable} --list-extensions |`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: `${executable} --show-versions |`, expectedCompletions: codeSpecOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} --list-extensions |`, expectedCompletions: codeSpecOptions.filter(c => c !== '--list-extensions'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: `${executable} --show-versions |`, expectedCompletions: codeSpecOptions.filter(c => c !== '--show-versions'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
 		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions },
 
