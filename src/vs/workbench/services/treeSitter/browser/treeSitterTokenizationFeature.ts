@@ -29,6 +29,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 import { pushMany } from '../../../../base/common/arrays.js';
+import { findLikelyRelevantLines } from '../../../../editor/common/model/textModelTokens.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;
@@ -205,19 +206,21 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	private async _parseAndTokenizeViewPortRange(model: ITextModel, range: Range, languageId: LanguageId, startOffsetOfRangeInDocument: number, endOffsetOfRangeInDocument: number) {
 		const content = model.getValueInRange(range);
-		const tree = await this._treeSitterService.getTree(content, this._languageId);
+		const likelyRelevantLines = findLikelyRelevantLines(model, range.startLineNumber).likelyRelevantLines;
+		const likelyRelevantPrefix = likelyRelevantLines.join(model.getEOL());
+		const tree = await this._treeSitterService.getTree(`${likelyRelevantPrefix}${content}`, this._languageId);
 		if (!tree) {
 			return;
 		}
 
-		const treeRange = new Range(1, 1, range.endLineNumber - range.startLineNumber + 1, range.endColumn);
+		const treeRange = new Range(1, 1, range.endLineNumber - range.startLineNumber + 1 + likelyRelevantLines.length, range.endColumn);
 		const captures = this._captureAtRange(treeRange, tree);
 		const tokens = this._tokenizeCapturesWithMetadata(tree, captures, languageId, 0, endOffsetOfRangeInDocument - startOffsetOfRangeInDocument);
 		if (!tokens) {
 			return;
 		}
 
-		return this._rangeTokensAsUpdates(startOffsetOfRangeInDocument, tokens.endOffsetsAndMetadata);
+		return this._rangeTokensAsUpdates(startOffsetOfRangeInDocument, tokens.endOffsetsAndMetadata, likelyRelevantPrefix.length);
 	}
 
 	private async _doParseAndTokenizeViewPort(model: ITextModel, editor: ICodeEditor) {
@@ -418,14 +421,20 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId: textModel.getVersionId() });
 	}
 
-	private _rangeTokensAsUpdates(rangeOffset: number, endOffsetToken: EndOffsetToken[]) {
+	private _rangeTokensAsUpdates(rangeOffset: number, endOffsetToken: EndOffsetToken[], startingOffsetInArray?: number) {
 		const updates: TokenUpdate[] = [];
 		let lastEnd = 0;
 		for (const token of endOffsetToken) {
-			if (token.endOffset <= lastEnd) {
+			if (token.endOffset <= lastEnd || (startingOffsetInArray && (token.endOffset < startingOffsetInArray))) {
 				continue;
 			}
-			updates.push({ startOffsetInclusive: rangeOffset + lastEnd, length: token.endOffset - lastEnd, token: token.metadata });
+			let tokenUpdate: TokenUpdate;
+			if (startingOffsetInArray && (lastEnd < startingOffsetInArray)) {
+				tokenUpdate = { startOffsetInclusive: rangeOffset + startingOffsetInArray, length: token.endOffset - startingOffsetInArray, token: token.metadata };
+			} else {
+				tokenUpdate = { startOffsetInclusive: rangeOffset + lastEnd, length: token.endOffset - lastEnd, token: token.metadata };
+			}
+			updates.push(tokenUpdate);
 			lastEnd = token.endOffset;
 		}
 		return updates;
