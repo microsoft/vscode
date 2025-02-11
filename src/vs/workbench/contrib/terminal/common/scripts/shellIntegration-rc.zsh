@@ -170,6 +170,35 @@ __update_env_cache() {
 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 }
 
+__track_missing_env_vars() {
+	local currentEnvKeys=();
+
+	while IFS='=' read -r key value; do
+		currentEnvKeys+=("$key");
+	done < <(env);
+
+	# Compare vsc_env_keys with user's currentEnvKeys
+	for ((i = 1; i <= ${#vsc_env_keys[@]}; i++)); do
+		local found=0;
+		for envKey in "${currentEnvKeys[@]}"; do
+			if [[ "${vsc_env_keys[$i]}" == "$envKey" ]]; then
+				found=1;
+				break;
+			fi;
+		done;
+		if [ "$found" = 0 ]; then
+			builtin printf 'I am getting rid of this key: %s\n' "${vsc_env_keys[$i]}"
+			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${vsc_env_keys[$i]}" "$(__vsc_escape_value "${vsc_env_values[$i]}")" "$__vsc_nonce";
+			unset "vsc_env_keys[$i]";
+			unset "vsc_env_values[$i]";
+		fi;
+	done;
+
+	# Remove gaps from unset
+	vsc_env_keys=("${(@)vsc_env_keys}");
+	vsc_env_values=("${(@)vsc_env_values}");
+}
+
 
 __vsc_update_env() {
 	# Should we disable for older windows and also check __vscode_disable_env_reporting (conpty dll stuff)?
@@ -215,6 +244,7 @@ __vsc_update_env() {
 			while IFS='=' read -r key value; do
 				__update_env_cache "$key" "$value"
 			done < <(env)
+			__track_missing_env_vars
 
 		fi
 	# fi
