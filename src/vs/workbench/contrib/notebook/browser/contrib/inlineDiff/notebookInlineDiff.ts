@@ -16,7 +16,7 @@ import { NotebookDeletedCellDecorator } from './notebookDeletedCellDecorator.js'
 import { NotebookInsertedCellDecorator } from './notebookInsertedCellDecorator.js';
 
 export class NotebookInlineDiffDecorationContribution extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.inlineDiffDecoration';
+	static ID: string = 'workbench.notebook.inlineDiffDecoration';
 
 	private original?: NotebookTextModel;
 	private insertedCellDecorator: NotebookInsertedCellDecorator;
@@ -35,6 +35,7 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 
 		this._update();
 		this._register(this.notebookEditor.onDidChangeModel(() => this._update()));
+		this._register(this.notebookEditor.onDidChangeVisibleRanges(() => this._update()));
 	}
 
 	async compareWith(original: NotebookTextModel): Promise<IDisposable> {
@@ -101,4 +102,4 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 	}
 }
 
-registerNotebookContribution(NotebookInlineDiffDecorationContribution.id, NotebookInlineDiffDecorationContribution);
+registerNotebookContribution(NotebookInlineDiffDecorationContribution.ID, NotebookInlineDiffDecorationContribution);

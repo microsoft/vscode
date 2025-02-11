@@ -50,10 +50,11 @@ import { DiffEditorHeightCalculatorService, IDiffEditorHeightCalculatorService }
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBorrowValue, INotebookEditorService } from '../services/notebookEditorService.js';
 import { NotebookEditorExtensionsRegistry } from '../notebookEditorExtensions.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { NotebookInlineDiffDecorationContribution } from '../contrib/inlineDiff/notebookInlineDiff.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { NotebookPerfMarks } from '../../common/notebookPerformance.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
 
 const $ = DOM.$;
 
@@ -284,8 +285,24 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// throw new Error('Method not implemented.');
 	}
 
-	toggleInlineView(): void {
+	async toggleInlineView(): Promise<void> {
 		this._inlineView = !this._inlineView;
+
+		if (!this._lastLayoutProperties) {
+			return;
+		}
+
+		if (this._inlineView) {
+			this.layout(this._lastLayoutProperties?.dimension, this._lastLayoutProperties?.position);
+			this.setNotebookWidget(this.input as NotebookDiffEditorInput);
+			if (this._model) {
+				this._notebookWidget.value?.setModel(this._model.modified.notebook, undefined);
+				this._notebookWidget.value?.setOptions(this._options as INotebookEditorOptions);
+				this.compareWith(this._model.original.notebook);
+			}
+		} else {
+			this.layout(this._lastLayoutProperties?.dimension, this._lastLayoutProperties?.position);
+		}
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -444,7 +461,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private setNotebookWidget(input: NotebookDiffEditorInput) {
-		const contributions = NotebookEditorExtensionsRegistry.getSomeEditorContributions([NotebookInlineDiffDecorationContribution.id]);
+		// const contributions = NotebookEditorExtensionsRegistry.getSomeEditorContributions([NotebookInlineDiffDecorationContribution.ID]);
+		// const options = {...getDefaultNotebookCreationOptions(), contributions};
+		const contributions = NotebookEditorExtensionsRegistry.getSomeEditorContributions([NotebookInlineDiffDecorationContribution.ID]);
 		const menuIds = {
 			notebookToolbar: MenuId.NotebookToolbar,
 			cellTitleToolbar: MenuId.NotebookCellTitle,
@@ -454,8 +473,20 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			cellExecuteToolbar: MenuId.NotebookCellExecute,
 			cellExecutePrimary: undefined,
 		};
+		const skipContributions = [
+			'editor.contrib.review',
+			'editor.contrib.floatingClickMenu',
+			'editor.contrib.dirtydiff',
+			'editor.contrib.testingOutputPeek',
+			'editor.contrib.testingDecorations',
+			'store.contrib.stickyScrollController',
+			'editor.contrib.findController',
+			'editor.contrib.emptyTextEditorHint',
+		];
+		const cellEditorContributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+
 		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget,
-			this.group.id, input, { contributions, menuIds }, this._dimension, this.window);
+			this.group.id, input, { contributions, menuIds, cellEditorContributions }, this._dimension, this.window);
 		if (this._rootElement && this._notebookWidget.value!.getDomNode()) {
 			this._rootElement.setAttribute('aria-flowto', this._notebookWidget.value!.getDomNode().id || '');
 			DOM.setParentFlowTo(this._notebookWidget.value!.getDomNode(), this._rootElement);
@@ -467,7 +498,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private compareWith(original: NotebookTextModel) {
-		const decorator = this._notebookWidget.value?.getContribution<NotebookInlineDiffDecorationContribution>(NotebookInlineDiffDecorationContribution.id);
+		const decorator = this._notebookWidget.value?.getContribution<NotebookInlineDiffDecorationContribution>(NotebookInlineDiffDecorationContribution.ID);
 		decorator?.compareWith(original);
 	}
 
@@ -931,10 +962,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._listViewContainer.style.width = `${this._dimension.width}px`;
 
 		if (this._inlineView) {
+			this._listViewContainer.style.display = 'none';
 			if (this.isVisible()) {
 				this._notebookWidget.value?.layout(dimension, this._rootElement, position);
 			}
 		} else {
+			this._notebookWidget.value?.onWillHide();
+			this._listViewContainer.style.display = 'block';
 			this._list?.layout(this._dimension.height, this._dimension.width);
 
 			if (this._modifiedWebview) {

@@ -117,7 +117,7 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 		'editor.contrib.testingDecorations',
 		'store.contrib.stickyScrollController',
 		'editor.contrib.findController',
-		'editor.contrib.emptyTextEditorHint'
+		'editor.contrib.emptyTextEditorHint',
 	];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
@@ -448,7 +448,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (Array.isArray(this.creationOptions.contributions)) {
 			contributions = this.creationOptions.contributions;
 		} else {
-			contributions = NotebookEditorExtensionsRegistry.getEditorContributions();
+			contributions = NotebookEditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== 'workbench.notebook.inlineDiffDecoration');
 		}
 		for (const desc of contributions) {
 			let contribution: INotebookEditorContribution | undefined;
