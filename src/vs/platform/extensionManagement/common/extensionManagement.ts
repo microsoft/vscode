@@ -514,9 +514,9 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
-export interface InstallExtensionsResult {
+export interface InstallExtensionSummary {
 	failed: {
-		extension: string | URI;
+		id: string;
 		installOptions: InstallOptions;
 	}[];
 }
