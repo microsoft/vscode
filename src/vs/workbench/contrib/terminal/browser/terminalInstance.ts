@@ -404,6 +404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._hasHadInput = false;
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
+		this._shellLaunchConfig.shellIntegrationEnvironmentReporting = _shellLaunchConfig.shellIntegrationEnvironmentReporting; // ADDED LINE
 
 		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
 
@@ -526,6 +527,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this.shellLaunchConfig.color = defaultProfile.color;
 					this.shellLaunchConfig.env = defaultProfile.env;
 				}
+				this.shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting);
 			}
 
 			// Resolve the shell type ahead of time to allow features that depend upon it to work
@@ -562,7 +564,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.setVisible(this._isVisible);
 			}
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnvironmentReporting)) {
-				this._shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting); // value gets PROPERLY SET HERE IF I CHANGE SETTING VALUE VIA UI, otherwise undefined..
+				this._shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting); // undefined unless I switch the setting value via UI. Mystery
 			}
 			const layoutSettings: string[] = [
 				TerminalSettingId.FontSize,
