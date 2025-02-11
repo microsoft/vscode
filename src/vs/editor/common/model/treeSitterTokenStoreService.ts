@@ -18,6 +18,7 @@ export interface ITreeSitterTokenizationStoreService {
 	markForRefresh(model: ITextModel, range: Range): void;
 	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[];
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
+	hasFullParseTokens(model: ITextModel): boolean;
 }
 
 export const ITreeSitterTokenizationStoreService = createDecorator<ITreeSitterTokenizationStoreService>('treeSitterTokenizationStoreService');
@@ -30,14 +31,14 @@ export interface TokenInformation {
 class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStoreService, IDisposable {
 	readonly _serviceBrand: undefined;
 
-	private readonly tokens = new Map<ITextModel, { store: TokenStore; accurateVersion: number; guessVersion: number; readonly disposables: DisposableStore }>();
+	private readonly tokens = new Map<ITextModel, { store: TokenStore; accurateVersion: number; guessVersion: number; readonly disposables: DisposableStore; hasFullParseTokens: boolean }>();
 
 	constructor() { }
 
-	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
+	setTokens(model: ITextModel, tokens: TokenUpdate[], isParseGuess: boolean = false): void {
 		const disposables = new DisposableStore();
 		const store = disposables.add(new TokenStore(model));
-		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: model.getVersionId() });
+		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: model.getVersionId(), hasFullParseTokens: !isParseGuess });
 
 		store.buildStore(tokens);
 		disposables.add(model.onDidChangeContent(e => {
@@ -75,6 +76,14 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 				this.tokens.delete(model);
 			}
 		}));
+	}
+
+	hasFullParseTokens(model: ITextModel): boolean {
+		const tokens = this.tokens.get(model);
+		if (!tokens) {
+			return false;
+		}
+		return tokens.hasFullParseTokens;
 	}
 
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean {
