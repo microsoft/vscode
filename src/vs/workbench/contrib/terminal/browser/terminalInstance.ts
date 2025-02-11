@@ -561,6 +561,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
 			}
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnvironmentReporting)) {
+				this._shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting); // value gets PROPERLY SET HERE IF I CHANGE SETTING VALUE VIA UI, otherwise undefined..
+			}
 			const layoutSettings: string[] = [
 				TerminalSettingId.FontSize,
 				TerminalSettingId.FontFamily,

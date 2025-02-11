@@ -162,6 +162,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
+			// launchConfig.shellIntegrationEnvironmentReporting here as well??
 			isTransient: launchConfig.isTransient
 		};
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {

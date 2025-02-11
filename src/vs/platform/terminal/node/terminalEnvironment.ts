@@ -87,7 +87,7 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
-	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
+	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) { // shellLaunchConfig doesnt have shellIntegrationEnvironmentReporting... But why
 		envMixin['VSCODE_SHELL_ENVIRONMENT_REPORTING'] = '1';
 	} else {
 		envMixin['VSCODE_SHELL_ENVIRONMENT_REPORTING'] = '0';
