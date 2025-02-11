@@ -8,11 +8,6 @@ import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from './constants.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
- * TODO: @legomushroom
- *  - update `config` docs comment
- */
-
-/**
  * Configuration helper for the `prompt files` feature.
  * @see {@link CONFIG_KEY} and {@link DEFAULT_LOCATION}
  *
@@ -32,29 +27,30 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * }
  * ```
  *
- * Enable the feature, specifying a single prompt files source folder location:
+ * Enable the feature, specifying a single prompt files source folder location,
+ * in addition to the default `'.github/prompts'` one:
  * ```json
  * {
- *   "chat.promptFiles": '.github/prompts',
+ *   "chat.promptFiles": '.copilot/prompts',
  * }
  * ```
  *
- * Enable the feature, specifying multiple prompt files source folder location:
+ * Enable the feature, specifying multiple prompt files source folder locations,
+ * in addition to the default `'.github/prompts'` one:
  * ```json
  * {
  *   "chat.promptFiles": {
- *     ".github/prompts" : true,
  *     ".copilot/prompts" : false,
  *     "/Users/legomushroom/repos/prompts" : true,
  *   },
  * }
  * ```
  *
- * Enable the feature, specifying multiple prompt files source folder location:
+ * Enable the feature, specifying multiple prompt files source folder locations,
+ * in addition to the default `'.github/prompts'` one:
  * ```json
  * {
  *   "chat.promptFiles": [
- *     ".github/prompts",
  *     ".copilot/prompts",
  *     "/Users/legomushroom/repos/prompts",
  *   ],
@@ -63,15 +59,15 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  *
  * The "array" case is similar to the "object" one, but there is one difference.
  * At the time of writing, configuration settings with the `array` value cannot
- * be merged into a single entry when the setting is specified in both the user
- * and the workspace settings. On the other hand, the "object" case is provides
- * flexibility - the settings are combined into a single object.
+ * be merged into a single entry when the setting is specified in both the `user`
+ * and the `workspace` settings. On the other hand, the "object" case provides
+ * more flexibility - the settings are combined into a single object.
  *
  * Enable the feature, using defaults for prompt files source folder locations
  * (see {@link DEFAULT_LOCATION}):
- * ```json
+ * ```jsonc
  * {
- *   "chat.promptFiles": {},
+ *   "chat.promptFiles": {}, // same as setting to `true`
  * }
  * ```
  *
@@ -87,20 +83,24 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * - `string`:
  *   - values that can be mapped to `boolean`(`"true"`, `"FALSE", "TrUe"`, etc.)
  *     are treated the same as the `boolean` case above
- *   - any other `non-empty` string value is treated as a single prompt files source folder path
- *   - `empty` string value is treated the same as the `undefined`/`null` case above
+ *   - any other `non-empty` string value is treated as a single prompt files source folder path,
+ *     which is used in addition to the default {@link DEFAULT_LOCATION}
+ *   - `empty` string value is treated the same as the `undefined`/`null` case above (disabled)
  * - `object`:
  *   - expects the { "string": `boolean` } pairs, where the `string` is a path and the `boolean`
- *     is a flag that defines if the source folder location is enable or disabled
+ *     is a flag that defines if this additional source folder location is enabled or disabled;
+ *     enabled locations are used in addition to the default {@link DEFAULT_LOCATION} location
+ *     you can explicitly disable the default location by setting it to `false` in the object
  *   - value of a record in the object can also be a `string`:
  *     - if the string can be clearly mapped to a `boolean` (e.g., `"true"`, `"FALSE", "TrUe"`, etc.),
  *       it is treated as `boolean` value
  *     - any other string value is treated as `false` and is effectively ignored
- *   - if the record key is an `empty` string, it is ignored
+ *   - if the record `key` is an `empty` string, it is ignored
  *   - if the resulting object is empty, the feature is considered `enabled`, prompt files source
  *     folder locations fallback to {@link DEFAULT_LOCATION}
  * - `array`:
- *   - `string` items in the array are treated as prompt files source folder paths
+ *   - `string` items(non-empty) in the array are treated as prompt files source folder paths,
+ *     in addition to the default {@link DEFAULT_LOCATION} location
  *   - all `non-string` items in the array are `ignored`
  *   - if the resulting array is empty, the feature is considered `enabled`, prompt files
  *     source folder locations fallback to {@link DEFAULT_LOCATION}
