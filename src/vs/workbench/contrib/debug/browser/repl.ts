@@ -215,6 +215,8 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			const focusedSession = this.debugService.getViewModel().focusedSession;
 			if (this.tree && this.tree.getInput() !== focusedSession) {
 				this.onDidFocusSession(focusedSession);
+			} else {
+				this.selectSession();
 			}
 
 			this.setMode();
