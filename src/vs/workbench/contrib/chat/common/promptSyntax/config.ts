@@ -8,6 +8,14 @@ import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from './constants.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
+ * TODO: @legomushroom
+ *  - update `config` docs comment
+ *  - update `config` unit tests
+ *  - update `file locator` docs comment
+ *  - update `file locator` unit tests
+ */
+
+/**
  * Configuration helper for the `prompt files` feature.
  * @see {@link CONFIG_KEY} and {@link DEFAULT_LOCATION}
  *
@@ -118,16 +126,16 @@ export namespace PromptFilesConfig {
 	export const CONFIG_KEY: string = 'chat.promptFiles';
 
 	/**
-	 * Default prompt instructions source folder paths.
+	 * Default reusable prompt files location.
 	 */
-	const DEFAULT_LOCATION = Object.freeze(['.github/prompts']);
+	const DEFAULT_LOCATION = '.github/prompts';
 
 	/**
 	 * Get value of the `prompt files` configuration setting.
 	 */
 	export const getValue = (
 		configService: IConfigurationService,
-	): string | readonly string[] | boolean | undefined => {
+	): string | readonly string[] | Map<string, boolean> | boolean | undefined => {
 		const configValue = configService.getValue(CONFIG_KEY);
 
 		if (configValue === undefined || configValue === null) {
@@ -164,12 +172,16 @@ export namespace PromptFilesConfig {
 		// note! this would be also true for `null` and `array`,
 		// 		 but those cases are already handled above
 		if (typeof configValue === 'object') {
-			const paths: string[] = [];
+			const paths: Map<string, boolean> = new Map();
 
 			for (const [path, value] of Object.entries(configValue)) {
 				const cleanPath = path.trim();
-				if (asBoolean(value) && cleanPath) {
-					paths.push(cleanPath);
+				const booleanValue = asBoolean(value);
+
+				// if value can be mapped to a boolean, and the clean
+				// path is not empty, add it to the map
+				if ((booleanValue !== undefined) && cleanPath) {
+					paths.set(cleanPath, booleanValue);
 				}
 			}
 
@@ -180,7 +192,7 @@ export namespace PromptFilesConfig {
 	};
 
 	/**
-	 * Checks if feature is enabled.
+	 * Checks if the feature is enabled.
 	 */
 	export const enabled = (
 		configService: IConfigurationService,
@@ -199,19 +211,53 @@ export namespace PromptFilesConfig {
 	): readonly string[] => {
 		const value = getValue(configService);
 
-		if (value === undefined) {
-			return DEFAULT_LOCATION;
+		if (value === true) {
+			return Object.freeze([DEFAULT_LOCATION]);
 		}
 
 		if (typeof value === 'string') {
-			return Object.freeze([value]);
+			const result = [DEFAULT_LOCATION];
+			const trimmedValue = value.trim();
+
+			if (trimmedValue !== DEFAULT_LOCATION) {
+				result.push(trimmedValue);
+			}
+
+			return Object.freeze(result);
 		}
 
-		if (Array.isArray(value) && value.length !== 0) {
-			return value;
+		if (Array.isArray(value)) {
+			const result = [DEFAULT_LOCATION];
+
+			return Object.freeze([
+				...result,
+				...value.filter((item) => {
+					return item !== DEFAULT_LOCATION;
+				}),
+			]);
 		}
 
-		return DEFAULT_LOCATION;
+		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
+		if (value && (value instanceof Map)) {
+			const paths: string[] = [];
+
+			// if the default location is not explicitly disabled, add it
+			if (value.get(DEFAULT_LOCATION) !== false) {
+				paths.push(DEFAULT_LOCATION);
+			}
+
+			// copy all the enabled paths to the result list
+			for (const [path, enabled] of value.entries()) {
+				if (enabled && path !== DEFAULT_LOCATION) {
+					paths.push(path);
+				}
+			}
+
+			return Object.freeze(paths);
+		}
+
+		// `undefined`, `null`, and `false` cases
+		return Object.freeze([]);
 	};
 
 	const usageExample1 = nls.localize(
@@ -252,7 +298,7 @@ export namespace PromptFilesConfig {
  * Helper to parse an input value of `any` type into a boolean.
  *
  * @param value - input value to parse
- * @returns `true` if the value is a boolean `true` or a string that can
+ * @returns `true` if the value is the boolean `true` value or a string that can
  * 			be clearly mapped to a boolean (e.g., `"true"`, `"TRUE"`, `"FaLSe"`, etc.),
  * 			`undefined` for rest of the values
  */
