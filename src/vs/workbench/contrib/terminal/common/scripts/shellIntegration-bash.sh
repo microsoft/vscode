@@ -228,7 +228,7 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
-updateEnvCacheAA() {
+__updateEnvCacheAA() {
 	local key="$1"
 	local value="$2"
 	if [ "$use_associative_array" = 1 ]; then
@@ -239,7 +239,7 @@ updateEnvCacheAA() {
 	fi
 }
 
-trackMissingEnvVarsAA() {
+__trackMissingEnvVarsAA() {
 	if [ "$use_associative_array" = 1 ]; then
 		declare -A currentEnvMap
 		while IFS='=' read -r key value; do
@@ -255,7 +255,7 @@ trackMissingEnvVarsAA() {
 	fi
 }
 
-updateEnvCache() {
+__updateEnvCache() {
 	local key="$1"
 	local value="$2"
 
@@ -274,7 +274,7 @@ updateEnvCache() {
 	builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 }
 
-trackMissingEnvVars() {
+__trackMissingEnvVars() {
 	local current_env_keys=()
 
 	while IFS='=' read -r key value; do
@@ -317,9 +317,9 @@ __vsc_update_env() {
 			else
 				# Diff approach for associative array
 				while IFS='=' read -r key value; do
-					updateEnvCacheAA "$key" "$value"
+					__updateEnvCacheAA "$key" "$value"
 				done < <(env)
-				trackMissingEnvVarsAA
+				__trackMissingEnvVarsAA
 			fi
 
 		else
@@ -333,9 +333,9 @@ __vsc_update_env() {
 			else
 				# Diff approach for non-associative arrays
 				while IFS='=' read -r key value; do
-					updateEnvCache "$key" "$value"
+					__updateEnvCache "$key" "$value"
 				done < <(env)
-				trackMissingEnvVars
+				__trackMissingEnvVars
 			fi
 
 
