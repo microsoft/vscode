@@ -1404,7 +1404,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
 						message: typeConvert.MarkdownString.from(item.warning.message),
-						iconPath: item.warning.iconPath ? typeConvert.IconPath.from(item.warning.iconPath) : undefined,
+						icon: item.warning.icon ? typeConvert.IconPath.fromThemeIcon(item.warning.icon) : undefined,
 					} : undefined,
 				});
 			}),

@@ -32,7 +32,7 @@ export class InlineCompletionsView extends Disposable {
 			ghostText: ghostText,
 			warning: this._model.map((m, reader) => {
 				const warning = m?.warning?.read(reader);
-				return warning ? { icon: warning.iconPath } : undefined;
+				return warning ? { icon: warning.icon } : undefined;
 			}),
 			minReservedLineCount: constObservable(0),
 			targetTextModel: this._model.map(v => v?.textModel),

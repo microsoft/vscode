@@ -3009,14 +3009,7 @@ export namespace LanguageModelToolResult {
 }
 
 export namespace IconPath {
-	export function from(iconPath: vscode.IconPath): languages.IconPath {
-		const result = ThemeIcon.isThemeIcon(iconPath) ? iconPath
-			: URI.isUri(iconPath) ? URI.revive(iconPath)
-				: iconPath && 'light' in iconPath && 'dark' in iconPath && URI.isUri(iconPath.light) && URI.isUri(iconPath.dark) ? { light: URI.revive(iconPath.light), dark: URI.revive(iconPath.dark) }
-					: undefined;
-		if (!result) {
-			throw new Error('Invalid icon path');
-		}
-		return result;
+	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
+		return iconPath;
 	}
 }

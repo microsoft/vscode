@@ -54,6 +54,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			ghostText: this._ghostText,
 			minReservedLineCount: constObservable(0),
 			targetTextModel: this._editorObs.model.map(model => model ?? undefined),
+			warning: constObservable(undefined),
 		},
 		observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
 		true,
