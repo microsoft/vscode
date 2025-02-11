@@ -51,7 +51,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IBorrowValue, INotebookEditorService } from '../services/notebookEditorService.js';
 import { NotebookEditorExtensionsRegistry } from '../notebookEditorExtensions.js';
 import { NotebookInlineDiffDecorationContribution } from '../contrib/inlineDiff/notebookInlineDiff.js';
-import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { NotebookPerfMarks } from '../../common/notebookPerformance.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
@@ -298,10 +297,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			if (this._model) {
 				this._notebookWidget.value?.setModel(this._model.modified.notebook, undefined);
 				this._notebookWidget.value?.setOptions(this._options as INotebookEditorOptions);
-				this.compareWith(this._model.original.notebook);
+				this._notebookWidget.value?.previousModelToCompare.set(this._model.original.notebook, undefined);
 			}
 		} else {
 			this.layout(this._lastLayoutProperties?.dimension, this._lastLayoutProperties?.position);
+			this._notebookWidget.value?.previousModelToCompare.set(undefined, undefined);
 		}
 	}
 
@@ -497,11 +497,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	private compareWith(original: NotebookTextModel) {
-		const decorator = this._notebookWidget.value?.getContribution<NotebookInlineDiffDecorationContribution>(NotebookInlineDiffDecorationContribution.ID);
-		decorator?.compareWith(original);
-	}
-
 	override async setInput(input: NotebookDiffEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this._notebookWidget.value?.onWillHide();
 		const perf = new NotebookPerfMarks();
@@ -512,6 +507,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this.setNotebookWidget(input);
 		} else {
 			this._listViewContainer.style.display = 'block';
+			this._notebookWidget.value?.previousModelToCompare.set(undefined, undefined);
 		}
 
 		await super.setInput(input, options, context, token);
@@ -531,7 +527,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			await this._notebookWidget.value?.setModel(model.modified.notebook, options?.viewState, perf);
 			const isReadOnly = !!input.isReadonly();
 			await this._notebookWidget.value?.setOptions({ ...options, isReadOnly });
-			this.compareWith(this._model.original.notebook);
+			this._notebookWidget.value?.previousModelToCompare.set(this._model.original.notebook, undefined);
 		}
 
 		this._revealFirst = true;
