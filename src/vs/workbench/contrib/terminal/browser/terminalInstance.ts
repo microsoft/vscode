@@ -419,6 +419,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._shellLaunchConfig.type = this._shellLaunchConfig.attachPersistentProcess.type;
 		}
 
+		if (this._shellLaunchConfig.attachPersistentProcess?.tabActions) {
+			this._shellLaunchConfig.tabActions = this._shellLaunchConfig.attachPersistentProcess.tabActions;
+		}
+
 		if (this.shellLaunchConfig.cwd) {
 			const cwdUri = typeof this._shellLaunchConfig.cwd === 'string' ? URI.from({
 				scheme: Schemas.file,
@@ -951,7 +955,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	/**
-	 * Opens the the terminal instance inside the parent DOM element previously set with
+	 * Opens the terminal instance inside the parent DOM element previously set with
 	 * `attachToElement`, you must ensure the parent DOM element is explicitly visible before
 	 * invoking this function as it performs some DOM calculations internally
 	 */

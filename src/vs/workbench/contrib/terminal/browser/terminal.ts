@@ -277,6 +277,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onAnyInstanceSelectionChange: Event<ITerminalInstance>;
 	readonly onAnyInstanceTitleChange: Event<ITerminalInstance>;
 	readonly onAnyInstanceShellTypeChanged: Event<ITerminalInstance>;
+	readonly onAnyInstanceAddedCapabilityType: Event<TerminalCapability>;
 
 	/**
 	 * Creates a terminal.
@@ -973,7 +974,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 
 	/**
 	 * Sets the terminal instance's dimensions to the values provided via the onDidOverrideDimensions event,
-	 * which allows overriding the the regular dimensions (fit to the size of the panel).
+	 * which allows overriding the regular dimensions (fit to the size of the panel).
 	 */
 	setOverrideDimensions(dimensions: ITerminalDimensions): void;
 

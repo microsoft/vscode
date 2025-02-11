@@ -55,13 +55,16 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 	private readonly _onDidToggleDetails = new Emitter<void>();
 	readonly onDidToggleDetails: Event<void> = this._onDidToggleDetails.event;
 
+	private readonly _disposables = new DisposableStore();
+
 	readonly templateId = 'suggestion';
 
-	constructor(private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo) {
+	constructor(private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo, private readonly _onDidFontConfigurationChange: Event<void>) {
 	}
 
 	dispose(): void {
 		this._onDidToggleDetails.dispose();
+		this._disposables.dispose();
 	}
 
 	renderTemplate(container: HTMLElement): ISimpleSuggestionTemplateData {
@@ -110,13 +113,7 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 		};
 
 		configureFont();
-
-		// data.disposables.add(this._editor.onDidChangeConfiguration(e => {
-		// 	if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
-		// 		configureFont();
-		// 	}
-		// }));
-
+		this._disposables.add(this._onDidFontConfigurationChange(() => configureFont()));
 		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, disposables };
 	}
 

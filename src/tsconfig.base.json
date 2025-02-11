@@ -12,12 +12,6 @@
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"forceConsistentCasingInFileNames": true,
-		"baseUrl": ".",
-		"paths": {
-			"vs/*": [
-				"./vs/*"
-			]
-		},
 		"target": "es2022",
 		"useDefineForClassFields": false,
 		"lib": [

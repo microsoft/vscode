@@ -93,6 +93,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		for (const instance of this._terminalService.instances) {
 			this._onTerminalOpened(instance);
 			instance.processReady.then(() => this._onTerminalProcessIdReady(instance));
+			if (instance.shellType) {
+				this._proxy.$acceptTerminalShellType(instance.instanceId, instance.shellType);
+			}
 		}
 		const activeInstance = this._terminalService.activeInstance;
 		if (activeInstance) {
@@ -378,7 +381,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			args: terminalInstance.shellLaunchConfig.args,
 			cwd: terminalInstance.shellLaunchConfig.cwd,
 			env: terminalInstance.shellLaunchConfig.env,
-			hideFromUser: terminalInstance.shellLaunchConfig.hideFromUser
+			hideFromUser: terminalInstance.shellLaunchConfig.hideFromUser,
+			tabActions: terminalInstance.shellLaunchConfig.tabActions
 		};
 		this._proxy.$acceptTerminalOpened(terminalInstance.instanceId, extHostTerminalId, terminalInstance.title, shellLaunchConfigDto);
 	}

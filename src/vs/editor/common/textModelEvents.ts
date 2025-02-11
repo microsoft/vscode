@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from './core/position.js';
 import { IRange } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
@@ -46,10 +45,6 @@ export interface IModelContentChange {
 	 * The length of the range that got replaced.
 	 */
 	readonly rangeLength: number;
-	/**
-	 * The new end position of the range that got replaced.
-	 */
-	readonly rangeEndPosition: Position;
 	/**
 	 * The new text for the range.
 	 */

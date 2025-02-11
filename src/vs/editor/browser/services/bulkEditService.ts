@@ -55,7 +55,7 @@ export class ResourceTextEdit extends ResourceEdit implements IWorkspaceTextEdit
 
 	constructor(
 		readonly resource: URI,
-		readonly textEdit: TextEdit & { insertAsSnippet?: boolean },
+		readonly textEdit: TextEdit & { insertAsSnippet?: boolean; keepWhitespace?: boolean },
 		readonly versionId: number | undefined = undefined,
 		metadata?: WorkspaceEditMetadata,
 	) {

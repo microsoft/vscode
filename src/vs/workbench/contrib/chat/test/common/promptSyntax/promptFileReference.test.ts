@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptFileReference } from '../../../common/promptSyntax/parsers/types.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
@@ -19,7 +19,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
-import { wait, waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
+import { waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -27,27 +27,6 @@ import { ConfigurationService } from '../../../../../../platform/configuration/c
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NonPromptSnippetFile, RecursiveReference, FileOpenFailed } from '../../../common/promptFileReferenceErrors.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-
-/**
- * Represents a file system node.
- */
-interface IFilesystemNode {
-	name: string;
-}
-
-/**
- * Represents a file node.
- */
-interface IFile extends IFilesystemNode {
-	contents: string;
-}
-
-/**
- * Represents a folder node.
- */
-interface IFolder extends IFilesystemNode {
-	children: (IFolder | IFile)[];
-}
 
 /**
  * Represents a file reference with an expected
@@ -80,7 +59,7 @@ class ExpectedReference {
  */
 class TestPromptFileReference extends Disposable {
 	constructor(
-		private readonly fileStructure: IFolder,
+		private readonly fileStructure: IMockFolder[],
 		private readonly rootFileUri: URI,
 		private readonly expectedReferences: ExpectedReference[],
 		@IFileService private readonly fileService: IFileService,
@@ -98,13 +77,10 @@ class TestPromptFileReference extends Disposable {
 	 */
 	public async run() {
 		// create the files structure on the disk
-		await this.createFolder(
-			this.fileService,
-			this.fileStructure,
-		);
+		await (this.initService.createInstance(MockFilesystem, this.fileStructure)).mock();
 
 		// randomly test with and without delay to ensure that the file
-		// reference resolution is not suseptible to race conditions
+		// reference resolution is not susceptible to race conditions
 		if (randomBoolean()) {
 			await waitRandom(5);
 		}
@@ -118,9 +94,8 @@ class TestPromptFileReference extends Disposable {
 			),
 		).start();
 
-		// nested child references are resolved asynchronously in
-		// the background and the process can take some time to complete
-		await wait(50);
+		// wait until entire prompts tree is resolved
+		await rootReference.allSettled();
 
 		// resolve the root file reference including all nested references
 		const resolvedReferences: readonly (IPromptFileReference | undefined)[] = rootReference.allReferences;
@@ -166,36 +141,6 @@ class TestPromptFileReference extends Disposable {
 				`Received(${resolvedReferences.length}): [\n ${resolvedReferences.join('\n ')}\n]`,
 			].join('\n')
 		);
-	}
-
-	/**
-	 * Create the provided filesystem folder structure.
-	 */
-	async createFolder(
-		fileService: IFileService,
-		folder: IFolder,
-		parentFolder?: URI,
-	): Promise<void> {
-		const folderUri = parentFolder
-			? URI.joinPath(parentFolder, folder.name)
-			: URI.file(folder.name);
-
-		if (await fileService.exists(folderUri)) {
-			await fileService.del(folderUri);
-		}
-		await fileService.createFolder(folderUri);
-
-		for (const child of folder.children) {
-			const childUri = URI.joinPath(folderUri, child.name);
-			// create child file
-			if ('contents' in child) {
-				await fileService.writeFile(childUri, VSBuffer.fromString(child.contents));
-				continue;
-			}
-
-			// recursively create child filesystem structure
-			await this.createFolder(fileService, child, folderUri);
-		}
 	}
 }
 
@@ -255,7 +200,7 @@ suite('PromptFileReference (Unix)', function () {
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
-			{
+			[{
 				name: rootFolderName,
 				children: [
 					{
@@ -302,7 +247,7 @@ suite('PromptFileReference (Unix)', function () {
 						],
 					},
 				],
-			},
+			}],
 			/**
 			 * The root file path to start the resolve process from.
 			 */
@@ -370,7 +315,7 @@ suite('PromptFileReference (Unix)', function () {
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
-			{
+			[{
 				name: rootFolderName,
 				children: [
 					{
@@ -418,7 +363,7 @@ suite('PromptFileReference (Unix)', function () {
 						],
 					},
 				],
-			},
+			}],
 			/**
 			 * The root file path to start the resolve process from.
 			 */

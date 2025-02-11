@@ -50,7 +50,7 @@ import { Settings2EditorModel, nullRange } from '../../../services/preferences/c
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -182,7 +182,6 @@ export class SettingsEditor2 extends EditorPane {
 	private tocTreeContainer!: HTMLElement;
 	private tocTree!: TOCTree;
 
-	private delayedFilterLogging: Delayer<void>;
 	private searchDelayer: Delayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
 
@@ -252,7 +251,6 @@ export class SettingsEditor2 extends EditorPane {
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
-		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.searchDelayer = new Delayer(300);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
@@ -541,6 +539,7 @@ export class SettingsEditor2 extends EditorPane {
 			// Wait for editor to be removed from DOM #106303
 			setTimeout(() => {
 				this.searchWidget.onHide();
+				this.settingRenderers.cancelSuggesters();
 			}, 0);
 		}
 	}
@@ -671,7 +670,7 @@ export class SettingsEditor2 extends EditorPane {
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
-		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
+		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target)));
 		this._register(DOM.addDisposableListener(targetWidgetContainer, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.DownArrow) {
@@ -794,7 +793,7 @@ export class SettingsEditor2 extends EditorPane {
 			if (options?.revealSetting) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 				const configurationScope = configurationProperties[options?.revealSetting.key]?.scope;
-				if (configurationScope === ConfigurationScope.APPLICATION) {
+				if (configurationScope && APPLICATION_SCOPES.includes(configurationScope)) {
 					return this.preferencesService.openApplicationSettings(openOptions);
 				}
 			}
@@ -1159,6 +1158,13 @@ export class SettingsEditor2 extends EditorPane {
 					this.refreshTOCTree();
 				}
 				this.renderTree(key, isManualReset);
+				this.pendingSettingUpdate = null;
+
+				// Only log 1% of modification events to reduce the volume of data
+				if (Math.random() >= 0.01) {
+					return;
+				}
+
 				const reportModifiedProps = {
 					key,
 					query,
@@ -1168,8 +1174,6 @@ export class SettingsEditor2 extends EditorPane {
 					isReset: typeof value === 'undefined',
 					settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
 				};
-
-				this.pendingSettingUpdate = null;
 				return this.reportModifiedSetting(reportModifiedProps);
 			});
 	}
@@ -1572,12 +1576,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const query = this.searchWidget.getValue().trim();
 		this.viewState.query = query;
-		this.delayedFilterLogging.cancel();
 		await this.triggerSearch(query.replace(/\u203A/g, ' '));
-
-		if (query && this.searchResultModel) {
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(this.searchResultModel));
-		}
 	}
 
 	private parseSettingFromJSON(query: string): string | null {
@@ -1598,10 +1597,7 @@ export class SettingsEditor2 extends EditorPane {
 				separatorBorder: Color.transparent
 			});
 		} else {
-			this.splitView.setViewVisible(0, true);
-			this.splitView.style({
-				separatorBorder: this.theme.getColor(settingsSashBorder)!
-			});
+			this.layoutSplitView(this.dimension);
 		}
 	}
 
@@ -1660,8 +1656,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
-				// Always show the ToC when leaving search mode
-				this.splitView.setViewVisible(0, true);
+				this.layoutSplitView(this.dimension);
 			}
 		}
 		progressRunner.done();
@@ -1679,51 +1674,13 @@ export class SettingsEditor2 extends EditorPane {
 		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
 			for (const sect of g.sections) {
 				for (const setting of sect.settings) {
-					fullResult.filterMatches.push({ setting, matches: [], matchType: SettingMatchType.None, keyMatchSize: 0, score: 0 });
+					fullResult.filterMatches.push({ setting, matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0 });
 				}
 			}
 		}
 
 		filterModel.setResult(0, fullResult);
 		return filterModel;
-	}
-
-	private reportFilteringUsed(searchResultModel: SearchResultModel | null): void {
-		if (!searchResultModel) {
-			return;
-		}
-
-		type SettingsEditorFilterEvent = {
-			'counts.nlpResult': number | undefined;
-			'counts.filterResult': number | undefined;
-			'counts.uniqueResultsCount': number | undefined;
-		};
-		type SettingsEditorFilterClassification = {
-			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
-			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'The number of matches found by the local search provider, if applicable.' };
-			'counts.uniqueResultsCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'The number of unique matches over both search providers, if applicable.' };
-			owner: 'rzhao271';
-			comment: 'Tracks the performance of the built-in search providers';
-		};
-		// Count unique results
-		const counts: { nlpResult?: number; filterResult?: number } = {};
-		const rawResults = searchResultModel.getRawResults();
-		const filterResult = rawResults[SearchResultIdx.Local];
-		if (filterResult) {
-			counts['filterResult'] = filterResult.filterMatches.length;
-		}
-		const nlpResult = rawResults[SearchResultIdx.Remote];
-		if (nlpResult) {
-			counts['nlpResult'] = nlpResult.filterMatches.length;
-		}
-
-		const uniqueResults = searchResultModel.getUniqueResults();
-		const data = {
-			'counts.nlpResult': counts['nlpResult'],
-			'counts.filterResult': counts['filterResult'],
-			'counts.uniqueResultsCount': uniqueResults?.filterMatches.length
-		};
-		this.telemetryService.publicLog2<SettingsEditorFilterEvent, SettingsEditorFilterClassification>('settingsEditor.filter', data);
 	}
 
 	private async triggerFilterPreferences(query: string): Promise<void> {

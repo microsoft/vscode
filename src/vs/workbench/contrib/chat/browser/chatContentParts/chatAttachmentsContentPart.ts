@@ -140,8 +140,18 @@ export class ChatAttachmentsContentPart extends Disposable {
 				widget.appendChild(pillIcon);
 				widget.appendChild(textLabel);
 
+				if (attachment.references) {
+					widget.style.cursor = 'pointer';
+					const clickHandler = () => {
+						if (attachment.references && URI.isUri(attachment.references[0].reference)) {
+							this.openResource(attachment.references[0].reference, false, undefined);
+						}
+					};
+					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'click', clickHandler));
+				}
+
 				if (isAttachmentPartialOrOmitted) {
-					hoverElement.textContent = localize('chat.imageAttachmentHover', "Image was not sent to the model.");
+					hoverElement.textContent = localize('chat.imageAttachmentHover', "Selected model does not support images.");
 					textLabel.style.textDecoration = 'line-through';
 					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
 				} else {

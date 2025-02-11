@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalCompletion, ITerminalCompletionProvider } from './terminalCompletionService.js';
+import { ITerminalCompletionProvider } from './terminalCompletionService.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { Event, Emitter } from '../../../../../base/common/event.js';
@@ -21,6 +21,7 @@ import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../pla
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ITerminalCompletion, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -48,8 +49,6 @@ const enum Constants {
 const enum RequestCompletionsSequence {
 	Contextual = '\x1b[24~e', // F12,e
 	Global = '\x1b[24~f', // F12,f
-	Git = '\x1b[24~g', // F12,g
-	Code = '\x1b[24~h' // F12,h
 }
 
 export class PwshCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
@@ -59,8 +58,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	static readonly ID = 'pwsh-shell-integration';
 	static cachedPwshCommands: Set<ITerminalCompletion>;
 	readonly shellTypes = [GeneralShellType.PowerShell];
-	private _codeCompletionsRequested: boolean = false;
-	private _gitCompletionsRequested: boolean = false;
 	private _lastUserDataTimestamp: number = 0;
 	private _terminal?: Terminal;
 	private _mostRecentCompletion?: ITerminalCompletion;
@@ -69,10 +66,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	private _enableWidget: boolean = true;
 	isPasting: boolean = false;
 	private _completionsDeferred: DeferredPromise<ITerminalCompletion[] | undefined> | null = null;
-	private readonly _onBell = this._register(new Emitter<void>());
-	readonly onBell = this._onBell.event;
-	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
-	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
+
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
 	private readonly _onDidRequestSendText = this._register(new Emitter<RequestCompletionsSequence>());
@@ -172,6 +166,12 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			return;
 		}
 
+		// No completions
+		if (args.length === 0) {
+			this._resolveCompletions(undefined);
+			return;
+		}
+
 		let replacementIndex = 0;
 		let replacementLength = this._promptInputModel.cursorIndex;
 
@@ -207,7 +207,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			}
 		}
 
-		if (this._mostRecentCompletion?.isDirectory && completions.every(c => c.isDirectory)) {
+		if (this._mostRecentCompletion?.kind === TerminalCompletionItemKind.Folder && completions.every(c => c.kind === TerminalCompletionItemKind.Folder)) {
 			completions.push(this._mostRecentCompletion);
 		}
 		this._mostRecentCompletion = undefined;
@@ -245,14 +245,10 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	}
 
 	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
-		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
-		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
-			this._onDidRequestSendText.fire(RequestCompletionsSequence.Code);
-			this._codeCompletionsRequested = true;
-		}
-		if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
-			this._onDidRequestSendText.fire(RequestCompletionsSequence.Git);
-			this._gitCompletionsRequested = true;
+		// Return immediately if completions are being requested for a command since this provider
+		// only returns completions for arguments
+		if (value.substring(0, cursorPosition).trim().indexOf(' ') === -1) {
+			return Promise.resolve(undefined);
 		}
 
 		// Request global pwsh completions if there are none cached
@@ -351,8 +347,7 @@ function rawCompletionToITerminalCompletion(rawCompletion: PwshCompletion, repla
 		provider: PwshCompletionProviderAddon.ID,
 		icon,
 		detail,
-		isFile: rawCompletion.ResultType === 3,
-		isDirectory: rawCompletion.ResultType === 4,
+		kind: pwshTypeToKindMap[rawCompletion.ResultType],
 		isKeyword: rawCompletion.ResultType === 12,
 		replacementIndex,
 		replacementLength
@@ -368,6 +363,7 @@ function getIcon(resultType: number, customIconId?: string): ThemeIcon {
 	}
 	return pwshTypeToIconMap[resultType] ?? Codicon.symbolText;
 }
+
 
 
 /**
@@ -409,3 +405,19 @@ const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 	13: Codicon.symbolKeyword
 };
 
+const pwshTypeToKindMap: { [type: string]: TerminalCompletionItemKind | undefined } = {
+	0: undefined,
+	1: undefined,
+	2: TerminalCompletionItemKind.Method,
+	3: TerminalCompletionItemKind.File,
+	4: TerminalCompletionItemKind.Folder,
+	5: TerminalCompletionItemKind.Argument,
+	6: TerminalCompletionItemKind.Method,
+	7: TerminalCompletionItemKind.Argument,
+	8: undefined,
+	9: undefined,
+	10: undefined,
+	11: undefined,
+	12: undefined,
+	13: undefined,
+};

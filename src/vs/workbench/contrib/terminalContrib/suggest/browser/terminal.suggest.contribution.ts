@@ -30,6 +30,8 @@ import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
 import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { SuggestDetailsClassName } from '../../../../services/suggest/browser/simpleSuggestWidgetDetails.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -63,20 +65,15 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSuggestSettingId.EnableExtensionCompletions) || e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
-				const extensionCompletionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
+			if (e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
 				const completionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enabled;
-				if (!extensionCompletionsEnabled || !completionsEnabled) {
-					this._addon.clear();
-				}
 				if (!completionsEnabled) {
+					this._addon.clear();
 					this._pwshAddon.clear();
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
-				if (!!xtermRaw && extensionCompletionsEnabled || completionsEnabled) {
-					if (xtermRaw) {
-						this._loadAddons(xtermRaw);
-					}
+				if (!!xtermRaw && completionsEnabled) {
+					this._loadAddons(xtermRaw);
 				}
 			}
 		}));
@@ -158,7 +155,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
 			const focusedElement = e.relatedTarget as HTMLElement;
-			if (focusedElement?.className === SuggestDetailsClassName) {
+			if (focusedElement?.classList.contains(SuggestDetailsClassName)) {
 				// Don't hide the suggest widget if the focus is moving to the details
 				return;
 			}
@@ -318,13 +315,18 @@ registerActiveInstanceAction({
 
 registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.AcceptSelectedSuggestion,
-	title: localize2('workbench.action.terminal.acceptSelectedSuggestion', 'Accept Selected Suggestion'),
+	title: localize2('workbench.action.terminal.acceptSelectedSuggestion', 'Insert'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1
+	},
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		order: 1,
+		group: 'left'
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
 });
@@ -354,6 +356,23 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget()
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ConfigureSettings,
+	title: localize2('workbench.action.terminal.configureSuggestSettings', 'Configure'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'right',
+		order: 1
+	},
+	run: (activeInstance, c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
 });
 
 registerActiveInstanceAction({
