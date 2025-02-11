@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../../../nls.js';
-import { IChatWidgetService } from '../../chat.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
-import { ChatAgentLocation } from '../../../common/chatAgents.js';
+import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -34,7 +33,7 @@ export const USE_PROMPT_COMMAND_ID = 'use-prompt';
  *
  * When executed, it tries to see if a `prompt file` was open in the active code editor
  * (see {@link IChatAttachPromptActionOptions.resource resource}), and if a chat input
- * is focused (see {@link IChatAttachPromptActionOptions.location location}).
+ * is focused (see {@link IChatAttachPromptActionOptions.widget widget}).
  *
  * Then the command shows prompt selection dialog to the user. If an active prompt file
  * was detected, it is pre-selected in the dialog. User can confirm (`enter`) or select
@@ -54,7 +53,7 @@ const usePromptCommand = async (
 
 	const options: IChatAttachPromptActionOptions = {
 		resource: getActivePromptUri(accessor),
-		location: getLocation(accessor),
+		widget: getFocusedChatWidget(accessor),
 	};
 
 	await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
@@ -82,9 +81,9 @@ appendToCommandPalette(
 );
 
 /**
- * Get chat input location to attach prompt to.
+ * Get chat widget reference to attach prompt to.
  */
-export function getLocation(accessor: ServicesAccessor): ChatAgentLocation | undefined {
+export function getFocusedChatWidget(accessor: ServicesAccessor): IChatWidget | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
 	const { lastFocusedWidget } = chatWidgetService;
@@ -92,11 +91,12 @@ export function getLocation(accessor: ServicesAccessor): ChatAgentLocation | und
 		return undefined;
 	}
 
+	// the widget input `must` be focused at the time when command run
 	if (!lastFocusedWidget.hasInputFocus()) {
 		return undefined;
 	}
 
-	return lastFocusedWidget.location;
+	return lastFocusedWidget;
 }
 
 /**
