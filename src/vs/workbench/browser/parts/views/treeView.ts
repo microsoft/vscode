@@ -118,7 +118,7 @@ export class TreeViewPane extends ViewPane {
 		if (options.titleDescription !== this.treeView.description) {
 			this.updateTitleDescription(this.treeView.description);
 		}
-		this._actionRunner = new MultipleSelectionActionRunner(notificationService, () => this.treeView.getSelection());
+		this._actionRunner = this._register(new MultipleSelectionActionRunner(notificationService, () => this.treeView.getSelection()));
 
 		this.updateTreeVisibility();
 	}
