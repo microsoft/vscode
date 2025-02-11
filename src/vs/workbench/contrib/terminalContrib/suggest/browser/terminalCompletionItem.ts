@@ -14,6 +14,7 @@ export enum TerminalCompletionItemKind {
 	Method = 3,
 	Argument = 4,
 	Alias = 5,
+	InlineSuggestion = 6,
 }
 
 export interface ITerminalCompletion extends ISimpleCompletion {

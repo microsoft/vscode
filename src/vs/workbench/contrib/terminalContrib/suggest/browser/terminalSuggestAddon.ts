@@ -95,6 +95,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Method, Codicon.symbolMethod],
 		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable],
 		[TerminalCompletionItemKind.Alias, Codicon.replace],
+		[TerminalCompletionItemKind.InlineSuggestion, Codicon.star],
 	]);
 
 	private _shouldSyncWhenReady: boolean = false;
@@ -240,11 +241,28 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._pathSeparator = firstDir?.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
+
+		// Add any "ghost text" suggestion suggested by the shell. This aligns with behavior of the
+		// editor and how it interacts with inline completions
+		if (this._currentPromptInputState.ghostTextIndex !== -1) {
+			const suggestion = this._currentPromptInputState.value;
+			completions.push({
+				label: suggestion,
+				replacementIndex: 0,
+				replacementLength: this._currentPromptInputState.ghostTextIndex,
+				provider: 'core',
+				detail: 'Inline suggestion',
+				kind: TerminalCompletionItemKind.InlineSuggestion,
+			});
+		}
+
+		// Add any missing icons based on the completion item kind
 		for (const completion of completions) {
 			if (!completion.icon && completion.kind !== undefined) {
 				completion.icon = this._kindToIconMap.get(completion.kind);
 			}
 		}
+
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new TerminalCompletionModel(
 			completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c)),
