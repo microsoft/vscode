@@ -161,7 +161,7 @@ import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserData
 import { UserDataProfileService } from '../../services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
-import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo, UninstallExtensionInfo } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo, UninstallExtensionInfo, InstallExtensionSummary } from '../../../platform/extensionManagement/common/extensionManagement.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from '../../../platform/remote/common/remoteSocketFactoryService.js';
@@ -2164,7 +2164,7 @@ export class TestRemoteAgentService implements IRemoteAgentService {
 
 export class TestRemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
 	declare readonly _serviceBrand: undefined;
-	async whenExtensionsReady(): Promise<void> { }
+	async whenExtensionsReady(): Promise<InstallExtensionSummary> { return { failed: [] }; }
 	scanExtensions(): Promise<IExtensionDescription[]> { throw new Error('Method not implemented.'); }
 }
 
