@@ -10,9 +10,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 /**
  * TODO: @legomushroom
  *  - update `config` docs comment
- *  - update `config` unit tests
- *  - update `file locator` docs comment
- *  - update `file locator` unit tests
  */
 
 /**
