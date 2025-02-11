@@ -132,6 +132,7 @@ export interface IModifiedFileEntry {
 	readonly originalURI: URI;
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
+
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;

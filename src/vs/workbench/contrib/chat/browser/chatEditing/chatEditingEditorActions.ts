@@ -287,10 +287,10 @@ class AcceptHunkAction extends EditorAction2 {
 	}
 }
 
-class OpenDiffAction extends EditorAction2 {
+class ToggleDiffAction extends EditorAction2 {
 	constructor() {
 		super({
-			id: 'chatEditor.action.diffHunk',
+			id: 'chatEditor.action.toggleDiff',
 			title: localize2('diff', 'Toggle Diff Editor'),
 			category: CHAT_CATEGORY,
 			toggled: {
@@ -318,6 +318,27 @@ class OpenDiffAction extends EditorAction2 {
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
 		ChatEditorController.get(editor)?.toggleDiff(args[0]);
+	}
+}
+
+class ToggleAccessibleDiffViewAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'chatEditor.action.showAccessibleDiffView',
+			title: localize2('accessibleDiff', 'Show Accessible Diff View'),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
+			keybinding: {
+				when: EditorContextKeys.focus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.F7,
+			}
+		});
+	}
+
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		ChatEditorController.get(editor)?.showAccessibleDiffView();
 	}
 }
 
@@ -404,7 +425,8 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptHunkAction);
 	registerAction2(RejectAction);
 	registerAction2(RejectHunkAction);
-	registerAction2(OpenDiffAction);
+	registerAction2(ToggleDiffAction);
+	registerAction2(ToggleAccessibleDiffViewAction);
 
 	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(true); } });
 	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(false); } });

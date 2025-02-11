@@ -6,7 +6,7 @@
 import '../media/chatEditorController.css';
 import { addStandardDisposableListener, getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
@@ -40,6 +40,8 @@ import { IChatService } from '../../common/chatService.js';
 import { StableEditorScrollState } from '../../../../../editor/browser/stableEditorScroll.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
+import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
+import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 
 export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chat.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
@@ -67,8 +69,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	private readonly _ctxReviewModelEnabled: IContextKey<boolean>;
 
 	static get(editor: ICodeEditor): ChatEditorController | null {
-		const controller = editor.getContribution<ChatEditorController>(ChatEditorController.ID);
-		return controller;
+		return editor.getContribution<ChatEditorController>(ChatEditorController.ID);
 	}
 
 	private readonly _currentEntryIndex = observableValue<number | undefined>(this, undefined);
@@ -76,6 +77,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private readonly _currentChangeIndex = observableValue<number | undefined>(this, undefined);
 	readonly currentChangeIndex: IObservable<number | undefined> = this._currentChangeIndex;
+
+
+	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
 
 	private _scrollLock: boolean = false;
 
@@ -288,6 +292,34 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			} else if (mapping) {
 				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineModified, { source: 'chatEditingEditor.cursorPositionChanged' });
 			}
+		}));
+
+
+
+		this._store.add(autorunWithStore((r, store) => {
+
+			const visible = this._accessibleDiffViewVisible.read(r);
+			const entry = entryForEditor.read(r)?.entry;
+
+			if (!visible || !entry) {
+				return;
+			}
+
+			const accessibleDiffWidget = new AccessibleDiffViewContainer();
+			_editor.addOverlayWidget(accessibleDiffWidget);
+			store.add(toDisposable(() => _editor.removeOverlayWidget(accessibleDiffWidget)));
+
+			store.add(_instantiationService.createInstance(
+				AccessibleDiffViewer,
+				accessibleDiffWidget.getDomNode(),
+				entryForEditor.map(Boolean),
+				(visible, tx) => this._accessibleDiffViewVisible.set(visible, tx),
+				constObservable(true),
+				editorObs.layoutInfo.map((v, r) => v.width),
+				editorObs.layoutInfo.map((v, r) => v.height),
+				entry.diffInfo.map(diff => diff.changes.slice()),
+				new AccessibleDiffViewerModel(entry, _editor),
+			));
 		}));
 	}
 
@@ -718,6 +750,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			}
 		}
 	}
+
+	showAccessibleDiffView(): void {
+		this._accessibleDiffViewVisible.set(true, undefined);
+	}
 }
 
 class DiffHunkWidget implements IOverlayWidget {
@@ -815,5 +851,82 @@ class DiffHunkWidget implements IOverlayWidget {
 		if (this._versionId === this._editor.getModel()?.getVersionId()) {
 			this.entry.acceptHunk(this._change);
 		}
+	}
+}
+
+
+class AccessibleDiffViewContainer implements IOverlayWidget {
+
+	private readonly _domNode: HTMLElement;
+
+	constructor() {
+		this._domNode = document.createElement('div');
+		this._domNode.className = 'accessible-diff-view';
+		this._domNode.style.width = '100%';
+		this._domNode.style.position = 'absolute';
+	}
+
+	getId(): string {
+		return 'chatEdits.accessibleDiffView';
+	}
+
+	getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	getPosition(): IOverlayWidgetPosition | null {
+		return {
+			preference: { top: 0, left: 0 },
+			stackOridinal: 1
+		};
+	}
+}
+
+class AccessibleDiffViewerModel implements IAccessibleDiffViewerModel {
+	constructor(private readonly entry: IModifiedFileEntry, private readonly _editor: ICodeEditor) { }
+
+	getOriginalModel() {
+		return this.entry?.originalModel;
+	}
+
+	getOriginalOptions() {
+		return this._editor.getOptions();
+	}
+
+	originalReveal(range: Range) {
+		const changes = this.entry.diffInfo.get().changes;
+		const idx = changes.findIndex(value => value.original.intersect(LineRange.fromRange(range)));
+		if (idx >= 0) {
+			range = changes[idx].modified.toInclusiveRange() ?? range;
+		}
+		this.modifiedReveal(range);
+	}
+
+	getModifiedModel() {
+		return this._editor.getModel()!;
+	}
+
+	getModifiedOptions() {
+		return this._editor.getOptions();
+	}
+
+	modifiedReveal(range: Range) {
+		if (range) {
+			this._editor.revealRange(range);
+			this._editor.setSelection(range);
+		}
+		this._editor.focus();
+	}
+
+	modifiedSetSelection(range: Range) {
+		this._editor.setSelection(range);
+	}
+
+	modifiedFocus() {
+		this._editor.focus();
+	}
+
+	getModifiedPosition() {
+		return this._editor.getPosition() ?? undefined;
 	}
 }
