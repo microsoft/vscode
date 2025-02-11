@@ -9,8 +9,6 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../../../bas
 import { IObservable, ISettableObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Rect } from '../../../../../browser/rect.js';
 import { HoverService } from '../../../../../browser/services/hoverService/hoverService.js';
@@ -21,53 +19,12 @@ import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
-import { mapOutFalsy, n, rectToProps } from './utils.js';
+import { InlineEditTabAction, mapOutFalsy, n, rectToProps } from './utils.js';
 import { localize } from '../../../../../../nls.js';
 import { trackFocus } from '../../../../../../base/browser/dom.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
-export const inlineEditIndicatorPrimaryForeground = registerColor(
-	'inlineEdit.gutterIndicator.primaryForeground',
-	buttonForeground,
-	localize('inlineEdit.gutterIndicator.primaryForeground', 'Foreground color for the primary inline edit gutter indicator.')
-);
-export const inlineEditIndicatorPrimaryBackground = registerColor(
-	'inlineEdit.gutterIndicator.primaryBackground',
-	buttonBackground,
-	localize('inlineEdit.gutterIndicator.primaryBackground', 'Background color for the primary inline edit gutter indicator.')
-);
-
-export const inlineEditIndicatorSecondaryForeground = registerColor(
-	'inlineEdit.gutterIndicator.secondaryForeground',
-	buttonSecondaryForeground,
-	localize('inlineEdit.gutterIndicator.secondaryForeground', 'Foreground color for the secondary inline edit gutter indicator.')
-);
-export const inlineEditIndicatorSecondaryBackground = registerColor(
-	'inlineEdit.gutterIndicator.secondaryBackground',
-	buttonSecondaryBackground,
-	localize('inlineEdit.gutterIndicator.secondaryBackground', 'Background color for the secondary inline edit gutter indicator.')
-);
-
-export const inlineEditIndicatorsuccessfulForeground = registerColor(
-	'inlineEdit.gutterIndicator.successfulForeground',
-	buttonForeground,
-	localize('inlineEdit.gutterIndicator.successfulForeground', 'Foreground color for the successful inline edit gutter indicator.')
-);
-export const inlineEditIndicatorsuccessfulBackground = registerColor(
-	'inlineEdit.gutterIndicator.successfulBackground',
-	{ light: '#2e825c', dark: '#2e825c', hcLight: '#2e825c', hcDark: '#2e825c' },
-	localize('inlineEdit.gutterIndicator.successfulBackground', 'Background color for the successful inline edit gutter indicator.')
-);
-
-export const inlineEditIndicatorBackground = registerColor(
-	'inlineEdit.gutterIndicator.background',
-	{
-		hcDark: transparent('tab.inactiveBackground', 0.5),
-		hcLight: transparent('tab.inactiveBackground', 0.5),
-		dark: transparent('tab.inactiveBackground', 0.5),
-		light: '#5f5f5f18',
-	},
-	localize('inlineEdit.gutterIndicator.background', 'Background color for the inline edit gutter indicator.')
-);
+import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
+import { inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulForeground } from './theme.js';
 
 export class InlineEditsGutterIndicator extends Disposable {
 	constructor(
@@ -75,6 +32,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _originalRange: IObservable<LineRange | undefined>,
 		private readonly _verticalOffset: IObservable<number>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
@@ -148,15 +106,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 				: iconRect.top > targetRect.top ? 'top' as const : 'bottom' as const),
 			docked: rect.containsRect(iconRect) && viewPortWithStickyScroll.containsRect(iconRect),
 		};
-	});
-
-	private readonly _tabAction = derived(this, reader => {
-		const m = this._model.read(reader);
-		if (this._editorObs.isFocused.read(reader)) {
-			if (m && m.tabShouldJumpToInlineEdit.read(reader)) { return 'jump' as const; }
-			if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return 'accept' as const; }
-		}
-		return 'inactive' as const;
 	});
 
 	private readonly _iconRef = n.ref<HTMLDivElement>();
@@ -233,7 +182,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		n.div({
 			style: {
 				position: 'absolute',
-				background: 'var(--vscode-inlineEdit-gutterIndicator-background)',
+				background: asCssVariable(inlineEditIndicatorBackground),
 				borderRadius: '4px',
 				...rectToProps(reader => layout.read(reader).rect),
 			}
@@ -253,16 +202,16 @@ export class InlineEditsGutterIndicator extends Disposable {
 				position: 'absolute',
 				backgroundColor: this._tabAction.map(v => {
 					switch (v) {
-						case 'inactive': return 'var(--vscode-inlineEdit-gutterIndicator-secondaryBackground)';
-						case 'jump': return 'var(--vscode-inlineEdit-gutterIndicator-primaryBackground)';
-						case 'accept': return 'var(--vscode-inlineEdit-gutterIndicator-successfulBackground)';
+						case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryBackground);
+						case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryBackground);
+						case InlineEditTabAction.Accept: return asCssVariable(inlineEditIndicatorsuccessfulBackground);
 					}
 				}),
 				['--vscodeIconForeground' as any]: this._tabAction.map(v => {
 					switch (v) {
-						case 'inactive': return 'var(--vscode-inlineEdit-gutterIndicator-secondaryForeground)';
-						case 'jump': return 'var(--vscode-inlineEdit-gutterIndicator-primaryForeground)';
-						case 'accept': return 'var(--vscode-inlineEdit-gutterIndicator-successfulForeground)';
+						case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryForeground);
+						case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryForeground);
+						case InlineEditTabAction.Accept: return asCssVariable(inlineEditIndicatorsuccessfulForeground);
 					}
 				}),
 				borderRadius: '4px',
@@ -287,7 +236,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					justifyContent: 'center',
 				}
 			}, [
-				this._tabAction.map(v => v === 'accept' ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
+				this._tabAction.map(v => v === InlineEditTabAction.Accept ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
 			])
 		]),
 	])).keepUpdated(this._store);
