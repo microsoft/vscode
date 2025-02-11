@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { ClassNameReference, CssProperties, DynamicCssRules } from '../../../browser/editorDom.js';
 import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EditorOption, EditorOptions } from '../../../common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
 import { Range } from '../../../common/core/range.js';
@@ -32,11 +32,14 @@ import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from './inlayHint
 import { goToDefinitionWithLocation, showGoToContextMenu } from './inlayHintsLocations.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import * as colors from '../../../../platform/theme/common/colorRegistry.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { Position } from '../../../common/core/position.js';
+import { EditorAction2 } from '../../../browser/editorExtensions.js';
+import { localize2 } from '../../../../nls.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 
 // --- hint caching service (per session)
 
@@ -174,6 +177,39 @@ export class InlayHintsController implements IEditorContribution {
 		this._sessionDisposables.dispose();
 		this._removeAllDecorations();
 		this._disposables.dispose();
+	}
+
+	_toggleOnOff() {
+		const currentOptions = this._editor.getOption(EditorOption.inlayHints);
+		let newEnabledValue: typeof currentOptions['enabled'];
+		// If the action triggers the change, it will disable the
+		// `onUnlessPressed`/`offUnlessPressed` hotkey to avoid conflicts.
+		switch (currentOptions.enabled) {
+			case 'on':
+			case 'onUnlessPressed': {
+				newEnabledValue = 'off';
+				break;
+			}
+			case 'off':
+			case 'offUnlessPressed': {
+				newEnabledValue = 'on';
+				break;
+			}
+			default: {
+				function _exhaustiveCheck(_value: never) { }
+				_exhaustiveCheck(currentOptions.enabled);
+				return;
+			}
+		}
+
+		const updatedValue = EditorOptions.inlayHints.validate({
+			...currentOptions,
+			enabled: newEnabledValue
+		});
+		const result = EditorOptions.inlayHints.applyUpdate(currentOptions, updatedValue);
+		if (result.didChange) {
+			this._update();
+		}
 	}
 
 	private _update(): void {
@@ -809,5 +845,19 @@ CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, .
 		return result;
 	} finally {
 		ref.dispose();
+	}
+});
+
+registerAction2(class InlayHintsToggleAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'editor.inlayHints.onOffToggle',
+			title: localize2('editor.inlayHints.onOffToggle', "Toggle the inlay hints in the editor"),
+			f1: true,
+		});
+	}
+
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+		InlayHintsController.get(editor)?._toggleOnOff();
 	}
 });
