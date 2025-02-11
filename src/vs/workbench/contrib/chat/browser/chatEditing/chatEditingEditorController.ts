@@ -38,6 +38,8 @@ import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../
 import { ChatEditorOverlayController } from './chatEditingEditorOverlay.js';
 import { IChatService } from '../../common/chatService.js';
 import { StableEditorScrollState } from '../../../../../editor/browser/stableEditorScroll.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
 
 export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chat.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
@@ -83,6 +85,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService chatService: IChatService,
 	) {
@@ -184,7 +187,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			}
 
 			// scrolling logic
-			if (entry.isCurrentlyBeingModified.read(r)) {
+			if (entry.isCurrentlyBeingModifiedBy.read(r)) {
 				// while modified: scroll along unless locked
 				if (!this._scrollLock) {
 					const maxLineNumber = entry.maxLineNumber.read(r);
@@ -266,6 +269,24 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					this._editor.updateOptions(actualOptions);
 					actualOptions = undefined;
 				}
+			}
+		}));
+
+		this._store.add(autorun(r => {
+			const position = editorObs.positions.read(r)?.at(0);
+			const entry = entryForEditor.read(r);
+			if (!position || !entry) {
+				return;
+			}
+
+			const diff = entry.entry.diffInfo.read(r);
+			const mapping = diff.changes.find(m => m.modified.contains(position.lineNumber) || m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber);
+			if (mapping?.modified.isEmpty) {
+				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
+			} else if (mapping?.original.isEmpty) {
+				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'chatEditingEditor.cursorPositionChanged' });
+			} else if (mapping) {
+				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineModified, { source: 'chatEditingEditor.cursorPositionChanged' });
 			}
 		}));
 	}
@@ -572,10 +593,13 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		this._currentChangeIndex.set(target, undefined);
 
-		const targetPosition = next ? decorations[target].getStartPosition() : decorations[target].getEndPosition();
+
+		const targetRange = decorations[target];
+		const targetPosition = next ? targetRange.getStartPosition() : targetRange.getEndPosition();
 		this._editor.setPosition(targetPosition);
 		this._editor.revealPositionInCenter(targetPosition, scrollType);
 		this._editor.focus();
+
 
 		return true;
 	}
@@ -635,22 +659,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			return;
 		}
 
-		const lineRelativeTop = this._editor.getTopForLineNumber(this._editor.getPosition().lineNumber) - this._editor.getScrollTop();
-		let closestDistance = Number.MAX_VALUE;
-
-		if (!(widget instanceof DiffHunkWidget)) {
-			for (const candidate of this._diffHunkWidgets) {
-				const widgetTop = (<IOverlayWidgetPositionCoordinates | undefined>candidate.getPosition()?.preference)?.top;
-				if (widgetTop !== undefined) {
-					const distance = Math.abs(widgetTop - lineRelativeTop);
-					if (distance < closestDistance) {
-						closestDistance = distance;
-						widget = candidate;
-					}
-				}
-			}
-		}
-
 		let selection = this._editor.getSelection();
 		if (widget instanceof DiffHunkWidget) {
 			const lineNumber = widget.getStartLineNumber();
@@ -664,7 +672,13 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		if (isDiffEditor) {
 			// normal EDITOR
-			await this._editorService.openEditor({ resource: entry.modifiedURI });
+			await this._editorService.openEditor({
+				resource: entry.modifiedURI,
+				options: {
+					selection,
+					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
+				}
+			});
 
 		} else {
 			// DIFF editor

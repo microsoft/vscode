@@ -36,6 +36,7 @@ import { SaveReason } from '../../../../common/editor.js';
 import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -85,9 +86,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._stateObs;
 	}
 
-	private readonly _isCurrentlyBeingModifiedObs = observableValue<boolean>(this, false);
-	public get isCurrentlyBeingModified(): IObservable<boolean> {
-		return this._isCurrentlyBeingModifiedObs;
+	private readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
+	public get isCurrentlyBeingModifiedBy(): IObservable<IChatResponseModel | undefined> {
+		return this._isCurrentlyBeingModifiedByObs;
 	}
 
 	private readonly _rewriteRatioObs = observableValue<number>(this, 0);
@@ -330,7 +331,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 
 	private _resetEditsState(tx: ITransaction): void {
-		this._isCurrentlyBeingModifiedObs.set(false, tx);
+		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
 		this._rewriteRatioObs.set(0, tx);
 		this._clearCurrentEditLineDecoration();
 	}
@@ -379,7 +380,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this._updateDiffInfoSeq();
 		}
 
-		if (!this.isCurrentlyBeingModified.get()) {
+		if (!this.isCurrentlyBeingModifiedBy.get()) {
 			const didResetToOriginalContent = this.doc.getValue() === this.initialContent;
 			const currentState = this._stateObs.get();
 			switch (currentState) {
@@ -392,7 +393,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 	}
 
-	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void {
+	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
 
 
 		// push stack element for the first edit
@@ -430,7 +431,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		transaction((tx) => {
 			if (!isLastEdits) {
 				this._stateObs.set(WorkingSetEntryState.Modified, tx);
-				this._isCurrentlyBeingModifiedObs.set(true, tx);
+				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				const lineCount = this.doc.getLineCount();
 				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
 				this._maxLineNumberObs.set(maxLineNumber, tx);

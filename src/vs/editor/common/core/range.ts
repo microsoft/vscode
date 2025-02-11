@@ -437,6 +437,24 @@ export class Range {
 	}
 
 	/**
+	 * Test if the two ranges are intersecting, but not touching at all.
+	 */
+	public static areOnlyIntersecting(a: IRange, b: IRange): boolean {
+		// Check if `a` is before `b`
+		if (a.endLineNumber < (b.startLineNumber - 1) || (a.endLineNumber === b.startLineNumber && a.endColumn < (b.startColumn - 1))) {
+			return false;
+		}
+
+		// Check if `b` is before `a`
+		if (b.endLineNumber < (a.startLineNumber - 1) || (b.endLineNumber === a.startLineNumber && b.endColumn < (a.startColumn - 1))) {
+			return false;
+		}
+
+		// These ranges must intersect
+		return true;
+	}
+
+	/**
 	 * A function that compares ranges, useful for sorting ranges
 	 * It will first compare ranges on the startPosition and then on the endPosition
 	 */
