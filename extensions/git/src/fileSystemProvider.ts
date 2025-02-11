@@ -140,6 +140,12 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			throw FileSystemError.FileNotFound();
 		}
 
+		// Submodule HEAD
+		if (submoduleOf && (ref === 'wt' || ref === 'index')) {
+			this.logger.warn(`[GitFileSystemProvider][stat] Submodule - ${uri.toString()}`);
+			return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0 };
+		}
+
 		try {
 			const details = await repository.getObjectDetails(sanitizeRef(ref, path, repository), path);
 			return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
