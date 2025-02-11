@@ -1402,6 +1402,10 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					command,
 					idx: idx,
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
+					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
+						message: typeConvert.MarkdownString.from(item.warning.message),
+						iconPath: item.warning.iconPath ? typeConvert.IconPath.from(item.warning.iconPath) : undefined,
+					} : undefined,
 				});
 			}),
 			commands: commands.map(c => {

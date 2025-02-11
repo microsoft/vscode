@@ -45,3 +45,10 @@
 	background-color: var(--vscode-editorGhostText-background);
 	border: 1px solid var(--vscode-editorGhostText-border);
 }
+
+.ghost-text-view-warning-widget-icon {
+	.codicon {
+		color: var(--vscode-editorWarning-foreground) !important;
+	}
+}
+

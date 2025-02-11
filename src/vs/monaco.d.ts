@@ -1532,6 +1532,11 @@ declare namespace monaco.editor {
 		id: string;
 	}
 
+	export interface ThemeIcon {
+		readonly id: string;
+		readonly color?: ThemeColor;
+	}
+
 	/**
 	 * A single edit operation, that acts as a simple replace.
 	 * i.e. Replace text at `range` with `text` in model.
@@ -7287,7 +7292,18 @@ declare namespace monaco.languages {
 		readonly completeBracketPairs?: boolean;
 		readonly isInlineEdit?: boolean;
 		readonly showRange?: IRange;
+		readonly warning?: InlineCompletionWarning;
 	}
+
+	export interface InlineCompletionWarning {
+		message: IMarkdownString | string;
+		iconPath?: IconPath;
+	}
+
+	export type IconPath = editor.ThemeIcon | Uri | {
+		light: Uri;
+		dark: Uri;
+	};
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 		readonly items: readonly TItem[];
