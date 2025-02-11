@@ -141,7 +141,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		}
 
 		// Submodule HEAD
-		if (submoduleOf && (ref === 'wt' || ref === 'index')) {
+		if (submoduleOf && (ref === 'index' || ref === 'wt')) {
 			this.logger.warn(`[GitFileSystemProvider][stat] Submodule - ${uri.toString()}`);
 			return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0 };
 		}
