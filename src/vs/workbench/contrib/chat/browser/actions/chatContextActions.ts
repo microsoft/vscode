@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from '../../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isElectron, isLinux, isWindows } from '../../../../../base/common/platform.js';
-import { basename, dirname, extUri } from '../../../../../base/common/resources.js';
+import { isElectron } from '../../../../../base/common/platform.js';
+import { dirname } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { assertDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -29,7 +27,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
-import { IPickOptions, IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
@@ -54,14 +52,13 @@ import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
-import { ChatInstructionsFileLocator } from '../chatAttachmentModel/chatInstructionsFileLocator.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { ATTACH_PROMPT_ACTION_ID, AttachPromptAction } from './chatAttachPromptAction.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -575,35 +572,9 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				// const commandService = accessor.get(ICommandService);
-
-				// const options: IChatUsePromptActionOptions = {
-				// 	resource: getActivePromptUri(resource, accessor),
-				// 	location,
-				// };
-
-				// TODO: @legomushroom - use command name constant instead
-				await commandService.executeCommand(USE_PROMPT_ACTION_ID, {
+				await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, {
 					location: widget.location,
 				});
-				// const selection = await selectPrompt({
-				// 	resource: undefined,
-				// 	location: undefined, // TODO: @legomushroom - add location here
-				// 	initService,
-				// 	quickInputService,
-				// 	labelService,
-				// 	openerService,
-				// });
-
-				// if (!selection) {
-				// 	continue;
-				// }
-
-				// const { selected } = selection;
-				// widget
-				// 	.attachmentModel
-				// 	.promptInstructions
-				// 	.add(selected.value);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -911,173 +882,6 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 	}
 });
 
-/**
- * Options for the {@link selectPrompt} function.
- */
-interface ISelectPromptOptions {
-	resource: URI | undefined;
-	location: ChatAgentLocation | undefined;
-	initService: IInstantiationService;
-	labelService: ILabelService;
-	quickInputService: IQuickInputService;
-	openerService: IOpenerService;
-}
-
-// /**
-//  * Options for the {@link selectAndAttachPrompt} function.
-//  */
-// interface ISelectAndAttachPromptOptions extends ISelectPromptOptions {
-// 	widget: IChatWidget;
-// }
-
-/**
- * Type for an obejct with its `value` property being a `URI`.
- */
-type WithUriValue<T> = T & { value: URI };
-
-/**
- * TODO: @legomushroom
- */
-interface IPromptSelectionResult {
-	selected: WithUriValue<IQuickPickItem>;
-	altOption: boolean;
-}
-
-/**
- * TODO: @legomushroom
- */
-const createPickItem = (
-	file: URI,
-	labelService: ILabelService,
-): WithUriValue<IQuickPickItem> => {
-	const fileBasename = basename(file);
-	const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
-
-	return {
-		type: 'item',
-		label: fileWithoutExtension,
-		description: labelService.getUriLabel(dirname(file), { relative: true }),
-		tooltip: file.fsPath,
-		value: file,
-		// picked: extUri.isEqual(file, resource), // TODO: @legomushroom - this can be used with multi-select
-	};
-};
-
-/**
- * TODO: @legomushroom
- */
-const getPickerPlaceholder = (location?: ChatAgentLocation): string => {
-	let result = localize('selectPromptPlaceholder', 'Select a prompt to use');
-
-	// if target chat location is the `EditingSession`, add a note to the placeholder
-	if (location === ChatAgentLocation.EditingSession) {
-		result += ' ' + localize('selectPromptPlaceholder.inEdits', 'in Edits');
-	}
-
-	// if no location is provided, add the `alt/option` key modifier note
-	if (!location) {
-		const key = (isWindows || isLinux) ? 'alt' : 'option';
-
-		result += ' ' + localize('selectPromptPlaceholder.holdAltOption', '(hold `{0}` to use in Edits)', key);
-	}
-
-	return result;
-};
-
-/**
- * TODO: @legomushroom
- */
-const selectPrompt = async (options: ISelectPromptOptions): Promise<IPromptSelectionResult | null> => {
-	const { resource, initService, labelService } = options;
-	const promptsLocator = initService.createInstance(ChatInstructionsFileLocator);
-
-	// find all prompt instruction files in the user workspace
-	// and present them to the user so they can select one
-	const files = await promptsLocator.listFiles([])
-		.then((files) => {
-			return files.map((file) => {
-				return createPickItem(file, labelService);
-			});
-		});
-
-	const { quickInputService, openerService } = options;
-
-	// if not prompt files found, render the "how to add" message
-	// to the user with a link to the documentation
-	if (files.length === 0) {
-		const docsQuickPick: WithUriValue<IQuickPickItem> = {
-			type: 'item',
-			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how to create reusable prompts'),
-			description: DOCUMENTATION_URL,
-			tooltip: DOCUMENTATION_URL,
-			value: URI.parse(DOCUMENTATION_URL),
-		};
-
-		const result = await quickInputService.pick(
-			[docsQuickPick],
-			{
-				placeHolder: localize('noPromptFilesFoundLabel', 'No prompts found.'),
-				canPickMany: false,
-			});
-
-		if (!result) {
-			return null;
-		}
-
-		await openerService.open(result.value);
-
-		return null;
-	}
-
-	let activeItem: WithUriValue<IQuickPickItem> | undefined;
-	if (resource) {
-		files.sort((file1, file2) => {
-			if (extUri.isEqual(file1.value, resource)) {
-				return -1;
-			}
-
-			if (extUri.isEqual(file2.value, resource)) {
-				return 1;
-			}
-
-			return 0;
-		});
-
-		activeItem = files.find((file) => {
-			return extUri.isEqual(file.value, resource);
-		});
-	}
-
-	// otherwise show the prompt file selection dialog
-	const { location } = options;
-	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
-		placeHolder: getPickerPlaceholder(location),
-		activeItem,
-		canPickMany: false,
-		matchOnDescription: true,
-	};
-
-	let altOption = false;
-	if (!location) {
-		pickOptions.onKeyMods = (keyMods) => {
-			if (keyMods.alt) {
-				altOption = true;
-			}
-		};
-	}
-
-	const maybeSelectedFile = await quickInputService.pick(files, pickOptions);
-
-	if (!maybeSelectedFile) {
-		return null;
-	}
-
-	return {
-		selected: maybeSelectedFile,
-		altOption,
-	};
-};
-
 function getEditingSession(chatEditingService: IChatEditingService, chatWidget: IChatWidget) {
 	if (!chatWidget.viewModel?.sessionId) {
 		return;
@@ -1085,109 +889,4 @@ function getEditingSession(chatEditingService: IChatEditingService, chatWidget: 
 	return chatEditingService.getEditingSession(chatWidget.viewModel.sessionId);
 }
 
-/**
- * TODO: @legomushroom
- */
-export interface IChatUsePromptActionOptions {
-	resource?: URI;
-	location?: ChatAgentLocation;
-}
-
-/**
- * TODO: @legomushroom
- */
-export const USE_PROMPT_ACTION_ID = 'workbench.action.chat.use.prompt';
-
-/**
- * TODO: @legomushroom
- */
-// TODO: @legomushroom - attach through the variables service?
-registerAction2(class UsePromptAction extends Action2 {
-	constructor() {
-		super({
-			id: USE_PROMPT_ACTION_ID,
-			title: localize2('workbench.action.chat.use.prompt.label', "Use Prompt"),
-			f1: false,
-			category: CHAT_CATEGORY,
-		});
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	private async showChatWidget(
-		options: IChatUsePromptActionOptions,
-		altOption: boolean,
-		viewsService: IViewsService,
-		chatWidgetService: IChatWidgetService,
-	): Promise<IChatWidget | undefined> {
-		const { location } = options;
-
-		// if no location is present, the command was triggered from outside of any
-		// chat input, so we reveal a chat widget window based on the `alt/option`
-		// key modifier state when a prompt was selected from the picker UI dialog
-		if (!location) {
-			return (altOption)
-				? await showEditsView(viewsService)
-				: await showChatView(viewsService);
-		}
-
-		const { lastFocusedWidget } = chatWidgetService;
-
-		// if location is set, the last focused widged must always be set
-		assertDefined(
-			lastFocusedWidget,
-			'Expected last focused chat widget reference to be present.',
-		);
-
-		// when location is set, the last focused widget must have the same one
-		assert(
-			lastFocusedWidget.location === location,
-			`Last forcused chat widget location must be '${location}', got '${lastFocusedWidget.location}'.`,
-		);
-
-		return lastFocusedWidget;
-	}
-
-	public override async run(
-		accessor: ServicesAccessor,
-		options: IChatUsePromptActionOptions,
-	): Promise<void> {
-		const labelService = accessor.get(ILabelService);
-		const viewsService = accessor.get(IViewsService);
-		const openerService = accessor.get(IOpenerService);
-		const initService = accessor.get(IInstantiationService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-
-		const selectionResult = await selectPrompt({
-			resource: options.resource,
-			location: options.location,
-			initService,
-			labelService,
-			quickInputService,
-			openerService,
-		});
-
-		// no prompt selected, nothing to do
-		if (!selectionResult) {
-			return;
-		}
-
-		const { selected, altOption } = selectionResult;
-
-		// reveal appropriate chat widget
-		const widget = await this.showChatWidget(options, altOption, viewsService, chatWidgetService);
-		if (!widget || !widget.viewModel) {
-			// TODO: @legomushroom - log an error here?
-			return;
-		}
-
-		widget
-			.attachmentModel
-			.promptInstructions
-			.add(selected.value);
-
-		widget.focusInput();
-	}
-});
+registerAction2(AttachPromptAction);
