@@ -35,11 +35,11 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		super();
 
 		this._register(autorun((reader) => {
-			this.clear();
 
 			const previous = this.notebookEditor.previousModelToCompare.read(reader);
 			if (previous) {
 				this.initialize(previous);
+				this.listeners.push(Event.once(this.notebookEditor.onDidAttachViewModel)(() => this.initialize(previous)));
 			}
 		}));
 	}
@@ -52,6 +52,7 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		});
 		this.insertedCellDecorator?.dispose();
 		this.deletedCellDecorator?.dispose();
+		this.cachedNotebookDiff = undefined;
 		this.listeners = [];
 	}
 
@@ -61,6 +62,8 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 	}
 
 	private initialize(previous: NotebookTextModel) {
+		this.clear();
+
 		this.original = previous;
 		this.insertedCellDecorator = this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor);
 		this.deletedCellDecorator = this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor);
