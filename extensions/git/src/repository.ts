@@ -23,7 +23,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { detectEncoding } from './encoding';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
@@ -1373,6 +1373,9 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) === true;
+
 		await this.run(
 			Operation.Clean(!this.optimisticUpdateEnabled()),
 			async () => {
@@ -1410,7 +1413,14 @@ export class Repository implements Disposable {
 					}
 				});
 
-				await this.repository.clean(toClean);
+				if (untrackedChangesSoftDelete) {
+					const limiter = new Limiter<void>(5);
+					await Promise.all(toClean.map(fsPath => limiter.queue(
+						async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+				} else {
+					await this.repository.clean(toClean);
+				}
+
 				try {
 					await this.repository.checkout('', toCheckout);
 				} catch (err) {
