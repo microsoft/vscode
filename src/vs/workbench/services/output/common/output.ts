@@ -8,6 +8,8 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { LogLevel } from '../../../../platform/log/common/log.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 /**
  * Mime type used by the output editor.
@@ -35,16 +37,33 @@ export const LOG_MODE_ID = 'log';
 export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
-
 export const CONTEXT_ACTIVE_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
-
+export const CONTEXT_ACTIVE_LOG_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput.isLog', false);
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE = new RawContextKey<boolean>('activeLogOutput.levelSettable', false);
-
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL = new RawContextKey<string>('activeLogOutput.level', '');
-
 export const CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT = new RawContextKey<boolean>('activeLogOutput.levelIsDefault', false);
-
 export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
+export const ACTIVE_OUTPUT_CHANNEL_CONTEXT = new RawContextKey<string>('activeOutputChannel', '');
+export const SHOW_TRACE_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.trace', true);
+export const SHOW_DEBUG_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.debug', true);
+export const SHOW_INFO_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.info', true);
+export const SHOW_WARNING_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.warning', true);
+export const SHOW_ERROR_FILTER_CONTEXT = new RawContextKey<boolean>('output.filter.error', true);
+export const OUTPUT_FILTER_FOCUS_CONTEXT = new RawContextKey<boolean>('outputFilterFocus', false);
+export const HIDE_CATEGORY_FILTER_CONTEXT = new RawContextKey<string>('output.filter.categories', '');
+
+export interface IOutputViewFilters {
+	readonly onDidChange: Event<void>;
+	text: string;
+	trace: boolean;
+	debug: boolean;
+	info: boolean;
+	warning: boolean;
+	error: boolean;
+	categories: string;
+	toggleCategory(category: string): void;
+	hasCategory(category: string): boolean;
+}
 
 export const IOutputService = createDecorator<IOutputService>('outputService');
 
@@ -53,6 +72,11 @@ export const IOutputService = createDecorator<IOutputService>('outputService');
  */
 export interface IOutputService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 *  Output view filters.
+	 */
+	readonly filters: IOutputViewFilters;
 
 	/**
 	 * Given the channel id returns the output channel instance.
@@ -85,6 +109,35 @@ export interface IOutputService {
 	 * Allows to register on active output channel change.
 	 */
 	onActiveOutputChannel: Event<string>;
+
+	/**
+	 * Register a compound log channel with the given channels.
+	 */
+	registerCompoundLogChannel(channels: IOutputChannelDescriptor[]): string;
+
+	/**
+	 * Save the logs to a file.
+	 */
+	saveOutputAs(...channels: IOutputChannelDescriptor[]): Promise<void>;
+
+	/**
+	 * Checks if the log level can be set for the given channel.
+	 * @param channel
+	 */
+	canSetLogLevel(channel: IOutputChannelDescriptor): boolean;
+
+	/**
+	 * Returns the log level for the given channel.
+	 * @param channel
+	 */
+	getLogLevel(channel: IOutputChannelDescriptor): LogLevel | undefined;
+
+	/**
+	 * Sets the log level for the given channel.
+	 * @param channel
+	 * @param logLevel
+	 */
+	setLogLevel(channel: IOutputChannelDescriptor, logLevel: LogLevel): void;
 }
 
 export enum OutputChannelUpdateMode {
@@ -93,22 +146,36 @@ export enum OutputChannelUpdateMode {
 	Clear
 }
 
+export interface ILogEntry {
+	readonly range: Range;
+	readonly timestamp: number;
+	readonly timestampRange: Range;
+	readonly logLevel: LogLevel;
+	readonly logLevelRange: Range;
+	readonly category: string | undefined;
+}
+
 export interface IOutputChannel {
 
 	/**
 	 * Identifier of the output channel.
 	 */
-	id: string;
+	readonly id: string;
 
 	/**
 	 * Label of the output channel to be displayed to the user.
 	 */
-	label: string;
+	readonly label: string;
 
 	/**
 	 * URI of the output channel.
 	 */
-	uri: URI;
+	readonly uri: URI;
+
+	/**
+	 * Log entries of the output channel.
+	 */
+	getLogEntries(): readonly ILogEntry[];
 
 	/**
 	 * Appends output to the channel.
@@ -146,23 +213,47 @@ export interface IOutputChannelDescriptor {
 	label: string;
 	log: boolean;
 	languageId?: string;
-	file?: URI;
+	source?: IOutputContentSource | ReadonlyArray<IOutputContentSource>;
 	extensionId?: string;
+	user?: boolean;
 }
 
-export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {
-	file: URI;
+export interface ISingleSourceOutputChannelDescriptor extends IOutputChannelDescriptor {
+	source: IOutputContentSource;
+}
+
+export interface IMultiSourceOutputChannelDescriptor extends IOutputChannelDescriptor {
+	source: ReadonlyArray<IOutputContentSource>;
+}
+
+export function isSingleSourceOutputChannelDescriptor(descriptor: IOutputChannelDescriptor): descriptor is ISingleSourceOutputChannelDescriptor {
+	return !!descriptor.source && !Array.isArray(descriptor.source);
+}
+
+export function isMultiSourceOutputChannelDescriptor(descriptor: IOutputChannelDescriptor): descriptor is IMultiSourceOutputChannelDescriptor {
+	return Array.isArray(descriptor.source);
+}
+
+export interface IOutputContentSource {
+	readonly name?: string;
+	readonly resource: URI;
 }
 
 export interface IOutputChannelRegistry {
 
 	readonly onDidRegisterChannel: Event<string>;
-	readonly onDidRemoveChannel: Event<string>;
+	readonly onDidRemoveChannel: Event<IOutputChannelDescriptor>;
+	readonly onDidUpdateChannelSources: Event<IMultiSourceOutputChannelDescriptor>;
 
 	/**
 	 * Make an output channel known to the output world.
 	 */
 	registerChannel(descriptor: IOutputChannelDescriptor): void;
+
+	/**
+	 * Update the files for the given output channel.
+	 */
+	updateChannelSources(id: string, sources: IOutputContentSource[]): void;
 
 	/**
 	 * Returns the list of channels known to the output world.
@@ -184,10 +275,13 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 	private channels = new Map<string, IOutputChannelDescriptor>();
 
 	private readonly _onDidRegisterChannel = new Emitter<string>();
-	readonly onDidRegisterChannel: Event<string> = this._onDidRegisterChannel.event;
+	readonly onDidRegisterChannel = this._onDidRegisterChannel.event;
 
-	private readonly _onDidRemoveChannel = new Emitter<string>();
-	readonly onDidRemoveChannel: Event<string> = this._onDidRemoveChannel.event;
+	private readonly _onDidRemoveChannel = new Emitter<IOutputChannelDescriptor>();
+	readonly onDidRemoveChannel = this._onDidRemoveChannel.event;
+
+	private readonly _onDidUpdateChannelFiles = new Emitter<IMultiSourceOutputChannelDescriptor>();
+	readonly onDidUpdateChannelSources = this._onDidUpdateChannelFiles.event;
 
 	public registerChannel(descriptor: IOutputChannelDescriptor): void {
 		if (!this.channels.has(descriptor.id)) {
@@ -206,12 +300,21 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 		return this.channels.get(id);
 	}
 
+	public updateChannelSources(id: string, sources: IOutputContentSource[]): void {
+		const channel = this.channels.get(id);
+		if (channel && isMultiSourceOutputChannelDescriptor(channel)) {
+			channel.source = sources;
+			this._onDidUpdateChannelFiles.fire(channel);
+		}
+	}
+
 	public removeChannel(id: string): void {
-		this.channels.delete(id);
-		this._onDidRemoveChannel.fire(id);
+		const channel = this.channels.get(id);
+		if (channel) {
+			this.channels.delete(id);
+			this._onDidRemoveChannel.fire(channel);
+		}
 	}
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
-
-export const ACTIVE_OUTPUT_CHANNEL_CONTEXT = new RawContextKey<string>('activeOutputChannel', '');

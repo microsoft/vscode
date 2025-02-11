@@ -105,12 +105,6 @@ export interface IChatContentInlineReference {
 	kind: 'inlineReference';
 }
 
-export interface IChatAgentDetection {
-	agentId: string;
-	command?: IChatAgentCommand;
-	kind: 'agentDetection';
-}
-
 export interface IChatMarkdownContent {
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
@@ -203,6 +197,8 @@ export interface IChatToolInvocation {
 	/** A 3-way: undefined=don't know yet. */
 	isConfirmed: boolean | undefined;
 	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
 
 	isComplete: boolean;
 	isCompleteDeferred: DeferredPromise<void>;
@@ -214,6 +210,8 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
 	isConfirmed: boolean;
 	isComplete: boolean;
 	kind: 'toolInvocationSerialized';
@@ -227,7 +225,6 @@ export type IChatProgress =
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatCodeCitation
-	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatTask
 	| IChatTaskResult
@@ -431,6 +428,11 @@ export interface IChatSendRequestOptions {
 	 * The label of the confirmation action that was selected.
 	 */
 	confirmation?: string;
+
+	/**
+	 * Flag to indicate whether a prompt instructions attachment is present.
+	 */
+	hasInstructionAttachments?: boolean;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -441,7 +443,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined;
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;

@@ -183,8 +183,14 @@ const apiMenus: IAPIMenu[] = [
 	},
 	{
 		key: 'scm/historyItem/context',
-		id: MenuId.SCMChangesContext,
+		id: MenuId.SCMHistoryItemContext,
 		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/historyItem/hover',
+		id: MenuId.SCMHistoryItemHover,
+		description: localize('menus.historyItemHover', "The Source Control history item hover menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
@@ -432,6 +438,11 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.DiffEditorSelectionToolbar,
 		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
 		proposed: 'contribDiffEditorGutterToolBarMenus'
+	},
+	{
+		key: 'searchPanel/aiResults/commands',
+		id: MenuId.SearchActionMenu,
+		description: localize('searchPanel.aiResultsCommands', "The commands that will contribute to the menu rendered as buttons next to the AI search title"),
 	}
 ];
 

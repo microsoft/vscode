@@ -161,8 +161,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		}
 	}
 
-	// TODO@roblourens
-	readonly isDynamic = true;
 	readonly isFile = true;
 
 	private _isSelection = false;
@@ -205,7 +203,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			name: this.name,
 			value: this.value,
 			isFile: true,
-			isDynamic: true,
 			modelDescription: this.modelDescription
 		};
 	}

@@ -76,6 +76,7 @@ registerAction2(class RemoveAction extends Action2 {
 				{
 					id: MenuId.SearchActionMenu,
 					group: 'inline',
+					when: ContextKeyExpr.or(Constants.SearchContext.FileFocusKey, Constants.SearchContext.MatchFocusKey, Constants.SearchContext.FolderFocusKey),
 					order: 2,
 				},
 			]

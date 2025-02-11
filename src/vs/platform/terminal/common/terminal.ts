@@ -117,7 +117,9 @@ export const enum TerminalSettingId {
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
-	FontLigatures = 'terminal.integrated.fontLigatures',
+	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
+	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
+	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
 
 	// Debug settings that are hidden from user
 
@@ -148,7 +150,8 @@ export const enum GeneralShellType {
 	PowerShell = 'pwsh',
 	Python = 'python',
 	Julia = 'julia',
-	NuShell = 'nu'
+	NuShell = 'nu',
+	Node = 'node',
 }
 export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType;
 
@@ -190,6 +193,7 @@ export interface IPtyHostAttachTarget {
 	type?: TerminalType;
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
 }
 
 export interface IReconnectionProperties {
@@ -555,6 +559,7 @@ export interface IShellLaunchConfig {
 		hideFromUser?: boolean;
 		isFeatureTerminal?: boolean;
 		shellIntegrationNonce: string;
+		tabActions?: ITerminalTabAction[];
 	};
 
 	/**
@@ -632,6 +637,17 @@ export interface IShellLaunchConfig {
 	 * Create a terminal without shell integration even when it's enabled
 	 */
 	ignoreShellIntegration?: boolean;
+
+	/**
+	 * Actions to include inline on hover of the terminal tab. E.g. the "Rerun task" action
+	 */
+	tabActions?: ITerminalTabAction[];
+}
+
+export interface ITerminalTabAction {
+	id: string;
+	label: string;
+	icon?: ThemeIcon;
 }
 
 export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
@@ -666,6 +682,7 @@ export interface IShellLaunchConfigDto {
 	reconnectionProperties?: IReconnectionProperties;
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
+	tabActions?: ITerminalTabAction[];
 }
 
 /**

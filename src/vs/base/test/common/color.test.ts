@@ -118,40 +118,40 @@ suite('Color', () => {
 		});
 	});
 
-	suite('toNumber24Bit', () => {
+	suite('toNumber32Bit', () => {
 		test('alpha channel', () => {
-			assert.deepStrictEqual(Color.fromHex('#00000000').toNumber24Bit(), 0x00000000);
-			assert.deepStrictEqual(Color.fromHex('#00000080').toNumber24Bit(), 0x00000080);
-			assert.deepStrictEqual(Color.fromHex('#000000FF').toNumber24Bit(), 0x000000FF);
+			assert.deepStrictEqual(Color.fromHex('#00000000').toNumber32Bit(), 0x00000000);
+			assert.deepStrictEqual(Color.fromHex('#00000080').toNumber32Bit(), 0x00000080);
+			assert.deepStrictEqual(Color.fromHex('#000000FF').toNumber32Bit(), 0x000000FF);
 		});
 
 		test('opaque', () => {
-			assert.deepStrictEqual(Color.fromHex('#000000').toNumber24Bit(), 0x000000FF);
-			assert.deepStrictEqual(Color.fromHex('#FFFFFF').toNumber24Bit(), 0xFFFFFFFF);
-			assert.deepStrictEqual(Color.fromHex('#FF0000').toNumber24Bit(), 0xFF0000FF);
-			assert.deepStrictEqual(Color.fromHex('#00FF00').toNumber24Bit(), 0x00FF00FF);
-			assert.deepStrictEqual(Color.fromHex('#0000FF').toNumber24Bit(), 0x0000FFFF);
-			assert.deepStrictEqual(Color.fromHex('#FFFF00').toNumber24Bit(), 0xFFFF00FF);
-			assert.deepStrictEqual(Color.fromHex('#00FFFF').toNumber24Bit(), 0x00FFFFFF);
-			assert.deepStrictEqual(Color.fromHex('#FF00FF').toNumber24Bit(), 0xFF00FFFF);
-			assert.deepStrictEqual(Color.fromHex('#C0C0C0').toNumber24Bit(), 0xC0C0C0FF);
-			assert.deepStrictEqual(Color.fromHex('#808080').toNumber24Bit(), 0x808080FF);
-			assert.deepStrictEqual(Color.fromHex('#800000').toNumber24Bit(), 0x800000FF);
-			assert.deepStrictEqual(Color.fromHex('#808000').toNumber24Bit(), 0x808000FF);
-			assert.deepStrictEqual(Color.fromHex('#008000').toNumber24Bit(), 0x008000FF);
-			assert.deepStrictEqual(Color.fromHex('#800080').toNumber24Bit(), 0x800080FF);
-			assert.deepStrictEqual(Color.fromHex('#008080').toNumber24Bit(), 0x008080FF);
-			assert.deepStrictEqual(Color.fromHex('#000080').toNumber24Bit(), 0x000080FF);
-			assert.deepStrictEqual(Color.fromHex('#010203').toNumber24Bit(), 0x010203FF);
-			assert.deepStrictEqual(Color.fromHex('#040506').toNumber24Bit(), 0x040506FF);
-			assert.deepStrictEqual(Color.fromHex('#070809').toNumber24Bit(), 0x070809FF);
-			assert.deepStrictEqual(Color.fromHex('#0a0A0a').toNumber24Bit(), 0x0a0A0aFF);
-			assert.deepStrictEqual(Color.fromHex('#0b0B0b').toNumber24Bit(), 0x0b0B0bFF);
-			assert.deepStrictEqual(Color.fromHex('#0c0C0c').toNumber24Bit(), 0x0c0C0cFF);
-			assert.deepStrictEqual(Color.fromHex('#0d0D0d').toNumber24Bit(), 0x0d0D0dFF);
-			assert.deepStrictEqual(Color.fromHex('#0e0E0e').toNumber24Bit(), 0x0e0E0eFF);
-			assert.deepStrictEqual(Color.fromHex('#0f0F0f').toNumber24Bit(), 0x0f0F0fFF);
-			assert.deepStrictEqual(Color.fromHex('#a0A0a0').toNumber24Bit(), 0xa0A0a0FF);
+			assert.deepStrictEqual(Color.fromHex('#000000').toNumber32Bit(), 0x000000FF);
+			assert.deepStrictEqual(Color.fromHex('#FFFFFF').toNumber32Bit(), 0xFFFFFFFF);
+			assert.deepStrictEqual(Color.fromHex('#FF0000').toNumber32Bit(), 0xFF0000FF);
+			assert.deepStrictEqual(Color.fromHex('#00FF00').toNumber32Bit(), 0x00FF00FF);
+			assert.deepStrictEqual(Color.fromHex('#0000FF').toNumber32Bit(), 0x0000FFFF);
+			assert.deepStrictEqual(Color.fromHex('#FFFF00').toNumber32Bit(), 0xFFFF00FF);
+			assert.deepStrictEqual(Color.fromHex('#00FFFF').toNumber32Bit(), 0x00FFFFFF);
+			assert.deepStrictEqual(Color.fromHex('#FF00FF').toNumber32Bit(), 0xFF00FFFF);
+			assert.deepStrictEqual(Color.fromHex('#C0C0C0').toNumber32Bit(), 0xC0C0C0FF);
+			assert.deepStrictEqual(Color.fromHex('#808080').toNumber32Bit(), 0x808080FF);
+			assert.deepStrictEqual(Color.fromHex('#800000').toNumber32Bit(), 0x800000FF);
+			assert.deepStrictEqual(Color.fromHex('#808000').toNumber32Bit(), 0x808000FF);
+			assert.deepStrictEqual(Color.fromHex('#008000').toNumber32Bit(), 0x008000FF);
+			assert.deepStrictEqual(Color.fromHex('#800080').toNumber32Bit(), 0x800080FF);
+			assert.deepStrictEqual(Color.fromHex('#008080').toNumber32Bit(), 0x008080FF);
+			assert.deepStrictEqual(Color.fromHex('#000080').toNumber32Bit(), 0x000080FF);
+			assert.deepStrictEqual(Color.fromHex('#010203').toNumber32Bit(), 0x010203FF);
+			assert.deepStrictEqual(Color.fromHex('#040506').toNumber32Bit(), 0x040506FF);
+			assert.deepStrictEqual(Color.fromHex('#070809').toNumber32Bit(), 0x070809FF);
+			assert.deepStrictEqual(Color.fromHex('#0a0A0a').toNumber32Bit(), 0x0a0A0aFF);
+			assert.deepStrictEqual(Color.fromHex('#0b0B0b').toNumber32Bit(), 0x0b0B0bFF);
+			assert.deepStrictEqual(Color.fromHex('#0c0C0c').toNumber32Bit(), 0x0c0C0cFF);
+			assert.deepStrictEqual(Color.fromHex('#0d0D0d').toNumber32Bit(), 0x0d0D0dFF);
+			assert.deepStrictEqual(Color.fromHex('#0e0E0e').toNumber32Bit(), 0x0e0E0eFF);
+			assert.deepStrictEqual(Color.fromHex('#0f0F0f').toNumber32Bit(), 0x0f0F0fFF);
+			assert.deepStrictEqual(Color.fromHex('#a0A0a0').toNumber32Bit(), 0xa0A0a0FF);
 		});
 	});
 

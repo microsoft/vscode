@@ -5,8 +5,8 @@
 
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { TreeSitterTextModelService } from '../../../../editor/browser/services/treeSitter/treeSitterParserService.js';
-import { ITreeSitterParserService } from '../../../../editor/common/services/treeSitterParserService.js';
+import { TreeSitterTextModelService } from '../../../../editor/common/services/treeSitter/treeSitterParserService.js';
+import { ITreeSitterImporter, ITreeSitterParserService, TreeSitterImporter } from '../../../../editor/common/services/treeSitterParserService.js';
 import { ITreeSitterTokenizationFeature } from './treeSitterTokenizationFeature.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -28,6 +28,7 @@ class TreeSitterTokenizationInstantiator implements IWorkbenchContribution {
 	) { }
 }
 
+registerSingleton(ITreeSitterImporter, TreeSitterImporter, InstantiationType.Eager);
 registerSingleton(ITreeSitterParserService, TreeSitterTextModelService, InstantiationType.Eager);
 
 registerWorkbenchContribution2(TreeSitterTokenizationInstantiator.ID, TreeSitterTokenizationInstantiator, WorkbenchPhase.BlockRestore);
@@ -45,7 +46,7 @@ CommandsRegistry.registerCommand('_workbench.colorizeTreeSitterTokens', async (a
 		throw new Error(`Cannot resolve tokenizer for language ${textModel.getLanguageId()}`);
 	}
 
-	const textModelTreeSitter = treeSitterParserService.getTextModelTreeSitter(textModel);
+	const textModelTreeSitter = await treeSitterParserService.getTextModelTreeSitter(textModel);
 	if (!textModelTreeSitter) {
 		throw new Error(`Cannot resolve tree sitter parser for language ${textModel.getLanguageId()}`);
 	}

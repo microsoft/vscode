@@ -6,6 +6,7 @@
 import type { ClipboardAddon as ClipboardAddonType } from '@xterm/addon-clipboard';
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
+import type { ProgressAddon as ProgressAddonType } from '@xterm/addon-progress';
 import type { SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
@@ -16,6 +17,7 @@ export interface IXtermAddonNameToCtor {
 	clipboard: typeof ClipboardAddonType;
 	image: typeof ImageAddonType;
 	ligatures: typeof LigaturesAddonType;
+	progress: typeof ProgressAddonType;
 	search: typeof SearchAddonType;
 	serialize: typeof SerializeAddonType;
 	unicode11: typeof Unicode11AddonType;
@@ -42,6 +44,7 @@ export class XtermAddonImporter {
 				case 'clipboard': addon = (await importAMDNodeModule<typeof import('@xterm/addon-clipboard')>('@xterm/addon-clipboard', 'lib/addon-clipboard.js')).ClipboardAddon as IXtermAddonNameToCtor[T]; break;
 				case 'image': addon = (await importAMDNodeModule<typeof import('@xterm/addon-image')>('@xterm/addon-image', 'lib/addon-image.js')).ImageAddon as IXtermAddonNameToCtor[T]; break;
 				case 'ligatures': addon = (await importAMDNodeModule<typeof import('@xterm/addon-ligatures')>('@xterm/addon-ligatures', 'lib/addon-ligatures.js')).LigaturesAddon as IXtermAddonNameToCtor[T]; break;
+				case 'progress': addon = (await importAMDNodeModule<typeof import('@xterm/addon-progress')>('@xterm/addon-progress', 'lib/addon-progress.js')).ProgressAddon as IXtermAddonNameToCtor[T]; break;
 				case 'search': addon = (await importAMDNodeModule<typeof import('@xterm/addon-search')>('@xterm/addon-search', 'lib/addon-search.js')).SearchAddon as IXtermAddonNameToCtor[T]; break;
 				case 'serialize': addon = (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon as IXtermAddonNameToCtor[T]; break;
 				case 'unicode11': addon = (await importAMDNodeModule<typeof import('@xterm/addon-unicode11')>('@xterm/addon-unicode11', 'lib/addon-unicode11.js')).Unicode11Addon as IXtermAddonNameToCtor[T]; break;

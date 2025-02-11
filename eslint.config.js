@@ -219,7 +219,6 @@ export default tseslint.config(
 				{
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
-						'src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts',
 						'src/vs/platform/configuration/test/common/configuration.test.ts',
 						'src/vs/platform/opener/test/common/opener.test.ts',
 						'src/vs/platform/registry/test/common/platform.test.ts',
@@ -267,8 +266,8 @@ export default tseslint.config(
 			'local/vscode-dts-string-type-literals': 'warn',
 			'local/vscode-dts-interface-naming': 'warn',
 			'local/vscode-dts-cancellation': 'warn',
+			'local/vscode-dts-use-export': 'warn',
 			'local/vscode-dts-use-thenable': 'warn',
-			'local/vscode-dts-region-comments': 'warn',
 			'local/vscode-dts-vscode-in-comments': 'warn',
 			'local/vscode-dts-provider-naming': [
 				'warn',

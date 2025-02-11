@@ -12,6 +12,7 @@ import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
 import { PlaywrightDriver } from './playwrightDriver';
 import { launch as launchPlaywrightElectron } from './playwrightElectron';
 import { teardown } from './processes';
+import { Quality } from './application';
 
 export interface LaunchOptions {
 	codePath?: string;
@@ -26,8 +27,10 @@ export interface LaunchOptions {
 	readonly remote?: boolean;
 	readonly web?: boolean;
 	readonly tracing?: boolean;
+	snapshots?: boolean;
 	readonly headless?: boolean;
 	readonly browser?: 'chromium' | 'webkit' | 'firefox';
+	readonly quality: Quality;
 }
 
 interface ICodeInstance {
@@ -77,7 +80,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { serverProcess, driver } = await measureAndLog(() => launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
 		registerInstance(serverProcess, options.logger, 'server');
 
-		return new Code(driver, options.logger, serverProcess);
+		return new Code(driver, options.logger, serverProcess, options.quality);
 	}
 
 	// Electron smoke tests (playwright)
@@ -85,7 +88,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { electronProcess, driver } = await measureAndLog(() => launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
 		registerInstance(electronProcess, options.logger, 'electron');
 
-		return new Code(driver, options.logger, electronProcess);
+		return new Code(driver, options.logger, electronProcess, options.quality);
 	}
 }
 
@@ -96,7 +99,8 @@ export class Code {
 	constructor(
 		driver: PlaywrightDriver,
 		readonly logger: Logger,
-		private readonly mainProcess: cp.ChildProcess
+		private readonly mainProcess: cp.ChildProcess,
+		readonly quality: Quality
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop) {
@@ -240,6 +244,10 @@ export class Code {
 
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
 		await this.poll(() => this.driver.typeInEditor(selector, text), () => true, `type in editor '${selector}'`);
+	}
+
+	async waitForEditorSelection(selector: string, accept: (selection: { selectionStart: number; selectionEnd: number }) => boolean): Promise<void> {
+		await this.poll(() => this.driver.getEditorSelection(selector), accept, `get editor selection '${selector}'`);
 	}
 
 	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {

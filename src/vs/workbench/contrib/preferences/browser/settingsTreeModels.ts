@@ -22,6 +22,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { USER_LOCAL_AND_REMOTE_SETTINGS } from '../../../../platform/request/common/request.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -425,12 +426,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		if (configTarget === ConfigurationTarget.USER_REMOTE) {
-			return REMOTE_MACHINE_SCOPES.includes(this.setting.scope);
+			return REMOTE_MACHINE_SCOPES.includes(this.setting.scope) || USER_LOCAL_AND_REMOTE_SETTINGS.includes(this.setting.key);
 		}
 
 		if (configTarget === ConfigurationTarget.USER_LOCAL) {
 			if (isRemote) {
-				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope);
+				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope) || USER_LOCAL_AND_REMOTE_SETTINGS.includes(this.setting.key);
 			}
 		}
 
@@ -959,6 +960,10 @@ export class SearchResultModel extends SettingsTreeModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
+			} else if (a.matchType === SettingMatchType.KeyMatch) {
+				// The match types are the same and are KeyMatch.
+				// Sort by the number of words matched in the key.
+				return b.keyMatchScore - a.keyMatchScore;
 			} else if (a.matchType === SettingMatchType.RemoteMatch) {
 				// The match types are the same and are RemoteMatch.
 				// Sort by score.

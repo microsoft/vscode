@@ -388,7 +388,7 @@ export class SCMService implements ISCMService {
 
 		const historyProviderCount = () => {
 			return Array.from(this._repositories.values())
-				.filter(r => !!r.provider.historyProvider).length;
+				.filter(r => !!r.provider.historyProvider.get()).length;
 		};
 
 		disposables.add(toDisposable(() => {
