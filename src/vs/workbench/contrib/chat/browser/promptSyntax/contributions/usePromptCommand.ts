@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../../../../nls.js';
+import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
@@ -25,8 +25,7 @@ const USE_COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyE;
 /**
  * Command ID for the "Use Prompt" command.
  */
-export const USE_PROMPT_COMMAND_ID = 'use-prompt';
-
+const USE_PROMPT_COMMAND_ID = 'use-prompt';
 
 /**
  * Implementation of the "Use Prompt" command. The command works in the following way.
@@ -75,7 +74,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 appendToCommandPalette(
 	{
 		id: USE_PROMPT_COMMAND_ID,
-		title: nls.localize2(USE_PROMPT_COMMAND_ID, "Use Prompt"),
+		title: localize('commands.prompts.use-prompt', "Use Prompt"),
 		category: CHAT_CATEGORY,
 	},
 );
