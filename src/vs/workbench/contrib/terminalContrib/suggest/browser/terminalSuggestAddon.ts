@@ -98,6 +98,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.InlineSuggestion, Codicon.star],
 	]);
 
+	private readonly _inlineCompletion: ITerminalCompletion = {
+		label: '',
+		replacementIndex: 0,
+		replacementLength: 0,
+		provider: 'core',
+		detail: 'Inline suggestion',
+		kind: TerminalCompletionItemKind.InlineSuggestion,
+		icon: this._kindToIconMap.get(TerminalCompletionItemKind.InlineSuggestion),
+	};
+	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
+
 	private _shouldSyncWhenReady: boolean = false;
 
 	constructor(
@@ -167,16 +178,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserDataTimestamp = Date.now();
 		}));
 	}
-
-	private readonly _inlineCompletion: ITerminalCompletion = {
-		label: '',
-		replacementIndex: 0,
-		replacementLength: 0,
-		provider: 'core',
-		detail: 'Inline suggestion',
-		kind: TerminalCompletionItemKind.InlineSuggestion,
-	};
-	private readonly _inlineCompletionItem = new TerminalCompletionItem(this._inlineCompletion);
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
 		// Nothing to handle if the terminal is not attached
