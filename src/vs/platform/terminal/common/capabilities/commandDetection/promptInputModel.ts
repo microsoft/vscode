@@ -429,10 +429,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		// Check to the end of the line for possible ghost text. For example pwsh's ghost text
 		// can look like this `Get-|Ch[ildItem]`
-		const cursorCell = line.getCell(buffer.cursorX - 1);
 		if (proceedWithGhostTextCheck) {
 			let potentialGhostIndexOffset = 0;
 			let x = buffer.cursorX;
+			const cursorCell = line.getCell(buffer.cursorX - 1);
 
 			while (x < line.length) {
 				const cell = line.getCell(x++);
