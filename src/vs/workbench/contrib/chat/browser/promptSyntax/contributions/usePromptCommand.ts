@@ -14,22 +14,75 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { BasePromptParser } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IActiveCodeEditor, isCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IChatAttachPromptActionOptions, ATTACH_PROMPT_ACTION_ID } from '../../actions/chatAttachPromptAction.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 /**
- * TODO: @legomushroom
- *  - make the shortcut configurable
+ * Keybinding for the "Use Prompt" command.
  */
+const USE_COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyE;
 
 /**
  * Command ID for the "Use Prompt" command.
  */
 export const USE_PROMPT_COMMAND_ID = 'use-prompt';
 
+
 /**
- * Get location of a focused chat input, if any.
+ * Implementation of the "Use Prompt" command. The command works in the following way.
+ *
+ * When executed, it tries to see if a `prompt file` was open in the active code editor
+ * (see {@link IChatAttachPromptActionOptions.resource resource}), and if a chat input
+ * is focused (see {@link IChatAttachPromptActionOptions.location location}).
+ *
+ * Then the command shows prompt selection dialog to the user. If an active prompt file
+ * was detected, it is pre-selected in the dialog. User can confirm (`enter`) or select
+ * a different prompt file in the dialog.
+ *
+ * When a prompt file is selected by the user (or confirmed), the command attaches
+ * the selected prompt to the focused chat input, if present. If no focused chat input
+ * is present, the command would attach the prompt to a `chat panel` input by default
+ * (either the last focused instance, or a new one). If the `alt` (`option` on mac) key
+ * was pressed when the prompt was selected, a `chat edits` panel is used instead
+ * (likewise either the last focused or a new one).
+ */
+const usePromptCommand = async (
+	accessor: ServicesAccessor,
+): Promise<void> => {
+	const commandService = accessor.get(ICommandService);
+
+	const options: IChatAttachPromptActionOptions = {
+		resource: getActivePromptUri(accessor),
+		location: getLocation(accessor),
+	};
+
+	await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
+};
+
+/**
+ * Register the "Use Prompt" command with its keybinding.
+ */
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: USE_PROMPT_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: USE_COMMAND_KEY_BINDING,
+	handler: usePromptCommand,
+});
+
+/**
+ * Register the "Use Prompt" command in the `command palette`.
+ */
+appendToCommandPalette(
+	{
+		id: USE_PROMPT_COMMAND_ID,
+		title: nls.localize2(USE_PROMPT_COMMAND_ID, "Use Prompt"),
+		category: CHAT_CATEGORY,
+	},
+);
+
+/**
+ * Get chat input location to attach prompt to.
  */
 export function getLocation(accessor: ServicesAccessor): ChatAgentLocation | undefined {
 	const chatWidgetService = accessor.get(IChatWidgetService);
@@ -49,40 +102,33 @@ export function getLocation(accessor: ServicesAccessor): ChatAgentLocation | und
 /**
  * Gets active editor instance, if any.
  */
-export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor | null {
+export function getActiveCodeEditor(accessor: ServicesAccessor): IActiveCodeEditor | undefined {
 	const editorService = accessor.get(IEditorService);
+	const { activeTextEditorControl } = editorService;
 
-	const activeTextEditorControl = editorService.activeTextEditorControl;
-
-	// TODO: @legomushroom - add diff editor support?
-	// if (isDiffEditor(activeTextEditorControl)) {
-	// 	if (activeTextEditorControl.getOriginalEditor().hasTextFocus()) {
-	// 		activeTextEditorControl = activeTextEditorControl.getOriginalEditor();
-	// 	} else {
-	// 		activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
-	// 	}
-	// }
-
-	if (!isCodeEditor(activeTextEditorControl) || !activeTextEditorControl.hasModel()) {
-		return null;
+	if (isCodeEditor(activeTextEditorControl) && activeTextEditorControl.hasModel()) {
+		return activeTextEditorControl;
 	}
 
-	return activeTextEditorControl;
+	if (isDiffEditor(activeTextEditorControl)) {
+		const originalEditor = activeTextEditorControl.getOriginalEditor();
+		if (!originalEditor.hasModel()) {
+			return undefined;
+		}
+
+		return originalEditor;
+	}
+
+	return undefined;
 }
 
 /**
- * Gets `URI` of a prompt file if it is an active editor instance.
+ * Gets `URI` of a prompt file open in an active editor instance, if any.
  */
 const getActivePromptUri = (
-	resource: URI | undefined,
 	accessor: ServicesAccessor,
 ): URI | undefined => {
-	if (resource) {
-		// TODO: @legomushroom - check if a prompt resource
-		return resource;
-	}
-
-	const activeEditor = getActiveEditor(accessor);
+	const activeEditor = getActiveCodeEditor(accessor);
 	if (!activeEditor) {
 		return undefined;
 	}
@@ -94,41 +140,3 @@ const getActivePromptUri = (
 
 	return undefined;
 };
-
-/**
- * Implementation of the "Use Prompt" command.
- */
-const usePromptCommand = async (
-	accessor: ServicesAccessor,
-	resource?: URI,
-): Promise<void> => {
-	const commandService = accessor.get(ICommandService);
-
-	const options: IChatAttachPromptActionOptions = {
-		resource: getActivePromptUri(resource, accessor),
-		location: getLocation(accessor),
-	};
-
-	await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
-};
-
-// Key bindings
-
-const USE_COMMAND_KEY_BINDINGS = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyW;
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: USE_PROMPT_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: USE_COMMAND_KEY_BINDINGS,
-	handler: usePromptCommand,
-});
-
-// Command Palette
-
-const USE_PROMPT_LABEL = nls.localize2(USE_PROMPT_COMMAND_ID, "Use Prompt");
-appendToCommandPalette(
-	{
-		id: USE_PROMPT_COMMAND_ID,
-		title: USE_PROMPT_LABEL,
-		category: CHAT_CATEGORY,
-	},
-);
