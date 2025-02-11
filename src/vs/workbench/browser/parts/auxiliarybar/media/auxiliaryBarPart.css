@@ -82,6 +82,7 @@
     width: 24px;
     height: 24px;
     display: flex;
+	z-index: 3;
     align-items: center;
     cursor: pointer;
     border-radius: 8px;
@@ -102,18 +103,22 @@
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-chat-icon) {
+	z-index: 2 !important;
     width: 60px !important;
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-creator-icon) {
+	z-index: 2 !important;
     width: 67px !important;
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-search-icon) {
+	z-index: 2 !important;
     width: 70px !important;
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-memory-icon) {
+	z-index: 2 !important;
     width: 80px !important;
 }
 
@@ -136,7 +141,6 @@
 
 /* Subtle hover effect for inactive icons */
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container:not(.active):hover {
-	z-index: 40000;
     opacity: 0.8;
     transform: scale(1.05);
 }
