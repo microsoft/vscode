@@ -34,6 +34,8 @@ fi
 
 zsh_version=${ZSH_VERSION}
 use_associative_array=0
+vsc_env_keys=()
+vsc_env_values=()
 
 # Associative array are only available in zsh 4.3 or later
 if (( zsh_version >= 4.3 )); then
@@ -148,39 +150,78 @@ __track_missing_env_vars_aa() {
 	fi
 }
 
-######### $$$$$$$ #####################################################################################
-__vsc_update_env() {
+__update_env_cache() {
+	local key="$1"
+	local value="$2"
 
+	for (( i=1; i <= $#vsc_env_keys; i++ )); do
+		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
+			if [[ "${vsc_env_values[$i]}" != "$value" ]]; then
+				vsc_env_values[$i]="$value"
+				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			fi
+			return
+		fi
+	done
+
+		# Key does not exist so add key, value pair
+		vsc_env_keys+=("$key")
+		vsc_env_values+=("$value")
+		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+}
+
+
+__vsc_update_env() {
 	# Should we disable for older windows and also check __vscode_disable_env_reporting (conpty dll stuff)?
 	builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
-	if [ $use_associative_array -eq 1 ]; then
-		if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
-			# Associative array is empty, do not diff, just add
+	# if [ $use_associative_array -eq 1 ]; then
+	# 	if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
+	# 		# Associative array is empty, do not diff, just add
+	# 		while IFS='=' read -r key value; do
+	# 			vsc_aa_env["$key"]="$value"
+	# 			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+	# 		done < <(env)
+
+	# 		# Code to iterate through env associative array ->
+	# 		# for k in "${(@k)vsc_aa_env}"; do
+	# 		# 	builtin printf 'Key: %s | Value: %s\n' "$k" "${vsc_aa_env[$k]}"
+	# 		# done
+
+	# 	else
+	# 		builtin printf 'we are doing diff approach bc vsc_aa_env is not empty\n'
+	# 		# Diff approach for associative array
+	# 		while IFS='=' read -r key value; do
+	# 			__update_env_cache_aa "$key" "$value"
+	# 		done < <(env)
+	# 		__track_missing_env_vars_aa
+
+	# 	fi
+	# else
+		# Two arrays approach
+		if [[ ${#vsc_env_keys[@]} -eq 0 ]] && [[ ${#vsc_env_values[@]} -eq 0 ]]; then
+			# Non-associative arrays are both empty, do not diff, just add
 			while IFS='=' read -r key value; do
-				vsc_aa_env["$key"]="$value"
+				vsc_env_keys+=("$key")
+				vsc_env_values+=("$value")
 				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 			done < <(env)
 
-			# Code to iterate through env associative array ->
-			# for k in "${(@k)vsc_aa_env}"; do
-			# 	builtin printf 'Key: %s | Value: %s\n' "$k" "${vsc_aa_env[$k]}"
+			# #loop through vsc_env_keys and vsc_env_values
+			# for (( i=1; i <= $#vsc_env_keys; i++ )); do
+			# 	builtin printf 'this is the key value pair: %s*******************%s\n' "${vsc_env_keys[$i]}" "${vsc_env_values[$i]}"
 			# done
-
 		else
-			builtin printf 'we are doing diff approach bc vsc_aa_env is not empty\n'
-			# Diff approach for associative array
+			# Diff approach for non-associative arrays
 			while IFS='=' read -r key value; do
-				__update_env_cache_aa "$key" "$value"
+				__update_env_cache "$key" "$value"
 			done < <(env)
-			__track_missing_env_vars_aa
 
 		fi
-	fi
+	# fi
 
 	builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
-
 }
-######### $$$$$$$ ######################################################################################
+
 __vsc_command_output_start() {
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 	builtin printf '\e]633;C\a'
