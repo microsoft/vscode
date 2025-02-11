@@ -34,7 +34,7 @@ import { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/brows
 import { ITerminalConfigurationService } from '../../../terminal/browser/terminal.js';
 import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
 import { TerminalCompletionModel } from './terminalCompletionModel.js';
-import { TerminalCompletionItem, TerminalCompletionItemKind } from './terminalCompletionItem.js';
+import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 
 export interface ISuggestController {
@@ -166,8 +166,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserData = e.key;
 			this._lastUserDataTimestamp = Date.now();
 		}));
-
 	}
+
+	private readonly _inlineCompletion: ITerminalCompletion = {
+		label: '',
+		replacementIndex: 0,
+		replacementLength: 0,
+		provider: 'core',
+		detail: 'Inline suggestion',
+		kind: TerminalCompletionItemKind.InlineSuggestion,
+	};
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
 		// Nothing to handle if the terminal is not attached
@@ -243,18 +251,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		// Add any "ghost text" suggestion suggested by the shell. This aligns with behavior of the
-		// editor and how it interacts with inline completions
-		if (this._currentPromptInputState.ghostTextIndex !== -1) {
-			const suggestion = this._currentPromptInputState.value;
-			completions.push({
-				label: suggestion,
-				replacementIndex: 0,
-				replacementLength: this._currentPromptInputState.ghostTextIndex,
-				provider: 'core',
-				detail: 'Inline suggestion',
-				kind: TerminalCompletionItemKind.InlineSuggestion,
-			});
-		}
+		// editor and how it interacts with inline completions. This object is tracked and reused as
+		// it may change on input.
+		completions.push(this._inlineCompletion);
+		this._refreshInlineCompletion();
 
 		// Add any missing icons based on the completion item kind
 		for (const completion of completions) {
@@ -429,6 +429,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._suggestWidget.setLineContext(lineContext);
 		}
 
+		this._refreshInlineCompletion();
+
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
 			this.hideSuggestWidget();
@@ -445,6 +447,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
 		});
+	}
+
+	private _refreshInlineCompletion() {
+		if (!this._currentPromptInputState || this._currentPromptInputState.ghostTextIndex === -1) {
+			this._inlineCompletion.label = '';
+		} else {
+			const suggestion = this._currentPromptInputState.value;
+			this._inlineCompletion.label = suggestion;
+			this._inlineCompletion.replacementIndex = 0;
+			this._inlineCompletion.replacementLength = this._currentPromptInputState.ghostTextIndex;
+		}
 	}
 
 	private _getTerminalDimensions(): { width: number; height: number } {
