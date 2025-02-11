@@ -307,7 +307,7 @@ suite('PromptFilesConfig', () => {
 			test('• empty', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock({})),
-					[],
+					{},
 					'Must read correct value.',
 				);
 			});
@@ -328,20 +328,20 @@ suite('PromptFilesConfig', () => {
 						'/var/logs/app.01.05.error': true,
 						'./.tempfile': true,
 					})),
-					[
-						'/root/.bashrc',
-						'../../folder/.hidden-folder/config.xml',
-						'/srv/www/Public_html/.htaccess',
-						'../../another.folder/.WEIRD_FILE.log',
-						'./folder.name/file.name',
-						'/media/external/backup.tar.gz',
-						'/Media/external/.secret.backup',
-						'../relative/path.to.file',
-						'./folderName.with.dots/more.dots.extension',
-						'some/folder.with.dots/another.file',
-						'/var/logs/app.01.05.error',
-						'./.tempfile'
-					],
+					{
+						'/root/.bashrc': true,
+						'../../folder/.hidden-folder/config.xml': true,
+						'/srv/www/Public_html/.htaccess': true,
+						'../../another.folder/.WEIRD_FILE.log': true,
+						'./folder.name/file.name': true,
+						'/media/external/backup.tar.gz': true,
+						'/Media/external/.secret.backup': true,
+						'../relative/path.to.file': true,
+						'./folderName.with.dots/more.dots.extension': true,
+						'some/folder.with.dots/another.file': true,
+						'/var/logs/app.01.05.error': true,
+						'./.tempfile': true,
+					},
 					'Must read correct value.',
 				);
 			});
@@ -372,14 +372,15 @@ suite('PromptFilesConfig', () => {
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
 					})),
-					[
-						'../assets/img/logo.v2.png',
-						'../.local/bin/script.sh',
-						'../../development/branch.name/some.test',
-						'/Home/user/.ssh/config',
-						'/tmp/.temp.folder/cache.db',
-						'./scripts/.old.build.sh',
-					],
+					{
+						'../assets/img/logo.v2.png': true,
+						'/mnt/storage/video.archive/episode.01.mkv': false,
+						'../.local/bin/script.sh': true,
+						'../../development/branch.name/some.test': true,
+						'/Home/user/.ssh/config': true,
+						'/tmp/.temp.folder/cache.db': true,
+						'./scripts/.old.build.sh': true,
+					},
 					'Must read correct value.',
 				);
 			});
@@ -398,94 +399,11 @@ suite('PromptFilesConfig', () => {
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
 					})),
-					[],
+					{
+						'/mnt/storage/video.archive/episode.01.mkv': false,
+					},
 					'Must read correct value.',
 				);
-			});
-		});
-
-		suite('• array immutability', () => {
-			test('• empty input array case', () => {
-				assert.throws(() => {
-					const value = PromptFilesConfig.getValue(createMock([]));
-
-					// sanity check
-					assert(
-						Array.isArray(value),
-						'Must return an array.',
-					);
-
-					// note! we have to type case here to be able to test for immutability
-					(value as unknown as string[]).push('/usr/src/kernel/module.build');
-				});
-			});
-
-			test('• empty result array case', () => {
-				assert.throws(() => {
-					const value = PromptFilesConfig.getValue(createMock([
-						randomBoolean(),
-						'\n\n',
-						'\v\t',
-						randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-						'   ',
-					]));
-
-					// sanity check
-					assert(
-						Array.isArray(value),
-						'Must return an array.',
-					);
-
-					// note! we have to type case here to be able to test for immutability
-					(value as unknown as string[]).push('../../archive/old.logs/app.10-12-2025.log');
-				});
-			});
-
-			test('• empty input object case', () => {
-				assert.throws(() => {
-					const value = PromptFilesConfig.getValue(createMock({}));
-
-					// sanity check
-					assert(
-						Array.isArray(value),
-						'Must return an array.',
-					);
-
-					// note! we have to type case here to be able to test for immutability
-					(value as unknown as string[]).push('./local.repo/.gitignore');
-				});
-			});
-
-			test('• empty result array case (object input)', () => {
-				assert.throws(() => {
-					const value = PromptFilesConfig.getValue(createMock({
-						'/etc/hostname.backup': '\t\n\t',
-						'./run.tests.bat': '\v',
-						'/mnt/Storage/video.archive/episode.02.mkv': false,
-						'/usr/local/share/.fonts/CustomFont.ttf': '',
-						'./hidden.dir/.SUBHIDDENFILE': '\f',
-						'/opt/software/v3.2.1/build.log.old': '  ',
-						'': true,
-						'/var/data/datafile.2025-03-05.json': '\n',
-						'\n\n': true,
-						'\t': true,
-						'\v': true,
-						'\f': true,
-						'\r\n': true,
-						'\f\f': true,
-						'../lib/some_library.v1.0.2.so': '\r\n',
-						'/dev/shm/.shared_resource.tmp': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-					}));
-
-					// sanity check
-					assert(
-						Array.isArray(value),
-						'Must return an array.',
-					);
-
-					// note! we have to type case here to be able to test for immutability
-					(value as unknown as string[]).push('/etc/systemd/system/app.service');
-				});
 			});
 		});
 	});
