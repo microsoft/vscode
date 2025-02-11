@@ -183,8 +183,6 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 	}
 }
 
-export function findLikelyRelevantLines(model: ITextModel, lineNumber: number, store: TokenizerWithStateStore): { likelyRelevantLines: string[]; initialState: IState | undefined };
-export function findLikelyRelevantLines(model: ITextModel, lineNumber: number): { likelyRelevantLines: string[] };
 export function findLikelyRelevantLines(model: ITextModel, lineNumber: number, store?: TokenizerWithStateStore): { likelyRelevantLines: string[]; initialState?: IState } {
 	let nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
 	const likelyRelevantLines: string[] = [];
