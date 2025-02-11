@@ -429,9 +429,11 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		// Check to the end of the line for possible ghost text. For example pwsh's ghost text
 		// can look like this `Get-|Ch[ildItem]`
+		const cursorCell = line.getCell(buffer.cursorX - 1);
 		if (proceedWithGhostTextCheck) {
 			let potentialGhostIndexOffset = 0;
 			let x = buffer.cursorX;
+
 			while (x < line.length) {
 				const cell = line.getCell(x++);
 				if (!cell || cell.getCode() === 0) {
@@ -440,15 +442,53 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				if (this._isCellStyledLikeGhostText(cell)) {
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
-				} else if (x >= buffer.cursorX) {
-					//TODO: check if shell is fish
+				} else if (!this._cellStylesMatch(cursorCell, cell)) {
+					// Verify that all chars for the rest of the line match this
+					// ghost text style
+					while (x < line.length) {
+						const cell = line.getCell(x++);
+						if (!cell || cell.getCode() === 0) {
+							break;
+						}
+
+						if (this._isCellStyledLikeGhostText(cell)) {
+							ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
+							break;
+						} else if (!this._cellStylesMatch(cursorCell, cell)) {
+							ghostTextIndex = -1;
+							break;
+						}
+
+						potentialGhostIndexOffset += cell.getChars().length;
+					}
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
-					break;
+					return ghostTextIndex;
 				}
+
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
 		return ghostTextIndex;
+
+	}
+
+	private _cellStylesMatch(a: IBufferCell | undefined, b: IBufferCell | undefined): boolean {
+		if (!a || !b) {
+			return false;
+		}
+		return a.getFgColor() === b.getFgColor()
+			&& a.getBgColor() === b.getBgColor()
+			&& a.isBold() === b.isBold()
+			&& a.isItalic() === b.isItalic()
+			&& a.isDim() === b.isDim()
+			&& a.isUnderline() === b.isUnderline()
+			&& a.isBlink() === b.isBlink()
+			&& a.isInverse() === b.isInverse()
+			&& a.isInvisible() === b.isInvisible()
+			&& a.isStrikethrough() === b.isStrikethrough()
+			&& a.isOverline() === b.isOverline()
+			&& a?.getBgColorMode() === b?.getBgColorMode()
+			&& a?.getFgColorMode() === b?.getFgColorMode();
 	}
 
 	private _trimContinuationPrompt(lineText: string): string {
