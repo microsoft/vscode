@@ -901,7 +901,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					]
 				});
 			}
-			run(accessor: ServicesAccessor, args: unknown[]) {
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
 				const group = getEditorGroupFromArguments(accessor, args);
 				const editorPane = group?.activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {

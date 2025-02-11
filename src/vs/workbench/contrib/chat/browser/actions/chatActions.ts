@@ -20,6 +20,7 @@ import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -490,7 +491,7 @@ export function registerChatActions() {
 	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2, nonEnterpriseCopilotUsers);
 	registerOpenLinkAction('workbench.action.chat.learnMore', localize2('learnMore', "Learn More"), defaultChat.documentationUrl, 3);
 
-	registerAction2(class ShowExtensionsUsingCopilit extends Action2 {
+	registerAction2(class ShowExtensionsUsingCopilot extends Action2 {
 
 		constructor() {
 			super({
@@ -504,6 +505,27 @@ export function registerChatActions() {
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 			extensionsWorkbenchService.openSearch(`@feature:${CopilotUsageExtensionFeatureId}`);
+		}
+	});
+
+	registerAction2(class ConfigureCopilotCompletions extends Action2 {
+
+		constructor() {
+			super({
+				id: 'workbench.action.chat.configureCodeCompletions',
+				title: localize2('configureCompletions', "Configure Code Completions..."),
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ChatCommandCenter,
+					group: 'f_completions',
+					order: 10,
+				}
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			commandService.executeCommand('github.copilot.toggleStatusMenu');
 		}
 	});
 }

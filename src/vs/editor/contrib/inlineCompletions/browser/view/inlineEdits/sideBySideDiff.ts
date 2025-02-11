@@ -12,8 +12,7 @@ import { IObservable, IReader, autorun, constObservable, derived, derivedObserva
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { diffInserted, diffInsertedLine, diffRemoved, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -29,76 +28,9 @@ import { ITextModel } from '../../../../../common/model.js';
 import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionContextKeys } from '../../controller/inlineCompletionContextKeys.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
-import { PathBuilder, StatusBarViewItem, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
+import { getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from './theme.js';
+import { InlineEditTabAction, PathBuilder, StatusBarViewItem, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
-import { localize } from '../../../../../../nls.js';
-
-export const originalBackgroundColor = registerColor(
-	'inlineEdit.originalBackground',
-	Color.transparent,
-	localize('inlineEdit.originalBackground', 'Background color for the original text in inline edits.'),
-	true
-);
-export const modifiedBackgroundColor = registerColor(
-	'inlineEdit.modifiedBackground',
-	Color.transparent,
-	localize('inlineEdit.modifiedBackground', 'Background color for the modified text in inline edits.'),
-	true
-);
-
-export const originalChangedLineBackgroundColor = registerColor(
-	'inlineEdit.originalChangedLineBackground',
-	Color.transparent,
-	localize('inlineEdit.originalChangedLineBackground', 'Background color for the changed lines in the original text of inline edits.'),
-	true
-);
-
-export const originalChangedTextOverlayColor = registerColor(
-	'inlineEdit.originalChangedTextBackground',
-	diffRemoved,
-	localize('inlineEdit.originalChangedTextBackground', 'Overlay color for the changed text in the original text of inline edits.'),
-	true
-);
-
-export const modifiedChangedLineBackgroundColor = registerColor(
-	'inlineEdit.modifiedChangedLineBackground',
-	{
-		light: transparent(diffInsertedLine, 0.5),
-		dark: transparent(diffInsertedLine, 0.5),
-		hcDark: diffInsertedLine,
-		hcLight: diffInsertedLine
-	},
-	localize('inlineEdit.modifiedChangedLineBackground', 'Background color for the changed lines in the modified text of inline edits.'),
-	true
-);
-
-export const modifiedChangedTextOverlayColor = registerColor(
-	'inlineEdit.modifiedChangedTextBackground',
-	diffInserted,
-	localize('inlineEdit.modifiedChangedTextBackground', 'Overlay color for the changed text in the modified text of inline edits.'),
-	true
-);
-export const originalBorder = registerColor(
-	'inlineEdit.originalBorder',
-	{
-		light: editorHoverBorder,
-		dark: editorHoverBorder,
-		hcDark: editorHoverBorder,
-		hcLight: editorHoverBorder
-	},
-	localize('inlineEdit.originalBorder', 'Border color for the original text in inline edits.')
-);
-
-export const modifiedBorder = registerColor(
-	'inlineEdit.modifiedBorder',
-	{
-		light: editorHoverBorder,
-		dark: editorHoverBorder,
-		hcDark: editorHoverBorder,
-		hcLight: editorHoverBorder
-	},
-	localize('inlineEdit.modifiedBorder', 'Border color for the modified text in inline edits.')
-);
 
 export interface IInlineEditsView {
 	isHovered: IObservable<boolean>;
@@ -116,13 +48,14 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
 		const editorVerticalScrollbar = editor.getLayoutInfo().verticalScrollbarWidth;
 		const w = editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const minimapWidth = editorObs.layoutInfoMinimap.read(reader).minimapLeft !== 0 ? editorObs.layoutInfoMinimap.read(reader).minimapWidth : 0;
 
 		const maxOriginalContent = maxContentWidthInRange(editorObs, originalDisplayRange, undefined/* do not reconsider on each layout info change */);
 		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, line.length * w), 0);
 		const endOfEditorPadding = 20; // padding after last line of editor
 		const editorsPadding = edit.modifiedLineRange.length <= edit.originalLineRange.length ? PADDING * 3 + endOfEditorPadding : 60 + endOfEditorPadding * 2;
 
-		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollbar;
+		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
 	}
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -136,6 +69,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 			newTextLineCount: number;
 			originalDisplayRange: LineRange;
 		} | undefined>,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -662,6 +596,9 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 		if (!layoutInfoObs) { return undefined; }
 
+		const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+		const originalBorderColor = getOriginalBorderColor(this._tabAction).read(reader);
+
 		return [
 			n.svgElem('path', {
 				class: 'originalOverlay',
@@ -672,8 +609,8 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 					{ hideRight: true, hideLeft: layoutInfo.codeScrollLeft !== 0 }
 				)),
 				style: {
-					fill: 'var(--vscode-inlineEdit-originalBackground, transparent)',
-					stroke: 'var(--vscode-inlineEdit-originalBorder)',
+					fill: asCssVariable(originalBackgroundColor),
+					stroke: originalBorderColor,
 					strokeWidth: '1px',
 				}
 			}),
@@ -682,8 +619,8 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 				class: 'extendedModifiedOverlay',
 				d: this._extendedModifiedPath,
 				style: {
-					fill: 'var(--vscode-inlineEdit-modifiedBackground, transparent)',
-					stroke: 'var(--vscode-inlineEdit-modifiedBorder)',
+					fill: asCssVariable(modifiedBackgroundColor),
+					stroke: modifiedBorderColor,
 					strokeWidth: '1px',
 				}
 			}),
@@ -696,7 +633,7 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 				),
 				style: {
 					display: layoutInfoObs.map(i => i.shouldShowShadow ? 'none' : 'block'),
-					stroke: 'var(--vscode-inlineEdit-modifiedBorder)',
+					stroke: modifiedBorderColor,
 					strokeWidth: '1px'
 				}
 			})

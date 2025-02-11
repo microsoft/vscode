@@ -336,7 +336,7 @@ class CollapsedCodeBlock extends Disposable {
 
 		const iconText = this.labelService.getUriBasenameLabel(uri);
 		const modifiedEntry = this.chatEditingService.getEditingSession(this.sessionId)?.getEntry(uri);
-		const isComplete = !modifiedEntry?.isCurrentlyBeingModified.get();
+		const isComplete = !modifiedEntry?.isCurrentlyBeingModifiedBy.get();
 
 		let iconClasses: string[] = [];
 		if (isStreaming || !isComplete) {
@@ -365,7 +365,7 @@ class CollapsedCodeBlock extends Disposable {
 			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
 
 			const labelDetail = this.element.querySelector('.label-detail');
-			const isComplete = !modifiedEntry?.isCurrentlyBeingModified.read(r);
+			const isComplete = !modifiedEntry?.isCurrentlyBeingModifiedBy.read(r);
 			if (labelDetail && !isStreaming && !isComplete) {
 				const value = rewriteRatio;
 				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.applying', "Applying edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));

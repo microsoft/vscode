@@ -27,6 +27,12 @@ import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js
 import { RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { indentOfLine } from '../../../../../common/model/textModel.js';
 
+export enum InlineEditTabAction {
+	Jump = 'jump',
+	Accept = 'accept',
+	Inactive = 'inactive'
+}
+
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
 	editor.layoutInfo.read(reader);
 	editor.value.read(reader);

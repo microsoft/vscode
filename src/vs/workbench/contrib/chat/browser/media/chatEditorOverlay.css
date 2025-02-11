@@ -78,6 +78,16 @@
 	animation: ellipsis steps(4, end) 1s infinite;
 }
 
+.chat-editor-overlay-widget.busy.paused .chat-editor-overlay-progress {
+	.codicon-loading {
+		display: none;
+	}
+
+	.busy-label::after {
+		animation-duration: 5s;
+	}
+}
+
 .chat-editor-overlay-widget.busy .chat-editor-overlay-toolbar {
 	display: none;
 }

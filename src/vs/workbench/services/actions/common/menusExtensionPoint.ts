@@ -440,9 +440,9 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribDiffEditorGutterToolBarMenus'
 	},
 	{
-		key: 'searchPanel/feedback',
+		key: 'searchPanel/aiResults/commands',
 		id: MenuId.SearchActionMenu,
-		description: localize('searchPanel.feedback', "The feedback menu rendered as buttons next to the AI search title"),
+		description: localize('searchPanel.aiResultsCommands', "The commands that will contribute to the menu rendered as buttons next to the AI search title"),
 	}
 ];
 

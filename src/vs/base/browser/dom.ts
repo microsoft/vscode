@@ -463,7 +463,7 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return getWindow(el).getComputedStyle(el, null);
 }
 
-export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dimension {
+export function getClientArea(element: HTMLElement, defaultValue?: Dimension, fallbackElement?: HTMLElement): Dimension {
 	const elWindow = getWindow(element);
 	const elDocument = elWindow.document;
 
@@ -492,8 +492,12 @@ export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dim
 		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
 	}
 
-	if (fallback) {
-		return getClientArea(fallback);
+	if (fallbackElement) {
+		return getClientArea(fallbackElement, defaultValue);
+	}
+
+	if (defaultValue) {
+		return defaultValue;
 	}
 
 	throw new Error('Unable to figure out browser width and height');
@@ -506,49 +510,49 @@ class SizeUtils {
 		return parseFloat(value) || 0;
 	}
 
-	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
+	private static getDimension(element: HTMLElement, cssPropertyName: string): number {
 		const computedStyle = getComputedStyle(element);
 		const value = computedStyle ? computedStyle.getPropertyValue(cssPropertyName) : '0';
 		return SizeUtils.convertToPixels(element, value);
 	}
 
 	static getBorderLeftWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-left-width', 'borderLeftWidth');
+		return SizeUtils.getDimension(element, 'border-left-width');
 	}
 	static getBorderRightWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-right-width', 'borderRightWidth');
+		return SizeUtils.getDimension(element, 'border-right-width');
 	}
 	static getBorderTopWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-top-width', 'borderTopWidth');
+		return SizeUtils.getDimension(element, 'border-top-width');
 	}
 	static getBorderBottomWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-bottom-width', 'borderBottomWidth');
+		return SizeUtils.getDimension(element, 'border-bottom-width');
 	}
 
 	static getPaddingLeft(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-left', 'paddingLeft');
+		return SizeUtils.getDimension(element, 'padding-left');
 	}
 	static getPaddingRight(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-right', 'paddingRight');
+		return SizeUtils.getDimension(element, 'padding-right');
 	}
 	static getPaddingTop(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-top', 'paddingTop');
+		return SizeUtils.getDimension(element, 'padding-top');
 	}
 	static getPaddingBottom(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-bottom', 'paddingBottom');
+		return SizeUtils.getDimension(element, 'padding-bottom');
 	}
 
 	static getMarginLeft(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-left', 'marginLeft');
+		return SizeUtils.getDimension(element, 'margin-left');
 	}
 	static getMarginTop(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-top', 'marginTop');
+		return SizeUtils.getDimension(element, 'margin-top');
 	}
 	static getMarginRight(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-right', 'marginRight');
+		return SizeUtils.getDimension(element, 'margin-right');
 	}
 	static getMarginBottom(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-bottom', 'marginBottom');
+		return SizeUtils.getDimension(element, 'margin-bottom');
 	}
 }
 

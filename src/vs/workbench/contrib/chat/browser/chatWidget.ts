@@ -1199,12 +1199,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				});
 
-				const RESPONSE_TIMEOUT = 20000;
-				setTimeout(() => {
-					// Stop the signal if the promise is still unresolved
-					this.chatAccessibilityService.acceptResponse(undefined, requestId, options?.isVoiceInput);
-				}, RESPONSE_TIMEOUT);
-
 				return result.responseCreatedPromise;
 			}
 		}

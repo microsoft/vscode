@@ -184,7 +184,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			}
 
 			// scrolling logic
-			if (entry.isCurrentlyBeingModified.read(r)) {
+			if (entry.isCurrentlyBeingModifiedBy.read(r)) {
 				// while modified: scroll along unless locked
 				if (!this._scrollLock) {
 					const maxLineNumber = entry.maxLineNumber.read(r);

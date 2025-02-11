@@ -731,7 +731,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get result() { return responseModel.result; }
 		};
 		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
-		entry.acceptAgentEdits(textEdits, isLastEdits);
+		entry.acceptAgentEdits(textEdits, isLastEdits, responseModel);
 	}
 
 	private async _resolve(): Promise<void> {

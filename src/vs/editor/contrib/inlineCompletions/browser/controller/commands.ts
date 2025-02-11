@@ -113,7 +113,7 @@ export class TriggerInlineEditAction extends EditorCommand {
 
 	public override async runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.trigger(undefined, true);
+		await controller?.model.get()?.trigger(undefined, { onlyFetchInlineEdits: true });
 	}
 }
 

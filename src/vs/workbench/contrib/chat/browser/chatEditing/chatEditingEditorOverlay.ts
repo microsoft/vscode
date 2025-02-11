@@ -222,15 +222,22 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		this._entry.set({ entry: activeEntry, next }, undefined);
 
 		this._showStore.add(autorun(r => {
-			const busy = activeEntry.isCurrentlyBeingModified.read(r);
-			this._domNode.classList.toggle('busy', busy);
+			const busy = activeEntry.isCurrentlyBeingModifiedBy.read(r);
+			this._domNode.classList.toggle('busy', !!busy);
 		}));
 
 		this._showStore.add(autorun(r => {
-			const value = activeEntry.rewriteRatio.read(r);
-			reset(this._progressNode, (value === 0
-				? localize('generating', "Generating Edits")
-				: localize('applyingPercentage', "{0}% Applying Edits", Math.round(value * 100))));
+			const paused = activeEntry.isCurrentlyBeingModifiedBy.read(r)?.isPaused.read(r);
+			const progress = activeEntry.rewriteRatio.read(r);
+
+			const text = paused
+				? localize('paused', "Edits Paused")
+				: progress === 0
+					? localize('generating', "Generating Edits")
+					: localize('applyingPercentage', "{0}% Applying Edits", Math.round(progress * 100));
+
+			this._domNode.classList.toggle('paused', !!paused);
+			reset(this._progressNode, text);
 		}));
 
 		this._showStore.add(autorun(r => {

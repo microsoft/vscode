@@ -181,18 +181,18 @@
 
 	.inlineCompletions-char-insert.single-line-inline { /* Inline Decoration */
 		padding: 1px 0;
-		border-top: 1px solid var(--vscode-editorHoverWidget-border);
-		border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
+		border-top: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+		border-bottom: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.start {
 		border-top-left-radius: 4px;
 		border-bottom-left-radius: 4px;
-		border-left: 1px solid var(--vscode-editorHoverWidget-border);
+		border-left: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.end {
 		border-top-right-radius: 4px;
 		border-bottom-right-radius: 4px;
-		border-right: 1px solid var(--vscode-editorHoverWidget-border);
+		border-right: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 
 	.inlineCompletions-char-delete.single-line-inline.empty,
