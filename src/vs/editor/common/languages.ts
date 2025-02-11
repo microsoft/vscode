@@ -800,10 +800,13 @@ export interface InlineCompletion {
 
 export interface InlineCompletionWarning {
 	message: IMarkdownString | string;
-	iconPath?: IconPath;
+	icon?: IconPath;
 }
 
-export type IconPath = ThemeIcon | URI | { light: URI; dark: URI };
+/**
+ * TODO: add `| URI | { light: URI; dark: URI }`.
+*/
+export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];

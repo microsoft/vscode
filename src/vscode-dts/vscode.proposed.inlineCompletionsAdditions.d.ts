@@ -35,7 +35,7 @@ declare module 'vscode' {
 
 	export interface InlineCompletionWarning {
 		message: MarkdownString | string;
-		iconPath?: IconPath;
+		icon?: ThemeIcon;
 	}
 
 	export interface InlineCompletionItemProviderMetadata {

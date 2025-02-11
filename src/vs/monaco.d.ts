@@ -7297,13 +7297,13 @@ declare namespace monaco.languages {
 
 	export interface InlineCompletionWarning {
 		message: IMarkdownString | string;
-		iconPath?: IconPath;
+		icon?: IconPath;
 	}
 
-	export type IconPath = editor.ThemeIcon | Uri | {
-		light: Uri;
-		dark: Uri;
-	};
+	/**
+	 * TODO: add `| Uri | { light: Uri; dark: Uri }`.
+	*/
+	export type IconPath = editor.ThemeIcon;
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 		readonly items: readonly TItem[];
