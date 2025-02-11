@@ -271,6 +271,24 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				}
 			}
 		}));
+
+		this._store.add(autorun(r => {
+			const position = editorObs.positions.read(r)?.at(0);
+			const entry = entryForEditor.read(r);
+			if (!position || !entry) {
+				return;
+			}
+
+			const diff = entry.entry.diffInfo.read(r);
+			const mapping = diff.changes.find(m => m.modified.contains(position.lineNumber) || m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber);
+			if (mapping?.modified.isEmpty) {
+				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
+			} else if (mapping?.original.isEmpty) {
+				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'chatEditingEditor.cursorPositionChanged' });
+			} else if (mapping) {
+				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineModified, { source: 'chatEditingEditor.cursorPositionChanged' });
+			}
+		}));
 	}
 
 	override dispose(): void {
@@ -582,11 +600,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._editor.revealPositionInCenter(targetPosition, scrollType);
 		this._editor.focus();
 
-		if (targetRange.isEmpty()) {
-			this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineDeleted);
-		} else {
-			this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineModified);
-		}
 
 		return true;
 	}
