@@ -50,7 +50,7 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container.tabs-border-bottom::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom::after {
 	content: '';
 	position: absolute;
 	bottom: 0;
