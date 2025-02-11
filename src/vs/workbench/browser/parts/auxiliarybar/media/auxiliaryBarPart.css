@@ -250,10 +250,12 @@
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-element.inventory-creator-icon {
+	margin-left: 0.5px;
     background-image: url('../../../media/inventory-creator-icon.svg');
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-element.inventory-search-icon {
+	margin-left: 0.5px;
     background-image: url('../../../media/inventory-search-icon.svg');
 }
 
