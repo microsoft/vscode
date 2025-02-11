@@ -89,6 +89,8 @@ export function getShellIntegrationInjection(
 	}
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		envMixin['VSCODE_SHELL_ENVIRONMENT_REPORTING'] = '1';
+	} else {
+		envMixin['VSCODE_SHELL_ENVIRONMENT_REPORTING'] = '0';
 	}
 	// Windows
 	if (isWindows) {

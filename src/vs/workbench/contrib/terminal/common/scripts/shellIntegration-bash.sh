@@ -18,6 +18,13 @@ bash_major_version=${BASH_VERSINFO[0]}
 __vscode_disable_env_reporting="$VSCODE_DISABLE_ENV_REPORTING"
 unset VSCODE_DISABLE_ENV_REPORTING
 
+__vscode_shell_environment_reporting="$VSCODE_SHELL_ENVIRONMENT_REPORTING"
+unset VSCODE_SHELL_ENVIRONMENT_REPORTING
+
+builtin printf 'what is my value for shell env reporting: %s\n' "$__vscode_shell_environment_reporting"
+builtin printf 'that is it \n'
+
+__vscode_disable_env_via_setting=
 if (( BASH_VERSINFO[0] >= 4 )); then
 	use_associative_array=1
 	# Associative arrays are only available in bash 4.0+
