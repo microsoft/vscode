@@ -606,6 +606,11 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'both'
 		},
+		[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
+			markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to use terminal environment API to report environment state to VS Code"),
+			type: 'boolean',
+			default: true
+		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
