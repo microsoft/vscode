@@ -443,6 +443,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
 				} else if (!this._cellStylesMatch(cursorCell, cell)) {
+					const ghostTextCell = cell;
 					// Verify that all chars for the rest of the line match this
 					// ghost text style
 					while (x < line.length) {
@@ -451,10 +452,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 							break;
 						}
 
-						if (this._isCellStyledLikeGhostText(cell)) {
-							ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
-							break;
-						} else if (!this._cellStylesMatch(cursorCell, cell)) {
+						if (!this._cellStylesMatch(ghostTextCell, cell)) {
 							ghostTextIndex = -1;
 							break;
 						}
