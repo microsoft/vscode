@@ -46,6 +46,7 @@ import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
 import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
 import { PromptSyntaxService } from '../common/promptSyntax/service/promptSyntaxService.js';
 import { IPromptSyntaxService } from '../common/promptSyntax/service/types.js';
+import './promptSyntax/contributions/usePromptCommand.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';

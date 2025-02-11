@@ -5,14 +5,13 @@
 
 import { CHAT_CATEGORY } from './chatActions.js';
 import { localize2 } from '../../../../../nls.js';
-import { assert } from '../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../base/common/types.js';
+import { IChatWidget, showChatView, showEditsView } from '../chat.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { IChatWidget, IChatWidgetService, showChatView, showEditsView } from '../chat.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISelectPromptOptions, showSelectPromptDialog } from './chatAttachPromptAction/showPromptSelectionDialog.js';
@@ -26,7 +25,7 @@ export const ATTACH_PROMPT_ACTION_ID = 'workbench.action.chat.attach.prompt';
  * Options for the {@link AttachPromptAction} action.
  */
 export interface IChatAttachPromptActionOptions extends Pick<
-	ISelectPromptOptions, 'resource' | 'location'
+	ISelectPromptOptions, 'resource' | 'widget'
 > { }
 
 /**
@@ -51,11 +50,9 @@ export class AttachPromptAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 		const initService = accessor.get(IInstantiationService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
 
 		const selectionResult = await showSelectPromptDialog({
-			resource: options.resource,
-			location: options.location,
+			...options,
 			initService,
 			labelService,
 			quickInputService,
@@ -70,8 +67,7 @@ export class AttachPromptAction extends Action2 {
 		const { selected, altOption } = selectionResult;
 
 		// reveal appropriate chat widget
-		const widget = await revealChatWidget(options, altOption, viewsService, chatWidgetService);
-
+		const widget = await revealChatWidget(options, altOption, viewsService);
 
 		widget
 			.attachmentModel
@@ -83,23 +79,22 @@ export class AttachPromptAction extends Action2 {
 }
 
 /**
- * Reveals a chat widget based on the provided {@link IChatAttachPromptActionOptions.location location}.
- * If no location is provided, the function will reveal a `chat panel` by default (either a last focused,
- * or a new one), but if the {@link altOption} is set to `true`, a `chat edits` panel will be revealed
- * instead (likewise either a last focused, or a new one).
+ * Reveals a chat widget based on the provided {@link IChatAttachPromptActionOptions.widget widget}
+ * reference. If no widget reference is provided, the function will reveal a `chat panel` by default
+ * (either a last focused, or a new one), but if the {@link altOption} is set to `true`, a `chat edits`
+ * panel will be revealed instead (likewise either a last focused, or a new one).
  */
 const revealChatWidget = async (
 	options: IChatAttachPromptActionOptions,
 	altOption: boolean,
 	viewsService: IViewsService,
-	chatWidgetService: IChatWidgetService,
 ): Promise<IChatWidget> => {
-	const { location } = options;
+	const { widget } = options;
 
-	// if no location is present, the command was triggered from outside of any
-	// chat input, so we reveal a chat widget window based on the `alt/option`
+	// if no widget reference is present, the command was triggered from outside of
+	// an active chat input, so we reveal a chat widget window based on the `alt`
 	// key modifier state when a prompt was selected from the picker UI dialog
-	if (!location) {
+	if (!widget) {
 		const widget = (altOption)
 			? await showEditsView(viewsService)
 			: await showChatView(viewsService);
@@ -112,19 +107,5 @@ const revealChatWidget = async (
 		return widget;
 	}
 
-	const { lastFocusedWidget } = chatWidgetService;
-
-	// if location is set, the last focused widget must always be set
-	assertDefined(
-		lastFocusedWidget,
-		'Expected last focused chat widget reference to be present.',
-	);
-
-	// when location is set, the last focused widget must have the same one
-	assert(
-		lastFocusedWidget.location === location,
-		`Last forcused chat widget location must be '${location}', got '${lastFocusedWidget.location}'.`,
-	);
-
-	return lastFocusedWidget;
+	return widget;
 };

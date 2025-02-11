@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IChatWidget } from '../../chat.js';
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ChatAgentLocation } from '../../../common/chatAgents.js';
 import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -32,13 +32,13 @@ export interface ISelectPromptOptions {
 	resource?: URI;
 
 	/**
-	 * Target location of the chat input to attach the prompt to. If not provided,
-	 * the command will attach the prompt to a `chat panel` input by default (either
-	 * the last focused instance, or a new one). If the `alt` (`option` on mac) key
-	 * is pressed when the prompt was selected, a `chat edits` panel will be used
-	 * instead (likewise either the last focused or a new one).
+	 * Target chat widget reference to attach the prompt to. If not provided, the command
+	 * attaches the prompt to a `chat panel` widget by default (either the last focused,
+	 * or a new one). If the `alt` (`option` on mac) key was pressed when the prompt is
+	 * selected, the `edits` widget is used instead (likewise, either the last focused,
+	 * or a new one).
 	 */
-	location?: ChatAgentLocation;
+	widget?: IChatWidget;
 
 	labelService: ILabelService;
 	openerService: IOpenerService;
@@ -84,22 +84,18 @@ const createPickItem = (
 /**
  * Creates a placeholder text to show in the prompt selection dialog.
  */
-const createPlaceholderText = (location?: ChatAgentLocation): string => {
-	let result = localize('selectPromptPlaceholder', 'Select a prompt to use');
+const createPlaceholderText = (widget?: IChatWidget): string => {
+	let text = localize('selectPromptPlaceholder', 'Select a prompt to use');
 
-	// if target chat location is the `EditingSession`, add the note to the text
-	if (location === ChatAgentLocation.EditingSession) {
-		result += ' ' + localize('selectPromptPlaceholder.inEdits', 'in Edits');
-	}
-
-	// if no location is provided, add the note about the `alt`/`option` key modifier
-	if (!location) {
+	// if no widget reference is provided, add the note about
+	// the `alt`/`option` key modifier users can use
+	if (!widget) {
 		const key = (isWindows || isLinux) ? 'alt' : 'option';
 
-		result += ' ' + localize('selectPromptPlaceholder.holdAltOption', '(hold `{0}` to use in Edits)', key);
+		text += ' ' + localize('selectPromptPlaceholder.holdAltOption', '(hold `{0}` to use in Edits)', key);
 	}
 
-	return result;
+	return text;
 };
 
 /**
@@ -174,9 +170,9 @@ export const showSelectPromptDialog = async (
 	}
 
 	// otherwise show the prompt file selection dialog
-	const { location } = options;
+	const { widget } = options;
 	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
-		placeHolder: createPlaceholderText(location),
+		placeHolder: createPlaceholderText(widget),
 		activeItem,
 		canPickMany: false,
 		matchOnDescription: true,

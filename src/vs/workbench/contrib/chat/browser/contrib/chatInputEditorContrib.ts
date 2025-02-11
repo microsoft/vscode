@@ -19,9 +19,6 @@ import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
 
-// TODO: @legomushroom - is this correct?
-import '../promptSyntax/contributions/usePromptCommand.js';
-
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
