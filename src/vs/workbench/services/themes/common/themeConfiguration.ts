@@ -14,7 +14,7 @@ import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry'
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { isWeb } from 'vs/base/common/platform';
+// import { isWeb } from 'vs/base/common/platform';
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -30,7 +30,8 @@ function formatSettingAsLink(str: string) {
 const colorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	description: nls.localize('colorTheme', "Specifies the color theme used in the workbench."),
-	default: isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK,
+	// MEMBRANE: default to user's OS preference
+	default: window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeSettingDefaults.COLOR_THEME_DARK : ThemeSettingDefaults.COLOR_THEME_LIGHT,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	enumItemLabels: colorThemeSettingEnumItemLabels,
@@ -75,7 +76,9 @@ const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If set, automatically switch to the preferred color theme based on the OS appearance. If the OS appearance is dark, the theme specified at {0} is used, for light {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)),
-	default: false
+	// MEMBRANE: auto-update color theme based on OS preference
+	// Note: it appears Microsoft doesn't do this for legacy reasons: https://github.com/microsoft/vscode/pull/236052
+	default: true
 };
 
 const colorCustomizationsSchema: IConfigurationPropertySchema = {
