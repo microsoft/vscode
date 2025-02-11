@@ -246,7 +246,6 @@ const enum VSCodeOscPt {
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
-
 	EnvSingleDelete = 'EnvSingleDelete',
 
 	/**
