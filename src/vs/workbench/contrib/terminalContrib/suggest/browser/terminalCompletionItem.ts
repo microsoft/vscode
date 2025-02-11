@@ -14,6 +14,7 @@ export enum TerminalCompletionItemKind {
 	Method = 3,
 	Argument = 4,
 	Alias = 5,
+	InlineSuggestion = 6,
 }
 
 export interface ITerminalCompletion extends ISimpleCompletion {
@@ -39,23 +40,23 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 	/**
 	 * {@link labelLow} without the file extension.
 	 */
-	readonly labelLowExcludeFileExt: string;
+	labelLowExcludeFileExt: string;
 
 	/**
 	 * The lowercase label, when the completion is a file or directory this has  normalized path
 	 * separators (/) on Windows and no trailing separator for directories.
 	 */
-	readonly labelLowNormalizedPath: string;
+	labelLowNormalizedPath: string;
 
 	/**
 	 * A penalty that applies to files or folders starting with the underscore character.
 	 */
-	readonly underscorePenalty: 0 | 1 = 0;
+	underscorePenalty: 0 | 1 = 0;
 
 	/**
 	 * The file extension part from {@link labelLow}.
 	 */
-	readonly fileExtLow: string = '';
+	fileExtLow: string = '';
 
 	constructor(
 		override readonly completion: ITerminalCompletion

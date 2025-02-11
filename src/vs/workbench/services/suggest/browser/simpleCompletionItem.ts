@@ -55,6 +55,9 @@ export class SimpleCompletionItem {
 	idx?: number;
 	word?: string;
 
+	// validation
+	isInvalid: boolean = false;
+
 	constructor(
 		readonly completion: ISimpleCompletion
 	) {

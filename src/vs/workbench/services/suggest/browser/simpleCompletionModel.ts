@@ -70,6 +70,10 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 		}
 	}
 
+	forceRefilterAll() {
+		this._refilterKind = Refilter.All;
+	}
+
 	private _ensureCachedState(): void {
 		if (this._refilterKind !== Refilter.Nothing) {
 			this._createCachedState();
@@ -98,9 +102,9 @@ export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 
 			const item = source[i];
 
-			// if (item.isInvalid) {
-			// 	continue; // SKIP invalid items
-			// }
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
+			}
 
 			// collect all support, know if their result is incomplete
 			// this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
