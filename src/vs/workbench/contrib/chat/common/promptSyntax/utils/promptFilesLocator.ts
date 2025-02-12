@@ -32,7 +32,7 @@ export class PromptFilesLocator {
 		exclude: readonly URI[],
 	): Promise<readonly URI[]> {
 		return await this.listFilesIn(
-			this.getSourceLocations(),
+			this.getConfigBasedLocations(),
 			exclude,
 		);
 	}
@@ -69,7 +69,7 @@ export class PromptFilesLocator {
 	 *
 	 * @returns List of possible prompt file locations.
 	 */
-	private getSourceLocations(): readonly URI[] {
+	public getConfigBasedLocations(): readonly URI[] {
 		const paths = new ResourceSet();
 		const sourceLocations = PromptFilesConfig.sourceLocations(this.configService);
 
