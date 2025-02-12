@@ -448,6 +448,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 		if (ghostTextIndex === -1) {
 			x = line.length;
+			if (this.value.length <= cursorIndex) {
+				// No ghost text
+				return -1;
+			}
 			// Find the last non-whitespace character in the line
 			// Its style will be compared against the style of the cells that precede it
 			let endCell = line.getCell(x);
