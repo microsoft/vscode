@@ -5,7 +5,7 @@
 
 import { IPrompt, IPromptsService } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../base/common/assert.js';
+import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -93,7 +93,44 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		return prompts.flat();
 	}
+
+	// TODO: @legomushroom - support "all" source too?
+	public getPromptsLocation(
+		source: 'local' | 'global',
+	): readonly IPrompt[] {
+		if (source === 'global') {
+			const result = [this.userDataService.currentProfile.promptsHome]
+				.map(addSource('global'));
+
+			return result;
+		}
+
+		if (source === 'local') {
+			return this.fileLocator
+				.getConfigBasedLocations()
+				.map(addSource('local'));
+		}
+
+		assertNever(
+			source,
+			`Unsupported prompt source '${source}'.`,
+		);
+	}
 }
+
+/**
+ * Utility to add a provided prompt `source` to a prompt URI.
+ */
+const addSource = (
+	source: IPrompt['source'],
+): (uri: URI) => IPrompt => {
+	return (uri) => {
+		return {
+			uri,
+			source,
+		};
+	};
+};
 
 /**
  * Utility to add a provided prompt `source` to a list of prompt URIs.
@@ -102,11 +139,7 @@ const withSource = (
 	source: IPrompt['source'],
 ): (uris: readonly URI[]) => (readonly IPrompt[]) => {
 	return (uris) => {
-		return uris.map((uri) => {
-			return {
-				uri,
-				source,
-			};
-		});
+		return uris
+			.map(addSource(source));
 	};
 };
