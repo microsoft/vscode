@@ -246,10 +246,10 @@ class FileContentProvider extends Disposable implements IContentProvider {
 
 	private parseLogEntries(content: string, lastLogEntry: ILogEntry | undefined): ILogEntry[] {
 		const model = this.instantiationService.createInstance(TextModel, content, LOG_MIME, TextModel.DEFAULT_CREATION_OPTIONS, null);
-		if (!parseLogEntryAt(model, 1)) {
-			return [];
-		}
 		try {
+			if (!parseLogEntryAt(model, 1)) {
+				return [];
+			}
 			const logEntries: ILogEntry[] = [];
 			let logEntryStartLineNumber = lastLogEntry ? lastLogEntry.range.endLineNumber + 1 : 1;
 			for (const entry of logEntryIterator(model, (e) => changeStartLineNumber(e, logEntryStartLineNumber))) {

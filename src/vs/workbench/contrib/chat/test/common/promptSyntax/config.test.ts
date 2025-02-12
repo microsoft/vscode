@@ -307,7 +307,7 @@ suite('PromptFilesConfig', () => {
 			test('• empty', () => {
 				assert.deepStrictEqual(
 					PromptFilesConfig.getValue(createMock({})),
-					[],
+					{},
 					'Must read correct value.',
 				);
 			});
@@ -328,20 +328,20 @@ suite('PromptFilesConfig', () => {
 						'/var/logs/app.01.05.error': true,
 						'./.tempfile': true,
 					})),
-					[
-						'/root/.bashrc',
-						'../../folder/.hidden-folder/config.xml',
-						'/srv/www/Public_html/.htaccess',
-						'../../another.folder/.WEIRD_FILE.log',
-						'./folder.name/file.name',
-						'/media/external/backup.tar.gz',
-						'/Media/external/.secret.backup',
-						'../relative/path.to.file',
-						'./folderName.with.dots/more.dots.extension',
-						'some/folder.with.dots/another.file',
-						'/var/logs/app.01.05.error',
-						'./.tempfile'
-					],
+					{
+						'/root/.bashrc': true,
+						'../../folder/.hidden-folder/config.xml': true,
+						'/srv/www/Public_html/.htaccess': true,
+						'../../another.folder/.WEIRD_FILE.log': true,
+						'./folder.name/file.name': true,
+						'/media/external/backup.tar.gz': true,
+						'/Media/external/.secret.backup': true,
+						'../relative/path.to.file': true,
+						'./folderName.with.dots/more.dots.extension': true,
+						'some/folder.with.dots/another.file': true,
+						'/var/logs/app.01.05.error': true,
+						'./.tempfile': true,
+					},
 					'Must read correct value.',
 				);
 			});
@@ -372,14 +372,15 @@ suite('PromptFilesConfig', () => {
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
 					})),
-					[
-						'../assets/img/logo.v2.png',
-						'../.local/bin/script.sh',
-						'../../development/branch.name/some.test',
-						'/Home/user/.ssh/config',
-						'/tmp/.temp.folder/cache.db',
-						'./scripts/.old.build.sh',
-					],
+					{
+						'../assets/img/logo.v2.png': true,
+						'/mnt/storage/video.archive/episode.01.mkv': false,
+						'../.local/bin/script.sh': true,
+						'../../development/branch.name/some.test': true,
+						'/Home/user/.ssh/config': true,
+						'/tmp/.temp.folder/cache.db': true,
+						'./scripts/.old.build.sh': true,
+					},
 					'Must read correct value.',
 				);
 			});
@@ -398,94 +399,438 @@ suite('PromptFilesConfig', () => {
 						'../lib/some_library.v1.0.1.so': '\r\n',
 						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
 					})),
+					{
+						'/mnt/storage/video.archive/episode.01.mkv': false,
+					},
+					'Must read correct value.',
+				);
+			});
+		});
+	});
+
+	suite('• sourceLocations', () => {
+		test('• undefined', () => {
+			const configService = createMock(undefined);
+
+			assert.deepStrictEqual(
+				PromptFilesConfig.sourceLocations(configService),
+				[],
+				'Must read correct value.',
+			);
+		});
+
+		test('• null', () => {
+			const configService = createMock(null);
+
+			assert.deepStrictEqual(
+				PromptFilesConfig.sourceLocations(configService),
+				[],
+				'Must read correct value.',
+			);
+		});
+
+		suite('• string', () => {
+			test('• empty', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('')),
 					[],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('  ')),
+					[],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('\t')),
+					[],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('\v')),
+					[],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('\f')),
+					[],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('\n')),
+					[],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('\r\n')),
+					[],
+					'Must read correct value.',
+				);
+			});
+
+			test('• true', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('true')),
+					['.github/prompts'],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('TRUE')),
+					['.github/prompts'],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('TrUe')),
+					['.github/prompts'],
+					'Must read correct value.',
+				);
+			});
+
+			test('• false', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('false')),
+					[],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('FALSE')),
+					[],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('fAlSe')),
+					[],
+					'Must read correct value.',
+				);
+			});
+
+			test('• non-empty', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('/absolute/path/to/folder')),
+					['.github/prompts', '/absolute/path/to/folder'],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('/Absolute/path/to/folder')),
+					['.github/prompts', '/Absolute/path/to/folder'],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('./relative-path/to/folder')),
+					['.github/prompts', './relative-path/to/folder'],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('./relative-path/To/folder')),
+					['.github/prompts', './relative-path/To/folder'],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('.github/prompts')),
+					['.github/prompts'],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('.github/Prompts')),
+					['.github/prompts', '.github/Prompts'],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('/abs/path/to/file.prompt.md')),
+					['.github/prompts', '/abs/path/to/file.prompt.md'],
+					'Must read correct value.',
+				);
+
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock('/Abs/Path/To/File.prompt.md')),
+					['.github/prompts', '/Abs/Path/To/File.prompt.md'],
 					'Must read correct value.',
 				);
 			});
 		});
 
-		suite('• array immutability', () => {
-			test('• empty input array case', () => {
-				assert.throws(() => {
-					const value = PromptFilesConfig.getValue(createMock([]));
+		test('• boolean', () => {
+			assert.deepStrictEqual(
+				PromptFilesConfig.sourceLocations(createMock(true)),
+				['.github/prompts'],
+				'Must read correct value.',
+			);
 
-					// sanity check
-					assert(
-						Array.isArray(value),
-						'Must return an array.',
-					);
+			assert.deepStrictEqual(
+				PromptFilesConfig.sourceLocations(createMock(false)),
+				[],
+				'Must read correct value.',
+			);
+		});
 
-					// note! we have to type case here to be able to test for immutability
-					(value as unknown as string[]).push('/usr/src/kernel/module.build');
-				});
+		suite('• array', () => {
+			test('• empty', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock([])),
+					['.github/prompts'],
+					'Must read correct value.',
+				);
 			});
 
-			test('• empty result array case', () => {
-				assert.throws(() => {
-					const value = PromptFilesConfig.getValue(createMock([
+			test('• valid strings', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock([
+						'/absolute/path/to/folder',
+						'./relative-path/to/folder',
+						'./another-Relative/Path/to/folder',
+						'.github/prompts',
+						'/abs/path/to/file.prompt.md',
+						'.githuB/prompts',
+						'/ABS/path/to/prompts/',
+					])),
+					[
+						'.github/prompts',
+						'/absolute/path/to/folder',
+						'./relative-path/to/folder',
+						'./another-Relative/Path/to/folder',
+						'/abs/path/to/file.prompt.md',
+						'.githuB/prompts',
+						'/ABS/path/to/prompts/',
+					],
+					'Must read correct value.',
+				);
+			});
+
+			test('• filters out not valid string values', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock([
+						'/usr/local/bin/.hidden-tool',
+						'../config/.env.example',
+						[
+							'test',
+							randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						],
+						'',
+						'./scripts/BUILD.sh',
 						randomBoolean(),
-						'\n\n',
-						'\v\t',
+						'/home/user/Documents/report.v1.pdf',
+						'tmp/.cache/.session.lock',
+						'/var/log/backup.2025-02-05.log',
+						{
+							'key1': randomBoolean(),
+							'key2': 'value2',
+						},
+						'../.git/hooks/pre-commit.sample',
 						randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-						'   ',
-					]));
-
-					// sanity check
-					assert(
-						Array.isArray(value),
-						'Must return an array.',
-					);
-
-					// note! we have to type case here to be able to test for immutability
-					(value as unknown as string[]).push('../../archive/old.logs/app.10-12-2025.log');
-				});
+						'\t\t',
+						'/opt/app/data/config.yaml',
+						'./.config/Subfolder.file',
+						undefined,
+						'/usr/share/man/man1/bash.1',
+						null,
+					])),
+					[
+						'.github/prompts',
+						'/usr/local/bin/.hidden-tool',
+						'../config/.env.example',
+						'./scripts/BUILD.sh',
+						'/home/user/Documents/report.v1.pdf',
+						'tmp/.cache/.session.lock',
+						'/var/log/backup.2025-02-05.log',
+						'../.git/hooks/pre-commit.sample',
+						'/opt/app/data/config.yaml',
+						'./.config/Subfolder.file',
+						'/usr/share/man/man1/bash.1',
+					],
+					'Must read correct value.',
+				);
 			});
 
-			test('• empty input object case', () => {
-				assert.throws(() => {
-					const value = PromptFilesConfig.getValue(createMock({}));
+			test('• only invalid values', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock([
+						null,
+						undefined,
+						'',
+						'  ',
+						'\t',
+						'\v',
+						'\f',
+						'\n',
+						'\r\n',
+						{
+							'some-key': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+							'another-key': randomBoolean(),
+							'one_more_key': '../relative/path.to.file',
+						},
+						[randomBoolean(), randomBoolean()],
+						randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+					])),
+					['.github/prompts'],
+					'Must read correct value.',
+				);
+			});
+		});
 
-					// sanity check
-					assert(
-						Array.isArray(value),
-						'Must return an array.',
-					);
-
-					// note! we have to type case here to be able to test for immutability
-					(value as unknown as string[]).push('./local.repo/.gitignore');
-				});
+		suite('• object', () => {
+			test('• empty', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock({})),
+					['.github/prompts'],
+					'Must read correct value.',
+				);
 			});
 
-			test('• empty result array case (object input)', () => {
-				assert.throws(() => {
-					const value = PromptFilesConfig.getValue(createMock({
-						'/etc/hostname.backup': '\t\n\t',
-						'./run.tests.bat': '\v',
-						'/mnt/Storage/video.archive/episode.02.mkv': false,
-						'/usr/local/share/.fonts/CustomFont.ttf': '',
-						'./hidden.dir/.SUBHIDDENFILE': '\f',
-						'/opt/software/v3.2.1/build.log.old': '  ',
+			test('• only valid strings', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock({
+						'/root/.bashrc': true,
+						'../../folder/.hidden-folder/config.xml': true,
+						'/srv/www/Public_html/.htaccess': true,
+						'../../another.folder/.WEIRD_FILE.log': true,
+						'./folder.name/file.name': true,
+						'/media/external/backup.tar.gz': true,
+						'/Media/external/.secret.backup': true,
+						'../relative/path.to.file': true,
+						'./folderName.with.dots/more.dots.extension': true,
+						'some/folder.with.dots/another.file': true,
+						'/var/logs/app.01.05.error': true,
+						'.GitHub/prompts': true,
+						'./.tempfile': true,
+					})),
+					[
+						'.github/prompts',
+						'/root/.bashrc',
+						'../../folder/.hidden-folder/config.xml',
+						'/srv/www/Public_html/.htaccess',
+						'../../another.folder/.WEIRD_FILE.log',
+						'./folder.name/file.name',
+						'/media/external/backup.tar.gz',
+						'/Media/external/.secret.backup',
+						'../relative/path.to.file',
+						'./folderName.with.dots/more.dots.extension',
+						'some/folder.with.dots/another.file',
+						'/var/logs/app.01.05.error',
+						'.GitHub/prompts',
+						'./.tempfile',
+					],
+					'Must read correct value.',
+				);
+			});
+
+			test('• filters out non valid entries', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock({
+						'/etc/hosts.backup': '\t\n\t',
+						'./run.tests.sh': '\v',
+						'../assets/img/logo.v2.png': true,
+						'/mnt/storage/video.archive/episode.01.mkv': false,
+						'../.local/bin/script.sh': true,
+						'/usr/local/share/.fonts/CustomFont.otf': '',
+						'../../development/branch.name/some.test': true,
+						'.giThub/prompts': true,
+						'/Home/user/.ssh/config': true,
+						'./hidden.dir/.subhidden': '\f',
+						'/tmp/.temp.folder/cache.db': true,
+						'.github/prompts': true,
+						'/opt/software/v3.2.1/build.log': '  ',
 						'': true,
-						'/var/data/datafile.2025-03-05.json': '\n',
+						'./scripts/.old.build.sh': true,
+						'/var/data/datafile.2025-02-05.json': '\n',
 						'\n\n': true,
 						'\t': true,
 						'\v': true,
 						'\f': true,
 						'\r\n': true,
 						'\f\f': true,
-						'../lib/some_library.v1.0.2.so': '\r\n',
-						'/dev/shm/.shared_resource.tmp': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
-					}));
+						'../lib/some_library.v1.0.1.so': '\r\n',
+						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+					})),
+					[
+						'.github/prompts',
+						'../assets/img/logo.v2.png',
+						'../.local/bin/script.sh',
+						'../../development/branch.name/some.test',
+						'.giThub/prompts',
+						'/Home/user/.ssh/config',
+						'/tmp/.temp.folder/cache.db',
+						'./scripts/.old.build.sh',
+					],
+					'Must read correct value.',
+				);
+			});
 
-					// sanity check
-					assert(
-						Array.isArray(value),
-						'Must return an array.',
-					);
+			test('• only invalid or false values', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock({
+						'/etc/hosts.backup': '\t\n\t',
+						'./run.tests.sh': '\v',
+						'../assets/IMG/logo.v2.png': '',
+						'/mnt/storage/video.archive/episode.01.mkv': false,
+						'/usr/local/share/.fonts/CustomFont.otf': '',
+						'./hidden.dir/.subhidden': '\f',
+						'/opt/Software/v3.2.1/build.log': '  ',
+						'/var/data/datafile.2025-02-05.json': '\n',
+						'../lib/some_library.v1.0.1.so': '\r\n',
+						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+					})),
+					[
+						'.github/prompts',
+					],
+					'Must read correct value.',
+				);
+			});
 
-					// note! we have to type case here to be able to test for immutability
-					(value as unknown as string[]).push('/etc/systemd/system/app.service');
-				});
+			test('• filters out disabled default location', () => {
+				assert.deepStrictEqual(
+					PromptFilesConfig.sourceLocations(createMock({
+						'/etc/hosts.backup': '\t\n\t',
+						'./run.tests.sh': '\v',
+						'.github/prompts': false,
+						'../assets/img/logo.v2.png': true,
+						'/mnt/storage/video.archive/episode.01.mkv': false,
+						'../.local/bin/script.sh': true,
+						'/usr/local/share/.fonts/CustomFont.otf': '',
+						'../../development/branch.name/some.test': true,
+						'.giThub/prompts': true,
+						'/Home/user/.ssh/config': true,
+						'./hidden.dir/.subhidden': '\f',
+						'/tmp/.temp.folder/cache.db': true,
+						'/opt/software/v3.2.1/build.log': '  ',
+						'': true,
+						'./scripts/.old.build.sh': true,
+						'/var/data/datafile.2025-02-05.json': '\n',
+						'\n\n': true,
+						'\t': true,
+						'\v': true,
+						'\f': true,
+						'\r\n': true,
+						'\f\f': true,
+						'../lib/some_library.v1.0.1.so': '\r\n',
+						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+					})),
+					[
+						'../assets/img/logo.v2.png',
+						'../.local/bin/script.sh',
+						'../../development/branch.name/some.test',
+						'.giThub/prompts',
+						'/Home/user/.ssh/config',
+						'/tmp/.temp.folder/cache.db',
+						'./scripts/.old.build.sh',
+					],
+					'Must read correct value.',
+				);
 			});
 		});
 	});

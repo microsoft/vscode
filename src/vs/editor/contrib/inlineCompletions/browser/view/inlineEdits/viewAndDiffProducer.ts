@@ -30,7 +30,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const textModel = this._editor.getModel();
 		if (!textModel) { return undefined; }
 
-		const editOffset = model.inlineEditState.get()?.inlineCompletion.inlineEdit.read(reader);
+		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit.read(reader);
 		if (!editOffset) { return undefined; }
 
 		const edits = editOffset.edits.map(e => {

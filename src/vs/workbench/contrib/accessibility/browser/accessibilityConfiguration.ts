@@ -506,6 +506,16 @@ const configuration: IConfigurationNode = {
 				}
 			}
 		},
+		'accessibility.signals.chatEditModifiedFile': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.chatEditModifiedFile', "Plays a sound / audio cue when revealing a file with changes from chat edits"),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatEditModifiedFile.sound', "Plays a sound when revealing a file with changes from chat edits"),
+					...soundFeatureBase
+				}
+			}
+		},
 		'accessibility.signals.notebookCellCompleted': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.notebookCellCompleted', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a notebook cell execution is successfully completed."),

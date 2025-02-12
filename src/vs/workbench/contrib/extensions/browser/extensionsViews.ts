@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { isCancellationError, getErrorMessage, CancellationError } from '../../../../base/common/errors.js';
 import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
@@ -345,9 +345,15 @@ export class ExtensionsListView extends ViewPane {
 					}
 				}));
 			}
-			let actions: IAction[] = [];
+			const actions: IAction[] = [];
 			for (const menuActions of groups) {
-				actions = [...actions, ...menuActions, new Separator()];
+				for (const menuAction of menuActions) {
+					actions.push(menuAction);
+					if (isDisposable(menuAction)) {
+						disposables.add(menuAction);
+					}
+				}
+				actions.push(new Separator());
 			}
 			actions.pop();
 			this.contextMenuService.showContextMenu({

@@ -3007,3 +3007,9 @@ export namespace LanguageModelToolResult {
 		};
 	}
 }
+
+export namespace IconPath {
+	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
+		return iconPath;
+	}
+}

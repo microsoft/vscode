@@ -640,9 +640,9 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
-				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
+				// exclude status icons (file-icon) and inline action icons (trashcan, horizontalSplit, rerunTask)
 				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
+					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):not(.codicon-rerun-task)` +
 					`{ color: ${color} !important; }`
 				);
 			}

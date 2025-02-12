@@ -25,6 +25,11 @@ import { TokenUpdate } from '../../../../editor/common/model/tokenStore.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { pushMany } from '../../../../base/common/arrays.js';
+import { findLikelyRelevantLines } from '../../../../editor/common/model/textModelTokens.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;
@@ -114,9 +119,23 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITreeSitterTokenizationStoreService private readonly _tokenizationStoreService: ITreeSitterTokenizationStoreService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
+		this._register(this._codeEditorService.onCodeEditorAdd(editor => {
+			this._parseAndTokenizeViewPort(undefined, editor);
+		}));
+		this._register(this._modelService.onModelAdded(e => {
+			this._parseAndTokenizeViewPort(e, undefined);
+		}));
+		this._modelService.getModels().forEach(model => {
+			this._parseAndTokenizeViewPort(model, undefined);
+		});
+		this._codeEditorService.listCodeEditors().forEach(editor => {
+			this._parseAndTokenizeViewPort(undefined, editor);
+		});
+
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
 			if (this._tokenizationStoreService.hasTokens(e.textModel)) {
 				// Mark the range for refresh immediately
@@ -137,12 +156,126 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		}));
 	}
 
+	private async _parseAndTokenizeViewPort(model: ITextModel | undefined, editor: ICodeEditor | undefined) {
+		if (!model && !editor) {
+			return;
+		}
+		if (!model && editor) {
+			model = editor.getModel() ?? undefined;
+			if (!model) {
+				const disposableStore: DisposableStore = this._register(new DisposableStore());
+				await Event.toPromise(Event.once(editor.onDidChangeModel), disposableStore);
+				model = editor.getModel() ?? undefined;
+			}
+		} else if (model && !editor) {
+			editor = this._codeEditorForModel(model);
+		}
+		if (!editor || !model || (this._tokenizationStoreService.hasFullParseTokens(model))) {
+			return;
+		}
+
+		let language = model.getLanguageId();
+		if (language === PLAINTEXT_LANGUAGE_ID) {
+			const disposableStore = this._register(new DisposableStore());
+			await Event.toPromise(Event.once(model.onDidChangeLanguage), disposableStore);
+			language = model.getLanguageId();
+		}
+
+		if (language !== this._languageId) {
+			return;
+		}
+		return this._doParseAndTokenizeViewPort(model, editor);
+	}
+
+	private _nonIntersectingViewPortRanges(editor: ICodeEditor) {
+		const viewportRanges = editor.getVisibleRangesPlusViewportAboveBelow();
+		const nonIntersectingRanges: Range[] = [];
+		for (const range of viewportRanges) {
+			if (nonIntersectingRanges.length !== 0) {
+				const prev = nonIntersectingRanges[nonIntersectingRanges.length - 1];
+				if (Range.areOnlyIntersecting(prev, range)) {
+					const newRange = prev.plusRange(range);
+					nonIntersectingRanges[nonIntersectingRanges.length - 1] = newRange;
+					continue;
+				}
+			}
+			nonIntersectingRanges.push(range);
+		}
+		return nonIntersectingRanges;
+	}
+
+	private async _parseAndTokenizeViewPortRange(model: ITextModel, range: Range, languageId: LanguageId, startOffsetOfRangeInDocument: number, endOffsetOfRangeInDocument: number) {
+		const content = model.getValueInRange(range);
+		const likelyRelevantLines = findLikelyRelevantLines(model, range.startLineNumber).likelyRelevantLines;
+		const likelyRelevantPrefix = likelyRelevantLines.join(model.getEOL());
+		const tree = await this._treeSitterService.getTree(`${likelyRelevantPrefix}${content}`, this._languageId);
+		if (!tree) {
+			return;
+		}
+
+		const treeRange = new Range(1, 1, range.endLineNumber - range.startLineNumber + 1 + likelyRelevantLines.length, range.endColumn);
+		const captures = this._captureAtRange(treeRange, tree);
+		const tokens = this._tokenizeCapturesWithMetadata(tree, captures, languageId, 0, endOffsetOfRangeInDocument - startOffsetOfRangeInDocument);
+		if (!tokens) {
+			return;
+		}
+
+		return this._rangeTokensAsUpdates(startOffsetOfRangeInDocument, tokens.endOffsetsAndMetadata, likelyRelevantPrefix.length);
+	}
+
+	private async _doParseAndTokenizeViewPort(model: ITextModel, editor: ICodeEditor) {
+		const viewportRanges: Range[] = this._nonIntersectingViewPortRanges(editor);
+
+		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
+		const emptyToken = this._emptyToken(languageId);
+
+		const tokensWithEmptySpaces: TokenUpdate[] = [];
+		if ((viewportRanges.length > 0) && ((viewportRanges[0].startLineNumber !== 1) || (viewportRanges[0].startColumn !== 1))) {
+			tokensWithEmptySpaces.push(this._emptyTokensForOffsetAndLength(0, model.getOffsetAt({ lineNumber: viewportRanges[0].startLineNumber, column: viewportRanges[0].startColumn }), emptyToken));
+		}
+
+		for (const range of viewportRanges) {
+			const startOffsetOfRangeInDocument = model.getOffsetAt(range.getStartPosition());
+			const endOffsetOfRangeInDocument = model.getOffsetAt(range.getEndPosition());
+			const tokenUpdates = await this._parseAndTokenizeViewPortRange(model, range, languageId, startOffsetOfRangeInDocument, endOffsetOfRangeInDocument);
+			if (!tokenUpdates || this._tokenizationStoreService.hasTokens(model)) {
+				// No need to continue, we have the full document already or we couldn't get tokens
+				return;
+			}
+			if (tokensWithEmptySpaces.length > 0) {
+				const previous = tokensWithEmptySpaces[tokensWithEmptySpaces.length - 1];
+				if (previous.startOffsetInclusive + previous.length < startOffsetOfRangeInDocument) {
+					// We have a chunk of the document that hasn't been parsed yet
+					const emptyTokenStartOffset = previous.startOffsetInclusive + previous.length;
+					tokensWithEmptySpaces.push(this._emptyTokensForOffsetAndLength(emptyTokenStartOffset, startOffsetOfRangeInDocument - emptyTokenStartOffset, emptyToken));
+				}
+			}
+			pushMany(tokensWithEmptySpaces, tokenUpdates);
+		}
+
+		if (tokensWithEmptySpaces.length > 0) {
+			const last = tokensWithEmptySpaces[tokensWithEmptySpaces.length - 1];
+			if ((last.startOffsetInclusive + last.length) < model.getValueLength()) {
+				const emptyTokenStartOffset = last.startOffsetInclusive + last.length;
+				tokensWithEmptySpaces.push(this._emptyTokensForOffsetAndLength(emptyTokenStartOffset, model.getValueLength() - emptyTokenStartOffset, this._emptyToken(languageId)));
+			}
+		}
+
+		this._tokenizationStoreService.setTokens(model, tokensWithEmptySpaces);
+		this._onDidChangeTokens.fire({ textModel: model, changes: { semanticTokensApplied: false, ranges: viewportRanges.map(range => ({ fromLineNumber: range.startLineNumber, toLineNumber: range.endLineNumber })) } });
+	}
+
+	private _emptyTokensForOffsetAndLength(offset: number, length: number, emptyToken: number): TokenUpdate {
+		return { token: emptyToken, length: offset + length, startOffsetInclusive: 0 };
+
+	}
+
 	private _createEmptyTokens(textModel: ITextModel) {
 		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 		const emptyToken = this._emptyToken(languageId);
 		const modelEndOffset = textModel.getValueLength();
 
-		const emptyTokens: TokenUpdate[] = [{ token: emptyToken, length: modelEndOffset, startOffsetInclusive: 0 }];
+		const emptyTokens: TokenUpdate[] = [this._emptyTokensForOffsetAndLength(0, modelEndOffset, emptyToken)];
 		return emptyTokens;
 	}
 
@@ -152,10 +285,14 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		this._setViewPortTokens(textModel, versionId);
 	}
 
+	private _codeEditorForModel(textModel: ITextModel) {
+		return this._codeEditorService.listCodeEditors().find(editor => editor.getModel() === textModel);
+	}
+
 	private _setViewPortTokens(textModel: ITextModel, versionId: number) {
 		const maxLine = textModel.getLineCount();
 		let rangeChanges: RangeChange[];
-		const editor = this._codeEditorService.listCodeEditors().find(editor => editor.getModel() === textModel);
+		const editor = this._codeEditorForModel(textModel);
 		if (editor) {
 			const viewPort = editor.getVisibleRangesPlusViewportAboveBelow();
 			const ranges: { readonly fromLineNumber: number; readonly toLineNumber: number }[] = new Array(viewPort.length);
@@ -284,14 +421,20 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId: textModel.getVersionId() });
 	}
 
-	private _rangeTokensAsUpdates(rangeOffset: number, endOffsetToken: EndOffsetToken[]) {
+	private _rangeTokensAsUpdates(rangeOffset: number, endOffsetToken: EndOffsetToken[], startingOffsetInArray?: number) {
 		const updates: TokenUpdate[] = [];
 		let lastEnd = 0;
 		for (const token of endOffsetToken) {
-			if (token.endOffset <= lastEnd) {
+			if (token.endOffset <= lastEnd || (startingOffsetInArray && (token.endOffset < startingOffsetInArray))) {
 				continue;
 			}
-			updates.push({ startOffsetInclusive: rangeOffset + lastEnd, length: token.endOffset - lastEnd, token: token.metadata });
+			let tokenUpdate: TokenUpdate;
+			if (startingOffsetInArray && (lastEnd < startingOffsetInArray)) {
+				tokenUpdate = { startOffsetInclusive: rangeOffset + startingOffsetInArray, length: token.endOffset - startingOffsetInArray, token: token.metadata };
+			} else {
+				tokenUpdate = { startOffsetInclusive: rangeOffset + lastEnd, length: token.endOffset - lastEnd, token: token.metadata };
+			}
+			updates.push(tokenUpdate);
 			lastEnd = token.endOffset;
 		}
 		return updates;
@@ -300,7 +443,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	public getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number, captures?: { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] }): TokenUpdate[] | undefined {
 		const languageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 
-		const tokens = captures ? this._tokenizeCapturesWithMetadata(captures.tree, captures.captures, languageId, rangeStartOffset, rangeEndOffset) : this._tokenize(languageId, range, rangeStartOffset, rangeEndOffset, textModel);
+		const tokens = captures ? this._tokenizeCapturesWithMetadata(captures.tree?.tree, captures.captures, languageId, rangeStartOffset, rangeEndOffset) : this._tokenize(languageId, range, rangeStartOffset, rangeEndOffset, textModel);
 		if (tokens?.endOffsetsAndMetadata) {
 			return this._rangeTokensAsUpdates(rangeStartOffset, tokens.endOffsetsAndMetadata);
 		}
@@ -384,10 +527,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	private _tokenize(encodedLanguageId: LanguageId, range: Range, rangeStartOffset: number, rangeEndOffset: number, textModel: ITextModel): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
 		const { tree, captures } = this._getTreeAndCaptures(range, textModel);
-		return this._tokenizeCapturesWithMetadata(tree, captures, encodedLanguageId, rangeStartOffset, rangeEndOffset);
+		return this._tokenizeCapturesWithMetadata(tree?.tree, captures, encodedLanguageId, rangeStartOffset, rangeEndOffset);
 	}
 
-	private _createTokensFromCaptures(tree: ITreeSitterParseResult | undefined, captures: QueryCapture[], rangeStartOffset: number, rangeEndOffset: number): { endOffsets: { endOffset: number; scopes: string[] }[]; captureTime: number } | undefined {
+	private _createTokensFromCaptures(tree: Parser.Tree | undefined, captures: QueryCapture[], rangeStartOffset: number, rangeEndOffset: number): { endOffsets: { endOffset: number; scopes: string[] }[]; captureTime: number } | undefined {
 		const stopwatch = StopWatch.create();
 		const rangeLength = rangeEndOffset - rangeStartOffset;
 
@@ -496,7 +639,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	}
 
-	private _tokenizeCapturesWithMetadata(tree: ITreeSitterParseResult | undefined, captures: QueryCapture[], encodedLanguageId: LanguageId, rangeStartOffset: number, rangeEndOffset: number): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
+	private _tokenizeCapturesWithMetadata(tree: Parser.Tree | undefined, captures: QueryCapture[], encodedLanguageId: LanguageId, rangeStartOffset: number, rangeEndOffset: number): { endOffsetsAndMetadata: { endOffset: number; metadata: number }[]; captureTime: number; metadataTime: number } | undefined {
 		const stopwatch = StopWatch.create();
 		const emptyTokens = this._createTokensFromCaptures(tree, captures, rangeStartOffset, rangeEndOffset);
 		if (!emptyTokens) {

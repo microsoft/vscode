@@ -5,19 +5,13 @@
 
 import type { ICompletionResource } from '../types';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
-import { execHelper, getAliasesHelper } from './common';
+import { getAliasesHelper, getZshBashBuiltins } from './common';
 
 export async function getBashGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
 		...await getAliases(options),
-		...await getBuiltins(options, existingCommands)
+		...await getZshBashBuiltins(options, 'compgen -b', existingCommands)
 	];
-}
-
-async function getBuiltins(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<string[]> {
-	const compgenOutput = await execHelper('compgen -b', options);
-	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
-	return compgenOutput.split('\n').filter(filter);
 }
 
 async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {

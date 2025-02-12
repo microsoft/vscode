@@ -52,6 +52,7 @@ import { getColorForSeverity } from './terminalStatusList.js';
 import { TerminalContextActionRunner } from './terminalContextMenu.js';
 import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const $ = DOM.$;
 
@@ -257,7 +258,8 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IListService private readonly _listService: IListService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 	}
@@ -501,10 +503,17 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 					this._terminalService.createTerminal({ location: { parentTerminal: e } });
 				});
 			})),
-			this._register(new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
-				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
-			}))
 		];
+		if (instance.shellLaunchConfig.tabActions) {
+			for (const action of instance.shellLaunchConfig.tabActions) {
+				actions.push(this._register(new Action(action.id, action.label, action.icon ? ThemeIcon.asClassName(action.icon) : undefined, true, async () => {
+					this._runForSelectionOrInstance(instance, e => this._commandService.executeCommand(action.id, instance));
+				})));
+			}
+		}
+		actions.push(this._register(new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+			this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
+		})));
 		// TODO: Cache these in a way that will use the correct instance
 		template.actionBar.clear();
 		for (const action of actions) {

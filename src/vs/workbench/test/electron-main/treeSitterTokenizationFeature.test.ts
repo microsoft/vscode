@@ -45,6 +45,10 @@ import { ITreeSitterTokenizationStoreService } from '../../../editor/common/mode
 import { Range } from '../../../editor/common/core/range.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { TokenUpdate } from '../../../editor/common/model/tokenStore.js';
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { TestCodeEditorService } from '../../../editor/test/browser/editorTestServices.js';
 
 class MockTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -68,6 +72,9 @@ class MockTelemetryService implements ITelemetryService {
 }
 
 class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
+	hasFullParseTokens(model: ITextModel): boolean {
+		return true;
+	}
 	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
 		throw new Error('Method not implemented.');
 	}
@@ -132,6 +139,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 		languageConfigurationService = disposables.add(instantiationService.createInstance(TestLanguageConfigurationService));
 		instantiationService.set(ILanguageConfigurationService, languageConfigurationService);
 		instantiationService.set(ITreeSitterImporter, instantiationService.createInstance(TreeSitterImporter));
+		instantiationService.set(ICodeEditorService, instantiationService.createInstance(TestCodeEditorService));
 
 		fileService = disposables.add(instantiationService.createInstance(FileService));
 		const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(logService));

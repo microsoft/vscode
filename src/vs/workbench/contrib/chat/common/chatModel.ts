@@ -11,6 +11,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
+import { IObservable, ITransaction, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
@@ -124,7 +125,6 @@ export interface IChatRequestModel {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly workingSet?: URI[];
 	readonly isCompleteAddedRequest: boolean;
-	readonly paused: boolean;
 	readonly response?: IChatResponseModel;
 	shouldBeRemovedOnSend: boolean;
 }
@@ -201,6 +201,7 @@ export interface IChatResponseModel {
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
+	readonly isPaused: IObservable<boolean>;
 	readonly isPendingConfirmation: boolean;
 	readonly shouldBeRemovedOnSend: boolean;
 	readonly isCompleteAddedRequest: boolean;
@@ -213,6 +214,7 @@ export interface IChatResponseModel {
 	setVote(vote: ChatAgentVoteDirection): void;
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
+	setPaused(isPause: boolean, tx?: ITransaction): void;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -261,15 +263,6 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	public get workingSet(): URI[] | undefined {
 		return this._workingSet;
-	}
-
-	private _paused = false;
-	public get paused(): boolean {
-		return this._paused;
-	}
-
-	public set paused(paused: boolean) {
-		this._paused = paused;
 	}
 
 	constructor(
@@ -606,11 +599,19 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._isStale;
 	}
 
+	private _isPaused = observableValue('isPaused', false);
+	public get isPaused(): IObservable<boolean> {
+		return this._isPaused;
+	}
+
 	public get isPendingConfirmation() {
 		return this._response.value.some(part =>
 			part.kind === 'toolInvocation' && part.isConfirmed === undefined
 			|| part.kind === 'confirmation' && part.isUsed === false);
 	}
+
+	/** Functions run once the chat response is unpaused. */
+	private bufferedPauseContent?: (() => void)[];
 
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>,
@@ -643,7 +644,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	 * Apply a progress update to the actual response content.
 	 */
 	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit, quiet?: boolean) {
-		this._response.updateContent(responsePart, quiet);
+		const apply = () => this._response.updateContent(responsePart, quiet);
+		if (!this._isPaused.get()) {
+			apply();
+		} else {
+			this.bufferedPauseContent ??= [];
+			this.bufferedPauseContent.push(apply);
+		}
 	}
 
 	/**
@@ -721,6 +728,14 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	adoptTo(session: ChatModel) {
 		this._session = session;
 		this._onDidChange.fire();
+	}
+
+	setPaused(isPause: boolean, tx?: ITransaction): void {
+		this._isPaused.set(isPause, tx);
+		this._onDidChange.fire();
+
+		this.bufferedPauseContent?.forEach(f => f());
+		this.bufferedPauseContent = undefined;
 	}
 }
 
@@ -1021,7 +1036,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			return ChatPauseState.NotPausable;
 		}
 
-		return lastRequest.paused ? ChatPauseState.Paused : ChatPauseState.Unpaused;
+		return lastRequest.response.isPaused.get() ? ChatPauseState.Paused : ChatPauseState.Unpaused;
 	}
 
 	get hasRequests(): boolean {
@@ -1192,8 +1207,8 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toggleLastRequestPaused(isPaused?: boolean) {
 		if (this.requestPausibility !== ChatPauseState.NotPausable && this.lastRequest?.response?.agent) {
-			const pausedValue = isPaused ?? !this.lastRequest.paused;
-			this.lastRequest.paused = pausedValue;
+			const pausedValue = isPaused ?? !this.lastRequest.response.isPaused.get();
+			this.lastRequest.response.setPaused(pausedValue);
 			this.chatAgentService.setRequestPaused(this.lastRequest.response.agent.id, this.lastRequest.id, pausedValue);
 			this._onDidChange.fire({ kind: 'changedRequest', request: this.lastRequest });
 		}
@@ -1278,11 +1293,6 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	setCustomTitle(title: string): void {
 		this._customTitle = title;
-	}
-
-	setRequestPaused(request: ChatRequestModel, isPaused: boolean) {
-		request.paused = isPaused;
-		this._onDidChange.fire({ kind: 'changedRequest', request });
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {

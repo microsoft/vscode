@@ -13,7 +13,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
- * Class to locate prompt instructions files.
+ * Class to locate prompt files.
  */
 export class ChatInstructionsFileLocator {
 	constructor(
@@ -23,10 +23,10 @@ export class ChatInstructionsFileLocator {
 	) { }
 
 	/**
-	 * List all prompt instructions files from the filesystem.
+	 * List all prompt files from the filesystem.
 	 *
 	 * @param exclude List of `URIs` to exclude from the result.
-	 * @returns List of prompt instructions files found in the workspace.
+	 * @returns List of prompt files found in the workspace.
 	 */
 	public async listFiles(exclude: ReadonlyArray<URI>): Promise<readonly URI[]> {
 		// create a set from the list of URIs for convenience
@@ -45,10 +45,10 @@ export class ChatInstructionsFileLocator {
 	}
 
 	/**
-	 * Get all possible prompt instructions file locations based on the current
+	 * Get all possible prompt file locations based on the current
 	 * workspace folder structure.
 	 *
-	 * @returns List of possible prompt instructions file locations.
+	 * @returns List of possible prompt file locations.
 	 */
 	private getSourceLocations(): readonly URI[] {
 		const paths = new ResourceSet();
@@ -106,11 +106,11 @@ export class ChatInstructionsFileLocator {
 	}
 
 	/**
-	 * Finds all existent prompt instruction files in the provided locations.
+	 * Finds all existent prompt files in the provided locations.
 	 *
-	 * @param locations List of locations to search for prompt instruction files in.
+	 * @param locations List of locations to search for prompt files in.
 	 * @param exclude Map of `path -> boolean` to exclude from the result.
-	 * @returns List of prompt instruction files found in the provided locations.
+	 * @returns List of prompt files found in the provided locations.
 	 */
 	private async findInstructionFiles(
 		locations: readonly URI[],
