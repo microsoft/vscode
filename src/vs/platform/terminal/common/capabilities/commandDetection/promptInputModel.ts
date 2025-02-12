@@ -446,29 +446,44 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
-		if (ghostTextIndex === -1 && line.length > this._commandStartX) {
+		if (ghostTextIndex === -1) {
 			x = line.length;
+			// Find the last non-whitespace character in the line
+			// Its style will be compared against the style of the cells that precede it
 			let endCell = line.getCell(x);
 			while (!endCell || endCell.getChars().trim().length === 0) {
-				x--;
-				console.log('end cell', endCell?.getChars());
-				endCell = line.getCell(x);
+				endCell = line.getCell(x--);
 			}
+			// Add 1 because it starts off as -1
 			ghostTextIndex = x - this._commandStartX + 1;
-			console.log('end cell', endCell?.getChars());
-			while (x >= this._commandStartX && this._cellStylesMatch(endCell, line.getCell(x))) {
+
+			// Identify the start index of potential ghost text by scanning backwards from the end until a
+			// non-matching style is found.
+			while (x >= cursorIndex && this._cellStylesMatch(endCell, line.getCell(x))) {
 				const cell = line.getCell(x--);
 				if (!cell || cell.getCode() === 0) {
 					continue;
 				}
 				ghostTextIndex -= cell.getChars().length;
 			}
+
+			// Scan backward through the rest of the line to ensure
+			// no cells match the style of the end cell
+			if (ghostTextIndex !== -1) {
+				for (x; x >= this._commandStartX; x--) {
+					// Scan backward to make sure no cells match the style of end cell.
+					// If they do, return -1
+					const cell = line.getCell(x);
+					if (!cell || cell.getCode() === 0) {
+						continue;
+					}
+					if (this._cellStylesMatch(endCell, cell)) {
+						return -1;
+					}
+				}
+			}
 		}
-		if (x === this._commandStartX) {
-			// All matched, so no ghost text
-			return -1;
-		}
-		console.log(x === this._commandStartX);
+
 		console.log('ghostTextIndex', ghostTextIndex, this.value.substring(ghostTextIndex));
 		return ghostTextIndex;
 
