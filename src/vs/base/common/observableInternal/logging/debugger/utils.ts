@@ -41,7 +41,7 @@ function parseLine(stackLine: string): ILocation | undefined {
 }
 
 export class Debouncer implements IDisposable {
-	private _timeout: NodeJS.Timeout | undefined = undefined;
+	private _timeout: any | undefined = undefined;
 
 	public debounce(fn: () => void, timeoutMs: number): void {
 		if (this._timeout !== undefined) {
@@ -61,7 +61,7 @@ export class Debouncer implements IDisposable {
 }
 
 export class Throttler implements IDisposable {
-	private _timeout: NodeJS.Timeout | undefined = undefined;
+	private _timeout: any | undefined = undefined;
 
 	public throttle(fn: () => void, timeoutMs: number): void {
 		if (this._timeout === undefined) {
