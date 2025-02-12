@@ -257,37 +257,21 @@ export namespace PromptFilesConfig {
 		return [];
 	};
 
-	const usageExample1 = nls.localize(
-		`chat.promptFiles.config.description.example1`,
-		"Enable with the default location of prompt files (`{0}`):\n{1}",
-		DEFAULT_LOCATION,
-		`\`\`\`json\n{\n  "${CONFIG_KEY}": true,\n}\n\`\`\``,
-	);
-	const usageExample2 = nls.localize(
-		`chat.promptFiles.config.description.example2`,
-		"Specify custom location(s) of prompt files (in addition to `{0}`):\n{1}",
-		DEFAULT_LOCATION,
-		`\`\`\`json\n{\n  "${CONFIG_KEY}": {\n    ".copilot/prompts": true,\n    "/Users/vscode/prompts": true,\n}\n\`\`\``,
-	);
-
 	/**
 	 * Configuration setting description to use in the settings UI.
 	 */
 	export const CONFIG_DESCRIPTION = nls.localize(
 		'chat.promptFiles.config.description',
-		"Enable support for attaching reusable prompt files (`*{0}`) for Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nSet to `true` or use the `{ \"/path/to/folder\": boolean }` notation to specify a different path (or multiple). Relative paths are resolved from the root folder(s) of your workspace, and the `{2}` path is used by default and in addition to provided custom locations.\n#### Examples\n{3}\n{4}",
+		"Specify location(s) of reusable prompt files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
 		PROMPT_FILE_EXTENSION,
 		DOCUMENTATION_URL,
-		DEFAULT_LOCATION,
-		usageExample1,
-		usageExample2,
 	);
 
 	/**
 	 * Configuration setting title to use in the settings UI.
 	 */
 	export const CONFIG_TITLE = nls.localize(
-		`chat.promptFiles.config.title`,
+		'chat.promptFiles.config.title',
 		"Prompt Files",
 	);
 }
