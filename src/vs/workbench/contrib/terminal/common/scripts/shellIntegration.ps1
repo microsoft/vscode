@@ -24,8 +24,8 @@ $env:VSCODE_NONCE = $null
 $isStable = $env:VSCODE_STABLE
 $env:VSCODE_STABLE = $null
 
-$__vscode_shell_env_setting=$env:VSCODE_SHELL_ENV_SETTING
-$env:VSCODE_SHELL_ENV_SETTING=$null
+$__vscode_shell_env_setting = $env:VSCODE_SHELL_ENV_SETTING
+$env:VSCODE_SHELL_ENV_SETTING = $null
 
 $osVersion = [System.Environment]::OSVersion.Version
 $isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
