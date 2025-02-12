@@ -139,7 +139,7 @@ suite('platform - terminalEnvironment', () => {
 						strictEqual(result.envMixin!['USER_ZDOTDIR'], globalZdotdir);
 						ok(result.envMixin!['VSCODE_INJECTION']?.match('1'));
 						ok(result.envMixin!['VSCODE_SHELL_ENV_REPORTING']?.match('0'));
-						strictEqual(result.filesToCopy?.length, 4);
+						strictEqual(result.filesToCopy?.length, 3);
 						ok(result.filesToCopy[0].dest.match(expectedDests[0]));
 						ok(result.filesToCopy[1].dest.match(expectedDests[1]));
 						ok(result.filesToCopy[2].dest.match(expectedDests[2]));
@@ -197,7 +197,6 @@ suite('platform - terminalEnvironment', () => {
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1',
-								VSCODE_SHELL_ENV_REPORTING: '0'
 							}
 						});
 						deepStrictEqualIgnoreStableVar(getShellIntegrationInjection({ executable: 'bash', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService), enabledExpectedResult);
@@ -212,7 +211,6 @@ suite('platform - terminalEnvironment', () => {
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1',
-								VSCODE_SHELL_ENV_REPORTING: '0',
 								VSCODE_SHELL_LOGIN: '1'
 							}
 						});
