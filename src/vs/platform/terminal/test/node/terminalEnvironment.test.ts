@@ -57,7 +57,7 @@ suite('platform - terminalEnvironment', () => {
 						expectedPs1
 					],
 					envMixin: {
-						VSCODE_INJECTION: '1',
+						VSCODE_INJECTION: '1'
 					}
 				});
 				test('when undefined, []', () => {
@@ -88,7 +88,7 @@ suite('platform - terminalEnvironment', () => {
 						expectedPs1
 					],
 					envMixin: {
-						VSCODE_INJECTION: '1',
+						VSCODE_INJECTION: '1'
 					}
 				});
 				test('when array contains no logo and login', () => {
@@ -193,7 +193,7 @@ suite('platform - terminalEnvironment', () => {
 								`${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`
 							],
 							envMixin: {
-								VSCODE_INJECTION: '1',
+								VSCODE_INJECTION: '1'
 							}
 						});
 						deepStrictEqualIgnoreStableVar(getShellIntegrationInjection({ executable: 'bash', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService), enabledExpectedResult);
