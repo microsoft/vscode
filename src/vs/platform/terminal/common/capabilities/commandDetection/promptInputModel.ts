@@ -475,11 +475,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					}
 					offset += line.getCell(lastStyles[i]!)!.getChars().length;
 				}
+				// Calculate the initial ghost text start index, add 1 because
+				// ghostTextIndex is -1
+				ghostTextIndex = 1 + offset;
 			}
-
-			// Calculate the initial ghost text start index, add 1 because
-			// ghostTextIndex is -1
-			ghostTextIndex = 1 + offset;
 
 			// Ensure no earlier cells in the line match the final cell on line's style
 			if (ghostTextIndex !== -1) {
