@@ -1,7 +1,7 @@
 {
 	"nameShort": "PearAI",
 	"nameLong": "PearAI",
-	"pearAIVersion": "1.7.0",
+	"pearAIVersion": "1.8.0",
 	"applicationName": "PearAI",
 	"dataFolderName": ".pearai",
 	"win32MutexName": "pearai",
@@ -2385,6 +2385,6 @@
 		"vs/code/electron-sandbox/workbench/workbench.html": "MOHfHsuI+CL4nPwyAQjuFCAjFomNep+vcvjL0sLDlbw",
 		"vs/code/electron-sandbox/workbench/workbench.js": "UfEYJUwE/3rVxokZpMqXUk+OC+ZVfikR++K0yTZ+on8"
 	},
-	"version": "1.96.2",
+	"version": "1.96.4",
 	"target": "user"
 }
