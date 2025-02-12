@@ -7,10 +7,10 @@ import { IChatWidget } from '../../chat.js';
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
-import { PromptFilesLocator } from '../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -42,6 +42,7 @@ export interface ISelectPromptOptions {
 
 	labelService: ILabelService;
 	openerService: IOpenerService;
+	promptsService: IPromptsService;
 	initService: IInstantiationService;
 	quickInputService: IQuickInputService;
 }
@@ -107,12 +108,11 @@ const createPlaceholderText = (widget?: IChatWidget): string => {
 export const showSelectPromptDialog = async (
 	options: ISelectPromptOptions,
 ): Promise<IPromptSelectionResult | null> => {
-	const { resource, initService, labelService } = options;
-	const promptsLocator = initService.createInstance(PromptFilesLocator);
+	const { resource, labelService, promptsService } = options;
 
 	// find all prompt instruction files in the user workspace
 	// and present them to the user so they can select one
-	const files = await promptsLocator.listFiles([])
+	const files = await promptsService.listPromptFiles()
 		.then((files) => {
 			return files.map((file) => {
 				return createPickItem(file, labelService);

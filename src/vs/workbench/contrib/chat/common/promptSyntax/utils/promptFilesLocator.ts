@@ -28,7 +28,26 @@ export class PromptFilesLocator {
 	 * @param exclude List of `URIs` to exclude from the result.
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(exclude: ReadonlyArray<URI>): Promise<readonly URI[]> {
+	public async listFiles(
+		exclude: readonly URI[],
+	): Promise<readonly URI[]> {
+		return await this.listFilesIn(
+			this.getSourceLocations(),
+			exclude,
+		);
+	}
+
+	/**
+	 * Lists all prompt files in the provided locations.
+	 *
+	 * @param locations List of `URIs` to search for prompt files in.
+	 * @param exclude List of `URIs` to exclude from the result.
+	 * @returns List of prompt files found in the provided locations.
+	 */
+	public async listFilesIn(
+		locations: readonly URI[],
+		exclude: readonly URI[],
+	): Promise<readonly URI[]> {
 		// create a set from the list of URIs for convenience
 		const excludeSet: Set<string> = new Set();
 		for (const excludeUri of exclude) {
@@ -36,12 +55,12 @@ export class PromptFilesLocator {
 		}
 
 		// filter out the excluded paths from the locations list
-		const locations = this.getSourceLocations()
+		const cleanLocations = locations
 			.filter((location) => {
 				return !excludeSet.has(location.path);
 			});
 
-		return await this.findInstructionFiles(locations, excludeSet);
+		return await this.findInstructionFiles(cleanLocations, excludeSet);
 	}
 
 	/**
