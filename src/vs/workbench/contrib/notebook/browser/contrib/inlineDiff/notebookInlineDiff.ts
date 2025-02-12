@@ -37,7 +37,7 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		this._register(autorun((reader) => {
 
 			const previous = this.notebookEditor.previousModelToCompare.read(reader);
-			if (previous) {
+			if (previous && this.notebookEditor.hasModel()) {
 				this.initialize(previous);
 				this.listeners.push(Event.once(this.notebookEditor.onDidAttachViewModel)(() => this.initialize(previous)));
 			}
@@ -72,6 +72,10 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		const onVisibleChange = Event.debounce(this.notebookEditor.onDidChangeVisibleRanges, (e) => e, 100, undefined, undefined, undefined, this._store);
 		this.listeners.push(onVisibleChange(() => this._update()));
 		this.listeners.push(this.notebookEditor.onDidChangeModel(() => this._update()));
+		if (this.notebookEditor.textModel) {
+			const onContentChange = Event.debounce(this.notebookEditor.textModel!.onDidChangeContent, (_, event) => event, 100, undefined, undefined, undefined, this._store);
+			this.listeners.push(onContentChange(() => this._update()));
+		}
 	}
 
 	private async _update() {
