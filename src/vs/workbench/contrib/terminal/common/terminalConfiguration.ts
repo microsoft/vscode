@@ -607,7 +607,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'both'
 		},
 		[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
-			markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to use terminal environment API to report environment state to VS Code"),
+			markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to allow sharing terminal's shell environment."),
 			type: 'boolean',
 			default: true
 		},
