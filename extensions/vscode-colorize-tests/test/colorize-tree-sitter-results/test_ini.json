@@ -84,7 +84,7 @@
 		}
 	},
 	{
-		"c": "John Doe\r",
+		"c": "John Doe",
 		"t": "",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -126,7 +126,7 @@
 		}
 	},
 	{
-		"c": "Acme Widgets Inc.\r",
+		"c": "Acme Widgets Inc.",
 		"t": "",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -224,7 +224,7 @@
 		}
 	},
 	{
-		"c": "192.0.2.62\r",
+		"c": "192.0.2.62",
 		"t": "",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -266,7 +266,7 @@
 		}
 	},
 	{
-		"c": "143\r",
+		"c": "143",
 		"t": "",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -308,7 +308,7 @@
 		}
 	},
 	{
-		"c": "\"payroll.dat\"\r",
+		"c": "\"payroll.dat\"",
 		"t": "string.quoted.double",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -350,7 +350,7 @@
 		}
 	},
 	{
-		"c": "u#ser\r",
+		"c": "u#ser",
 		"t": "",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -392,7 +392,7 @@
 		}
 	},
 	{
-		"c": "te;st\r",
+		"c": "te;st",
 		"t": "",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -434,7 +434,7 @@
 		}
 	},
 	{
-		"c": "qu'ote\r",
+		"c": "qu'ote",
 		"t": "",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
