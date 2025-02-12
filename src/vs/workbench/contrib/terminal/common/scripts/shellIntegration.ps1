@@ -95,7 +95,6 @@ function Global:Prompt() {
 	# Send current environment variables as JSON
 	# OSC 633 ; Env ; <Environment> ; <Nonce>
 	if ($isStable -eq "0" -and $__vscode_shell_env_setting -ne "0") {
-		# print that we are inside the shell env setting
 		$envMap = @{}
 		Get-ChildItem Env: | ForEach-Object { $envMap[$_.Name] = $_.Value }
 		$envJson = $envMap | ConvertTo-Json -Compress
