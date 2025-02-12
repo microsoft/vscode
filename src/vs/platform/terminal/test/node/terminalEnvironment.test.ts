@@ -134,7 +134,7 @@ suite('platform - terminalEnvironment', () => {
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-login.zsh/
 					];
 					function assertIsEnabled(result: IShellIntegrationConfigInjection, globalZdotdir = homedir()) {
-						strictEqual(Object.keys(result.envMixin!).length, 3);
+						strictEqual(Object.keys(result.envMixin!).length, 4);
 						ok(result.envMixin!['ZDOTDIR']?.match(expectedDir));
 						strictEqual(result.envMixin!['USER_ZDOTDIR'], globalZdotdir);
 						ok(result.envMixin!['VSCODE_INJECTION']?.match('1'));
