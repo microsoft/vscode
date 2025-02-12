@@ -448,32 +448,54 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 		// Ghost text may not be italic or dimmed, but will have a different style to the
 		// rest of the line that precedes it
-		if (ghostTextIndex === -1 && this.value.length > cursorIndex) {
-			let position = line.length;
-
-			// Find the last non-whitespace character in the line
+		if (ghostTextIndex === -1 && this.value.length > this._cursorIndex) {
+			let position = this._cursorIndex;
+			// Scan from the cursor position to the end of the line to find the last non-whitespace
+			// character
+			const styleMap = new Map<string, number[]>();
 			let finalCellOnLine = line.getCell(position);
-			while (!finalCellOnLine || finalCellOnLine.getChars().trim().length === 0) {
-				finalCellOnLine = line.getCell(position--);
+			while (finalCellOnLine && finalCellOnLine.getChars().trim().length && position < line.length) {
+				const styleKey = this._getCellStyleAsString(finalCellOnLine);
+				if (styleMap.has(styleKey)) {
+					styleMap.get(styleKey)!.push(position);
+				} else {
+					styleMap.set(styleKey, [position]);
+				}
+				finalCellOnLine = line.getCell(position++);
+			}
+
+			if (!finalCellOnLine) {
+				return -1;
+			}
+			const lastStyles = styleMap.get(this._getCellStyleAsString(finalCellOnLine));
+			let offset = 0;
+			console.log('lastStyles', lastStyles?.keys, lastStyles?.values);
+			if (lastStyles) {
+				for (let i = 0; i < lastStyles.length; i++) {
+					if (lastStyles[i] !== lastStyles[i - 1] + 1) {
+						return -1;
+					}
+					offset += line.getCell(lastStyles[i]!)!.getChars().length;
+				}
 			}
 
 			// Calculate the initial ghost text start index, add 1 because
 			// ghostTextIndex is -1
-			ghostTextIndex = position - this._commandStartX + 1;
+			ghostTextIndex = position + 1 - offset;
 
 			// Identify the start index of potential ghost text by scanning backwards
 			// until a non-matching style is encountered
-			while (position >= cursorIndex && this._cellStylesMatch(finalCellOnLine, line.getCell(position))) {
-				const currentCell = line.getCell(position--);
-				if (!currentCell || currentCell.getCode() === 0) {
-					continue;
-				}
-				ghostTextIndex -= currentCell.getChars().length;
-			}
+			// while (position >= cursorIndex && this._cellStylesMatch(finalCellOnLine, line.getCell(position))) {
+			// 	const currentCell = line.getCell(position--);
+			// 	if (!currentCell || currentCell.getCode() === 0) {
+			// 		continue;
+			// 	}
+			// 	ghostTextIndex -= currentCell.getChars().length;
+			// }
 
 			// Ensure no earlier cells in the line match the final cell on line's style
 			if (ghostTextIndex !== -1) {
-				for (let checkPos = position; checkPos >= this._commandStartX; checkPos--) {
+				for (let checkPos = cursorIndex; checkPos >= this._commandStartX; checkPos--) {
 					const checkCell = line.getCell(checkPos);
 					if (!checkCell || checkCell.getCode() === 0) {
 						continue;
@@ -484,7 +506,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 		}
+		console.log('ghost text ', this.value.substring(ghostTextIndex));
 		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
+	}
+
+	private _getCellStyleAsString(cell: IBufferCell): string {
+		return `${cell.getFgColor()}${cell.getBgColor()}${cell.isBold()}${cell.isItalic()}${cell.isDim()}${cell.isUnderline()}${cell.isBlink()}${cell.isInverse()}${cell.isInvisible()}${cell.isStrikethrough()}${cell.isOverline()}`;
 	}
 
 	private _cellStylesMatch(a: IBufferCell | undefined, b: IBufferCell | undefined): boolean {
