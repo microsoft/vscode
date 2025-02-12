@@ -527,7 +527,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this.shellLaunchConfig.color = defaultProfile.color;
 					this.shellLaunchConfig.env = defaultProfile.env;
 				}
-				this.shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting);
 			}
 
 			// Resolve the shell type ahead of time to allow features that depend upon it to work
@@ -562,9 +561,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
-			}
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnvironmentReporting)) {
-				this._shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting);
 			}
 			const layoutSettings: string[] = [
 				TerminalSettingId.FontSize,
