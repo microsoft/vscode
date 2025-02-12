@@ -19,7 +19,7 @@ import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRange
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../editor/common/viewModel.js';
 import { localize } from '../../../../../nls.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -43,11 +43,7 @@ import { TextEditorSelectionRevealType } from '../../../../../platform/editor/co
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-
-export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chat.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
-export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
-export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
-export const ctxReviewModeEnabled = new RawContextKey<boolean>('chat.ctxReviewModeEnabled', true, localize('chat.ctxReviewModeEnabled', "Review mode for chat changes is enabled"));
+import { ctxIsGlobalEditingSession, ctxHasEditorModification, ctxHasRequestInProgress, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 export class ChatEditorController extends Disposable implements IEditorContribution {
 
@@ -128,7 +124,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				const chatModel = chatService.getSession(session.chatSessionId);
 
 				if (idx >= 0 && chatModel) {
-					return { session, chatModel, entry: entries[idx], entries, idx };
+					return { session, chatModel, entry: entries[idx], idx };
 				}
 			}
 
@@ -169,7 +165,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				return;
 			}
 
-			const { session, entries, idx, entry } = currentEditorEntry;
+			const { session, idx, entry } = currentEditorEntry;
 
 			this._ctxIsGlobalEditsSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModelEnabled.set(entry.reviewMode.read(r));
@@ -183,7 +179,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			} else {
 				this._overlayCtrl.showEntry(
 					session,
-					entry, entries[(idx + 1) % entries.length],
+					entry,
 					{
 						entryIndex: this._currentEntryIndex,
 						changeIndex: this._currentChangeIndex
