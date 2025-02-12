@@ -535,6 +535,13 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	public readonly tabShouldAcceptInlineEdit = derived(this, reader => {
+		const s = this.inlineEditState.read(reader);
+		if (!s) {
+			return false;
+		}
+		if (s.inlineEdit.range.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
+			return true;
+		}
 		if (this._jumpedTo.read(reader)) {
 			return true;
 		}
@@ -542,10 +549,6 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		const s = this.inlineEditState.read(reader);
-		if (!s) {
-			return false;
-		}
 		return s.cursorAtInlineEdit;
 	});
 
