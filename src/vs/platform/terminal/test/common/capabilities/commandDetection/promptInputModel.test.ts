@@ -55,7 +55,7 @@ suite('PromptInputModel', () => {
 		const cursorIndex = valueWithCursor.indexOf('|');
 		strictEqual(promptInputModel.value, value);
 		strictEqual(promptInputModel.cursorIndex, cursorIndex, `value=${promptInputModel.value}`);
-		assert.ok(promptInputModel.ghostTextIndex === -1 || cursorIndex <= promptInputModel.ghostTextIndex);
+		assert.ok(promptInputModel.ghostTextIndex === -1 || cursorIndex <= promptInputModel.ghostTextIndex, `cursorIndex (${cursorIndex}) must be before ghostTextIndex (${ghostTextIndex})`);
 	}
 
 	setup(async () => {
