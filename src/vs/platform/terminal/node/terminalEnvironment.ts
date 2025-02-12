@@ -88,9 +88,7 @@ export function getShellIntegrationInjection(
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
-		envMixin['VSCODE_SHELL_ENV_SETTING'] = '1';
-	} else {
-		envMixin['VSCODE_SHELL_ENV_SETTING'] = '0';
+		envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
 	}
 	// Windows
 	if (isWindows) {
@@ -125,7 +123,7 @@ export function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			if (!options.windowsUseConptyDll) {
-				envMixin['VSCODE_SHELL_ENV_SETTING'] = '0';
+				envMixin['VSCODE_SHELL_ENV_REPORTING'] = '0';
 			}
 			return { newArgs, envMixin };
 		}
