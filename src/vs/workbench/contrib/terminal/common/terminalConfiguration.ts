@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { IProductConfiguration } from '../../../../base/common/product.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -609,7 +610,10 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
 			markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
 			type: 'boolean',
-			default: true
+			default: ((): boolean => {
+				const productService = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations()[0] as IProductConfiguration;
+				return productService?.quality !== 'stable';
+			})()
 		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
