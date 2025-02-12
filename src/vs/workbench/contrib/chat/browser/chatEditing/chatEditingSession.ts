@@ -165,7 +165,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	constructor(
 		readonly chatSessionId: string,
 		readonly isGlobalEditingSession: boolean,
-		private _lookupExternalEntry: (uri: URI) => ChatEditingModifiedFileEntry | undefined,
+		private _lookupExternalEntry: (uri: URI) => IModifiedFileEntry | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,

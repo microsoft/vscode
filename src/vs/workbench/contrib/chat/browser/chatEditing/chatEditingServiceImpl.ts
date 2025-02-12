@@ -259,7 +259,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 						}
 						const activeUri = this._editorService.activeEditorPane?.input.resource;
 						const inactive = activeUri && session.workingSet.has(activeUri);
-						this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
+						this._editorService.openEditor({ resource: fileUri, options: { inactive, preserveFocus: true, pinned: true } });
 					}));
 				}
 
