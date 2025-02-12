@@ -2068,15 +2068,15 @@ export class CommandCenter {
 			const [untrackedMessage] = this.getDiscardUntrackedChangesDialogDetails(untrackedResources);
 
 			const trackedMessage = trackedResources.length === 1
-				? l10n.t('\n\nAre you sure you want to discard changes in \'{0}\'?\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.', path.basename(trackedResources[0].resourceUri.fsPath))
-				: l10n.t('\n\nAre you sure you want to discard ALL changes in {0} files?\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.', trackedResources.length);
+				? l10n.t('\n\nAre you sure you want to discard changes in \'{0}\'?', path.basename(trackedResources[0].resourceUri.fsPath))
+				: l10n.t('\n\nAre you sure you want to discard ALL changes in {0} files?', trackedResources.length);
 
 			const yesTracked = trackedResources.length === 1
 				? l10n.t('Discard 1 Tracked File')
 				: l10n.t('Discard All {0} Tracked Files', trackedResources.length);
 
 			const yesAll = l10n.t('Discard All {0} Files', resources.length);
-			const pick = await window.showWarningMessage(`${untrackedMessage}${trackedMessage}`, { modal: true }, yesTracked, yesAll);
+			const pick = await window.showWarningMessage(`${untrackedMessage}${trackedMessage}\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.`, { modal: true }, yesTracked, yesAll);
 
 			if (pick === yesTracked) {
 				resources = trackedResources;
