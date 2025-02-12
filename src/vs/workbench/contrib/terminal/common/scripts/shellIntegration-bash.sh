@@ -22,7 +22,8 @@ __vscode_shell_env_setting="$VSCODE_SHELL_ENV_SETTING"
 unset VSCODE_SHELL_ENV_SETTING
 
 if [[ "$__vscode_shell_env_setting" = "0" ]]; then
-	# User explicitly opted out of environment reporting
+	# User explicitly opted out of environment reporting.
+	# Stable also disable env reporting.
 	__vscode_disable_env_reporting=1
 fi
 
@@ -407,9 +408,7 @@ __vsc_precmd() {
 	fi
 	__vsc_first_prompt=1
 	__vsc_update_prompt
-	if [ "$__vsc_stable" = "0" ]; then
-		__vsc_update_env
-	fi
+	__vsc_update_env
 }
 
 __vsc_preexec() {
