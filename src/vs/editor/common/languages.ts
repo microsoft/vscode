@@ -867,6 +867,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	displayName?: string;
 
+	debounceDelayMs?: number;
+
 	toString?(): string;
 }
 

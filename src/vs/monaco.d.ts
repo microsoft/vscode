@@ -7348,6 +7348,7 @@ declare namespace monaco.languages {
 		 */
 		yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 		displayName?: string;
+		debounceDelayMs?: number;
 		toString?(): string;
 	}
 
