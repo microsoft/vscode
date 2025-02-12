@@ -446,42 +446,39 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
-		if (ghostTextIndex === -1) {
-			x = line.length;
-			if (this.value.length <= cursorIndex) {
-				// No ghost text
-				return -1;
-			}
-			// Find the last non-whitespace character in the line
-			// Its style will be compared against the style of the cells that precede it
-			let endCell = line.getCell(x);
-			while (!endCell || endCell.getChars().trim().length === 0) {
-				endCell = line.getCell(x--);
-			}
-			// Add 1 because it starts off as -1
-			ghostTextIndex = x - this._commandStartX + 1;
+		// Ghost text may not be gray or dimmed, but will have a different style to the
+		// rest of the line that precedes it
+		if (ghostTextIndex === -1 && this.value.length > cursorIndex) {
+			let position = line.length;
 
-			// Identify the start index of potential ghost text by scanning backwards from the end until a
-			// non-matching style is found.
-			while (x >= cursorIndex && this._cellStylesMatch(endCell, line.getCell(x))) {
-				const cell = line.getCell(x--);
-				if (!cell || cell.getCode() === 0) {
+			// Find the last non-whitespace character in the line
+			let finalCellOnLine = line.getCell(position);
+			while (!finalCellOnLine || finalCellOnLine.getChars().trim().length === 0) {
+				finalCellOnLine = line.getCell(position--);
+			}
+
+			// Calculate the initial ghost text start index, add 1 because
+			// ghostTextIndex is -1
+			ghostTextIndex = position - this._commandStartX + 1;
+
+			// Identify the start index of potential ghost text by scanning backwards
+			// until a non-matching style is encountered
+			while (position >= cursorIndex && this._cellStylesMatch(finalCellOnLine, line.getCell(position))) {
+				const currentCell = line.getCell(position--);
+				if (!currentCell || currentCell.getCode() === 0) {
 					continue;
 				}
-				ghostTextIndex -= cell.getChars().length;
+				ghostTextIndex -= currentCell.getChars().length;
 			}
 
-			// Scan backward through the rest of the line to ensure
-			// no cells match the style of the end cell
+			// Ensure no earlier cells in the line match the final cell on line's style
 			if (ghostTextIndex !== -1) {
-				for (x; x >= this._commandStartX; x--) {
-					// Scan backward to make sure no cells match the style of end cell.
-					// If they do, return -1
-					const cell = line.getCell(x);
-					if (!cell || cell.getCode() === 0) {
+				for (let checkPos = position; checkPos >= this._commandStartX; checkPos--) {
+					const checkCell = line.getCell(checkPos);
+					if (!checkCell || checkCell.getCode() === 0) {
 						continue;
 					}
-					if (this._cellStylesMatch(endCell, cell)) {
+					if (this._cellStylesMatch(finalCellOnLine, checkCell)) {
 						return -1;
 					}
 				}
