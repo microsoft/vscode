@@ -449,7 +449,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Ghost text may not be italic or dimmed, but will have a different style to the
 		// rest of the line that precedes it
 		if (ghostTextIndex === -1 && this.value.length > this._cursorIndex) {
-			let position = this._cursorIndex;
+			let position = buffer.cursorX;
 			// Scan from the cursor position to the end of the line to find the last non-whitespace
 			// character
 			const styleMap = new Map<string, number[]>();
@@ -469,9 +469,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			}
 			const lastStyles = styleMap.get(this._getCellStyleAsString(finalCellOnLine));
 			let offset = 0;
-			console.log('lastStyles', lastStyles?.keys, lastStyles?.values);
 			if (lastStyles) {
-				for (let i = 0; i < lastStyles.length; i++) {
+				for (let i = 1; i < lastStyles.length; i++) {
 					if (lastStyles[i] !== lastStyles[i - 1] + 1) {
 						return -1;
 					}
@@ -481,17 +480,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 			// Calculate the initial ghost text start index, add 1 because
 			// ghostTextIndex is -1
-			ghostTextIndex = position + 1 - offset;
-
-			// Identify the start index of potential ghost text by scanning backwards
-			// until a non-matching style is encountered
-			// while (position >= cursorIndex && this._cellStylesMatch(finalCellOnLine, line.getCell(position))) {
-			// 	const currentCell = line.getCell(position--);
-			// 	if (!currentCell || currentCell.getCode() === 0) {
-			// 		continue;
-			// 	}
-			// 	ghostTextIndex -= currentCell.getChars().length;
-			// }
+			ghostTextIndex = 1 + offset;
 
 			// Ensure no earlier cells in the line match the final cell on line's style
 			if (ghostTextIndex !== -1) {
