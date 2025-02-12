@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPrompt, IPromptsService } from './types.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
@@ -11,6 +12,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 
 /**
  * Provides prompt services.
@@ -30,6 +32,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	constructor(
 		@IInstantiationService private readonly initService: IInstantiationService,
+		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 	) {
 		super();
 
@@ -79,14 +82,31 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFiles(): Promise<readonly IPrompt[]> {
-		const promptFiles = await this.fileLocator.listFiles([]);
+		const globalLocations = [this.userDataService.currentProfile.promptsHome];
 
-		return promptFiles.map((uri) => {
-			return {
-				uri,
-				// right now all prompts are coming from the local disk
-				source: 'local',
-			};
-		});
+		const prompts = await Promise.all([
+			this.fileLocator.listFilesIn(globalLocations, [])
+				.then(withSource('global')),
+			this.fileLocator.listFiles([])
+				.then(withSource('local')),
+		]);
+
+		return prompts.flat();
 	}
 }
+
+/**
+ * Utility to add a provided prompt `source` to a list of prompt URIs.
+ */
+const withSource = (
+	source: IPrompt['source'],
+): (uris: readonly URI[]) => (readonly IPrompt[]) => {
+	return (uris) => {
+		return uris.map((uri) => {
+			return {
+				uri,
+				source,
+			};
+		});
+	};
+};
