@@ -335,6 +335,8 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	});
 
+	private readonly _hasVisiblePeekWidgets = derived(this, reader => this._editorObs.openedPeekWidgets.read(reader) > 0);
+
 	public readonly state = derivedOpts<{
 		kind: 'ghostText';
 		edits: readonly SingleTextEdit[];
@@ -368,6 +370,9 @@ export class InlineCompletionsModel extends Disposable {
 		const item = this._inlineCompletionItems.read(reader);
 		const inlineEditResult = item?.inlineEdit;
 		if (inlineEditResult) {
+			if (this._hasVisiblePeekWidgets.read(reader)) {
+				return undefined;
+			}
 			let edit = inlineEditResult.toSingleTextEdit(reader);
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
