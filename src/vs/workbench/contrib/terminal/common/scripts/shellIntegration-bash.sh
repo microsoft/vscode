@@ -304,7 +304,6 @@ __trackMissingEnvVars() {
 }
 
 __vsc_update_env() {
-	# Only use shell env API for non-Windows, and Windows with newer conpty-dll who have not opted out of setting.
 	if [[ "$__vscode_shell_env_setting" == "1" ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
