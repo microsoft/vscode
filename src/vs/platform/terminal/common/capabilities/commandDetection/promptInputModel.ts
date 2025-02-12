@@ -446,7 +446,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
-		// Ghost text may not be gray or dimmed, but will have a different style to the
+		// Ghost text may not be italic or dimmed, but will have a different style to the
 		// rest of the line that precedes it
 		if (ghostTextIndex === -1 && this.value.length > cursorIndex) {
 			let position = line.length;
