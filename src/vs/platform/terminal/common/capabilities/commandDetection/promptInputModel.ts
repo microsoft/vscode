@@ -432,7 +432,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (proceedWithGhostTextCheck) {
 			let potentialGhostIndexOffset = 0;
 			let x = buffer.cursorX;
-			const cursorCell = line.getCell(buffer.cursorX - 1);
 
 			while (x < line.length) {
 				const cell = line.getCell(x++);
@@ -442,28 +441,35 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				if (this._isCellStyledLikeGhostText(cell)) {
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
-				} else if (!this._cellStylesMatch(cursorCell, cell)) {
-					const ghostTextCell = cell;
-					// Verify that all chars for the rest of the line match this
-					// ghost text style
-					while (x < line.length) {
-						const cell = line.getCell(x++);
-						if (!cell || cell.getCode() === 0) {
-							break;
-						}
-
-						if (!this._cellStylesMatch(ghostTextCell, cell)) {
-							return -1;
-						}
-
-					}
-					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
-					return ghostTextIndex;
 				}
 
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
+		if (ghostTextIndex === -1 && line.length > this._commandStartX) {
+			x = line.length;
+			let endCell = line.getCell(x);
+			while (!endCell || endCell.getChars().trim().length === 0) {
+				x--;
+				console.log('end cell', endCell?.getChars());
+				endCell = line.getCell(x);
+			}
+			ghostTextIndex = x - this._commandStartX + 1;
+			console.log('end cell', endCell?.getChars());
+			while (x >= this._commandStartX && this._cellStylesMatch(endCell, line.getCell(x))) {
+				const cell = line.getCell(x--);
+				if (!cell || cell.getCode() === 0) {
+					continue;
+				}
+				ghostTextIndex -= cell.getChars().length;
+			}
+		}
+		if (x === this._commandStartX) {
+			// All matched, so no ghost text
+			return -1;
+		}
+		console.log(x === this._commandStartX);
+		console.log('ghostTextIndex', ghostTextIndex, this.value.substring(ghostTextIndex));
 		return ghostTextIndex;
 
 	}
