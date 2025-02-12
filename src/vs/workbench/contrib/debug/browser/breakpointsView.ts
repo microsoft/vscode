@@ -80,6 +80,12 @@ interface InputBoxData {
 	type: 'condition' | 'hitCount' | 'name';
 }
 
+interface IBreakpointContext {
+	sessionId: string | undefined;
+	breakpoint: DebugProtocol.SourceBreakpoint | DebugProtocol.FunctionBreakpoint | DebugProtocol.DataBreakpoint | DebugProtocol.InstructionBreakpoint | undefined;
+	path?: string;
+}
+
 export class BreakpointsView extends ViewPane {
 
 	private list!: WorkbenchList<BreakpointItem>;
@@ -258,7 +264,7 @@ export class BreakpointsView extends ViewPane {
 		}
 	}
 
-	private onListContextMenu(e: IListContextMenuEvent<IEnablement>): void {
+	private async onListContextMenu(e: IListContextMenuEvent<IBaseBreakpoint>): Promise<void> {
 		const element = e.element;
 		const type = element instanceof Breakpoint ? 'breakpoint' : element instanceof ExceptionBreakpoint ? 'exceptionBreakpoint' :
 			element instanceof FunctionBreakpoint ? 'functionBreakpoint' : element instanceof DataBreakpoint ? 'dataBreakpoint' :
@@ -269,13 +275,45 @@ export class BreakpointsView extends ViewPane {
 		this.breakpointSupportsCondition.set(conditionSupported);
 		this.breakpointIsDataBytes.set(element instanceof DataBreakpoint && element.src.type === DataBreakpointSetType.Address);
 
-		const { secondary } = getContextMenuActions(this.menu.getActions({ arg: e.element, shouldForwardArgs: false }), 'inline');
-
+		const { secondary } = getContextMenuActions(this.menu.getActions({ shouldForwardArgs: true }), 'inline');
+		const context = await this.getBreakpointContext(element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => secondary,
-			getActionsContext: () => element
+			getActionsContext: (_e, contributedAction) => contributedAction ? context : element
 		});
+	}
+
+	private async getBreakpointContext(breakpoint?: IBaseBreakpoint): Promise<IBreakpointContext | undefined> {
+		const debugSession = this.debugService.getViewModel()?.focusedSession;
+		if (!debugSession) {
+			return;
+		}
+
+		if (breakpoint instanceof Breakpoint) {
+			return {
+				sessionId: debugSession.getId(),
+				path: breakpoint.uri.toString(),
+				breakpoint: breakpoint.toDAP()
+			};
+		} else if (breakpoint instanceof FunctionBreakpoint) {
+			return {
+				sessionId: debugSession.getId(),
+				breakpoint: breakpoint.toDAP()
+			};
+		} else if (breakpoint instanceof DataBreakpoint) {
+			return {
+				sessionId: debugSession.getId(),
+				breakpoint: await breakpoint.toDAP(debugSession)
+			};
+		} else if (breakpoint instanceof InstructionBreakpoint) {
+			return {
+				sessionId: debugSession.getId(),
+				breakpoint: breakpoint.toDAP()
+			};
+		}
+
+		return;
 	}
 
 	private updateSize(): void {

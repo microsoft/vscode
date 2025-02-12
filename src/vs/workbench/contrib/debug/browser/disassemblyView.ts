@@ -6,7 +6,7 @@
 import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { $, Dimension, addStandardDisposableListener, append } from '../../../../base/browser/dom.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
-import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
+import { ITableRenderer, ITableVirtualDelegate, ITableContextMenuEvent } from '../../../../base/browser/ui/table/table.js';
 import { binarySearch2 } from '../../../../base/common/arrays.js';
 import { Color } from '../../../../base/common/color.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -43,8 +43,11 @@ import { getUriFromSource } from '../common/debugSource.js';
 import { isUri, sourcesEqual } from '../common/debugUtils.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
-interface IDisassembledInstructionEntry {
+export interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
 	isBreakpointSet: boolean;
 	isBreakpointEnabled: boolean;
@@ -62,6 +65,10 @@ interface IDisassembledInstructionEntry {
 	address: bigint;
 }
 
+interface IDisassemblyContext {
+	sessionId: string | undefined;
+	instruction: DebugProtocol.DisassembledInstruction;
+}
 
 // Special entry as a placeholer when disassembly is not available
 const disassemblyNotAvailable: IDisassembledInstructionEntry = {
@@ -91,6 +98,7 @@ export class DisassemblyView extends EditorPane {
 	private _enableSourceCodeRender: boolean = true;
 	private _loadingLock: boolean = false;
 	private readonly _referenceToMemoryAddress = new Map<string, bigint>();
+	private menu: IMenu;
 
 	constructor(
 		group: IEditorGroup,
@@ -100,9 +108,14 @@ export class DisassemblyView extends EditorPane {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDebugService private readonly _debugService: IDebugService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(DISASSEMBLY_VIEW_ID, group, telemetryService, themeService, storageService);
 
+		this.menu = menuService.createMenu(MenuId.DebugDisassemblyContext, contextKeyService);
+		this._register(this.menu);
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000 }));
 		this._previousDebuggingState = _debugService.state;
@@ -272,6 +285,8 @@ export class DisassemblyView extends EditorPane {
 				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() => { this._loadingLock = false; });
 			}
 		}));
+
+		this._register(this._disassembledInstructions.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this._debugService.getViewModel().onDidFocusStackFrame(({ stackFrame }) => {
 			if (this._disassembledInstructions && stackFrame?.instructionPointerReference) {
@@ -632,6 +647,27 @@ export class DisassemblyView extends EditorPane {
 	private clear() {
 		this._referenceToMemoryAddress.clear();
 		this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
+	}
+
+	private onContextMenu(e: ITableContextMenuEvent<IDisassembledInstructionEntry>): void {
+		const context = this.getDisassemblyContext(e.element);
+		const actions = getFlatContextMenuActions(this.menu.getActions({ shouldForwardArgs: true }));
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => actions,
+			getActionsContext: (_e, contributedAction) => contributedAction ? context : e.element
+		});
+	}
+
+	private getDisassemblyContext(instruction?: IDisassembledInstructionEntry): IDisassemblyContext | undefined {
+		if (!instruction) {
+			return undefined;
+		}
+
+		return {
+			sessionId: this.debugSession?.getId(),
+			instruction: instruction.instruction
+		};
 	}
 }
 

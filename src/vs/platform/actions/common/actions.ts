@@ -60,6 +60,7 @@ export class MenuId {
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
 	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
+	static readonly DebugDisassemblyContext = new MenuId('DebugDisassemblyContext');
 	static readonly DebugCallStackToolbar = new MenuId('DebugCallStackToolbar');
 	static readonly DebugCreateConfiguration = new MenuId('DebugCreateConfiguration');
 	static readonly EditorContext = new MenuId('EditorContext');

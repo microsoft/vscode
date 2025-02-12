@@ -117,6 +117,24 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugCreateConfiguation', "The debug create configuration menu")
 	},
 	{
+		key: 'debug/disassembly/context',
+		id: MenuId.DebugDisassemblyContext,
+		description: localize('menus.debugDisassemblyContext', "The debug disassembly context menu"),
+		proposed: 'debugContext'
+	},
+	{
+		key: 'debug/watch/context',
+		id: MenuId.DebugWatchContext,
+		description: localize('menus.debugWatchContext', "The debug watch context menu"),
+		proposed: 'debugContext'
+	},
+	{
+		key: 'debug/breakpoints/context',
+		id: MenuId.DebugBreakpointsContext,
+		description: localize('menus.debugBreakpointsContext', "The debug breakpoints context menu"),
+		proposed: 'debugContext'
+	},
+	{
 		key: 'notebook/variables/context',
 		id: MenuId.NotebookVariablesContext,
 		description: localize('menus.notebookVariablesContext', "The notebook variables view context menu")

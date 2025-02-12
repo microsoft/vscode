@@ -40,6 +40,14 @@ const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreViewUpdates = false;
 let useCachedEvaluation = false;
 
+interface IWatchContext {
+	sessionId: string | undefined;
+	type: string | undefined;
+	expressionId: string;
+	name: string;
+	value: string;
+}
+
 export class WatchExpressionsView extends ViewPane implements IDebugViewWithVariables {
 
 	private watchExpressionsUpdatedScheduler: RunOnceScheduler;
@@ -219,17 +227,32 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 
 	private onContextMenu(e: ITreeContextMenuEvent<IExpression>): void {
 		const element = e.element;
+		const context = this.getWatchContext(element);
 		const selection = this.tree.getSelection();
 
 		this.watchItemType.set(element instanceof Expression ? 'expression' : element instanceof Variable ? 'variable' : undefined);
 		const attributes = element instanceof Variable ? element.presentationHint?.attributes : undefined;
 		this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0 || !!element?.presentationHint?.lazy);
-		const actions = getFlatContextMenuActions(this.menu.getActions({ arg: element, shouldForwardArgs: true }));
+		const actions = getFlatContextMenuActions(this.menu.getActions({ shouldForwardArgs: true }));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : [],
+			getActionsContext: (_e, contributedAction) => contributedAction ? context : element && selection.includes(element) ? selection : element ? [element] : [],
 		});
+	}
+
+	private getWatchContext(expression: IExpression | null): IWatchContext | undefined {
+		if (!expression) {
+			return undefined;
+		}
+
+		return {
+			sessionId: this.debugService.getViewModel().focusedSession?.getId(),
+			expressionId: expression.getId(),
+			name: expression.name,
+			type: expression.type,
+			value: expression.value
+		};
 	}
 }
 
