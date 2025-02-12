@@ -36,7 +36,7 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 
 		this._register(autorun((reader) => {
 
-			const previous = this.notebookEditor.previousModelToCompare.read(reader);
+			const previous = this.notebookEditor.notebookOptions.previousModelToCompare.read(reader);
 			if (previous && this.notebookEditor.hasModel()) {
 				this.initialize(previous);
 				this.listeners.push(Event.once(this.notebookEditor.onDidAttachViewModel)(() => this.initialize(previous)));

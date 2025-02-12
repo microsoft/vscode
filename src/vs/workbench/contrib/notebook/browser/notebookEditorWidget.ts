@@ -104,7 +104,6 @@ import { NotebookAccessibilityProvider } from './notebookAccessibilityProvider.j
 import { NotebookHorizontalTracker } from './viewParts/notebookHorizontalTracker.js';
 import { NotebookCellEditorPool } from './view/notebookCellEditorPool.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { observableValue } from '../../../../base/common/observableInternal/base.js';
 
 const $ = DOM.$;
 
@@ -184,8 +183,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly onDidRemoveOutput = this._onDidRemoveOutput.event;
 	private readonly _onDidResizeOutputEmitter = this._register(new Emitter<ICellViewModel>());
 	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
-
-	readonly previousModelToCompare = observableValue<NotebookTextModel | undefined>('previousModelToCompare', undefined);
 
 	//#endregion
 	private _overlayContainer!: HTMLElement;

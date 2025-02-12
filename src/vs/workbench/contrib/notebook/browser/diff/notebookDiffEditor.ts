@@ -297,11 +297,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			if (this._model) {
 				this._notebookWidget.value?.setModel(this._model.modified.notebook, undefined);
 				this._notebookWidget.value?.setOptions(this._options as INotebookEditorOptions);
-				this._notebookWidget.value?.previousModelToCompare.set(this._model.original.notebook, undefined);
+				this._notebookWidget.value?.notebookOptions.previousModelToCompare.set(this._model.original.notebook, undefined);
 			}
 		} else {
 			this.layout(this._lastLayoutProperties?.dimension, this._lastLayoutProperties?.position);
-			this._notebookWidget.value?.previousModelToCompare.set(undefined, undefined);
+			this._notebookWidget.value?.notebookOptions.previousModelToCompare.set(undefined, undefined);
 		}
 	}
 
@@ -507,7 +507,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this.setNotebookWidget(input);
 		} else {
 			this._listViewContainer.style.display = 'block';
-			this._notebookWidget.value?.previousModelToCompare.set(undefined, undefined);
+			this._notebookWidget.value?.notebookOptions.previousModelToCompare.set(undefined, undefined);
 		}
 
 		await super.setInput(input, options, context, token);
@@ -527,7 +527,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			await this._notebookWidget.value?.setModel(model.modified.notebook, options?.viewState, perf);
 			const isReadOnly = !!input.isReadonly();
 			await this._notebookWidget.value?.setOptions({ ...options, isReadOnly });
-			this._notebookWidget.value?.previousModelToCompare.set(this._model.original.notebook, undefined);
+			this._notebookWidget.value?.notebookOptions.previousModelToCompare.set(this._model.original.notebook, undefined);
 		}
 
 		this._revealFirst = true;

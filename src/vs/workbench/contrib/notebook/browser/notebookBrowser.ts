@@ -31,7 +31,7 @@ import { IWebviewElement } from '../../webview/browser/webview.js';
 import { IEditorCommentsOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { IObservable, ISettableObservable } from '../../../../base/common/observable.js';
+import { IObservable } from '../../../../base/common/observable.js';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -495,13 +495,6 @@ export interface INotebookEditor {
 	readonly onMouseUp: Event<INotebookEditorMouseEvent>;
 	readonly onMouseDown: Event<INotebookEditorMouseEvent>;
 	//#endregion
-
-	//#region observables
-	/**
-	 * A model that editor contributions can use to decorate the notebook based on diffs
-	 */
-	readonly previousModelToCompare: ISettableObservable<NotebookTextModel | undefined>;
-	// #endregion
 
 	//#region readonly properties
 	readonly visibleRanges: ICellRange[];
