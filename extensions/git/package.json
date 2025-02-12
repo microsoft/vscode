@@ -3318,6 +3318,7 @@
           "default": {
             "*": "error"
           },
+          "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
           "scope": "resource"
         },
       "git.diagnosticsCommitHook.IgnoredSources": {
