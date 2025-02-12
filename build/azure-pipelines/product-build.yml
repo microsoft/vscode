@@ -273,7 +273,8 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: CLIMacOSX64
                 pool:
-                  name: AcesShared
+                  name: Azure Pipelines
+                  image: macOS-13
                   os: macOS
                 steps:
                   - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
@@ -285,7 +286,8 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - job: CLIMacOSARM64
                 pool:
-                  name: AcesShared
+                  name: Azure Pipelines
+                  image: macOS-13
                   os: macOS
                 steps:
                   - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
