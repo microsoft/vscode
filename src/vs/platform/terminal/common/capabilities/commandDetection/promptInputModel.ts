@@ -454,16 +454,29 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			// character
 			const styleMap = new Map<string, number[]>();
 			let finalCellOnLine = line.getCell(position);
-			while (finalCellOnLine && finalCellOnLine.getChars().trim().length && position < line.length) {
-				const styleKey = this._getCellStyleAsString(finalCellOnLine);
-				if (styleMap.has(styleKey)) {
-					styleMap.get(styleKey)!.push(position);
-				} else {
-					styleMap.set(styleKey, [position]);
+			let nextCell: IBufferCell | undefined = finalCellOnLine;
+			while (finalCellOnLine && position < line.length) {
+				if (!nextCell) {
+					break;
 				}
-				finalCellOnLine = line.getCell(position++);
+				const styleKey = this._getCellStyleAsString(nextCell);
+				if (finalCellOnLine.getChars().trim().length > 0) {
+					if (styleMap.has(styleKey)) {
+						styleMap.get(styleKey)!.push(position);
+					} else {
+						styleMap.set(styleKey, [position]);
+					}
+				}
+				nextCell = line.getCell(position++);
+				if (nextCell?.getChars().trim().length) {
+					finalCellOnLine = nextCell;
+				}
+				if (!nextCell) {
+					break;
+				}
 			}
-			if (!finalCellOnLine) {
+			const firstAndFinalCellStylesMatch = this._cellStylesMatch(line.getCell(this._commandStartX), finalCellOnLine);
+			if (!finalCellOnLine || firstAndFinalCellStylesMatch && this.value.trim().length > 1) {
 				return -1;
 			}
 			const lastStyles = styleMap.get(this._getCellStyleAsString(finalCellOnLine));
@@ -475,9 +488,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					}
 					offset += line.getCell(lastStyles[i]!)!.getChars().length;
 				}
-				// Calculate the initial ghost text start index, add 1 because
-				// ghostTextIndex is -1
-				ghostTextIndex = 1 + offset;
+				// Calculate the initial ghost text start index
+				ghostTextIndex = lastStyles[0] - this._commandStartX;
 			}
 
 			// Ensure no earlier cells in the line match the final cell on line's style
@@ -493,6 +505,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 		}
+		console.log('this ghost text', ghostTextIndex, this.value.substring(ghostTextIndex));
 		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
 	}
 
