@@ -8,6 +8,10 @@ import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from './constants.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
+ * `!Note!` This doc comment is deprecated and is set to be updated during `debt` week.
+ *         The configuration value can now be one of `{ '/path/to/folder': boolean }` or 'null' types.
+ *         This comment is tracked by [#13119](https://github.com/microsoft/vscode-copilot/issues/13119).
+ *
  * Configuration helper for the `prompt files` feature.
  * @see {@link CONFIG_KEY} and {@link DEFAULT_LOCATION}
  *
