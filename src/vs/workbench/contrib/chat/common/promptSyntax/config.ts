@@ -125,7 +125,7 @@ export namespace PromptFilesConfig {
 	/**
 	 * Default reusable prompt files location.
 	 */
-	const DEFAULT_LOCATION = '.github/prompts';
+	export const DEFAULT_LOCATION = '.github/prompts';
 
 	/**
 	 * Get value of the `prompt files` configuration setting.
