@@ -100,6 +100,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private readonly _inlineCompletion: ITerminalCompletion = {
 		label: '',
+		// Right arrow is used to accept the completion. This is a common keybinding in pwsh, zsh
+		// and fish.
+		inputData: '\x1b[C',
 		replacementIndex: 0,
 		replacementLength: 0,
 		provider: 'core',
@@ -462,8 +465,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// Update properties
 			const suggestion = this._currentPromptInputState.value;
 			this._inlineCompletion.label = suggestion;
-			this._inlineCompletion.replacementIndex = 0;
-			this._inlineCompletion.replacementLength = this._currentPromptInputState.ghostTextIndex;
 			// Reset the completion item as the object reference must remain the same but its
 			// contents will differ across syncs. This is done so we don't need to reassign the
 			// model and the slowdown/flickering that could potentially cause.
@@ -656,7 +657,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const completion = suggestion.item.completion;
-		let completionText = completion.label;
+		let completionText = completion.inputData ?? completion.label;
 		if ((completion.kind === TerminalCompletionItemKind.Folder || completion.isFileOverride) && completionText.includes(' ')) {
 			// Escape spaces in files or folders so they're valid paths
 			completionText = completionText.replaceAll(' ', '\\ ');
