@@ -3328,8 +3328,7 @@
         "git.untrackedChangesSoftDelete": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "%config.untrackedChangesSoftDelete%",
-          "scope": "resource"
+          "markdownDescription": "%config.untrackedChangesSoftDelete%"
         }
       }
     },
