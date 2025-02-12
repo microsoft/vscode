@@ -575,13 +575,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._onDidDispose.dispose();
 	}
 
-	getVirtualModel(documentId: string): ITextModel | null {
-		this._assertNotDisposed();
-
-		const entry = this._entriesObs.get().find(e => e.entryId === documentId);
-		return entry?.originalModel ?? null;
-	}
-
 	acceptStreamingEditsStart(): void {
 		if (this._state.get() === ChatEditingSessionState.Disposed) {
 			// we don't throw in this case because there could be a builder still connected to a disposed session
