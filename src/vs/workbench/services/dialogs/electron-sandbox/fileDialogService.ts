@@ -178,7 +178,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const newOptions: OpenDialogOptions & { properties: string[] } & INativeHostOptions = {
 			title: options.title,
 			defaultPath: options.defaultUri?.fsPath,
-			buttonLabel: options.openLabel,
+			buttonLabel: typeof options.openLabel === 'string' ? options.openLabel : options.openLabel?.withMnemonic,
 			filters: options.filters,
 			properties: [],
 			targetWindowId: getActiveWindow().vscodeWindowId
