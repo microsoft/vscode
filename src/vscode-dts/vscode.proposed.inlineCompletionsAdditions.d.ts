@@ -31,6 +31,9 @@ declare module 'vscode' {
 		completeBracketPairs?: boolean;
 
 		warning?: InlineCompletionWarning;
+
+		/** If set to `true`, this item is rendered as inline edit. */
+		isInlineEdit?: boolean;
 	}
 
 	export interface InlineCompletionWarning {
