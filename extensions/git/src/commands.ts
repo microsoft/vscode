@@ -2065,7 +2065,7 @@ export class CommandCenter {
 			await this._cleanUntrackedChanges(resources);
 		} else {
 			// Tracked & Untracked files
-			const [untrackedMessage] = this.getDiscardUntrackedChangesDialogDetails(untrackedResources);
+			const [untrackedMessage, untrackedMessageDetail] = this.getDiscardUntrackedChangesDialogDetails(untrackedResources);
 
 			const trackedMessage = trackedResources.length === 1
 				? l10n.t('\n\nAre you sure you want to discard changes in \'{0}\'?', path.basename(trackedResources[0].resourceUri.fsPath))
@@ -2076,7 +2076,7 @@ export class CommandCenter {
 				: l10n.t('Discard All {0} Tracked Files', trackedResources.length);
 
 			const yesAll = l10n.t('Discard All {0} Files', resources.length);
-			const pick = await window.showWarningMessage(`${untrackedMessage}${trackedMessage}\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.`, { modal: true }, yesTracked, yesAll);
+			const pick = await window.showWarningMessage(`${untrackedMessage} ${untrackedMessageDetail}${trackedMessage}\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.`, { modal: true }, yesTracked, yesAll);
 
 			if (pick === yesTracked) {
 				resources = trackedResources;
@@ -2119,8 +2119,8 @@ export class CommandCenter {
 	}
 
 	private async _cleanUntrackedChanges(resources: Resource[]): Promise<void> {
-		const [message, primaryAction] = this.getDiscardUntrackedChangesDialogDetails(resources);
-		const pick = await window.showWarningMessage(message, { modal: true }, primaryAction);
+		const [message, messageDetail, primaryAction] = this.getDiscardUntrackedChangesDialogDetails(resources);
+		const pick = await window.showWarningMessage(message, { detail: messageDetail, modal: true }, primaryAction);
 
 		if (pick !== primaryAction) {
 			return;
@@ -2130,25 +2130,29 @@ export class CommandCenter {
 		await this.runByRepository(resourceUris, async (repository, resources) => repository.clean(resources));
 	}
 
-	private getDiscardUntrackedChangesDialogDetails(resources: Resource[]): [string, string] {
+	private getDiscardUntrackedChangesDialogDetails(resources: Resource[]): [string, string, string] {
 		const config = workspace.getConfiguration('git');
 		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) === true;
+
+		const messageWarning = !untrackedChangesSoftDelete
+			? resources.length === 1
+				? '\n\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.'
+				: '\n\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.'
+			: '';
+
+		const message = resources.length === 1
+			? l10n.t('Are you sure you want to DELETE the following untracked file: \'{0}\'?{1}', path.basename(resources[0].resourceUri.fsPath), messageWarning)
+			: l10n.t('Are you sure you want to DELETE the {0} untracked files?{1}', resources.length, messageWarning);
 
 		const messageDetail = untrackedChangesSoftDelete
 			? isWindows
 				? resources.length === 1
-					? '\n\nYou can restore this file from the Recycle Bin.'
-					: '\n\nYou can restore these files from the Recycle Bin.'
+					? 'You can restore this file from the Recycle Bin.'
+					: 'You can restore these files from the Recycle Bin.'
 				: resources.length === 1
-					? '\n\nYou can restore this file from the Trash.'
-					: '\n\nYou can restore these files from the Trash.'
-			: resources.length === 1
-				? '\n\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.'
-				: '\n\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.';
-
-		const message = resources.length === 1
-			? l10n.t('Are you sure you want to DELETE the following untracked file: \'{0}\'?{1}', path.basename(resources[0].resourceUri.fsPath), messageDetail)
-			: l10n.t('Are you sure you want to DELETE the {0} untracked files?{1}', resources.length, messageDetail);
+					? 'You can restore this file from the Trash.'
+					: 'You can restore these files from the Trash.'
+			: '';
 
 		const primaryAction = untrackedChangesSoftDelete
 			? isWindows
@@ -2158,7 +2162,7 @@ export class CommandCenter {
 				? l10n.t('Delete File')
 				: l10n.t('Delete All {0} Files', resources.length);
 
-		return [message, primaryAction];
+		return [message, messageDetail, primaryAction];
 	}
 
 	private async smartCommit(
