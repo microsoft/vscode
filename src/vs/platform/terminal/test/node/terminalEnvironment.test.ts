@@ -57,7 +57,8 @@ suite('platform - terminalEnvironment', () => {
 						expectedPs1
 					],
 					envMixin: {
-						VSCODE_INJECTION: '1'
+						VSCODE_INJECTION: '1',
+						VSCODE_SHELL_ENVIRONMENT_REPORTING: '0'
 					}
 				});
 				test('when undefined, []', () => {
@@ -88,7 +89,8 @@ suite('platform - terminalEnvironment', () => {
 						expectedPs1
 					],
 					envMixin: {
-						VSCODE_INJECTION: '1'
+						VSCODE_INJECTION: '1',
+						VSCODE_SHELL_ENVIRONMENT_REPORTING: '0'
 					}
 				});
 				test('when array contains no logo and login', () => {
@@ -136,6 +138,7 @@ suite('platform - terminalEnvironment', () => {
 						ok(result.envMixin!['ZDOTDIR']?.match(expectedDir));
 						strictEqual(result.envMixin!['USER_ZDOTDIR'], globalZdotdir);
 						ok(result.envMixin!['VSCODE_INJECTION']?.match('1'));
+						ok(result.envMixin!['VSCODE_SHELL_ENVIRONMENT_REPORTING']?.match('0'));
 						strictEqual(result.filesToCopy?.length, 4);
 						ok(result.filesToCopy[0].dest.match(expectedDests[0]));
 						ok(result.filesToCopy[1].dest.match(expectedDests[1]));
@@ -193,7 +196,8 @@ suite('platform - terminalEnvironment', () => {
 								`${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`
 							],
 							envMixin: {
-								VSCODE_INJECTION: '1'
+								VSCODE_INJECTION: '1',
+								VSCODE_SHELL_ENVIRONMENT_REPORTING: '0'
 							}
 						});
 						deepStrictEqualIgnoreStableVar(getShellIntegrationInjection({ executable: 'bash', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService), enabledExpectedResult);
@@ -208,6 +212,7 @@ suite('platform - terminalEnvironment', () => {
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1',
+								VSCODE_SHELL_ENVIRONMENT_REPORTING: '0',
 								VSCODE_SHELL_LOGIN: '1'
 							}
 						});
