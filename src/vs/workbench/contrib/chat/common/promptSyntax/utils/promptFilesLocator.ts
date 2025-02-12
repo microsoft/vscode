@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
-import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
-import { dirname, extUri } from '../../../../../base/common/resources.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { PromptFilesConfig } from '../config.js';
+import { PROMPT_FILE_EXTENSION } from '../constants.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
+import { dirname, extUri } from '../../../../../../base/common/resources.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Class to locate prompt files.
  */
-export class ChatInstructionsFileLocator {
+export class PromptFilesLocator {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
