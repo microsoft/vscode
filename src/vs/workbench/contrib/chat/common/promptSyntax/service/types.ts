@@ -15,6 +15,23 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
 
 /**
+ * Represents a prompt reference.
+ */
+export interface IPrompt {
+	/**
+	 * The URI of the prompt.
+	 */
+	readonly uri: URI;
+
+	/**
+	 * The source of the prompt.
+	 * - `local` means the prompt is a local file.
+	 * - `global` means a "roamble" global prompt file.
+	 */
+	readonly source: 'local' | 'global';
+}
+
+/**
  * Provides prompt services.
  */
 export interface IPromptsService extends IDisposable {
@@ -31,5 +48,5 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * List all available prompt files.
 	 */
-	listPromptFiles(): Promise<readonly URI[]>;
+	listPromptFiles(): Promise<readonly IPrompt[]>;
 }

@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptsService } from './types.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { IPrompt, IPromptsService } from './types.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
@@ -79,7 +78,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cache.get(model);
 	}
 
-	public async listPromptFiles(): Promise<readonly URI[]> {
-		return await this.fileLocator.listFiles([]);
+	public async listPromptFiles(): Promise<readonly IPrompt[]> {
+		const promptFiles = await this.fileLocator.listFiles([]);
+
+		return promptFiles.map((uri) => {
+			return {
+				uri,
+				// right now all prompts are coming from the local disk
+				source: 'local',
+			};
+		});
 	}
 }

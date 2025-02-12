@@ -7,7 +7,7 @@ import { IChatWidget } from '../../chat.js';
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { IPrompt, IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
@@ -67,18 +67,18 @@ interface IPromptSelectionResult {
  * Creates a quick pick item for a prompt.
  */
 const createPickItem = (
-	promptUri: URI,
+	{ uri }: IPrompt,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
-	const fileBasename = basename(promptUri);
+	const fileBasename = basename(uri);
 	const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
 
 	return {
 		type: 'item',
 		label: fileWithoutExtension,
-		description: labelService.getUriLabel(dirname(promptUri), { relative: true }),
-		tooltip: promptUri.fsPath,
-		value: promptUri,
+		description: labelService.getUriLabel(dirname(uri), { relative: true }),
+		tooltip: uri.fsPath,
+		value: uri,
 	};
 };
 
@@ -113,9 +113,9 @@ export const showSelectPromptDialog = async (
 	// find all prompt instruction files in the user workspace
 	// and present them to the user so they can select one
 	const files = await promptsService.listPromptFiles()
-		.then((files) => {
-			return files.map((file) => {
-				return createPickItem(file, labelService);
+		.then((promptFiles) => {
+			return promptFiles.map((promptFile) => {
+				return createPickItem(promptFile, labelService);
 			});
 		});
 
