@@ -2654,7 +2654,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
 		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector, extension), adapter.supportsHandleEvents,
-			ExtensionIdentifier.toKey(extension.identifier.value), metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || []);
+			ExtensionIdentifier.toKey(extension.identifier.value), metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || [], metadata?.debounceDelayMs);
 		return this._createDisposable(handle);
 	}
 
