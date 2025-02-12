@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptsService } from './types.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
+import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
@@ -22,8 +24,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private readonly cache: ObjectCache<TextModelPromptParser, ITextModel>;
 
+	/**
+	 * Prompt files locator utility.
+	 */
+	private readonly fileLocator = this.initService.createInstance(PromptFilesLocator);
+
 	constructor(
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService private readonly initService: IInstantiationService,
 	) {
 		super();
 
@@ -56,8 +63,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Gets a prompt syntax parser for the provided text model.
-	 *
 	 * @throws {Error} if:
 	 * 	- the provided model is disposed
 	 * 	- newly created parser is disposed immediately on initialization.
@@ -68,9 +73,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	): TextModelPromptParser & { disposed: false } {
 		assert(
 			!model.isDisposed(),
-			'Cannot create a prompt parser for a disposed model.',
+			'Cannot create a prompt syntax parser for a disposed model.',
 		);
 
 		return this.cache.get(model);
+	}
+
+	public async listPromptFiles(): Promise<readonly URI[]> {
+		return await this.fileLocator.listFiles([]);
 	}
 }

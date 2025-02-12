@@ -10,7 +10,6 @@ import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { PromptFilesLocator } from '../../common/promptSyntax/utils/promptFilesLocator.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
@@ -65,11 +64,6 @@ export const toChatVariable = (
  * See {@linkcode ChatInstructionsAttachmentModel} for individual attachment.
  */
 export class ChatInstructionAttachmentsModel extends Disposable {
-	/**
-	 * Helper to locate prompt instruction files on the disk.
-	 */
-	private readonly instructionsFileReader: PromptFilesLocator;
-
 	/**
 	 * List of all prompt instruction attachments.
 	 */
@@ -171,7 +165,6 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 		super();
 
 		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-		this.instructionsFileReader = initService.createInstance(PromptFilesLocator);
 	}
 
 	/**
@@ -215,13 +208,6 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 		this.attachments.deleteAndDispose(uri.path);
 
 		return this;
-	}
-
-	/**
-	 * List prompt instruction files available and not attached yet.
-	 */
-	public async listNonAttachedFiles(): Promise<readonly URI[]> {
-		return await this.instructionsFileReader.listFiles(this.references);
 	}
 
 	/**
