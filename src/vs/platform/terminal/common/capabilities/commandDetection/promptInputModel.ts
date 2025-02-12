@@ -467,6 +467,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 						styleMap.set(styleKey, [position]);
 					}
 				}
+
+				// Use this so that we don't override finalCellOnLine
+				// with an empty value
 				nextCell = line.getCell(position++);
 				if (nextCell?.getChars().trim().length) {
 					finalCellOnLine = nextCell;
