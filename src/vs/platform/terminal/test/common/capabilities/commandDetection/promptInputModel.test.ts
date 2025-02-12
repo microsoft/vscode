@@ -9,7 +9,7 @@ import { NullLogService } from '../../../../../log/common/log.js';
 import { PromptInputModel, type IPromptInputModelState } from '../../../../common/capabilities/commandDetection/promptInputModel.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import type { ITerminalCommand } from '../../../../common/capabilities/capabilities.js';
-import assert, { notDeepStrictEqual, strictEqual } from 'assert';
+import { ok, notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 
@@ -55,7 +55,7 @@ suite('PromptInputModel', () => {
 		const cursorIndex = valueWithCursor.indexOf('|');
 		strictEqual(promptInputModel.value, value);
 		strictEqual(promptInputModel.cursorIndex, cursorIndex, `value=${promptInputModel.value}`);
-		assert.ok(promptInputModel.ghostTextIndex === -1 || cursorIndex <= promptInputModel.ghostTextIndex, `cursorIndex (${cursorIndex}) must be before ghostTextIndex (${ghostTextIndex})`);
+		ok(promptInputModel.ghostTextIndex === -1 || cursorIndex <= promptInputModel.ghostTextIndex, `cursorIndex (${cursorIndex}) must be before ghostTextIndex (${promptInputModel.ghostTextIndex})`);
 	}
 
 	setup(async () => {
