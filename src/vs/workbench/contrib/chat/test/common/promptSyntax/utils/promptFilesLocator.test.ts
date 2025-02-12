@@ -22,7 +22,7 @@ import { IConfigurationOverrides, IConfigurationService } from '../../../../../.
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
 
 /**
- * Mocked mocked instance of {@link IConfigurationService}.
+ * Mocked instance of {@link IConfigurationService}.
  */
 const mockConfigService = <T>(value: T): IConfigurationService => {
 	return mockService<IConfigurationService>({
@@ -39,7 +39,7 @@ const mockConfigService = <T>(value: T): IConfigurationService => {
 };
 
 /**
- * Mocked mocked instance of {@link IWorkspaceContextService}.
+ * Mocked instance of {@link IWorkspaceContextService}.
  */
 const mockWorkspaceService = (folders: IWorkspaceFolder[]): IWorkspaceContextService => {
 	return mockService<IWorkspaceContextService>({
