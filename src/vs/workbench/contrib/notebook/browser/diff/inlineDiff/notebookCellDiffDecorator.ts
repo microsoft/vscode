@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
-import { IChatEditingService, ChatEditingSessionState } from '../../../../chat/common/chatEditingService.js';
+import { autorunWithStore, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { INotebookEditor } from '../../notebookBrowser.js';
 import { ThrottledDelayer } from '../../../../../../base/common/async.js';
 import { ICodeEditor, IViewZone } from '../../../../../../editor/browser/editorBrowser.js';
@@ -20,12 +19,11 @@ import { ModelDecorationOptions } from '../../../../../../editor/common/model/te
 import { InlineDecoration, InlineDecorationType } from '../../../../../../editor/common/viewModel.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
-import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFactory.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../../scm/common/quickDiff.js';
+import { INotebookOriginalCellModelFactory } from '../../contrib/chatEdit/notebookOriginalCellModelFactory.js';
 
-
+//TODO: allow client to set read-only - chateditsession should set read-only while making changes
 export class NotebookCellDiffDecorator extends DisposableStore {
 	private _viewZones: string[] = [];
 	private readonly throttledDecorator = new ThrottledDelayer(50);
@@ -36,7 +34,6 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		notebookEditor: INotebookEditor,
 		public readonly modifiedCell: NotebookCellTextModel,
 		public readonly originalCell: NotebookCellTextModel,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@INotebookOriginalCellModelFactory private readonly originalCellModelFactory: INotebookOriginalCellModelFactory,
 
@@ -74,46 +71,6 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 					}
 				}));
 				this.update(editor);
-			}
-		}));
-
-		const shouldBeReadOnly = derived(this, r => {
-			const editorUri = editorObs.read(r)?.getModel()?.uri;
-			if (!editorUri) {
-				return false;
-			}
-			const sessions = this._chatEditingService.editingSessionsObs.read(r);
-			const session = sessions.find(s => s.entries.read(r).some(e => isEqual(e.modifiedURI, editorUri)));
-			return session?.state.read(r) === ChatEditingSessionState.StreamingEdits;
-		});
-
-
-		let actualReadonly: boolean | undefined;
-		let actualDeco: 'off' | 'editable' | 'on' | undefined;
-
-		this.add(autorun((r) => {
-			const editor = editorObs.read(r);
-			if (!editor) {
-				return;
-			}
-			const value = shouldBeReadOnly.read(r);
-			if (value) {
-				actualReadonly ??= editor.getOption(EditorOption.readOnly);
-				actualDeco ??= editor.getOption(EditorOption.renderValidationDecorations);
-
-				editor.updateOptions({
-					readOnly: true,
-					renderValidationDecorations: 'off'
-				});
-			} else {
-				if (actualReadonly !== undefined && actualDeco !== undefined) {
-					editor.updateOptions({
-						readOnly: actualReadonly,
-						renderValidationDecorations: actualDeco
-					});
-					actualReadonly = undefined;
-					actualDeco = undefined;
-				}
 			}
 		}));
 	}

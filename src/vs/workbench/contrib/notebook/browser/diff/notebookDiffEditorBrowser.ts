@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CellLayoutState, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput } from '../notebookBrowser.js';
+import { CellLayoutState, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput, INotebookEditor } from '../notebookBrowser.js';
 import { DiffElementCellViewModelBase, IDiffElementViewModelBase } from './diffElementViewModel.js';
 import { Event } from '../../../../../base/common/event.js';
 import { BareFontInfo } from '../../../../../editor/common/config/fontInfo.js';
@@ -31,6 +31,7 @@ export interface IDiffCellInfo extends ICommonCellInfo {
 export interface INotebookTextDiffEditor {
 	notebookOptions: NotebookOptions;
 	readonly textModel?: NotebookTextModel;
+	inlineNotebookEditor: INotebookEditor | undefined;
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: IDiffElementViewModelBase }>;
 	onDidScroll: Event<void>;
 	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
@@ -55,6 +56,7 @@ export interface INotebookTextDiffEditor {
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
 	previousChange(): void;
 	nextChange(): void;
+	toggleInlineView(): void;
 }
 
 export interface IDiffNestedCellViewModel {

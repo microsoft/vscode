@@ -1261,6 +1261,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			default: '',
 			tags: ['notebookLayout']
-		},
+		}
 	}
 });
