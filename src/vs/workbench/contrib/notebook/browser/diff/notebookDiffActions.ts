@@ -705,7 +705,8 @@ registerAction2(class extends Action2 {
 					id: MenuId.EditorTitle,
 					group: '1_diff',
 					order: 10,
-					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+						ContextKeyExpr.equals('config.notebook.diff.experimental.toggleInline', true))
 				}
 			}
 		);
@@ -737,6 +738,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('notebook.diff.ignoreOutputs', "Hide Outputs Differences")
+		},
+		'notebook.diff.experimental.toggleInline': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize('notebook.diff.toggleInline', "Enable the command to toggle the experimental notebook inline diff editor.")
 		},
 	}
 });
