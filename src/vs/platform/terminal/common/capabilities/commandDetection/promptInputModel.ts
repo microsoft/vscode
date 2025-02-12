@@ -487,10 +487,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 		}
-
-		console.log('ghostTextIndex', ghostTextIndex, this.value.substring(ghostTextIndex));
 		return ghostTextIndex;
-
 	}
 
 	private _cellStylesMatch(a: IBufferCell | undefined, b: IBufferCell | undefined): boolean {
