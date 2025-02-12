@@ -484,7 +484,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 		}
-		return ghostTextIndex;
+		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
 	}
 
 	private _cellStylesMatch(a: IBufferCell | undefined, b: IBufferCell | undefined): boolean {
