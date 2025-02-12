@@ -122,6 +122,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return this._model?.modified.notebook;
 	}
 
+	get inlineNotebookEditor() {
+		if (this._inlineView) {
+			return this.inlineDiffWidget?.editorWidget;
+		}
+		return undefined;
+	}
+
 	private _revealFirst: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 

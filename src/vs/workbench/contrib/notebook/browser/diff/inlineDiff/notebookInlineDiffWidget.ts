@@ -24,6 +24,10 @@ export class NotebookInlineDiffWidget extends Disposable {
 	private widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
 	private position: DOM.IDomPosition | undefined;
 
+	get editorWidget() {
+		return this.widget.value;
+	}
+
 	constructor(
 		private readonly rootElement: HTMLElement,
 		private readonly groupId: number,
