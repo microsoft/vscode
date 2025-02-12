@@ -198,7 +198,7 @@ suite('PromptInputModel', () => {
 			await assertPromptInput('foo|[ bar]');
 
 			await writePromise('\x1b[2D');
-			await assertPromptInput('f|oo [bar]');
+			await assertPromptInput('f|oo[ bar]');
 		});
 	});
 

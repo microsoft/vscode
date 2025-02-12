@@ -412,6 +412,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	 * non-italic/dim text in the cell closest non-whitespace cell before the cursor.
 	 */
 	private _scanForGhostText(buffer: IBuffer, line: IBufferLine, cursorIndex: number): number {
+		if (!this.value.trim().length) {
+			return -1;
+		}
 		// Check last non-whitespace character has non-ghost text styles
 		let ghostTextIndex = -1;
 		let proceedWithGhostTextCheck = false;
@@ -446,66 +449,67 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
-		// Ghost text may not be italic or dimmed, but will have a different style to the
-		// rest of the line that precedes it
-		if (ghostTextIndex === -1 && this.value.length > this._cursorIndex) {
-			let position = buffer.cursorX;
-			// Scan from the cursor position to the end of the line to find the last non-whitespace
-			// character
-			const styleMap = new Map<string, number[]>();
-			let finalCellOnLine = line.getCell(position);
-			let nextCell: IBufferCell | undefined = finalCellOnLine;
-			while (finalCellOnLine && position < line.length) {
-				if (!nextCell) {
-					break;
-				}
-				const styleKey = this._getCellStyleAsString(nextCell);
-				if (styleMap.has(styleKey)) {
-					styleMap.get(styleKey)!.push(position);
-				} else {
-					styleMap.set(styleKey, [position]);
-				}
 
-				// Use this so that we don't override finalCellOnLine
-				// with an empty value
-				nextCell = line.getCell(position++);
+		// Ghost text may not be italic or dimmed, but will have a different style than the
+		// rest of the line that precedes it.
+		if (ghostTextIndex === -1 && this.value.length > this._cursorIndex) {
+			let currentPos = buffer.cursorX; // Start scanning from the cursor position
+
+			// Map to store styles and their corresponding positions
+			const styleMap = new Map<string, number[]>();
+
+			// Identify the last non-whitespace character in the line
+			let lastNonWhitespaceCell = line.getCell(currentPos);
+			let nextCell: IBufferCell | undefined = lastNonWhitespaceCell;
+
+			// Scan from the cursor position to the end of the line
+			while (nextCell && currentPos < line.length) {
+				const styleKey = this._getCellStyleAsString(nextCell);
+
+				// Track all occurrences of each unique style in the line
+				styleMap.set(styleKey, [...(styleMap.get(styleKey) ?? []), currentPos]);
+
+				// Move to the next cell
+				nextCell = line.getCell(++currentPos);
+
+				// Update `lastNonWhitespaceCell` only if the new cell contains visible characters
 				if (nextCell?.getChars().trim().length) {
-					finalCellOnLine = nextCell;
-				}
-				if (!nextCell) {
-					break;
+					lastNonWhitespaceCell = nextCell;
 				}
 			}
-			const firstAndFinalCellStylesMatch = this._cellStylesMatch(line.getCell(this._commandStartX), finalCellOnLine);
-			if (!finalCellOnLine || firstAndFinalCellStylesMatch && this.value.trim().length > 1) {
+
+			// If there's no valid last non-whitespace cell OR the first and last styles match (indicating no ghost text)
+			if (!lastNonWhitespaceCell ||
+				this._cellStylesMatch(line.getCell(this._commandStartX), lastNonWhitespaceCell)) {
 				return -1;
 			}
-			const lastStyles = styleMap.get(this._getCellStyleAsString(finalCellOnLine));
-			let offset = 0;
-			if (lastStyles) {
-				for (let i = 1; i < lastStyles.length; i++) {
-					if (lastStyles[i] !== lastStyles[i - 1] + 1) {
+
+			// Retrieve the positions of all cells with the same style as `lastNonWhitespaceCell`
+			const positionsWithGhostStyle = styleMap.get(this._getCellStyleAsString(lastNonWhitespaceCell));
+			if (positionsWithGhostStyle) {
+				// Ensure these positions are contiguous
+				for (let i = 1; i < positionsWithGhostStyle.length; i++) {
+					if (positionsWithGhostStyle[i] !== positionsWithGhostStyle[i - 1] + 1) {
+						// Discontinuous styles, so may be syntax highlighting vs ghost text
 						return -1;
 					}
-					offset += line.getCell(lastStyles[i]!)!.getChars().length;
 				}
-				// Calculate the initial ghost text start index
-				ghostTextIndex = lastStyles[0] - this._commandStartX;
+				// Calculate the ghost text start index
+				ghostTextIndex = positionsWithGhostStyle[0] - this._commandStartX;
 			}
 
-			// Ensure no earlier cells in the line match the final cell on line's style
+			// Ensure no earlier cells in the line match `lastNonWhitespaceCell`'s style,
+			// which would indicate the text is not ghost text.
 			if (ghostTextIndex !== -1) {
 				for (let checkPos = cursorIndex; checkPos >= this._commandStartX; checkPos--) {
 					const checkCell = line.getCell(checkPos);
-					if (!checkCell || checkCell.getCode() === 0) {
-						continue;
-					}
-					if (this._cellStylesMatch(finalCellOnLine, checkCell)) {
+					if (checkCell && checkCell.getCode() !== 0 && this._cellStylesMatch(lastNonWhitespaceCell, checkCell)) {
 						return -1;
 					}
 				}
 			}
 		}
+
 		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
 	}
 
