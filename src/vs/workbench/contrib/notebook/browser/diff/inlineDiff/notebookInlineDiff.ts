@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { INotebookEditorWorkerService } from '../../../common/services/notebookWorkerService.js';
-import { CellDiffInfo, computeDiff } from '../../diff/notebookDiffViewModel.js';
+import { CellDiffInfo, computeDiff } from '../notebookDiffViewModel.js';
 import { INotebookEditorContribution, INotebookEditor } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { NotebookCellDiffDecorator } from './notebookCellDiffDecorator.js';

@@ -18,7 +18,7 @@ import { autorun, autorunWithStore, IObservable, ISettableObservable, observable
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from '../../../../chat/browser/chatEditing/chatEditingEditorActions.js';
-import { INotebookDeletedCellDecorator } from '../inlineDiff/notebookDeletedCellDecorator.js';
+import { INotebookDeletedCellDecorator } from '../../diff/inlineDiff/notebookDeletedCellDecorator.js';
 
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(

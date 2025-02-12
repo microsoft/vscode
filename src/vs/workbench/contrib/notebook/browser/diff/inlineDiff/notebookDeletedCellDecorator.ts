@@ -11,8 +11,8 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { tokenizeToString } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
-import { DefaultLineHeight } from '../../diff/diffElementViewModel.js';
-import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
+import { DefaultLineHeight } from '../diffElementViewModel.js';
+import { CellDiffInfo } from '../notebookDiffViewModel.js';
 import { INotebookEditor } from '../../notebookBrowser.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 

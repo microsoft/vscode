@@ -48,7 +48,7 @@ import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { DiffEditorHeightCalculatorService, IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { NotebookInlineDiffWidget } from './notebookInlineDiffWidget.js';
+import { NotebookInlineDiffWidget } from './inlineDiff/notebookInlineDiffWidget.js';
 
 const $ = DOM.$;
 

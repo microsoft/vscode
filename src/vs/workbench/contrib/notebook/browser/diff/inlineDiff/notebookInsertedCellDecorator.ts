@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
+import { CellDiffInfo } from '../notebookDiffViewModel.js';
 import { INotebookEditor } from '../../notebookBrowser.js';
 
 export class NotebookInsertedCellDecorator extends Disposable {

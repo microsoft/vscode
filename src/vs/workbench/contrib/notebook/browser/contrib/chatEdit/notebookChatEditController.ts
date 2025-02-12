@@ -23,8 +23,8 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { ctxNotebookHasEditorModification } from './notebookChatEditContext.js';
-import { NotebookDeletedCellDecorator } from '../inlineDiff/notebookDeletedCellDecorator.js';
-import { NotebookInsertedCellDecorator } from '../inlineDiff/notebookInsertedCellDecorator.js';
+import { NotebookDeletedCellDecorator } from '../../diff/inlineDiff/notebookDeletedCellDecorator.js';
+import { NotebookInsertedCellDecorator } from '../../diff/inlineDiff/notebookInsertedCellDecorator.js';
 
 export class NotebookChatEditorControllerContrib extends Disposable implements INotebookEditorContribution {
 
