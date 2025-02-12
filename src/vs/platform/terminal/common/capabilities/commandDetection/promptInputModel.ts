@@ -416,6 +416,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		let ghostTextIndex = -1;
 		let proceedWithGhostTextCheck = false;
 		let x = buffer.cursorX;
+		let firstNonEmptyCell;
+		let nonEmptyCellIndex = -1;
 		while (x > 0) {
 			const cell = line.getCell(--x);
 			if (!cell) {
@@ -426,13 +428,25 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				break;
 			}
 		}
+		x = this._commandStartX;
+		while (x < buffer.cursorX) {
+			const cell = line.getCell(x++);
+			if (!cell) {
+				break;
+			}
+			if (cell.getChars().trim().length > 0) {
+				firstNonEmptyCell = cell;
+				nonEmptyCellIndex = x;
+				break;
+			}
+		}
 
 		// Check to the end of the line for possible ghost text. For example pwsh's ghost text
 		// can look like this `Get-|Ch[ildItem]`
 		if (proceedWithGhostTextCheck) {
+			console.log('scanning for ghost text, line', line.translateToString(true));
 			let potentialGhostIndexOffset = 0;
 			let x = buffer.cursorX;
-			const cursorCell = line.getCell(buffer.cursorX - 1);
 
 			while (x < line.length) {
 				const cell = line.getCell(x++);
@@ -442,33 +456,51 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				if (this._isCellStyledLikeGhostText(cell)) {
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
-				} else if (!this._cellStylesMatch(cursorCell, cell)) {
-					const ghostTextCell = cell;
-					// Verify that all chars for the rest of the line match this
-					// ghost text style
-					while (x < line.length) {
-						const cell = line.getCell(x++);
-						if (!cell || cell.getCode() === 0) {
-							break;
-						}
-
-						if (!this._cellStylesMatch(ghostTextCell, cell)) {
-							return -1;
-						}
-
-					}
-					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
-					return ghostTextIndex;
 				}
 
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
+			if (firstNonEmptyCell && ghostTextIndex === -1) {
+				let potentialGhostIndexOffset = firstNonEmptyCell.getChars().length;
+				let x = nonEmptyCellIndex + 1;
+				ghostTextIndex = potentialGhostIndexOffset;
+				console.log('index is', ghostTextIndex);
+				while (x < line.length) {
+					const cell = line.getCell(x++);
+					if (!cell || cell.getCode() === 0) {
+						continue;
+					}
+					console.log('first non empty cell', firstNonEmptyCell.getChars());
+					console.log('cell', cell.getChars());
+					if (!this._cellStylesMatch(firstNonEmptyCell!, cell)) {
+						const ghostTextCell = cell;
+						ghostTextIndex = potentialGhostIndexOffset;
+						console.log('index now is', ghostTextIndex);
+						// Verify that all chars for the rest of the line match this
+						// ghost text style
+						while (x < line.length) {
+							const cell = line.getCell(x++);
+							if (!cell || cell.getCode() === 0) {
+								continue;
+							}
+							if (!this._cellStylesMatch(ghostTextCell, cell)) {
+								return -1;
+							}
+						}
+						ghostTextIndex = potentialGhostIndexOffset;
+						console.log('ghost text index', this.value.substring(ghostTextIndex));
+						return ghostTextIndex;
+					}
+					console.log('adding chars to offset', cell.getChars());
+					potentialGhostIndexOffset += cell.getChars().length;
+
+				}
+			}
 		}
 		return ghostTextIndex;
-
 	}
 
-	private _cellStylesMatch(a: IBufferCell | undefined, b: IBufferCell | undefined): boolean {
+	private _cellStylesMatch(a: IBufferCell, b: IBufferCell): boolean {
 		if (!a || !b) {
 			return false;
 		}
