@@ -24,6 +24,9 @@ $env:VSCODE_NONCE = $null
 $isStable = $env:VSCODE_STABLE
 $env:VSCODE_STABLE = $null
 
+$__vscode_shell_env_setting=$env:VSCODE_SHELL_ENV_SETTING
+$env:VSCODE_SHELL_ENV_SETTING=$null
+
 $osVersion = [System.Environment]::OSVersion.Version
 $isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
 
@@ -91,11 +94,15 @@ function Global:Prompt() {
 
 	# Send current environment variables as JSON
 	# OSC 633 ; Env ; <Environment> ; <Nonce>
-	if ($isStable -eq "0") {
+	if ($isStable -eq "0" -and $__vscode_shell_env_setting -ne "0") {
+		# print that we are inside the shell env setting
 		$envMap = @{}
 		Get-ChildItem Env: | ForEach-Object { $envMap[$_.Name] = $_.Value }
 		$envJson = $envMap | ConvertTo-Json -Compress
 		$Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$Nonce`a"
+
+		Write-Host "Sending environment variables: YOOOOOOO"
+		$Result += "bro I just printed env json for powershell"
 	}
 
 	# Before running the original prompt, put $? back to what it was:
