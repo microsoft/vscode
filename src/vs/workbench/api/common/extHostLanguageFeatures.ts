@@ -649,7 +649,7 @@ class DocumentPasteEditProvider {
 		}));
 	}
 
-	async resolvePasteEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
+	async resolvePasteEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ insertText?: string | vscode.SnippetString; additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
 		const [sessionId, itemId] = id;
 		const item = this._cache.get(sessionId, itemId);
 		if (!item || !this._provider.resolveDocumentPasteEdit) {
@@ -657,8 +657,10 @@ class DocumentPasteEditProvider {
 		}
 
 		const resolvedItem = (await this._provider.resolveDocumentPasteEdit(item, token)) ?? item;
-		const additionalEdit = resolvedItem.additionalEdit ? typeConvert.WorkspaceEdit.from(resolvedItem.additionalEdit, undefined) : undefined;
-		return { additionalEdit };
+		return {
+			insertText: resolvedItem.insertText,
+			additionalEdit: resolvedItem.additionalEdit ? typeConvert.WorkspaceEdit.from(resolvedItem.additionalEdit, undefined) : undefined
+		};
 	}
 
 	releasePasteEdits(id: number): any {
@@ -1400,6 +1402,10 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					command,
 					idx: idx,
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
+					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
+						message: typeConvert.MarkdownString.from(item.warning.message),
+						icon: item.warning.icon ? typeConvert.IconPath.fromThemeIcon(item.warning.icon) : undefined,
+					} : undefined,
 				});
 			}),
 			commands: commands.map(c => {

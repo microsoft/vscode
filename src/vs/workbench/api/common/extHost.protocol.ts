@@ -55,7 +55,7 @@ import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
 import { IChatContentInlineReference, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
-import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from '../../contrib/chat/common/chatVariables.js';
+import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
 import { IPreparedToolInvocation, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
@@ -1354,15 +1354,6 @@ export interface IChatParticipantDetectionResult {
 	command?: string;
 }
 
-export type IChatVariableResolverProgressDto =
-	| Dto<IChatVariableResolverProgress>;
-
-export interface MainThreadChatVariablesShape extends IDisposable {
-	$registerVariable(handle: number, data: IChatVariableData): void;
-	$handleProgressChunk(requestId: string, progress: IChatVariableResolverProgressDto): Promise<number | void>;
-	$unregisterVariable(handle: number): void;
-}
-
 export type IToolDataDto = Omit<IToolData, 'when'>;
 
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
@@ -1374,10 +1365,6 @@ export interface MainThreadLanguageModelToolsShape extends IDisposable {
 }
 
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
-
-export interface ExtHostChatVariablesShape {
-	$resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto | undefined>;
-}
 
 export interface ExtHostLanguageModelToolsShape {
 	$onDidChangeTools(tools: IToolDataDto[]): void;
@@ -1562,6 +1549,7 @@ export interface SCMActionButtonDto {
 
 export interface SCMGroupFeatures {
 	hideWhenEmpty?: boolean;
+	contextValue?: string;
 }
 
 export type SCMRawResource = [
@@ -2291,7 +2279,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseCodeActions(handle: number, cacheId: number): void;
 	$prepareDocumentPaste(handle: number, uri: UriComponents, ranges: readonly IRange[], dataTransfer: DataTransferDTO, token: CancellationToken): Promise<DataTransferDTO | undefined>;
 	$providePasteEdits(handle: number, requestId: number, uri: UriComponents, ranges: IRange[], dataTransfer: DataTransferDTO, context: IDocumentPasteContextDto, token: CancellationToken): Promise<IPasteEditDto[] | undefined>;
-	$resolvePasteEdit(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: IWorkspaceEditDto }>;
+	$resolvePasteEdit(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<{ insertText?: string; additionalEdit?: IWorkspaceEditDto }>;
 	$releasePasteEdits(handle: number, cacheId: number): void;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: languages.FormattingOptions, token: CancellationToken): Promise<languages.TextEdit[] | undefined>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<languages.TextEdit[] | undefined>;
@@ -3016,7 +3004,6 @@ export const MainContext = {
 	MainThreadEmbeddings: createProxyIdentifier<MainThreadEmbeddingsShape>('MainThreadEmbeddings'),
 	MainThreadChatAgents2: createProxyIdentifier<MainThreadChatAgentsShape2>('MainThreadChatAgents2'),
 	MainThreadCodeMapper: createProxyIdentifier<MainThreadCodeMapperShape>('MainThreadCodeMapper'),
-	MainThreadChatVariables: createProxyIdentifier<MainThreadChatVariablesShape>('MainThreadChatVariables'),
 	MainThreadLanguageModelTools: createProxyIdentifier<MainThreadLanguageModelToolsShape>('MainThreadChatSkills'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
@@ -3137,7 +3124,6 @@ export const ExtHostContext = {
 	ExtHostNotebookDocumentSaveParticipant: createProxyIdentifier<ExtHostNotebookDocumentSaveParticipantShape>('ExtHostNotebookDocumentSaveParticipant'),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostChatAgents2: createProxyIdentifier<ExtHostChatAgentsShape2>('ExtHostChatAgents'),
-	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostLanguageModelTools: createProxyIdentifier<ExtHostLanguageModelToolsShape>('ExtHostChatSkills'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
 	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),

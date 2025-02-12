@@ -23,6 +23,8 @@ import { TerminalExitReason } from '../../../../platform/terminal/common/termina
 export const USER_TASKS_GROUP_KEY = 'settings';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
+/** Whether the active terminal is a task terminal. */
+export const TASK_TERMINAL_ACTIVE = new RawContextKey<boolean>('taskTerminalActive', false, nls.localize('taskTerminalActive', "Whether the active terminal is a task terminal."));
 export const TASKS_CATEGORY = nls.localize2('tasksCategory', "Tasks");
 
 export enum ShellQuoting {

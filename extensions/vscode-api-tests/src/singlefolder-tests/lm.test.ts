@@ -135,12 +135,12 @@ suite('lm', function () {
 			assert.ok(false, 'EXPECTED error');
 		} catch (error) {
 			assert.ok(error);
-			// assert.ok(error instanceof Error); // todo@jrieken requires one more insiders
+			assert.ok(error instanceof Error);
 		}
 	});
 
-	// SKIPPED until Feb 6 2025
-	test.skip('LanguageModelError instance is not thrown to extensions#235322 (SYNC)', async function () {
+
+	test('LanguageModelError instance is not thrown to extensions#235322 (SYNC)', async function () {
 
 		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
 			provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {

@@ -11,8 +11,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatEditingSession, IModifiedFileEntry } from '../../common/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { Range } from '../../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
 import { $, addDisposableGenericMouseMoveListener, append, EventLike, reset } from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -47,7 +45,6 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IEditorService editorService: IEditorService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IChatService private readonly _chatService: IChatService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -161,33 +158,9 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 						override set actionRunner(actionRunner: IActionRunner) {
 							super.actionRunner = actionRunner;
-
-							const store = new DisposableStore();
-
-							store.add(actionRunner.onWillRun(_e => {
+							this._reveal.value = actionRunner.onWillRun(_e => {
 								that._editor.focus();
-							}));
-
-							store.add(actionRunner.onDidRun(e => {
-								if (e.action !== this.action) {
-									return;
-								}
-								const d = that._entry.get();
-								if (!d || d.entry === d.next) {
-									return;
-								}
-								const change = d.next.diffInfo.get().changes.at(0);
-								return editorService.openEditor({
-									resource: d.next.modifiedURI,
-									options: {
-										selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
-										revealIfOpened: false,
-										revealIfVisible: false,
-									}
-								}, ACTIVE_GROUP);
-							}));
-
-							this._reveal.value = store;
+							});
 						}
 						override get actionRunner(): IActionRunner {
 							return super.actionRunner;
@@ -249,15 +222,22 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		this._entry.set({ entry: activeEntry, next }, undefined);
 
 		this._showStore.add(autorun(r => {
-			const busy = activeEntry.isCurrentlyBeingModified.read(r);
-			this._domNode.classList.toggle('busy', busy);
+			const busy = activeEntry.isCurrentlyBeingModifiedBy.read(r);
+			this._domNode.classList.toggle('busy', !!busy);
 		}));
 
 		this._showStore.add(autorun(r => {
-			const value = activeEntry.rewriteRatio.read(r);
-			reset(this._progressNode, (value === 0
-				? localize('generating', "Generating Edits")
-				: localize('applyingPercentage', "{0}% Applying Edits", Math.round(value * 100))));
+			const paused = activeEntry.isCurrentlyBeingModifiedBy.read(r)?.isPaused.read(r);
+			const progress = activeEntry.rewriteRatio.read(r);
+
+			const text = paused
+				? localize('paused', "Edits Paused")
+				: progress === 0
+					? localize('generating', "Generating Edits")
+					: localize('applyingPercentage', "{0}% Applying Edits", Math.round(progress * 100));
+
+			this._domNode.classList.toggle('paused', !!paused);
+			reset(this._progressNode, text);
 		}));
 
 		this._showStore.add(autorun(r => {

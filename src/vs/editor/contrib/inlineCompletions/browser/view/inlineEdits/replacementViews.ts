@@ -5,8 +5,6 @@
 
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, autorunDelta, constObservable, derived, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
-import { editorHoverStatusBarBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
 import { Rect } from '../../../../../browser/rect.js';
@@ -18,8 +16,7 @@ import { SingleTextEdit } from '../../../../../common/core/textEdit.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../common/tokens/tokenArray.js';
-import { getPrefixTrim, mapOutFalsy, n, rectToProps } from './utils.js';
-import { localize } from '../../../../../../nls.js';
+import { getPrefixTrim, InlineEditTabAction, mapOutFalsy, n, rectToProps } from './utils.js';
 import { IInlineEditsView } from './sideBySideDiff.js';
 import { Range } from '../../../../../common/core/range.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
@@ -28,16 +25,9 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { IObservable } from '../../../../../../base/common/observableInternal/base.js';
 import { IViewZoneChangeAccessor } from '../../../../../browser/editorBrowser.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
-export const transparentHoverBackground = registerColor(
-	'inlineEdit.wordReplacementView.background',
-	{
-		light: transparent(editorHoverStatusBarBackground, 0.1),
-		dark: transparent(editorHoverStatusBarBackground, 0.1),
-		hcLight: transparent(editorHoverStatusBarBackground, 0.1),
-		hcDark: transparent(editorHoverStatusBarBackground, 0.1),
-	},
-	localize('inlineEdit.wordReplacementView.background', 'Background color for the inline edit word replacement view.')
-);
+import { getModifiedBorderColor, modifiedChangedLineBackgroundColor, modifiedChangedTextOverlayColor, originalChangedTextOverlayColor, replacementViewBackground } from './theme.js';
+import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
+import { editorBackground, editorHoverForeground, scrollbarShadow } from '../../../../../../platform/theme/common/colorRegistry.js';
 
 export class WordReplacementView extends Disposable implements IInlineEditsView {
 
@@ -147,6 +137,8 @@ export class WordReplacementView extends Disposable implements IInlineEditsView 
 
 			const edits = layoutProps.innerEdits.map(edit => ({ modified: edit.modified.moveLeft(contentLeft), original: edit.original.moveLeft(contentLeft) }));
 
+			const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+
 			return [
 				n.div({
 					style: {
@@ -164,8 +156,8 @@ export class WordReplacementView extends Disposable implements IInlineEditsView 
 							position: 'absolute',
 							...rectToProps(reader => layout.read(reader).lowerBackground.moveLeft(contentLeft)),
 							borderRadius: '4px',
-							background: 'var(--vscode-editor-background)',
-							boxShadow: 'var(--vscode-scrollbar-shadow) 0 6px 6px -6px'
+							background: asCssVariable(editorBackground),
+							boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`
 						},
 					}, []),
 					n.div({
@@ -189,7 +181,7 @@ export class WordReplacementView extends Disposable implements IInlineEditsView 
 							height: edit.modified.height,
 							borderRadius: '4px',
 
-							background: 'var(--vscode-inlineEdit-modifiedChangedTextBackground)',
+							background: asCssVariable(modifiedChangedTextOverlayColor),
 							pointerEvents: 'none',
 						}
 					}), []),
@@ -202,7 +194,7 @@ export class WordReplacementView extends Disposable implements IInlineEditsView 
 							height: edit.original.height,
 							borderRadius: '4px',
 							boxSizing: 'border-box',
-							background: 'var(--vscode-inlineEdit-originalChangedTextBackground)',
+							background: asCssVariable(originalChangedTextOverlayColor),
 							pointerEvents: 'none',
 						}
 					}, [])),
@@ -212,9 +204,9 @@ export class WordReplacementView extends Disposable implements IInlineEditsView 
 							...rectToProps(reader => layout.read(reader).background.moveLeft(contentLeft)),
 							borderRadius: '4px',
 
-							border: '1px solid var(--vscode-editorHoverWidget-border)',
+							border: `1px solid ${modifiedBorderColor}`,
 							//background: 'rgba(122, 122, 122, 0.12)', looks better
-							background: 'var(--vscode-inlineEdit-wordReplacementView-background)',
+							background: asCssVariable(replacementViewBackground),
 							pointerEvents: 'none',
 							boxSizing: 'border-box',
 						}
@@ -233,11 +225,11 @@ export class WordReplacementView extends Disposable implements IInlineEditsView 
 					}, [
 						n.svgElem('path', {
 							d: 'M1 0C1 2.98966 1 4.92087 1 7.49952C1 8.60409 1.89543 9.5 3 9.5H10.5',
-							stroke: 'var(--vscode-editorHoverWidget-foreground)',
+							stroke: asCssVariable(editorHoverForeground),
 						}),
 						n.svgElem('path', {
 							d: 'M6 6.5L9.99999 9.49998L6 12.5',
-							stroke: 'var(--vscode-editorHoverWidget-foreground)',
+							stroke: asCssVariable(editorHoverForeground),
 						})
 					]),
 
@@ -255,6 +247,7 @@ export class WordReplacementView extends Disposable implements IInlineEditsView 
 		/** Must be single-line in both sides */
 		private readonly _edit: SingleTextEdit,
 		private readonly _innerEdits: SingleTextEdit[],
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
@@ -431,6 +424,8 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 				l.style.position = 'relative';
 			});
 
+			const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+
 			return [
 				n.div({
 					style: {
@@ -450,7 +445,7 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 							left: layoutProps.lowerBackground.left - contentLeft,
 							width: layoutProps.lowerBackground.width,
 							height: layoutProps.padding * 2,
-							background: 'var(--vscode-editor-background)',
+							background: asCssVariable(editorBackground),
 						},
 					}),
 					n.div({ // styling for the modified lines widget
@@ -458,9 +453,9 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 							position: 'absolute',
 							...rectToProps(reader => layout.read(reader).lowerBackground.moveLeft(contentLeft)),
 							borderRadius: '4px',
-							background: 'var(--vscode-editor-background)',
-							boxShadow: 'var(--vscode-scrollbar-shadow) 0 6px 6px -6px',
-							borderTop: '1px solid var(--vscode-editorHoverWidget-border)',
+							background: asCssVariable(editorBackground),
+							boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
+							borderTop: `1px solid ${modifiedBorderColor}`,
 							overflow: 'hidden',
 						},
 					}, [
@@ -471,7 +466,7 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 								left: 0,
 								width: '100%',
 								height: '100%',
-								background: 'var(--vscode-inlineEdit-modifiedChangedLineBackground)',
+								background: asCssVariable(modifiedChangedLineBackgroundColor),
 							},
 						})
 					]),
@@ -493,9 +488,7 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 							...rectToProps(reader => layout.read(reader).background.moveLeft(contentLeft)),
 							borderRadius: '4px',
 
-							border: '1px solid var(--vscode-editorHoverWidget-border)',
-							//background: 'rgba(122, 122, 122, 0.12)', looks better
-							background: 'var(--vscode-inlineEdit-wordReplacementView-background)',
+							border: `1px solid ${modifiedBorderColor}`,
 							pointerEvents: 'none',
 							boxSizing: 'border-box',
 						}
@@ -517,6 +510,7 @@ export class LineReplacementView extends Disposable implements IInlineEditsView 
 			modifiedLines: string[];
 			replacements: Replacement[];
 		} | undefined>,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
@@ -645,6 +639,8 @@ export class WordInsertView extends Disposable implements IInlineEditsView {
 				return [];
 			}
 
+			const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+
 			return [
 				n.div({
 					style: {
@@ -674,7 +670,7 @@ export class WordInsertView extends Disposable implements IInlineEditsView {
 						position: 'absolute',
 						...rectToProps(reader => layout.read(reader).background),
 						borderRadius: '4px',
-						border: '1px solid var(--vscode-editorHoverWidget-border)',
+						border: `1px solid ${modifiedBorderColor}`,
 						//background: 'rgba(122, 122, 122, 0.12)', looks better
 						background: 'var(--vscode-inlineEdit-wordReplacementView-background)',
 					}
@@ -707,6 +703,7 @@ export class WordInsertView extends Disposable implements IInlineEditsView {
 		private readonly _editor: ObservableCodeEditor,
 		/** Must be single-line in both sides */
 		private readonly _edit: SingleTextEdit,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 	) {
 		super();
 

@@ -6324,7 +6324,7 @@ declare module 'vscode' {
 		 * Optional method which fills in the {@linkcode DocumentPasteEdit.additionalEdit} before the edit is applied.
 		 *
 		 * This is called once per edit and should be used if generating the complete edit may take a long time.
-		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.additionalEdit}.
+		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.insertText} or {@linkcode DocumentPasteEdit.additionalEdit}.
 		 *
 		 * @param pasteEdit The {@linkcode DocumentPasteEdit} to resolve.
 		 * @param token A cancellation token.
@@ -16169,6 +16169,26 @@ declare module 'vscode' {
 		 * no {@link SourceControlResourceState source control resource states}.
 		 */
 		hideWhenEmpty?: boolean;
+
+		/**
+		 * Context value of the resource group. This can be used to contribute resource group specific actions.
+		 * For example, if a resource group is given a context value of `exportable`, when contributing actions to `scm/resourceGroup/context`
+		 * using `menus` extension point, you can specify context value for key `scmResourceGroupState` in `when` expressions, like `scmResourceGroupState == exportable`.
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "scm/resourceGroup/context": [
+		 *       {
+		 *         "command": "extension.export",
+		 *         "when": "scmResourceGroupState == exportable"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
+		 * ```
+		 * This will show action `extension.export` only for resource groups with `contextValue` equal to `exportable`.
+		 */
+		contextValue?: string;
 
 		/**
 		 * This group's collection of

@@ -2931,6 +2931,7 @@ export namespace PartialAcceptInfo {
 	export function to(info: languages.PartialAcceptInfo): types.PartialAcceptInfo {
 		return {
 			kind: PartialAcceptTriggerKind.to(info.kind),
+			acceptedLength: info.acceptedLength,
 		};
 	}
 }
@@ -3004,5 +3005,11 @@ export namespace LanguageModelToolResult {
 				}
 			})
 		};
+	}
+}
+
+export namespace IconPath {
+	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
+		return iconPath;
 	}
 }

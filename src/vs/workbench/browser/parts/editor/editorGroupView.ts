@@ -459,9 +459,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			menuId: MenuId.EmptyEditorGroupContext,
 			contextKeyService: this.contextKeyService,
 			getAnchor: () => anchor,
-			onHide: () => {
-				this.focus();
-			}
+			onHide: () => this.focus()
 		});
 	}
 

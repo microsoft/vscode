@@ -81,11 +81,6 @@ declare module 'vscode' {
 
 	export interface ChatParticipant {
 		supportIssueReporting?: boolean;
-
-		/**
-		 * Temp, support references that are slow to resolve and should be tools rather than references.
-		 */
-		supportsSlowReferences?: boolean;
 	}
 
 	export interface ChatErrorDetails {

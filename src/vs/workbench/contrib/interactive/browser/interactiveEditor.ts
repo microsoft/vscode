@@ -407,7 +407,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					ContentHoverController.ID,
 					GlyphHoverController.ID,
 					MarkerController.ID,
-					INLINE_CHAT_ID
+					INLINE_CHAT_ID,
 				])
 			}
 		});

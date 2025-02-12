@@ -620,6 +620,7 @@ export interface CompletionList {
  */
 export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
+	acceptedLength: number;
 }
 
 /**
@@ -793,7 +794,19 @@ export interface InlineCompletion {
 	readonly isInlineEdit?: boolean;
 
 	readonly showRange?: IRange;
+
+	readonly warning?: InlineCompletionWarning;
 }
+
+export interface InlineCompletionWarning {
+	message: IMarkdownString | string;
+	icon?: IconPath;
+}
+
+/**
+ * TODO: add `| URI | { light: URI; dark: URI }`.
+*/
+export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];
@@ -829,6 +842,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	/**
 	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
+	 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
 	 */
 	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 

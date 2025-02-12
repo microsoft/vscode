@@ -28,7 +28,6 @@ import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js
 import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { ExtHostBulkEdits } from './extHostBulkEdits.js';
 import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
-import { ExtHostChatVariables } from './extHostChatVariables.js';
 import { ExtHostClipboard } from './extHostClipboard.js';
 import { ExtHostEditorInsets } from './extHostCodeInsets.js';
 import { IExtHostCommands } from './extHostCommands.js';
@@ -213,7 +212,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels));
-	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
@@ -1009,22 +1007,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, metadata);
 			},
 			createFileSystemWatcher: (pattern, optionsOrIgnoreCreate, ignoreChange?, ignoreDelete?): vscode.FileSystemWatcher => {
-				let options: FileSystemWatcherCreateOptions | undefined = undefined;
-
-				if (optionsOrIgnoreCreate && typeof optionsOrIgnoreCreate !== 'boolean') {
-					checkProposedApiEnabled(extension, 'createFileSystemWatcher');
-					options = {
-						...optionsOrIgnoreCreate,
-						correlate: true
-					};
-				} else {
-					options = {
-						ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),
-						ignoreChangeEvents: Boolean(ignoreChange),
-						ignoreDeleteEvents: Boolean(ignoreDelete),
-						correlate: false
-					};
-				}
+				const options: FileSystemWatcherCreateOptions = {
+					ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),
+					ignoreChangeEvents: Boolean(ignoreChange),
+					ignoreDeleteEvents: Boolean(ignoreDelete),
+				};
 
 				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, configProvider, extension, pattern, options);
 			},
@@ -1432,10 +1419,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
-			},
-			registerChatVariableResolver(id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver, fullName?: string, icon?: vscode.ThemeIcon) {
-				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatVariables.registerVariableResolver(extension, id, name, userDescription, modelDescription, isSlow, resolver, fullName, icon?.id);
 			},
 			registerMappedEditsProvider(_selector: vscode.DocumentSelector, _provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');

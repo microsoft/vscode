@@ -66,16 +66,13 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 
 		// Basic options
 		// TODO: The spec wants file paths and folders (which seems like it should only be folders),
-		//       but neither are requested https://github.com/microsoft/vscode/issues/239606
 		{ input: 'ls |', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 		{ input: 'ls -|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
-		// Filtering options should request all options so client side can filter
-		{ input: 'ls -a|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'ls -a|', expectedCompletions: allOptions },
 
 		// Duplicate option
-		// TODO: Duplicate options should not be presented https://github.com/microsoft/vscode/issues/239607
-		// { input: 'ls -a -|', expectedCompletions: removeArrayEntry(allOptions, '-a'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'ls -a -|', expectedCompletions: allOptions.filter(o => o !== '-a'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Relative paths
 		{ input: 'ls c|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
@@ -91,3 +88,4 @@ export const lsTestSuiteSpec: ISuiteSpec = {
 		{ input: 'ls ../sibling|', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwdParent } },
 	]
 };
+

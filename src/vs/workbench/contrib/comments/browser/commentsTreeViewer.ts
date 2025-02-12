@@ -315,7 +315,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.disposables.push(disposables);
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
-			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
+			for (let i = renderedComment.element.children.length - 1; i >= 1; i--) {
+				renderedComment.element.removeChild(renderedComment.element.children[i]);
+			}
+			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
 			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 

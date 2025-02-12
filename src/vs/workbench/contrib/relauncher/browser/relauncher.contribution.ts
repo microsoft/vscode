@@ -41,7 +41,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
-		'window.experimentalControlOverlay',
 		'update.mode',
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
@@ -55,7 +54,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
-	private readonly linuxWindowControlOverlay = new ChangeObserver('boolean');
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
@@ -118,9 +116,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// macOS: Click through (accept first mouse)
 			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
-
-			// Linux: WCO
-			processChanged(isLinux && this.linuxWindowControlOverlay.handleChange(config.window?.experimentalControlOverlay));
 
 			// Update mode
 			processChanged(this.updateMode.handleChange(config.update?.mode));

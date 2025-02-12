@@ -14,7 +14,7 @@ import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/edit
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
-import { AbstractInlineChatAction } from './inlineChatActions.js';
+import { AbstractInline1ChatAction } from './inlineChatActions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -48,7 +48,7 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: _inlineChatActionId,
-			category: AbstractInlineChatAction.category,
+			category: AbstractInline1ChatAction.category,
 			title: localize2('startWithCurrentLine', "Start in Editor with Current Line"),
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
@@ -101,7 +101,7 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.showHint',
-			category: AbstractInlineChatAction.category,
+			category: AbstractInline1ChatAction.category,
 			title: localize2('showHint', "Show Inline Chat Hint"),
 			f1: false,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),

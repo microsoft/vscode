@@ -807,10 +807,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.chat-modelPicker-item {
 		min-width: 0px;
 
-		.chat-model-label {
+		.action-label {
 			min-width: 0px;
-			overflow: hidden;
-			text-overflow: ellipsis;
+
+			.chat-model-label {
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 		}
 
 		.codicon {

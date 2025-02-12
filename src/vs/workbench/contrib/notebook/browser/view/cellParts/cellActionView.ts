@@ -55,7 +55,7 @@ export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 	constructor(
 		action: SubmenuItemAction,
 		options: IMenuEntryActionViewItemOptions | undefined,
-		readonly renderLabel: boolean,
+		private readonly _renderLabel: boolean,
 		readonly subActionProvider: IActionProvider,
 		readonly subActionViewItemProvider: IActionViewItemProvider | undefined,
 		@IKeybindingService _keybindingService: IKeybindingService,
@@ -108,13 +108,13 @@ export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 					element.classList.add(...iconClasses);
 				}
 
-				if (this.renderLabel) {
+				if (this._renderLabel) {
 					this._actionLabel.classList.add('notebook-label');
 					this._actionLabel.innerText = this._action.label;
 					this._hover?.update(primaryAction.tooltip.length ? primaryAction.tooltip : primaryAction.label);
 				}
 			} else {
-				if (this.renderLabel) {
+				if (this._renderLabel) {
 					this._actionLabel.classList.add('notebook-label');
 					this._actionLabel.innerText = this._action.label;
 					this._hover?.update(this._action.tooltip.length ? this._action.tooltip : this._action.label);

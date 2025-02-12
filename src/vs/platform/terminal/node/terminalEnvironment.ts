@@ -120,6 +120,9 @@ export function getShellIntegrationInjection(
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+			if (!options.windowsUseConptyDll) {
+				envMixin['VSCODE_DISABLE_ENV_REPORTING'] = '1';
+			}
 			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);

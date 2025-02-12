@@ -187,16 +187,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * Compute a rate to render at in words/s.
 	 */
 	private getProgressiveRenderRate(element: IChatResponseViewModel): number {
-		if (element.isComplete) {
-			return 80;
+		const enum Rate {
+			Min = 5,
+			Max = 80,
+		}
+
+		if (element.isComplete || element.isPaused.get()) {
+			return Rate.Max;
 		}
 
 		if (element.contentUpdateTimings && element.contentUpdateTimings.impliedWordLoadRate) {
-			const minRate = 5;
-			const maxRate = 80;
-
 			const rate = element.contentUpdateTimings.impliedWordLoadRate;
-			return clamp(rate, minRate, maxRate);
+			return clamp(rate, Rate.Min, Rate.Max);
 		}
 
 		return 8;
@@ -386,7 +388,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing-session', this.chatWidgetService.getWidgetBySessionId(element.sessionId)?.location === ChatAgentLocation.EditingSession);
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
-		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length);
+		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !element.model.isPaused.get());
 		templateData.username.textContent = element.username;
 		if (!this.rendererOptions.noHeader) {
 			this.renderAvatar(element, templateData);
@@ -457,8 +459,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}));
 
-		} else if (!element.isComplete && this.rendererOptions.renderStyle !== 'minimal') {
-			templateData.detail.textContent = localize('generating', "Generating");
+		} else if (this.rendererOptions.renderStyle !== 'minimal') {
+			if (element.model.isPaused.get()) {
+				templateData.detail.textContent = localize('paused', "Paused");
+			} else {
+				templateData.detail.textContent = localize('generating', "Generating");
+			}
 		}
 	}
 
@@ -878,7 +884,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderContentReferencesListData(references: IChatReferences, labelOverride: string | undefined, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCollapsibleListContentPart {
-		const referencesPart = this.instantiationService.createInstance(ChatCollapsibleListContentPart, references.references, labelOverride, context, this._contentReferencesListPool);
+		const referencesPart = this.instantiationService.createInstance(ChatCollapsibleListContentPart, references.references, labelOverride, context, this._contentReferencesListPool, { expandedWhenEmptyResponse: this.rendererOptions.referencesExpandedWhenEmptyResponse });
 		referencesPart.addDisposable(referencesPart.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
 		}));
