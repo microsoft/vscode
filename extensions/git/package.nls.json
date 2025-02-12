@@ -288,7 +288,7 @@
 	"config.commitShortHashLength": "Controls the length of the commit short hash.",
 	"config.diagnosticsCommitHook.Enabled": "Controls whether Git should check for unresolved diagnostic information before committing.",
 	"config.diagnosticsCommitHook.IgnoredSources": "List of diagnostic information sources that should be ignored. **Note:** Ignored diagnostic information sources take precedence over the diagnostic information sources listed in `#git.diagnosticsCommitHook.Sources#`.",
-	"config.diagnosticsCommitHook.Sources": "Controls the list of diagnostic information sources (**Item**) and the minimum diagnostic information severity (**Value**) for which Git should check before committing.",
+	"config.diagnosticsCommitHook.Sources": "Controls the list of diagnostic information sources (**Item**) and the minimum diagnostic information severity (**Value**) to be considered before committing.",
 	"config.untrackedChangesSoftDelete": "Controls whether discarding untracked changes moves the file(s) to the Recycle Bin (Windows), Trash (macOS, Linux) instead of deleting them.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",

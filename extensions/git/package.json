@@ -3300,7 +3300,7 @@
         },
         "git.diagnosticsCommitHook.Enabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "%config.diagnosticsCommitHook.Enabled%",
           "scope": "resource"
         },
