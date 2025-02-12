@@ -599,6 +599,17 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		return undefined;
 	}
 
+	getTreeSync(content: string, languageId: string): Parser.Tree | undefined {
+		const language = this.getOrInitLanguage(languageId);
+		const Parser = this._treeSitterImporter.parserClass;
+		if (language && Parser) {
+			const parser = new Parser();
+			parser.setLanguage(language);
+			return parser.parse(content) ?? undefined;
+		}
+		return undefined;
+	}
+
 	/**
 	 * For testing
 	 */

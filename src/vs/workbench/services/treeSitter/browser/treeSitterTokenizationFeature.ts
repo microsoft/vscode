@@ -150,11 +150,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		this._tokenizationStoreService.setTokens(textModel, tokens, TokenQuality.None);
 	}
 
-	private async _parseAndTokenizeViewPortRange(model: ITextModel, range: Range, languageId: LanguageId, startOffsetOfRangeInDocument: number, endOffsetOfRangeInDocument: number) {
+	private _parseAndTokenizeViewPortRange(model: ITextModel, range: Range, languageId: LanguageId, startOffsetOfRangeInDocument: number, endOffsetOfRangeInDocument: number) {
 		const content = model.getValueInRange(range);
 		const likelyRelevantLines = findLikelyRelevantLines(model, range.startLineNumber).likelyRelevantLines;
 		const likelyRelevantPrefix = likelyRelevantLines.join(model.getEOL());
-		const tree = await this._treeSitterService.getTree(`${likelyRelevantPrefix}${content}`, this._languageId);
+		const tree = this._treeSitterService.getTreeSync(`${likelyRelevantPrefix}${content}`, this._languageId);
 		if (!tree) {
 			return;
 		}

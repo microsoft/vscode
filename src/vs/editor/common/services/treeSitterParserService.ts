@@ -38,6 +38,7 @@ export interface ITreeSitterParserService {
 	getOrInitLanguage(languageId: string): Parser.Language | undefined;
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined;
 	getTree(content: string, languageId: string): Promise<Parser.Tree | undefined>;
+	getTreeSync(content: string, languageId: string): Parser.Tree | undefined;
 	onDidUpdateTree: Event<TreeUpdateEvent>;
 	/**
 	 * For testing purposes so that the time to parse can be measured.
@@ -64,6 +65,7 @@ export const ITreeSitterImporter = createDecorator<ITreeSitterImporter>('treeSit
 export interface ITreeSitterImporter {
 	readonly _serviceBrand: undefined;
 	getParserClass(): Promise<typeof Parser.Parser>;
+	readonly parserClass: typeof Parser.Parser | undefined;
 	getLanguageClass(): Promise<typeof Parser.Language>;
 	getQueryClass(): Promise<typeof Parser.Query>;
 }
@@ -79,6 +81,10 @@ export class TreeSitterImporter implements ITreeSitterImporter {
 			this._treeSitterImport = await importAMDNodeModule<typeof import('@vscode/tree-sitter-wasm')>('@vscode/tree-sitter-wasm', 'wasm/tree-sitter.js');
 		}
 		return this._treeSitterImport;
+	}
+
+	get parserClass() {
+		return this._parserClass;
 	}
 
 	private _parserClass: typeof Parser.Parser | undefined;
