@@ -89,7 +89,7 @@ const assertLinks = (
 	);
 };
 
-suite('PromptSyntaxService', () => {
+suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let service: IPromptsService;
@@ -104,8 +104,8 @@ suite('PromptSyntaxService', () => {
 		service = disposables.add(instantiationService.createInstance(PromptsService));
 	});
 
-	suite('getParserFor', () => {
-		test('provides cached parser instance', async () => {
+	suite('• getParserFor', () => {
+		test('• provides cached parser instance', async () => {
 			const langId = 'fooLang';
 
 			/**
@@ -427,7 +427,7 @@ suite('PromptSyntaxService', () => {
 			);
 		});
 
-		test('auto-updated on model changes', async () => {
+		test('• auto-updated on model changes', async () => {
 			const langId = 'bazLang';
 
 			const model = disposables.add(createTextModel(
@@ -495,7 +495,7 @@ suite('PromptSyntaxService', () => {
 			);
 		});
 
-		test('throws if disposed model provided', async function () {
+		test('• throws if disposed model provided', async function () {
 			const model = disposables.add(createTextModel(
 				'test1\ntest2\n\ntest3\t\n',
 				'barLang',
