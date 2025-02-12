@@ -212,12 +212,12 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	): Promise<number> {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
 		// Somehow get the user configuration here and pass this as shellLaunchConfig??
-		const shellEnvSetting: boolean = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting);
-		if (!shellEnvSetting) {
-			shellLaunchConfig.shellIntegrationEnvironmentReporting = false;
-		} else {
-			shellLaunchConfig.shellIntegrationEnvironmentReporting = true;
-		}
+		// const shellEnvSetting: boolean = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting);
+		// if (!shellEnvSetting) {
+		// 	shellLaunchConfig.shellIntegrationEnvironmentReporting = false;
+		// } else {
+		// 	shellLaunchConfig.shellIntegrationEnvironmentReporting = true;
+		// }
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, workspaceId, workspaceName);
 		clearTimeout(timeout);
 		return id;

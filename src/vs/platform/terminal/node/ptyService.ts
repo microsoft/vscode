@@ -289,7 +289,6 @@ export class PtyService extends Disposable implements IPtyService {
 		if (shellLaunchConfig.attachPersistentProcess) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
-		// TODO: How can I check user setting and append to shell launch config here?
 		const id = ++this._lastPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService, this._productService);
 		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {

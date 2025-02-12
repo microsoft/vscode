@@ -18,13 +18,14 @@ bash_major_version=${BASH_VERSINFO[0]}
 __vscode_disable_env_reporting="$VSCODE_DISABLE_ENV_REPORTING"
 unset VSCODE_DISABLE_ENV_REPORTING
 
-__vscode_shell_environment_reporting="$VSCODE_SHELL_ENVIRONMENT_REPORTING"
-unset VSCODE_SHELL_ENVIRONMENT_REPORTING
+__vscode_shell_env_setting="$VSCODE_SHELL_ENV_SETTING"
+unset VSCODE_SHELL_ENV_SETTING
 
-builtin printf 'what is my value for shell env reporting: %s\n' "$__vscode_shell_environment_reporting"
-builtin printf 'that is it \n'
+if [[ "$__vscode_shell_env_setting" = "0" ]]; then
+	# User explicitly opted out of environment reporting
+	__vscode_disable_env_reporting=1
+fi
 
-__vscode_disable_env_via_setting=
 if (( BASH_VERSINFO[0] >= 4 )); then
 	use_associative_array=1
 	# Associative arrays are only available in bash 4.0+
@@ -310,8 +311,8 @@ __trackMissingEnvVars() {
 }
 
 __vsc_update_env() {
-	# Only use shell env API for non-Windows, and Windows with newer conpty-dll
-	if [[ "$__vsc_is_windows" = "0" || "$__vscode_disable_env_reporting" != "1" ]]; then
+	# Only use shell env API for non-Windows, and Windows with newer conpty-dll who have not opted out of setting.
+	if [[ "$__vscode_disable_env_reporting" != "1" ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
 		if [ "$use_associative_array" = 1 ]; then
@@ -344,7 +345,6 @@ __vsc_update_env() {
 				done < <(env)
 				__trackMissingEnvVars
 			fi
-
 
 		fi
 		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce

@@ -87,10 +87,10 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
-	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) { // shellLaunchConfig doesnt have shellIntegrationEnvironmentReporting... But why
-		envMixin['VSCODE_SHELL_ENVIRONMENT_REPORTING'] = '1';
+	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
+		envMixin['VSCODE_SHELL_ENV_SETTING'] = '1';
 	} else {
-		envMixin['VSCODE_SHELL_ENVIRONMENT_REPORTING'] = '0';
+		envMixin['VSCODE_SHELL_ENV_SETTING'] = '0';
 	}
 	// Windows
 	if (isWindows) {

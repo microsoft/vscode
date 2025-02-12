@@ -644,7 +644,7 @@ export interface IShellLaunchConfig {
 	 */
 	tabActions?: ITerminalTabAction[];
 	/**
-	 * Whether to enable environment reporting
+	 * Report terminal's shell environment variables to VS Code and extensions
 	 */
 	shellIntegrationEnvironmentReporting?: boolean;
 }
