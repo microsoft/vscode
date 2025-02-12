@@ -6,11 +6,11 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
-import { ChatInstructionsFileLocator } from './chatInstructionsFileLocator.js';
 import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { PromptFilesLocator } from '../../common/promptSyntax/utils/promptFilesLocator.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
@@ -68,7 +68,7 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	/**
 	 * Helper to locate prompt instruction files on the disk.
 	 */
-	private readonly instructionsFileReader: ChatInstructionsFileLocator;
+	private readonly instructionsFileReader: PromptFilesLocator;
 
 	/**
 	 * List of all prompt instruction attachments.
@@ -171,7 +171,7 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 		super();
 
 		this._onUpdate.fire = this._onUpdate.fire.bind(this._onUpdate);
-		this.instructionsFileReader = initService.createInstance(ChatInstructionsFileLocator);
+		this.instructionsFileReader = initService.createInstance(PromptFilesLocator);
 	}
 
 	/**
