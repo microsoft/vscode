@@ -15,17 +15,9 @@ vsc_env_values=()
 use_associative_array=0
 bash_major_version=${BASH_VERSINFO[0]}
 
-__vscode_disable_env_reporting="$VSCODE_DISABLE_ENV_REPORTING"
-unset VSCODE_DISABLE_ENV_REPORTING
-
 __vscode_shell_env_setting="$VSCODE_SHELL_ENV_SETTING"
 unset VSCODE_SHELL_ENV_SETTING
 
-if [[ "$__vscode_shell_env_setting" = "0" ]]; then
-	# User explicitly opted out of environment reporting.
-	# Stable also disable env reporting.
-	__vscode_disable_env_reporting=1
-fi
 
 if (( BASH_VERSINFO[0] >= 4 )); then
 	use_associative_array=1
@@ -313,7 +305,7 @@ __trackMissingEnvVars() {
 
 __vsc_update_env() {
 	# Only use shell env API for non-Windows, and Windows with newer conpty-dll who have not opted out of setting.
-	if [[ "$__vscode_disable_env_reporting" != "1" ]]; then
+	if [[ "$__vscode_shell_env_setting" == "1" ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
 		if [ "$use_associative_array" = 1 ]; then
