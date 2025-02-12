@@ -510,6 +510,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			}
 		}
 
+		if (this.value.trim().length !== 1 && ghostTextIndex === this.value.trim().length) {
+			return -1;
+		}
 		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
 	}
 
