@@ -39,8 +39,6 @@ export interface IChatEditingService {
 	 */
 	createEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 
-	readonly editingSessionFileLimit: number;
-
 	//#region related files
 
 	hasRelatedFilesProviders(): boolean;
