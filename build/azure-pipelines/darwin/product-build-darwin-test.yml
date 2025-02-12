@@ -7,9 +7,6 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-  - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
 
 steps:
   - script: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
@@ -20,56 +17,30 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
-        - script: ./scripts/test-amd.sh --tfs "Unit Tests"
-          displayName: Run unit tests (Electron) [AMD]
-          timeoutInMinutes: 15
-        - script: npm run test-node-amd
-          displayName: Run unit tests (node.js) [AMD]
-          timeoutInMinutes: 15
-        - script: npm run test-browser-amd-no-install -- --sequential --browser chromium --browser webkit --tfs "Browser Unit Tests"
-          env:
-            DEBUG: "*browser*"
-          displayName: Run unit tests (Browser, Chromium & Webkit) [AMD]
-          timeoutInMinutes: 30
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-        - script: ./scripts/test.sh --tfs "Unit Tests"
-          displayName: Run unit tests (Electron)
-          timeoutInMinutes: 15
-        - script: npm run test-node
-          displayName: Run unit tests (node.js)
-          timeoutInMinutes: 15
-        - script: npm run test-browser-no-install -- --sequential --browser chromium --browser webkit --tfs "Browser Unit Tests"
-          env:
-            DEBUG: "*browser*"
-          displayName: Run unit tests (Browser, Chromium & Webkit)
-          timeoutInMinutes: 30
+      - script: ./scripts/test.sh --tfs "Unit Tests"
+        displayName: Run unit tests (Electron)
+        timeoutInMinutes: 15
+      - script: npm run test-node
+        displayName: Run unit tests (node.js)
+        timeoutInMinutes: 15
+      - script: npm run test-browser-no-install -- --sequential --browser chromium --browser webkit --tfs "Browser Unit Tests"
+        env:
+          DEBUG: "*browser*"
+        displayName: Run unit tests (Browser, Chromium & Webkit)
+        timeoutInMinutes: 30
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
-        - script: ./scripts/test-amd.sh --build --tfs "Unit Tests"
-          displayName: Run unit tests (Electron) [AMD]
-          timeoutInMinutes: 15
-        - script: npm run test-node-amd -- --build
-          displayName: Run unit tests (node.js) [AMD]
-          timeoutInMinutes: 15
-        - script: npm run test-browser-amd-no-install -- --sequential --build --browser chromium --browser webkit --tfs "Browser Unit Tests"
-          env:
-            DEBUG: "*browser*"
-          displayName: Run unit tests (Browser, Chromium & Webkit) [AMD]
-          timeoutInMinutes: 30
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-        - script: ./scripts/test.sh --build --tfs "Unit Tests"
-          displayName: Run unit tests (Electron)
-          timeoutInMinutes: 15
-        - script: npm run test-node -- --build
-          displayName: Run unit tests (node.js)
-          timeoutInMinutes: 15
-        - script: npm run test-browser-no-install -- --sequential --build --browser chromium --browser webkit --tfs "Browser Unit Tests"
-          env:
-            DEBUG: "*browser*"
-          displayName: Run unit tests (Browser, Chromium & Webkit)
-          timeoutInMinutes: 30
+      - script: ./scripts/test.sh --build --tfs "Unit Tests"
+        displayName: Run unit tests (Electron)
+        timeoutInMinutes: 15
+      - script: npm run test-node -- --build
+        displayName: Run unit tests (node.js)
+        timeoutInMinutes: 15
+      - script: npm run test-browser-no-install -- --sequential --build --browser chromium --browser webkit --tfs "Browser Unit Tests"
+        env:
+          DEBUG: "*browser*"
+        displayName: Run unit tests (Browser, Chromium & Webkit)
+        timeoutInMinutes: 30
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - script: |
@@ -90,48 +61,29 @@ steps:
           compile-extension:typescript-language-features \
           compile-extension:vscode-api-tests \
           compile-extension:vscode-colorize-tests \
+          compile-extension:vscode-colorize-perf-tests \
           compile-extension:vscode-test-resolver
       displayName: Build integration tests
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
-        - script: ./scripts/test-integration-amd.sh --tfs "Integration Tests"
-          displayName: Run integration tests (Electron) [AMD]
-          timeoutInMinutes: 20
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-        - script: ./scripts/test-integration --tfs "Integration Tests"
-          displayName: Run integration tests (Electron)
-          timeoutInMinutes: 20
+      - script: ./scripts/test-integration --tfs "Integration Tests"
+        displayName: Run integration tests (Electron)
+        timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
-        - script: |
-            # Figure out the full absolute path of the product we just built
-            # including the remote server and configure the integration tests
-            # to run with these builds instead of running out of sources.
-            set -e
-            APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-            APP_NAME="`ls $APP_ROOT | head -n 1`"
-            INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
-            ./scripts/test-integration-amd.sh --build --tfs "Integration Tests"
-          env:
-            VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
-          displayName: Run integration tests (Electron) [AMD]
-          timeoutInMinutes: 20
-      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-        - script: |
-            # Figure out the full absolute path of the product we just built
-            # including the remote server and configure the integration tests
-            # to run with these builds instead of running out of sources.
-            set -e
-            APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-            APP_NAME="`ls $APP_ROOT | head -n 1`"
-            INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
-            ./scripts/test-integration.sh --build --tfs "Integration Tests"
-          env:
-            VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
-          displayName: Run integration tests (Electron)
-          timeoutInMinutes: 20
+      - script: |
+          # Figure out the full absolute path of the product we just built
+          # including the remote server and configure the integration tests
+          # to run with these builds instead of running out of sources.
+          set -e
+          APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+          APP_NAME="`ls $APP_ROOT | head -n 1`"
+          INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
+          ./scripts/test-integration.sh --build --tfs "Integration Tests"
+        env:
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+        displayName: Run integration tests (Electron)
+        timeoutInMinutes: 20
 
       - script: ./scripts/test-web-integration.sh --browser webkit
         env:

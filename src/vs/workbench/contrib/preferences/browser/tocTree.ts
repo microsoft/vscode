@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { DefaultStyleController, IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
@@ -225,7 +226,7 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 					return e.id;
 				}
 			},
-			styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
+			styleController: id => new DefaultStyleController(domStylesheetsJs.createStyleSheet(container), id),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true,
 			horizontalScrolling: false,

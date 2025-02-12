@@ -14,7 +14,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { isExportableSessionData } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -29,7 +29,7 @@ export function registerChatExportActions() {
 				id: 'workbench.action.chat.export',
 				category: CHAT_CATEGORY,
 				title: localize2('chat.export.label', "Export Chat..."),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 			});
 		}
@@ -70,7 +70,7 @@ export function registerChatExportActions() {
 				id: 'workbench.action.chat.import',
 				title: localize2('chat.import.label', "Import Chat..."),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 			});
 		}

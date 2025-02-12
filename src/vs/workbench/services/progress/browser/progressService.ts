@@ -183,7 +183,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				text,
 				showProgress: options.type || true,
 				ariaLabel: text,
-				tooltip: title,
+				tooltip: stripIcons(title).trim(),
 				command: progressCommand
 			};
 
@@ -315,7 +315,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
-						super('progress.cancel', localize('cancel', "Cancel"), undefined, true);
+						super('progress.cancel', typeof options.cancellable === 'string' ? options.cancellable : localize('cancel', "Cancel"), undefined, true);
 					}
 
 					override async run(): Promise<void> {
@@ -356,7 +356,10 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 
 			// Clear upon dispose
-			Event.once(notification.onDidClose)(() => notificationDisposables.dispose());
+			Event.once(notification.onDidClose)(() => {
+				notificationDisposables.dispose();
+				dispose(windowProgressDisposable);
+			});
 
 			return notification;
 		};
@@ -454,11 +457,6 @@ export class ProgressService extends Disposable implements IProgressService {
 		const progressIndicator = this.viewsService.getViewProgressIndicator(viewId);
 		const promise = progressIndicator ? this.withCompositeProgress(progressIndicator, task, options) : task({ report: () => { } });
 
-		const location = this.viewDescriptorService.getViewLocationById(viewId);
-		if (location !== ViewContainerLocation.Sidebar) {
-			return promise;
-		}
-
 		const viewletId = this.viewDescriptorService.getViewContainerByViewId(viewId)?.id;
 		if (viewletId === undefined) {
 			return promise;
@@ -474,7 +472,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		let activityProgress: IDisposable;
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
-			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), priority: 100 });
+			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => '') });
 			const startTimeVisible = Date.now();
 			const minTimeVisible = 300;
 			activityProgress = {
@@ -564,7 +562,10 @@ export class ProgressService extends Disposable implements IProgressService {
 		const createDialog = (message: string) => {
 			const buttons = options.buttons || [];
 			if (!options.sticky) {
-				buttons.push(options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss"));
+				buttons.push(options.cancellable
+					? (typeof options.cancellable === 'boolean' ? localize('cancel', "Cancel") : options.cancellable)
+					: localize('dismiss', "Dismiss")
+				);
 			}
 
 			dialog = new Dialog(

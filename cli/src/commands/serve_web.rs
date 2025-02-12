@@ -125,7 +125,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		};
 		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
-		let mut listening = format!("Web UI available at http://{}", addr);
+		let mut listening = format!("Web UI available at http://{addr}");
 		if let Some(base) = args.server_base_path {
 			if !base.starts_with('/') {
 				listening.push('/');
@@ -133,7 +133,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 			listening.push_str(&base);
 		}
 		if let Some(ct) = args.connection_token {
-			listening.push_str(&format!("?tkn={}", ct));
+			listening.push_str(&format!("?tkn={ct}"));
 		}
 		ctx.log.result(listening);
 
@@ -223,12 +223,9 @@ fn append_secret_headers(
 	let headers = res.headers_mut();
 	headers.append(
 		hyper::header::SET_COOKIE,
-		format!(
-			"{}={}{}; SameSite=Strict; Path=/",
-			PATH_COOKIE_NAME, base_path, SECRET_KEY_MINT_PATH,
-		)
-		.parse()
-		.unwrap(),
+		format!("{PATH_COOKIE_NAME}={base_path}{SECRET_KEY_MINT_PATH}; SameSite=Strict; Path=/",)
+			.parse()
+			.unwrap(),
 	);
 	headers.append(
 		hyper::header::SET_COOKIE,
@@ -255,6 +252,7 @@ fn get_release_from_path(path: &str, platform: Platform) -> Option<(Release, Str
 
 	let (quality_commit, remaining) = path.split_at(i);
 	let (quality, commit) = quality_commit.split_at(quality_commit_sep);
+	let commit = &commit[1..];
 
 	if !is_commit_hash(commit) {
 		return None;
@@ -445,14 +443,14 @@ mod response {
 	pub fn connection_err(err: hyper::Error) -> Response<Body> {
 		Response::builder()
 			.status(503)
-			.body(Body::from(format!("Error connecting to server: {:?}", err)))
+			.body(Body::from(format!("Error connecting to server: {err:?}")))
 			.unwrap()
 	}
 
 	pub fn code_err(err: CodeError) -> Response<Body> {
 		Response::builder()
 			.status(500)
-			.body(Body::from(format!("Error serving request: {}", err)))
+			.body(Body::from(format!("Error serving request: {err}")))
 			.unwrap()
 	}
 
@@ -550,9 +548,11 @@ impl ConnectionManager {
 			Err(_) => Quality::Stable,
 		});
 
+		let now = Instant::now();
 		let latest_version = tokio::sync::Mutex::new(cache.get().first().map(|latest_commit| {
 			(
-				Instant::now() - Duration::from_secs(RELEASE_CHECK_INTERVAL),
+				now.checked_sub(Duration::from_secs(RELEASE_CHECK_INTERVAL))
+					.unwrap_or(now), // handle 0-ish instants, #233155
 				Release {
 					name: String::from("0.0.0"), // Version information not stored on cache
 					commit: latest_commit.clone(),
@@ -776,14 +776,6 @@ impl ConnectionManager {
 		}
 		if let Some(a) = &args.args.server_data_dir {
 			cmd.arg("--server-data-dir");
-			cmd.arg(a);
-		}
-		if let Some(a) = &args.args.user_data_dir {
-			cmd.arg("--user-data-dir");
-			cmd.arg(a);
-		}
-		if let Some(a) = &args.args.extensions_dir {
-			cmd.arg("--extensions-dir");
 			cmd.arg(a);
 		}
 		if args.args.without_connection_token {

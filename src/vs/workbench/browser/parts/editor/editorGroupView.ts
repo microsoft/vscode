@@ -5,7 +5,7 @@
 
 import './media/editorgroupview.css';
 import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions, TEXT_DIFF_EDITOR_ID } from '../../../common/editor.js';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, TEXT_DIFF_EDITOR_ID } from '../../../common/editor.js';
 import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorContext, ActiveEditorReadonlyContext, ActiveEditorCanRevertContext, ActiveEditorCanToggleReadonlyContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey } from '../../../common/contextkeys.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
@@ -31,10 +31,10 @@ import { EventType as TouchEventType, GestureEvent } from '../../../../base/brow
 import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions } from './editor.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
+import { SubmenuAction } from '../../../../base/common/actions.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions, PrimaryAndSecondaryActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -419,16 +419,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Toolbar actions
 		const containerToolbarMenu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroup, this.scopedContextKeyService));
 		const updateContainerToolbar = () => {
-			const actions: IToolbarActions = { primary: [], secondary: [] };
 
 			// Clear old actions
 			this.containerToolBarMenuDisposable.value = toDisposable(() => containerToolbar.clear());
 
 			// Create new actions
-			createAndFillInActionBarActions(
-				containerToolbarMenu,
-				{ arg: { groupId: this.id }, shouldForwardArgs: true },
-				actions,
+			const actions = getActionBarActions(
+				containerToolbarMenu.getActions({ arg: { groupId: this.id }, shouldForwardArgs: true }),
 				'navigation'
 			);
 
@@ -462,9 +459,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			menuId: MenuId.EmptyEditorGroupContext,
 			contextKeyService: this.contextKeyService,
 			getAnchor: () => anchor,
-			onHide: () => {
-				this.focus();
-			}
+			onHide: () => this.focus()
 		});
 	}
 
@@ -653,7 +648,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		/* __GDPR__
 			"editorOpened" : {
-				"owner": "bpasero",
+				"owner": "isidorn",
 				"${include}": [
 					"${EditorTelemetryDescriptor}"
 				]
@@ -690,7 +685,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		/* __GDPR__
 			"editorClosed" : {
-				"owner": "bpasero",
+				"owner": "isidorn",
 				"${include}": [
 					"${EditorTelemetryDescriptor}"
 				]
@@ -1470,7 +1465,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const options = fillActiveEditorViewState(this, editor, {
 			...openOptions,
 			pinned: true, 																// always pin moved editor
-			sticky: openOptions?.sticky ?? (!keepCopy && this.model.isSticky(editor))	// preserve sticky state only if editor is moved or eplicitly wanted (https://github.com/microsoft/vscode/issues/99035)
+			sticky: openOptions?.sticky ?? (!keepCopy && this.model.isSticky(editor))	// preserve sticky state only if editor is moved or explicitly wanted (https://github.com/microsoft/vscode/issues/99035)
 		});
 
 		// Indicate will move event
@@ -2092,8 +2087,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region Editor Actions
 
 	createEditorActions(disposables: DisposableStore): IActiveEditorActions {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
+		let actions: PrimaryAndSecondaryActions = { primary: [], secondary: [] };
 
 		let onDidChange;
 
@@ -2106,10 +2100,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
-			createAndFillInActionBarActions(
-				editorTitleMenu,
-				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
-				{ primary, secondary },
+			actions = getActionBarActions(
+				editorTitleMenu.getActions({ arg: this.resourceContext.get(), shouldForwardArgs: true }),
 				'navigation',
 				shouldInlineGroup
 			);
@@ -2121,7 +2113,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			disposables.add(this.onDidActiveEditorChange(() => _onDidChange.fire()));
 		}
 
-		return { actions: { primary, secondary }, onDidChange };
+		return { actions, onDidChange };
 	}
 
 	//#endregion

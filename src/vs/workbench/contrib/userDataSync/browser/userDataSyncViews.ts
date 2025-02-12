@@ -697,6 +697,7 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 		inputBox.show();
 		const machines = await this.getMachines();
 		const machine = machines.find(({ id }) => id === machineId);
+		const enabledMachines = machines.filter(({ disabled }) => !disabled);
 		if (!machine) {
 			inputBox.hide();
 			disposableStore.dispose();
@@ -706,7 +707,7 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 		inputBox.value = machine.name;
 		const validateMachineName = (machineName: string): string | null => {
 			machineName = machineName.trim();
-			return machineName && !machines.some(m => m.id !== machineId && m.name === machineName) ? machineName : null;
+			return machineName && !enabledMachines.some(m => m.id !== machineId && m.name === machineName) ? machineName : null;
 		};
 		disposableStore.add(inputBox.onDidChangeValue(() =>
 			inputBox.validationMessage = validateMachineName(inputBox.value) ? '' : localize('valid message', "Machine name should be unique and not empty")));

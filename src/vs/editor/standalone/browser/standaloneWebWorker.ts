@@ -71,7 +71,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 
 	constructor(modelService: IModelService, opts: IWebWorkerOptions) {
 		const workerDescriptor: IWorkerDescriptor = {
-			amdModuleId: standaloneEditorWorkerDescriptor.amdModuleId,
+			moduleId: standaloneEditorWorkerDescriptor.moduleId,
 			esmModuleLocation: standaloneEditorWorkerDescriptor.esmModuleLocation,
 			label: opts.label,
 		};
@@ -113,7 +113,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 						};
 					};
 
-					const foreignProxy = {} as T;
+					const foreignProxy = {} as any as T;
 					for (const foreignMethod of foreignMethods) {
 						(<any>foreignProxy)[foreignMethod] = createProxyMethod(foreignMethod, proxyMethodRequest);
 					}

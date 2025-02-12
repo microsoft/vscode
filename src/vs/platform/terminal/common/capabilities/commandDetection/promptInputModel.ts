@@ -33,8 +33,11 @@ export interface IPromptInputModel extends IPromptInputModelState {
 	/**
 	 * Gets the prompt input as a user-friendly string where `|` is the cursor position and `[` and
 	 * `]` wrap any ghost text.
+	 *
+	 * @param emptyStringWhenEmpty If true, an empty string is returned when the prompt input is
+	 * empty (as opposed to '|').
 	 */
-	getCombinedString(): string;
+	getCombinedString(emptyStringWhenEmpty?: boolean): string;
 }
 
 export interface IPromptInputModelState {
@@ -149,7 +152,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 	}
 
-	getCombinedString(): string {
+	getCombinedString(emptyStringWhenEmpty?: boolean): string {
 		const value = this._value.replaceAll('\n', '\u23CE');
 		if (this._cursorIndex === -1) {
 			return value;
@@ -160,6 +163,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			result += `${value.substring(this.ghostTextIndex)}]`;
 		} else {
 			result += value.substring(this.cursorIndex);
+		}
+		if (result === '|' && emptyStringWhenEmpty) {
+			return '';
 		}
 		return result;
 	}
@@ -426,6 +432,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		if (proceedWithGhostTextCheck) {
 			let potentialGhostIndexOffset = 0;
 			let x = buffer.cursorX;
+			const cursorCell = line.getCell(buffer.cursorX - 1);
+
 			while (x < line.length) {
 				const cell = line.getCell(x++);
 				if (!cell || cell.getCode() === 0) {
@@ -434,12 +442,49 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				if (this._isCellStyledLikeGhostText(cell)) {
 					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
 					break;
+				} else if (!this._cellStylesMatch(cursorCell, cell)) {
+					const ghostTextCell = cell;
+					// Verify that all chars for the rest of the line match this
+					// ghost text style
+					while (x < line.length) {
+						const cell = line.getCell(x++);
+						if (!cell || cell.getCode() === 0) {
+							break;
+						}
+
+						if (!this._cellStylesMatch(ghostTextCell, cell)) {
+							return -1;
+						}
+
+					}
+					ghostTextIndex = cursorIndex + potentialGhostIndexOffset;
+					return ghostTextIndex;
 				}
+
 				potentialGhostIndexOffset += cell.getChars().length;
 			}
 		}
-
 		return ghostTextIndex;
+
+	}
+
+	private _cellStylesMatch(a: IBufferCell | undefined, b: IBufferCell | undefined): boolean {
+		if (!a || !b) {
+			return false;
+		}
+		return a.getFgColor() === b.getFgColor()
+			&& a.getBgColor() === b.getBgColor()
+			&& a.isBold() === b.isBold()
+			&& a.isItalic() === b.isItalic()
+			&& a.isDim() === b.isDim()
+			&& a.isUnderline() === b.isUnderline()
+			&& a.isBlink() === b.isBlink()
+			&& a.isInverse() === b.isInverse()
+			&& a.isInvisible() === b.isInvisible()
+			&& a.isStrikethrough() === b.isStrikethrough()
+			&& a.isOverline() === b.isOverline()
+			&& a?.getBgColorMode() === b?.getBgColorMode()
+			&& a?.getFgColorMode() === b?.getFgColorMode();
 	}
 
 	private _trimContinuationPrompt(lineText: string): string {
@@ -450,17 +495,22 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _lineContainsContinuationPrompt(lineText: string): boolean {
-		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt));
+		return !!(this._continuationPrompt && lineText.startsWith(this._continuationPrompt.trimEnd()));
 	}
 
 	private _getContinuationPromptCellWidth(line: IBufferLine, lineText: string): number {
-		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt)) {
+		if (!this._continuationPrompt || !lineText.startsWith(this._continuationPrompt.trimEnd())) {
 			return 0;
 		}
 		let buffer = '';
 		let x = 0;
+		let cell: IBufferCell | undefined;
 		while (buffer !== this._continuationPrompt) {
-			buffer += line.getCell(x++)!.getChars();
+			cell = line.getCell(x++);
+			if (!cell) {
+				break;
+			}
+			buffer += cell.getChars();
 		}
 		return x;
 	}

@@ -67,6 +67,7 @@ pub struct CodeServerArgs {
 	pub show_versions: bool,
 	pub category: Option<String>,
 	pub pre_release: bool,
+	pub donot_include_pack_and_dependencies: bool,
 	pub force: bool,
 	pub start_server: bool,
 	// connection tokens
@@ -91,21 +92,21 @@ impl CodeServerArgs {
 	pub fn command_arguments(&self) -> Vec<String> {
 		let mut args = Vec::new();
 		if let Some(i) = &self.socket_path {
-			args.push(format!("--socket-path={}", i));
+			args.push(format!("--socket-path={i}"));
 		} else {
 			if let Some(i) = &self.host {
-				args.push(format!("--host={}", i));
+				args.push(format!("--host={i}"));
 			}
 			if let Some(i) = &self.port {
-				args.push(format!("--port={}", i));
+				args.push(format!("--port={i}"));
 			}
 		}
 
 		if let Some(i) = &self.connection_token {
-			args.push(format!("--connection-token={}", i));
+			args.push(format!("--connection-token={i}"));
 		}
 		if let Some(i) = &self.connection_token_file {
-			args.push(format!("--connection-token-file={}", i));
+			args.push(format!("--connection-token-file={i}"));
 		}
 		if self.without_connection_token {
 			args.push(String::from("--without-connection-token"));
@@ -114,14 +115,14 @@ impl CodeServerArgs {
 			args.push(String::from("--accept-server-license-terms"));
 		}
 		if let Some(i) = self.telemetry_level {
-			args.push(format!("--telemetry-level={}", i));
+			args.push(format!("--telemetry-level={i}"));
 		}
 		if let Some(i) = self.log {
-			args.push(format!("--log={}", i));
+			args.push(format!("--log={i}"));
 		}
 
 		for extension in &self.install_extensions {
-			args.push(format!("--install-extension={}", extension));
+			args.push(format!("--install-extension={extension}"));
 		}
 		if !&self.install_extensions.is_empty() {
 			if self.pre_release {
@@ -132,7 +133,7 @@ impl CodeServerArgs {
 			}
 		}
 		for extension in &self.uninstall_extensions {
-			args.push(format!("--uninstall-extension={}", extension));
+			args.push(format!("--uninstall-extension={extension}"));
 		}
 		if self.update_extensions {
 			args.push(String::from("--update-extensions"));
@@ -143,14 +144,14 @@ impl CodeServerArgs {
 				args.push(String::from("--show-versions"));
 			}
 			if let Some(i) = &self.category {
-				args.push(format!("--category={}", i));
+				args.push(format!("--category={i}"));
 			}
 		}
 		if let Some(d) = &self.server_data_dir {
-			args.push(format!("--server-data-dir={}", d));
+			args.push(format!("--server-data-dir={d}"));
 		}
 		if let Some(d) = &self.extensions_dir {
-			args.push(format!("--extensions-dir={}", d));
+			args.push(format!("--extensions-dir={d}"));
 		}
 		if self.start_server {
 			args.push(String::from("--start-server"));
@@ -487,7 +488,7 @@ impl<'a> ServerBuilder<'a> {
 		let mut cmd = self.get_base_command();
 		cmd.arg("--start-server")
 			.arg("--enable-remote-auto-shutdown")
-			.arg(format!("--port={}", port));
+			.arg(format!("--port={port}"));
 
 		let child = self.spawn_server_process(cmd).await?;
 		let log_file = self.get_logfile()?;
@@ -503,7 +504,7 @@ impl<'a> ServerBuilder<'a> {
 			}
 			Ok(Err(s)) => {
 				origin.kill().await;
-				return Err(CodeError::ServerUnexpectedExit(format!("{}", s)).into());
+				return Err(CodeError::ServerUnexpectedExit(format!("{s}")).into());
 			}
 			Ok(Ok(p)) => p,
 		};
@@ -577,7 +578,7 @@ impl<'a> ServerBuilder<'a> {
 			}
 			Ok(Err(s)) => {
 				origin.kill().await;
-				return Err(CodeError::ServerUnexpectedExit(format!("{}", s)).into());
+				return Err(CodeError::ServerUnexpectedExit(format!("{s}")).into());
 			}
 			Ok(Ok(socket)) => socket,
 		};
@@ -616,7 +617,7 @@ impl<'a> ServerBuilder<'a> {
 			.stderr(std::process::Stdio::piped())
 			.stdout(std::process::Stdio::piped())
 			.spawn()
-			.map_err(|e| CodeError::ServerUnexpectedExit(format!("{}", e)))?;
+			.map_err(|e| CodeError::ServerUnexpectedExit(format!("{e}")))?;
 
 		self.server_paths
 			.write_pid(child.id().expect("expected server to have pid"))?;
@@ -677,7 +678,7 @@ where
 				f.write_all(b"\n")?;
 			}
 			if write_directly {
-				println!("{}", line);
+				println!("{line}");
 			} else {
 				trace!(plog, line);
 			}
@@ -732,7 +733,7 @@ where
 }
 
 fn get_extensions_flag(extension_id: &str) -> String {
-	format!("--install-extension={}", extension_id)
+	format!("--install-extension={extension_id}")
 }
 
 /// A type that can be used to scan stdout from the VS Code server. Returns
@@ -829,7 +830,7 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
-	let message = &format!("\nOpen this link in your browser {}\n", addr);
+	let message = &format!("\nOpen this link in your browser {addr}\n");
 	log.result(message);
 }
 

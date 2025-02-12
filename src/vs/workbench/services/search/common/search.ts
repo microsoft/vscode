@@ -46,8 +46,10 @@ export interface ISearchService {
 	readonly _serviceBrand: undefined;
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	aiTextSearch(query: IAITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	getAIName(): Promise<string | undefined>;
 	textSearchSplitSyncAsync(query: ITextQuery, token?: CancellationToken | undefined, onProgress?: ((result: ISearchProgressItem) => void) | undefined, notebookFilesToIgnore?: ResourceSet, asyncNotebookFilesToIgnore?: Promise<ResourceSet>): { syncResults: ISearchComplete; asyncResults: Promise<ISearchComplete> };
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
+	schemeHasFileSearchProvider(scheme: string): boolean;
 	clearCache(cacheKey: string): Promise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
 }
@@ -62,6 +64,7 @@ export const enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
+	getAIName(): Promise<string | undefined>;
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
@@ -152,6 +155,7 @@ export type IRawAITextQuery = IAITextQueryProps<UriComponents>;
 
 export type IRawQuery = IRawTextQuery | IRawFileQuery | IRawAITextQuery;
 export type ISearchQuery = ITextQuery | IFileQuery | IAITextQuery;
+export type ITextSearchQuery = ITextQuery | IAITextQuery;
 
 export const enum QueryType {
 	File = 1,

@@ -22,13 +22,9 @@ import { rtrim } from '../../../base/common/strings.js';
 import { normalizeWatcherPattern } from '../../../platform/files/common/watcher.js';
 
 export interface FileSystemWatcherCreateOptions {
-	readonly correlate: boolean;
-
 	readonly ignoreCreateEvents?: boolean;
 	readonly ignoreChangeEvents?: boolean;
 	readonly ignoreDeleteEvents?: boolean;
-
-	readonly excludes?: string[];
 }
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
@@ -78,7 +74,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		// 1.84.x introduces new proposed API for a watcher to set exclude
 		// rules. In these cases, we turn the file watcher into correlation
 		// mode and ignore any event that does not match the correlation ID.
-		const excludeUncorrelatedEvents = options.correlate;
+		//
+		// Update (Feb 2025): proposal is discontinued, so the previous
+		// `options.correlate` is always `false`.
+		const excludeUncorrelatedEvents = false;
 
 		const subscription = dispatcher(events => {
 			if (typeof events.session === 'number' && events.session !== this.session) {
@@ -115,7 +114,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			}
 		});
 
-		this._disposable = Disposable.from(this.ensureWatching(mainContext, workspace, configuration, extension, globPattern, options, options.correlate), this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
+		this._disposable = Disposable.from(this.ensureWatching(mainContext, workspace, configuration, extension, globPattern, options, false), this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
 	}
 
 	private ensureWatching(mainContext: IMainContext, workspace: IExtHostWorkspace, configuration: ExtHostConfigProvider, extension: IExtensionDescription, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions, correlate: boolean | undefined): Disposable {
@@ -136,7 +135,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		const excludes = options.excludes ?? [];
+		const excludes = [];
 		let includes: Array<string | IRelativePattern> | undefined = undefined;
 		let filter: FileChangeFilter | undefined;
 
@@ -166,7 +165,8 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			// recursively to give users a chance to configure exclude rules
 			// for reducing the overhead of watching recursively
 			if (recursive && excludes.length === 0) {
-				const watcherExcludes = configuration.getConfiguration().get<IGlobPatterns>('files.watcherExclude');
+				const workspaceFolder = workspace.getWorkspaceFolder(URI.revive(globPattern.baseUri));
+				const watcherExcludes = configuration.getConfiguration('files', workspaceFolder).get<IGlobPatterns>('watcherExclude');
 				if (watcherExcludes) {
 					for (const key in watcherExcludes) {
 						if (key && watcherExcludes[key] === true) {
@@ -188,9 +188,9 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			// `bar` unless a suffix of `/**` if added.
 			// (https://github.com/microsoft/vscode/issues/148245)
 			else if (!recursive) {
-				const workspaceUri = workspace.getWorkspaceFolder(URI.revive(globPattern.baseUri))?.uri;
-				if (workspaceUri) {
-					const watcherExcludes = configuration.getConfiguration().get<IGlobPatterns>('files.watcherExclude');
+				const workspaceFolder = workspace.getWorkspaceFolder(URI.revive(globPattern.baseUri));
+				if (workspaceFolder) {
+					const watcherExcludes = configuration.getConfiguration('files', workspaceFolder).get<IGlobPatterns>('watcherExclude');
 					if (watcherExcludes) {
 						for (const key in watcherExcludes) {
 							if (key && watcherExcludes[key] === true) {
@@ -199,7 +199,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 									includes = [];
 								}
 
-								includes.push(normalizeWatcherPattern(workspaceUri.fsPath, includePattern));
+								includes.push(normalizeWatcherPattern(workspaceFolder.uri.fsPath, includePattern));
 							}
 						}
 					}

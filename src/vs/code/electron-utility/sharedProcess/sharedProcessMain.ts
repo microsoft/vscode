@@ -29,7 +29,7 @@ import { DownloadService } from '../../../platform/download/common/downloadServi
 import { INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { GlobalExtensionEnablementService } from '../../../platform/extensionManagement/common/extensionEnablementService.js';
 import { ExtensionGalleryService } from '../../../platform/extensionManagement/common/extensionGalleryService.js';
-import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { IAllowedExtensionsService, IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from '../../../platform/extensionManagement/common/extensionManagementIpc.js';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from '../../../platform/extensionManagement/node/extensionManagementService.js';
@@ -43,7 +43,7 @@ import { InstantiationService } from '../../../platform/instantiation/common/ins
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { ILanguagePackService } from '../../../platform/languagePacks/common/languagePacks.js';
 import { NativeLanguagePackService } from '../../../platform/languagePacks/node/languagePacks.js';
-import { ConsoleLogger, ILoggerService, ILogService } from '../../../platform/log/common/log.js';
+import { ConsoleLogger, ILoggerService, ILogService, LoggerGroup } from '../../../platform/log/common/log.js';
 import { LoggerChannelClient } from '../../../platform/log/common/logIpc.js';
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
@@ -118,6 +118,8 @@ import { getOSReleaseInfo } from '../../../base/node/osReleaseInfo.js';
 import { getDesktopEnvironment } from '../../../base/common/desktopEnvironmentInfo.js';
 import { getCodeDisplayProtocol, getDisplayProtocol } from '../../../base/node/osDisplayProtocolInfo.js';
 import { RequestService } from '../../../platform/request/electron-utility/requestService.js';
+import { DefaultExtensionsInitializer } from './contrib/defaultExtensionsInitializer.js';
+import { AllowedExtensionsService } from '../../../platform/extensionManagement/common/allowedExtensionsService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -160,7 +162,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		instantiationService.invokeFunction(accessor => {
 			const logService = accessor.get(ILogService);
 			const telemetryService = accessor.get(ITelemetryService);
-			const userDataProfilesService = accessor.get(IUserDataProfilesService);
 
 			// Log info
 			logService.trace('sharedProcess configuration', JSON.stringify(this.configuration));
@@ -170,10 +171,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 			// Error handler
 			this.registerErrorHandler(logService);
-
-			// Report Profiles Info
-			this.reportProfilesInfo(telemetryService, userDataProfilesService);
-			this._register(userDataProfilesService.onDidChangeProfiles(() => this.reportProfilesInfo(telemetryService, userDataProfilesService)));
 
 			// Report Client OS/DE Info
 			this.reportClientOSInfo(telemetryService, logService);
@@ -187,7 +184,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
-			instantiationService.createInstance(UserDataProfilesCleaner)
+			instantiationService.createInstance(UserDataProfilesCleaner),
+			instantiationService.createInstance(DefaultExtensionsInitializer)
 		));
 	}
 
@@ -216,7 +214,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(ILoggerService, loggerService);
 
 		// Log
-		const logger = this._register(loggerService.createLogger('sharedprocess', { name: localize('sharedLog', "Shared") }));
+		const sharedLogGroup: LoggerGroup = { id: 'shared', name: localize('sharedLog', "Shared") };
+		const logger = this._register(loggerService.createLogger('sharedprocess', { name: localize('sharedLog', "Shared"), group: sharedLogGroup }));
 		const consoleLogger = this._register(new ConsoleLogger(logger.getLevel()));
 		const logService = this._register(new LogService(logger, [consoleLogger]));
 		services.set(ILogService, logService);
@@ -270,7 +269,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		]);
 
 		// Request
-		const requestService = new RequestService(configurationService, environmentService, logService);
+		const networkLogger = this._register(loggerService.createLogger(`network-shared`, { name: localize('networkk', "Network"), group: sharedLogGroup }));
+		const requestService = new RequestService(configurationService, environmentService, this._register(new LogService(networkLogger)));
 		services.set(IRequestService, requestService);
 
 		// Checksum
@@ -296,7 +296,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const appenders: ITelemetryAppender[] = [];
 		const internalTelemetry = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
-			const logAppender = new TelemetryLogAppender(logService, loggerService, environmentService, productService);
+			const logAppender = new TelemetryLogAppender('', false, loggerService, environmentService, productService);
 			appenders.push(logAppender);
 			if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
 				const collectorAppender = new OneDataSystemAppender(requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
@@ -320,20 +320,14 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(ITelemetryService, telemetryService);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, logService, loggerService, environmentService, productService);
+		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
-
-		if (productService.quality === 'stable') {
-			services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
-		} else {
-			// Do extension signature verification in the main process in insiders
-			services.set(IExtensionSignatureVerificationService, ProxyChannel.toService(mainProcessService.getChannel('signatureVerificationService')));
-		}
-
+		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
+		services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 
 		// Extension Gallery
@@ -453,20 +447,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			}
 
 			logService.error(`[uncaught exception in sharedProcess]: ${message}`);
-		});
-	}
-
-	private reportProfilesInfo(telemetryService: ITelemetryService, userDataProfilesService: IUserDataProfilesService): void {
-		type ProfilesInfoClassification = {
-			owner: 'sandy081';
-			comment: 'Report profiles information';
-			count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of profiles' };
-		};
-		type ProfilesInfoEvent = {
-			count: number;
-		};
-		telemetryService.publicLog2<ProfilesInfoEvent, ProfilesInfoClassification>('profilesInfo', {
-			count: userDataProfilesService.profiles.length
 		});
 	}
 

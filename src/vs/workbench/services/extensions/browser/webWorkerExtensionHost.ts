@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { isESM } from '../../../../base/common/amd.js';
 import { Barrier } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { canceled, onUnexpectedError } from '../../../../base/common/errors.js';
@@ -87,7 +86,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const suffix = `?${suffixSearchParams.toString()}`;
 
-		const iframeModulePath: AppResourcePath = `vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.${isESM ? 'esm.' : ''}html`;
+		const iframeModulePath: AppResourcePath = `vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html`;
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;
@@ -184,13 +183,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
 			}
 			if (event.data.type === 'vscode.bootstrap.nls') {
-				const factoryModuleId = 'vs/base/worker/workerMain.js';
-				const baseUrl = isESM ? undefined : require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length);
 				iframe.contentWindow!.postMessage({
 					type: event.data.type,
 					data: {
-						baseUrl,
-						workerUrl: isESM ? FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorker.esm.js').toString(true) : require.toUrl(factoryModuleId),
+						workerUrl: FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js').toString(true),
 						fileRoot: globalThis._VSCODE_FILE_ROOT,
 						nls: {
 							messages: getNLSMessages(),
@@ -305,7 +301,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appHost: this._productService.embedderIdentifier ?? (platform.isWeb ? 'web' : 'desktop'),
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
-				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument } from '../../../../base/browser/dom.js';
+import { getActiveDocument, getWindow } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as nls from '../../../../nls.js';
@@ -14,9 +14,11 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { useExperimentalEditContext } from '../../../browser/view.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Handler } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
@@ -156,8 +158,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.clipboardCopyWithSyntaxHighlightingAction',
-			label: nls.localize('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy With Syntax Highlighting"),
-			alias: 'Copy With Syntax Highlighting',
+			label: nls.localize2('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy With Syntax Highlighting"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -232,13 +233,31 @@ if (PasteAction) {
 
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
-		if (focusedEditor && focusedEditor.hasTextFocus()) {
+		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
-			const canDoDocumentExecCommand = !focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
-			const result = canDoDocumentExecCommand && focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+			let result: boolean;
+			const usingExperimentalEditContext = useExperimentalEditContext(getWindow(focusedEditor.getDomNode()), focusedEditor.getOptions());
+			if (usingExperimentalEditContext) {
+				// Since we can not call execCommand('paste') on a dom node with edit context set
+				// we added a hidden text area that receives the paste execution
+				// see nativeEditContext.ts for more details
+				const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
+				if (nativeEditContext) {
+					const textArea = nativeEditContext.textArea;
+					nativeEditContext.onWillPaste();
+					textArea.focus();
+					result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+					textArea.domNode.textContent = '';
+					nativeEditContext.domNode.focus();
+				} else {
+					result = false;
+				}
+			} else {
+				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+			}
 			if (result) {
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
-			} else if (platform.isWeb || !canDoDocumentExecCommand) {
+			} else if (platform.isWeb) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();

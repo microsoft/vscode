@@ -80,7 +80,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		importIgnorePattern: /\.css$/,
 		destRoot: path.join(root, 'out-editor-src'),
 		redirects: {
-			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/tree-sitter-web',
+			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter',
 		}
 	});
 });
@@ -89,23 +89,13 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 // Disable NLS task to remove english strings to preserve backwards compatibility when we removed the `vs/nls!` AMD plugin.
 const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true, preserveEnglish: true }));
 
-const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(
+const bundleEditorAMDTask = task.define('bundle-editor-amd', optimize.bundleTask(
 	{
 		out: 'out-editor',
-		amd: {
+		esm: {
 			src: 'out-editor-build',
 			entryPoints: editorEntryPoints,
-			resources: editorResources,
-			loaderConfig: {
-				paths: {
-					'vs': 'out-editor-build/vs',
-					'vs/css': 'out-editor-build/vs/css.build',
-					'vscode': 'empty:'
-				}
-			},
-			header: BUNDLED_FILE_HEADER,
-			bundleInfo: true,
-			languages
+			resources: editorResources
 		}
 	}
 ));
@@ -369,7 +359,7 @@ gulp.task('editor-distro',
 		task.parallel(
 			task.series(
 				compileEditorAMDTask,
-				optimizeEditorAMDTask,
+				bundleEditorAMDTask,
 				minifyEditorAMDTask
 			),
 			task.series(
@@ -421,7 +411,6 @@ function createTscCompileTask(watch) {
 
 			/** @type {NodeJS.ReadWriteStream | undefined} */
 			let report;
-			// eslint-disable-next-line no-control-regex
 			const magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings
 
 			child.stdout.on('data', data => {

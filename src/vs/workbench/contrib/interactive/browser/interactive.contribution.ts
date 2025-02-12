@@ -12,7 +12,6 @@ import { extname, isEqual } from '../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -36,22 +35,21 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { contrastBorder, ifDefinedThenElse, listInactiveSelectionBackground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorExtensions, EditorsOrder, IEditorControl, IEditorFactoryRegistry, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { PANEL_BORDER } from '../../../common/theme.js';
 import { ResourceNotebookCellEdit } from '../../bulkEdit/browser/bulkCellEdits.js';
-import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
+import { ReplEditorSettings, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
 import { IInteractiveDocumentService, InteractiveDocumentService } from './interactiveDocumentService.js';
 import { InteractiveEditor } from './interactiveEditor.js';
 import { InteractiveEditorInput } from './interactiveEditorInput.js';
 import { IInteractiveHistoryService, InteractiveHistoryService } from './interactiveHistoryService.js';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from '../../notebook/browser/controller/coreActions.js';
 import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.js';
-import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
 import * as icons from '../../notebook/browser/notebookIcons.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from '../../notebook/common/notebookCommon.js';
-import { InteractiveWindowOpen } from '../../notebook/common/notebookContextKeys.js';
+import { InteractiveWindowOpen, IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from '../../notebook/common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../notebook/common/notebookKernelService.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
@@ -61,6 +59,9 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
+import { isReplEditorControl, ReplEditorControl } from '../../replNotebook/browser/replEditor.js';
+import { InlineChatController } from '../../inlineChat/browser/inlineChatController.js';
+import { IsLinuxContext, IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
 
 const interactiveWindowCategory: ILocalizedString = localize2('interactiveWindow', "Interactive Window");
 
@@ -265,7 +266,7 @@ class InteractiveWindowWorkingCopyEditorHandler extends Disposable implements IW
 	}
 
 	private _getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
-		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId)?.viewType;
 	}
 }
 
@@ -396,7 +397,7 @@ registerAction2(class extends Action2 {
 				const editorInput = editors[0].editor as InteractiveEditorInput;
 				const currentGroup = editors[0].groupId;
 				const editor = await editorService.openEditor(editorInput, editorOptions, currentGroup);
-				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+				const editorControl = editor?.getControl() as ReplEditorControl;
 
 				return {
 					notebookUri: editorInput.resource,
@@ -437,7 +438,7 @@ registerAction2(class extends Action2 {
 		historyService.clearHistory(notebookUri);
 		const editorInput: IUntypedEditorInput = { resource: notebookUri, options: editorOptions };
 		const editorPane = await editorService.openEditor(editorInput, group);
-		const editorControl = editorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		const editorControl = editorPane?.getControl() as ReplEditorControl;
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		logService.debug('New interactive window opened. Notebook editor id', editorControl?.notebookEditor?.getId());
 		return { notebookUri, inputUri, notebookEditorId: editorControl?.notebookEditor?.getId() };
@@ -452,11 +453,15 @@ registerAction2(class extends Action2 {
 			category: interactiveWindowCategory,
 			keybinding: [{
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
-				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
+				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
+				),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
 				),
@@ -464,6 +469,7 @@ registerAction2(class extends Action2 {
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
 				),
@@ -495,35 +501,39 @@ registerAction2(class extends Action2 {
 		const bulkEditService = accessor.get(IBulkEditService);
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const notebookEditorService = accessor.get(INotebookEditorService);
-		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		let editorControl: IEditorControl | undefined;
 		if (context) {
 			const resourceUri = URI.revive(context);
 			const editors = editorService.findEditors(resourceUri);
 			for (const found of editors) {
 				if (found.editor.typeId === InteractiveEditorInput.ID) {
 					const editor = await editorService.openEditor(found.editor, found.groupId);
-					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+					editorControl = editor?.getControl();
 					break;
 				}
 			}
 		}
 		else {
-			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+			editorControl = editorService.activeEditorPane?.getControl();
 		}
 
-
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 			const activeKernel = editorControl.notebookEditor.activeKernel;
 			const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
 
-			if (notebookDocument && textModel) {
+			if (notebookDocument && textModel && editorControl.activeCodeEditor) {
 				const index = notebookDocument.length;
 				const value = textModel.getValue();
 
 				if (isFalsyOrWhitespace(value)) {
 					return;
+				}
+
+				const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
+				if (ctrl) {
+					ctrl.acceptSession();
 				}
 
 				historyService.replaceLast(notebookDocument.uri, value);
@@ -584,15 +594,16 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		const editorControl = editorService.activeEditorPane?.getControl();
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
-			const range = editorControl.codeEditor.getModel()?.getFullModelRange();
+			const editor = editorControl.activeCodeEditor;
+			const range = editor?.getModel()?.getFullModelRange();
 
-			if (notebookDocument && textModel && range) {
-				editorControl.codeEditor.executeEdits('', [EditOperation.replace(range, null)]);
+
+			if (notebookDocument && editor && range) {
+				editor.executeEdits('', [EditOperation.replace(range, null)]);
 			}
 		}
 	}
@@ -605,38 +616,29 @@ registerAction2(class extends Action2 {
 			title: localize2('interactive.history.previous', 'Previous value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
-			keybinding: [{
+			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
 					SuggestContext.Visible.toNegated()
 				),
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.WorkbenchContrib
-			}, {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
-				),
-				primary: KeyCode.UpArrow,
-				weight: KeybindingWeight.WorkbenchContrib
-			}]
+			},
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const historyService = accessor.get(IInteractiveHistoryService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		const editorControl = editorService.activeEditorPane?.getControl();
 
 
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 
 			if (notebookDocument && textModel) {
 				const previousValue = historyService.getPreviousValue(notebookDocument.uri);
@@ -655,36 +657,27 @@ registerAction2(class extends Action2 {
 			title: localize2('interactive.history.next', 'Next value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
-			keybinding: [{
+			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
 					SuggestContext.Visible.toNegated()
 				),
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib
-			}, {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
-				),
-				primary: KeyCode.DownArrow,
-				weight: KeybindingWeight.WorkbenchContrib
-			}],
+			},
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const historyService = accessor.get(IInteractiveHistoryService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		const editorControl = editorService.activeEditorPane?.getControl();
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 
 			if (notebookDocument && textModel) {
 				const nextValue = historyService.getNextValue(notebookDocument.uri);
@@ -714,9 +707,9 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		const editorControl = editorService.activeEditorPane?.getControl();
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			if (editorControl.notebookEditor.getLength() === 0) {
 				return;
 			}
@@ -743,9 +736,9 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		const editorControl = editorService.activeEditorPane?.getControl();
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			if (editorControl.notebookEditor.getLength() === 0) {
 				return;
 			}
@@ -764,17 +757,16 @@ registerAction2(class extends Action2 {
 			category: interactiveWindowCategory,
 			menu: {
 				id: MenuId.CommandPalette,
-				when: InteractiveWindowOpen,
+				when: InteractiveWindowOpen
 			},
-			precondition: InteractiveWindowOpen,
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		const editorControl = editorService.activeEditorPane?.getControl();
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			editorService.activeEditorPane?.focus();
 		}
 		else {
@@ -785,9 +777,9 @@ registerAction2(class extends Action2 {
 				const editorInput = interactiveWindow.editor as InteractiveEditorInput;
 				const currentGroup = interactiveWindow.groupId;
 				const editor = await editorService.openEditor(editorInput, currentGroup);
-				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+				const editorControl = editor?.getControl();
 
-				if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+				if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 					editorService.activeEditorPane?.focus();
 				}
 			}
@@ -805,15 +797,28 @@ registerAction2(class extends Action2 {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 			},
-			precondition: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
+			keybinding: [{
+				// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
+				when: ContextKeyExpr.and(
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none')),
+				weight: KeybindingWeight.WorkbenchContrib + 5,
+				primary: KeyMod.CtrlCmd | KeyCode.UpArrow
+			},
+			{
+				when: ContextKeyExpr.or(IsWindowsContext, IsLinuxContext),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+			}],
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget; focusHistory: () => void } | undefined;
+		const editorControl = editorService.activeEditorPane?.getControl();
 
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			editorControl.notebookEditor.focus();
 		}
 	}
@@ -839,7 +844,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	order: 100,
 	type: 'object',
 	'properties': {
-		[InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell]: {
+		[ReplEditorSettings.interactiveWindowAlwaysScrollOnNewCell]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
@@ -849,13 +854,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			markdownDescription: localize('interactiveWindow.promptToSaveOnClose', "Prompt to save the interactive window when it is closed. Only new interactive windows will be affected by this setting change.")
 		},
-		[InteractiveWindowSetting.executeWithShiftEnter]: {
+		[ReplEditorSettings.executeWithShiftEnter]: {
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the Interactive Window (REPL) input box with shift+enter, so that enter can be used to create a newline."),
 			tags: ['replExecute']
 		},
-		[InteractiveWindowSetting.showExecutionHint]: {
+		[ReplEditorSettings.showExecutionHint]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.showExecutionHint', "Display a hint in the Interactive Window (REPL) input box to indicate how to execute code."),

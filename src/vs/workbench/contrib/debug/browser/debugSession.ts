@@ -51,6 +51,7 @@ const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
 export class DebugSession implements IDebugSession, IDisposable {
 	parentSession: IDebugSession | undefined;
+	rememberedCapabilities?: DebugProtocol.Capabilities;
 
 	private _subId: string | undefined;
 	raw: RawDebugSession | undefined; // used in tests
@@ -369,6 +370,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 			this.initialized = true;
 			this._onDidChangeState.fire();
+			this.rememberedCapabilities = this.raw.capabilities;
 			this.debugService.setExceptionBreakpointsForSession(this, (this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
 			this.debugService.getModel().registerBreakpointModes(this.configuration.type, this.raw.capabilities.breakpointModes || []);
 		} catch (err) {
@@ -851,7 +853,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 	}
 
-	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined> {
+	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'completions')));
 		}

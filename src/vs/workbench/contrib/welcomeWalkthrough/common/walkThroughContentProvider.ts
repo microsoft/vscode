@@ -46,20 +46,7 @@ export async function moduleToContent(instantiationService: IInstantiationServic
 
 	const provider = walkThroughContentRegistry.getProvider(query.moduleId);
 	if (!provider) {
-		// ESM-comment-begin
-		// return new Promise<string>((resolve, reject) => {
-		// require([query.moduleId], content => {
-		// try {
-		// resolve(instantiationService.invokeFunction(content.default));
-		// } catch (err) {
-		// reject(err);
-		// }
-		// });
-		// });
-		// ESM-comment-end
-		// ESM-uncomment-begin
 		throw new Error(`Walkthrough: no provider registered for ${query.moduleId}`);
-		// ESM-uncomment-end
 	}
 
 	return instantiationService.invokeFunction(provider);

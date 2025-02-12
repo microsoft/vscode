@@ -52,10 +52,13 @@ export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData
 	if ('cell' in options) {
 		const cell = options.cell;
 		const metadata = {
+			execution_count: null,
 			// it contains the cell id, and the cell metadata, along with other nb cell metadata
 			...(cell.metadata ?? {})
-		};
-
+		} satisfies CellMetadata;
+		if (cell.kind === NotebookCellKindMarkup) {
+			delete (metadata as any).execution_count;
+		}
 		return metadata;
 	} else {
 		const cell = options;
@@ -64,7 +67,7 @@ export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData
 			...(cell.metadata ?? {})
 		};
 
-		return metadata;
+		return metadata as CellMetadata;
 	}
 }
 
@@ -379,10 +382,10 @@ export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbfo
 
 export function pruneCell(cell: nbformat.ICell): nbformat.ICell {
 	// Source is usually a single string on input. Convert back to an array
-	const result = {
+	const result: nbformat.ICell = {
 		...cell,
 		source: splitMultilineString(cell.source)
-	} as nbformat.ICell;
+	};
 
 	// Remove outputs and execution_count from non code cells
 	if (result.cell_type !== 'code') {

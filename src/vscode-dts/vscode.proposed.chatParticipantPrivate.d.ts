@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
+// version: 3
 
 declare module 'vscode' {
 
@@ -26,7 +26,11 @@ declare module 'vscode' {
 		/**
 		 * Code editor inline chat
 		 */
-		Editor = 4
+		Editor = 4,
+		/**
+		 * Chat is happening in an editing session
+		 */
+		EditingSession = 5,
 	}
 
 	export class ChatRequestEditorData {
@@ -77,11 +81,6 @@ declare module 'vscode' {
 
 	export interface ChatParticipant {
 		supportIssueReporting?: boolean;
-
-		/**
-		 * Temp, support references that are slow to resolve and should be tools rather than references.
-		 */
-		supportsSlowReferences?: boolean;
 	}
 
 	export interface ChatErrorDetails {
@@ -89,6 +88,8 @@ declare module 'vscode' {
 		 * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
 		 */
 		responseIsRedacted?: boolean;
+
+		isQuotaExceeded?: boolean;
 	}
 
 	export namespace chat {
@@ -104,4 +105,44 @@ declare module 'vscode' {
 		description?: string;
 		fullName?: string;
 	}
+
+	export namespace lm {
+		export function registerIgnoredFileProvider(provider: LanguageModelIgnoredFileProvider): Disposable;
+	}
+
+	export interface LanguageModelIgnoredFileProvider {
+		provideFileIgnored(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
+	}
+
+	export interface LanguageModelToolInvocationOptions<T> {
+		chatRequestId?: string;
+	}
+
+	export interface PreparedToolInvocation {
+		pastTenseMessage?: string | MarkdownString;
+		tooltip?: string | MarkdownString;
+	}
+
+	// #region Chat participant detection
+
+	export interface ChatParticipantMetadata {
+		participant: string;
+		command?: string;
+		disambiguation: { category: string; description: string; examples: string[] }[];
+	}
+
+	export interface ChatParticipantDetectionResult {
+		participant: string;
+		command?: string;
+	}
+
+	export interface ChatParticipantDetectionProvider {
+		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
+	}
+
+	export namespace chat {
+		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
+	}
+
+	// #endregion
 }

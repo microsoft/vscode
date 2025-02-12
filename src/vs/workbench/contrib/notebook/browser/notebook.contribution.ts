@@ -70,6 +70,7 @@ import './controller/cellOutputActions.js';
 import './controller/apiActions.js';
 import './controller/foldingController.js';
 import './controller/chat/notebook.chat.contribution.js';
+import './controller/variablesActions.js';
 
 // Editor Contribution
 import './contrib/editorHint/emptyCellEditorHint.js';
@@ -98,9 +99,14 @@ import './contrib/execute/executionEditorProgress.js';
 import './contrib/kernelDetection/notebookKernelDetection.js';
 import './contrib/cellDiagnostics/cellDiagnostics.js';
 import './contrib/multicursor/notebookMulticursor.js';
+import './contrib/multicursor/notebookSelectionHighlight.js';
+import './contrib/notebookVariables/notebookInlineVariables.js';
 
 // Diff Editor Contribution
 import './diff/notebookDiffActions.js';
+
+// Chat Edit Contributions
+import './contrib/chatEdit/notebookChatEditController.js';
 
 // Services
 import { editorOptionsRegistry } from '../../../../editor/common/config/editorOptions.js';
@@ -129,6 +135,8 @@ import { NotebookMultiDiffEditorInput } from './diff/notebookMultiDiffEditorInpu
 import { getFormattedMetadataJSON } from '../common/model/notebookCellTextModel.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './viewModel/notebookOutlineEntryFactory.js';
 import { getFormattedNotebookMetadataJSON } from '../common/model/notebookMetadataTextModel.js';
+import { INotebookSynchronizerService } from '../common/notebookSynchronizerService.js';
+import { NotebookSynchronizerService } from './contrib/chatEdit/notebookSynchronizerService.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -445,7 +453,7 @@ class CellInfoContentProvider {
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
 				const cellIndex = ref.object.notebook.cells.indexOf(cell);
-				const metadataSource = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
+				const metadataSource = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language, true);
 				result = this._modelService.createModel(
 					metadataSource,
 					mode,
@@ -453,9 +461,9 @@ class CellInfoContentProvider {
 				);
 				this._disposables.push(disposables.add(ref.object.notebook.onDidChangeContent(e => {
 					if (result && e.rawEvents.some(event => (event.kind === NotebookCellsChangeType.ChangeCellMetadata || event.kind === NotebookCellsChangeType.ChangeCellLanguage) && event.index === cellIndex)) {
-						const value = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
+						const value = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language, true);
 						if (result.getValue() !== value) {
-							result.setValue(getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language));
+							result.setValue(value);
 						}
 					}
 				})));
@@ -785,7 +793,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 
 	private handlesSync(workingCopy: IWorkingCopyIdentifier): string /* viewType */ | undefined {
 		const viewType = this._getViewType(workingCopy);
-		if (!viewType || viewType === 'interactive' || extname(workingCopy.resource) === '.replNotebook') {
+		if (!viewType || viewType === 'interactive') {
 			return undefined;
 		}
 
@@ -810,8 +818,12 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 		this._register(this._workingCopyEditorService.registerHandler(this));
 	}
 
-	private _getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
-		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+	private _getViewType(workingCopy: IWorkingCopyIdentifier) {
+		const notebookType = NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+		if (notebookType && notebookType.viewType === notebookType.notebookType) {
+			return notebookType?.viewType;
+		}
+		return undefined;
 	}
 }
 
@@ -870,6 +882,7 @@ registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationTy
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
 registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, InstantiationType.Delayed);
+registerSingleton(INotebookSynchronizerService, NotebookSynchronizerService, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
@@ -947,6 +960,16 @@ configurationRegistry.registerConfiguration({
 				nls.localize('notebook.showCellStatusbar.visible.description', "The cell Status bar is always visible."),
 				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell Status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
 			default: 'visible',
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.cellExecutionTimeVerbosity]: {
+			description: nls.localize('notebook.cellExecutionTimeVerbosity.description', "Controls the verbosity of the cell execution time in the cell status bar."),
+			type: 'string',
+			enum: ['default', 'verbose'],
+			enumDescriptions: [
+				nls.localize('notebook.cellExecutionTimeVerbosity.default.description', "The cell execution duration is visible, with advanced information in the hover tooltip."),
+				nls.localize('notebook.cellExecutionTimeVerbosity.verbose.description', "The cell last execution timestamp and duration are visible, with advanced information in the hover tooltip.")],
+			default: 'default',
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.textDiffEditorPreview]: {
@@ -1136,7 +1159,7 @@ configurationRegistry.registerConfiguration({
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
 		},
 		[NotebookSetting.formatOnSave]: {
-			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
+			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available and the editor must not be shutting down. When {0} is set to `afterDelay`, the file will only be formatted when saved explicitly.", '`#files.autoSave#`'),
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
@@ -1206,11 +1229,15 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.cellGenerate]: {
 			markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline chat enabled."),
 			type: 'boolean',
-			default: typeof product.quality === 'string' && product.quality !== 'stable',
-			tags: ['experimental']
+			default: true
 		},
 		[NotebookSetting.notebookVariablesView]: {
 			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
+			type: 'boolean',
+			default: false
+		},
+		[NotebookSetting.notebookInlineValues]: {
+			markdownDescription: nls.localize('notebook.inlineValues.description', "Enable the showing of inline values within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared via the Clear All Outputs toolbar button or the `Notebook: Clear Inline Values` command. "),
 			type: 'boolean',
 			default: false
 		},
@@ -1223,6 +1250,17 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.backup.sizeLimit', "The limit of notebook output size in kilobytes (KB) where notebook files will no longer be backed up for hot reload. Use 0 for unlimited."),
 			type: 'number',
 			default: 10000
-		}
+		},
+		[NotebookSetting.multiCursor]: {
+			markdownDescription: nls.localize('notebook.multiCursor.enabled', "Experimental. Enables a limited set of multi cursor controls across multiple cells in the notebook editor. Currently supported are core editor actions (typing/cut/copy/paste/composition) and a limited subset of editor commands."),
+			type: 'boolean',
+			default: false
+		},
+		[NotebookSetting.markupFontFamily]: {
+			markdownDescription: nls.localize('notebook.markup.fontFamily', "Controls the font family of rendered markup in notebooks. When left blank, this will fall back to the default workbench font family."),
+			type: 'string',
+			default: '',
+			tags: ['notebookLayout']
+		},
 	}
 });

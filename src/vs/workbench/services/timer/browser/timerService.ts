@@ -37,7 +37,6 @@ export interface IMemoryInfo {
 
 /* __GDPR__FRAGMENT__
 	"IStartupMetrics" : {
-		"version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isLatestVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"didUseCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -49,6 +48,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedLoadMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedRunMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedCrashReporter" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedMainServer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowCreate" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -86,11 +86,6 @@ export interface IMemoryInfo {
 	}
 */
 export interface IStartupMetrics {
-
-	/**
-	 * The version of these metrics.
-	 */
-	readonly version: 2;
 
 	/**
 	 * If this started the main process and renderer or just a renderer (new or reloaded).
@@ -187,6 +182,14 @@ export interface IStartupMetrics {
 		 * * Measured with the `willLoadMainBundle` and `didLoadMainBundle` performance marks.
 		 */
 		readonly ellapsedLoadMainBundle?: number;
+
+		/**
+		 * The time it took to run the main bundle.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `didStartMain` and `didRunMainBundle` performance marks.
+		 */
+		readonly ellapsedRunMainBundle?: number;
 
 		/**
 		 * The time it took to start the crash reporter.
@@ -675,7 +678,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		const info: Writeable<IStartupMetrics> = {
-			version: 2,
+
 			ellapsed: this._marks.getDuration(startMark, 'code/didStartWorkbench'),
 
 			// reflections
@@ -692,6 +695,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedAppReady: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/mainAppReady') : undefined,
 				ellapsedNlsGeneration: initialStartup ? this._marks.getDuration('code/willGenerateNls', 'code/didGenerateNls') : undefined,
 				ellapsedLoadMainBundle: initialStartup ? this._marks.getDuration('code/willLoadMainBundle', 'code/didLoadMainBundle') : undefined,
+				ellapsedRunMainBundle: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/didRunMainBundle') : undefined,
 				ellapsedCrashReporter: initialStartup ? this._marks.getDuration('code/willStartCrashReporter', 'code/didStartCrashReporter') : undefined,
 				ellapsedMainServer: initialStartup ? this._marks.getDuration('code/willStartMainServer', 'code/didStartMainServer') : undefined,
 				ellapsedWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateCodeWindow', 'code/didCreateCodeWindow') : undefined,

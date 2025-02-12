@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IExtensionRecommendations } from '../../../../base/common/product.js';
+import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionGalleryService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -97,6 +99,7 @@ export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutP
 export const ENABLE_LANGUAGE_FILTER = true;
 
 export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
+export const EXTENSION_FETCH_TIMEOUT_MS = 1000;
 
 export type ExtensionToggleData = {
 	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
@@ -134,9 +137,9 @@ export async function getExperimentalExtensionToggleData(extensionGalleryService
 			// Recommend prerelease if not on Stable.
 			const isStable = productService.quality === 'stable';
 			try {
-				const [extension] = await extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
-				if (extension) {
-					recommendedExtensionsGalleryInfo[key] = extension;
+				const extensions = await raceTimeout(extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None), EXTENSION_FETCH_TIMEOUT_MS);
+				if (extensions?.length === 1) {
+					recommendedExtensionsGalleryInfo[key] = extensions[0];
 				} else {
 					// same as network connection fail. we do not want a blank settings page: https://github.com/microsoft/vscode/issues/195722
 					// so instead of returning partial data we return undefined here
@@ -172,3 +175,6 @@ export function compareTwoNullableNumbers(a: number | undefined, b: number | und
 		return 0;
 	}
 }
+
+export const PREVIEW_INDICATOR_DESCRIPTION = localize('previewIndicatorDescription', "Preview setting: this setting controls a new feature that is still under refinement yet ready to use. Feedback is welcome.");
+export const EXPERIMENTAL_INDICATOR_DESCRIPTION = localize('experimentalIndicatorDescription', "Experimental setting: this setting controls a new feature that is actively being developed and may be unstable. It is subject to change or removal.");

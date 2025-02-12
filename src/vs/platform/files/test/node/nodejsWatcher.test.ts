@@ -30,8 +30,6 @@ import { TestParcelWatcher } from './parcelWatcher.test.js';
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-/* eslint-disable local/code-ensure-no-disposables-leak-in-test */
-
 suite.skip('File Watcher (node.js)', function () {
 
 	this.timeout(10000);
@@ -74,7 +72,11 @@ suite.skip('File Watcher (node.js)', function () {
 	setup(async () => {
 		await createWatcher(undefined);
 
-		testDir = URI.file(getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher')).fsPath;
+		// Rule out strange testing conditions by using the realpath
+		// here. for example, on macOS the tmp dir is potentially a
+		// symlink in some of the root folders, which is a rather
+		// unrealisic case for the file watcher.
+		testDir = URI.file(getRandomTestPath(fs.realpathSync(tmpdir()), 'vsctests', 'filewatcher')).fsPath;
 
 		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
@@ -632,7 +634,7 @@ suite.skip('File Watcher (node.js)', function () {
 		await basicCrudTest(filePath, undefined, null, undefined, true);
 	});
 
-	test('watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
+	(isWindows /* Windows: does not seem to report this */ ? test.skip : test)('watch requests support suspend/resume (folder, does not exist in beginning)', async function () {
 		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 
 		const folderPath = join(testDir, 'not-found');

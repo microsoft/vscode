@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './style.js';
-import { localize } from '../../nls.js';
 import { runWhenWindowIdle } from '../../base/browser/dom.js';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { RunOnceScheduler, timeout } from '../../base/common/async.js';
@@ -27,7 +26,6 @@ import { NotificationService } from '../services/notification/common/notificatio
 import { NotificationsCenter } from './parts/notifications/notificationsCenter.js';
 import { NotificationsAlerts } from './parts/notifications/notificationsAlerts.js';
 import { NotificationsStatus } from './parts/notifications/notificationsStatus.js';
-import { NotificationsTelemetry } from './parts/notifications/notificationsTelemetry.js';
 import { registerNotificationCommands } from './parts/notifications/notificationsCommands.js';
 import { NotificationsToasts } from './parts/notifications/notificationsToasts.js';
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
@@ -50,7 +48,6 @@ import { AccessibilityProgressSignalScheduler } from '../../platform/accessibili
 import { setProgressAcccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
 import { AccessibleViewRegistry } from '../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NotificationAccessibleView } from './parts/notifications/notificationAccessibleView.js';
-import { isESM } from '../../base/common/amd.js';
 
 export interface IWorkbenchOptions {
 
@@ -98,31 +95,6 @@ export class Workbench extends Layout {
 
 		// Install handler for unexpected errors
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
-
-		// Inform user about loading issues from the loader
-		if (!isESM && typeof mainWindow.require?.config === 'function') {
-			interface AnnotatedLoadingError extends Error {
-				phase: 'loading';
-				moduleId: string;
-				neededBy: string[];
-			}
-			interface AnnotatedFactoryError extends Error {
-				phase: 'factory';
-				moduleId: string;
-			}
-			interface AnnotatedValidationError extends Error {
-				phase: 'configuration';
-			}
-			type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
-			mainWindow.require.config({
-				onError: (err: AnnotatedError) => {
-					if (err.phase === 'loading') {
-						onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
-					}
-					console.error(err);
-				}
-			});
-		}
 	}
 
 	private previousUnexpectedError: { message: string | undefined; time: number } = { message: undefined, time: 0 };
@@ -403,7 +375,6 @@ export class Workbench extends Layout {
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.mainContainer, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
-		this._register(instantiationService.createInstance(NotificationsTelemetry));
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {

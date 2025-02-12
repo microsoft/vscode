@@ -36,6 +36,7 @@ import { ICellRange } from './notebookRange.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { generateMetadataUri, generate as generateUri, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from '../../../services/workingCopy/common/workingCopy.js';
+import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -276,6 +277,12 @@ export interface ICell {
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
 }
 
+export interface INotebookSnapshotOptions {
+	context: SnapshotContext;
+	outputSizeLimit: number;
+	transientOptions?: TransientOptions;
+}
+
 export interface INotebookTextModel extends INotebookTextModelLike {
 	readonly notebookType: string;
 	readonly viewType: string;
@@ -286,6 +293,8 @@ export interface INotebookTextModel extends INotebookTextModelLike {
 	readonly length: number;
 	readonly cells: readonly ICell[];
 	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void;
+	createSnapshot(options: INotebookSnapshotOptions): NotebookData;
+	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void;
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo?: boolean): boolean;
 	onDidChangeContent: Event<NotebookTextModelChangedEvent>;
 	onWillDispose: Event<void>;
@@ -814,6 +823,7 @@ export interface INotebookLoadOptions {
 export type NotebookEditorModelCreationOptions = {
 	limits?: IFileReadLimits;
 	scratchpad?: boolean;
+	viewType?: string;
 };
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
@@ -843,8 +853,8 @@ export interface INotebookEditorModel extends IDisposable {
 }
 
 export interface INotebookDiffEditorModel extends IDisposable {
-	original: IResolvedNotebookEditorModel;
-	modified: IResolvedNotebookEditorModel;
+	original: { notebook: NotebookTextModel; resource: URI; viewType: string };
+	modified: { notebook: NotebookTextModel; resource: URI; viewType: string };
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
@@ -968,6 +978,7 @@ export const NotebookSetting = {
 	cellToolbarLocation: 'notebook.cellToolbarLocation',
 	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
 	showCellStatusBar: 'notebook.showCellStatusBar',
+	cellExecutionTimeVerbosity: 'notebook.cellExecutionTimeVerbosity',
 	textDiffEditorPreview: 'notebook.diff.enablePreview',
 	diffOverviewRuler: 'notebook.diff.overviewRuler',
 	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
@@ -1017,10 +1028,13 @@ export const NotebookSetting = {
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	cellChat: 'notebook.experimental.cellChat',
 	cellGenerate: 'notebook.experimental.generate',
-	notebookVariablesView: 'notebook.experimental.variablesView',
+	notebookVariablesView: 'notebook.variablesView',
+	notebookInlineValues: 'notebook.inlineValues',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
+	multiCursor: 'notebook.multiCursor.enabled',
+	markupFontFamily: 'notebook.markup.fontFamily',
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -1032,13 +1046,16 @@ export class NotebookWorkingCopyTypeIdentifier {
 
 	private static _prefix = 'notebook/';
 
-	static create(viewType: string): string {
-		return `${NotebookWorkingCopyTypeIdentifier._prefix}${viewType}`;
+	static create(notebookType: string, viewType?: string): string {
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}${notebookType}/${viewType ?? notebookType}`;
 	}
 
-	static parse(candidate: string): string | undefined {
+	static parse(candidate: string): { notebookType: string; viewType: string } | undefined {
 		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
-			return candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length);
+			const split = candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length).split('/');
+			if (split.length === 2) {
+				return { notebookType: split[0], viewType: split[1] };
+			}
 		}
 		return undefined;
 	}

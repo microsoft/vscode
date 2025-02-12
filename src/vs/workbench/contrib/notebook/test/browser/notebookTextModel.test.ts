@@ -8,6 +8,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../../editor/common/core/position.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
@@ -1182,6 +1183,25 @@ suite('NotebookTextModel', () => {
 		});
 	});
 
+	test('computeEdits cell content changed while executing', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: {} },
+				{ source: 'var b = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: {} }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells, [model.cells[1].handle]);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) }
+			]);
+		});
+	});
+
 	test('computeEdits cell internal metadata changed', async function () {
 		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}],
@@ -1196,6 +1216,25 @@ suite('NotebookTextModel', () => {
 
 			assert.deepStrictEqual(edits, [
 				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
+				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits cell internal metadata changed while executing', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: {} },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: {}, internalMetadata: { executionOrder: 1 } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells, [model.cells[1].handle]);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
 				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
 			]);
 		});
@@ -1416,31 +1455,31 @@ suite('NotebookTextModel', () => {
 				const notebookModel = viewModel.notebookDocument;
 
 				// Test case 1: Find 'var' starting from the first cell
-				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: new Position(1, 1) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 1);
 
 				// Test case 2: Find 'b' starting from the second cell
-				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: new Position(1, 1) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 3: Find 'c' starting from the third cell
-				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: new Position(1, 1) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 4: Find 'd' starting from the fourth cell
-				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: new Position(1, 1) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 5: No match found
-				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: new Position(1, 1) }, false, false, null);
 				assert.strictEqual(findMatch, null);
 			}
 		);
@@ -1458,52 +1497,52 @@ suite('NotebookTextModel', () => {
 				const notebookModel = viewModel.notebookDocument;
 
 				// Test case 1: Find 'var' starting from the first cell
-				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: new Position(1, 1) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 1);
 
 				// Test case 2: Find 'b' starting from the second cell
-				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: new Position(1, 1) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 3: Find 'c' starting from the third cell
-				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: new Position(1, 1) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 4: Find 'd' starting from the fourth cell
-				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: new Position(1, 1) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 5);
 
 				// Test case 5: No match found
-				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: new Position(1, 1) }, false, false, null);
 				assert.strictEqual(findMatch, null);
 
 				// Test case 6: Same keywords in the same cell
-				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: new Position(1, 1) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 1);
 
-				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 5 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: new Position(1, 5) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 12);
 
 				// Test case 7: Search from the middle of a cell with keyword before and after
-				findMatch = notebookModel.findNextMatch('a', { cellIndex: 0, position: { lineNumber: 1, column: 10 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('a', { cellIndex: 0, position: new Position(1, 10) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 13);
 
 				// Test case 8: Search from a cell and next match is in another cell below
-				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 20 } }, false, false, null);
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: new Position(1, 20) }, false, false, null);
 				assert.ok(findMatch);
 				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
 				assert.strictEqual(findMatch!.match.range.startColumn, 1);

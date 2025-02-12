@@ -163,6 +163,7 @@ suite('ExtensionService', () => {
 				}
 			};
 			super(
+				{ allowRemoteExtensionsInLocalWebWorker: false, hasLocalProcess: true },
 				extensionsProposedApi,
 				extensionHostFactory,
 				null!,
@@ -209,7 +210,7 @@ suite('ExtensionService', () => {
 				}
 			};
 		}
-		protected _resolveExtensions(): Promise<ResolvedExtensions> {
+		protected _resolveExtensions(): AsyncIterable<ResolvedExtensions> {
 			throw new Error('Method not implemented.');
 		}
 		protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {

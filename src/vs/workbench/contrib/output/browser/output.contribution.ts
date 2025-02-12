@@ -10,7 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OutputService } from './outputServices.js';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from '../../../services/output/common/output.js';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, isSingleSourceOutputChannelDescriptor } from '../../../services/output/common/output.js';
 import { OutputViewPane } from './outputView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -22,13 +22,11 @@ import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContaine
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from '../../../services/editor/common/editorService.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
 import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
@@ -37,6 +35,14 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
+import { ViewAction } from '../../../browser/parts/views/viewPane.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { basename } from '../../../../base/common/resources.js';
+
+const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -72,7 +78,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	name: nls.localize2('output', "Output"),
 	containerIcon: outputViewIcon,
 	canMoveView: true,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
 	openCommandActionDescriptor: {
 		id: 'workbench.action.output.toggleOutput',
@@ -91,7 +97,6 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IOutputService private readonly outputService: IOutputService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IFilesConfigurationService private readonly fileConfigurationService: IFilesConfigurationService,
 	) {
 		super();
 		this.registerActions();
@@ -99,14 +104,21 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 
 	private registerActions(): void {
 		this.registerSwitchOutputAction();
+		this.registerAddCompoundLogAction();
+		this.registerRemoveLogAction();
 		this.registerShowOutputChannelsAction();
 		this.registerClearOutputAction();
 		this.registerToggleAutoScrollAction();
 		this.registerOpenActiveOutputFileAction();
 		this.registerOpenActiveOutputFileInAuxWindowAction();
+		this.registerSaveActiveOutputAsAction();
 		this.registerShowLogsAction();
 		this.registerOpenLogFileAction();
 		this.registerConfigureActiveOutputLogLevelAction();
+		this.registerLogLevelFilterActions();
+		this.registerClearFilterActions();
+		this.registerExportLogsAction();
+		this.registerImportLogAction();
 	}
 
 	private registerSwitchOutputAction(): void {
@@ -137,7 +149,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		const registerOutputChannels = (channels: IOutputChannelDescriptor[]) => {
 			for (const channel of channels) {
 				const title = channel.label;
-				const group = channel.extensionId ? '0_ext_outputchannels' : '1_core_outputchannels';
+				const group = channel.user ? '2_user_outputchannels' : channel.extensionId ? '0_ext_outputchannels' : '1_core_outputchannels';
 				registeredChannels.set(channel.id, registerAction2(class extends Action2 {
 					constructor() {
 						super({
@@ -165,8 +177,86 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 		}));
 		this._register(outputChannelRegistry.onDidRemoveChannel(e => {
-			registeredChannels.get(e)?.dispose();
-			registeredChannels.delete(e);
+			registeredChannels.get(e.id)?.dispose();
+			registeredChannels.delete(e.id);
+		}));
+	}
+
+	private registerAddCompoundLogAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.output.addCompoundLog',
+					title: nls.localize2('addCompoundLog', "Add Compound Log..."),
+					category: nls.localize2('output', "Output"),
+					f1: true,
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: '2_add',
+					}],
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const outputService = accessor.get(IOutputService);
+				const quickInputService = accessor.get(IQuickInputService);
+
+				const extensionLogs: IOutputChannelDescriptor[] = [], logs: IOutputChannelDescriptor[] = [];
+				for (const channel of outputService.getChannelDescriptors()) {
+					if (channel.log && !channel.user) {
+						if (channel.extensionId) {
+							extensionLogs.push(channel);
+						} else {
+							logs.push(channel);
+						}
+					}
+				}
+				const entries: Array<IOutputChannelDescriptor | IQuickPickSeparator> = [];
+				for (const log of logs.sort((a, b) => a.label.localeCompare(b.label))) {
+					entries.push(log);
+				}
+				if (extensionLogs.length && logs.length) {
+					entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
+				}
+				for (const log of extensionLogs.sort((a, b) => a.label.localeCompare(b.label))) {
+					entries.push(log);
+				}
+				const result = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log"), canPickMany: true });
+				if (result?.length) {
+					outputService.showChannel(outputService.registerCompoundLogChannel(result));
+				}
+			}
+		}));
+	}
+
+	private registerRemoveLogAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.output.remove',
+					title: nls.localize2('removeLog', "Remove Output..."),
+					category: nls.localize2('output', "Output"),
+					f1: true
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const outputService = accessor.get(IOutputService);
+				const quickInputService = accessor.get(IQuickInputService);
+				const notificationService = accessor.get(INotificationService);
+				const entries: Array<IOutputChannelDescriptor> = outputService.getChannelDescriptors().filter(channel => channel.user);
+				if (entries.length === 0) {
+					notificationService.info(nls.localize('nocustumoutput', "No custom outputs to remove."));
+					return;
+				}
+				const result = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log"), canPickMany: true });
+				if (!result?.length) {
+					return;
+				}
+				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+				for (const channel of result) {
+					outputChannelRegistry.removeChannel(channel.id);
+				}
+			}
 		}));
 	}
 
@@ -285,11 +375,10 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						isHiddenByDefault: true
 					}],
 					icon: Codicon.goToFile,
-					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
 			async run(): Promise<void> {
-				that.openActiveOutoutFile();
+				that.openActiveOutput();
 			}
 		}));
 	}
@@ -309,21 +398,46 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						isHiddenByDefault: true
 					}],
 					icon: Codicon.emptyWindow,
-					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
 			async run(): Promise<void> {
-				that.openActiveOutoutFile(AUX_WINDOW_GROUP);
+				that.openActiveOutput(AUX_WINDOW_GROUP);
 			}
 		}));
 	}
 
-	private async openActiveOutoutFile(group?: AUX_WINDOW_GROUP_TYPE): Promise<void> {
-		const fileOutputChannelDescriptor = this.getFileOutputChannelDescriptor();
-		if (fileOutputChannelDescriptor) {
-			await this.fileConfigurationService.updateReadonly(fileOutputChannelDescriptor.file, true);
+	private registerSaveActiveOutputAsAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.saveActiveLogOutputAs`,
+					title: nls.localize2('saveActiveOutputAs', "Save Output As..."),
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: '1_export',
+						order: 1
+					}],
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const outputService = accessor.get(IOutputService);
+				const channel = outputService.getActiveChannel();
+				if (channel) {
+					const descriptor = outputService.getChannelDescriptors().find(c => c.id === channel.id);
+					if (descriptor) {
+						await outputService.saveOutputAs(descriptor);
+					}
+				}
+			}
+		}));
+	}
+
+	private async openActiveOutput(group?: AUX_WINDOW_GROUP_TYPE): Promise<void> {
+		const channel = this.outputService.getActiveChannel();
+		if (channel) {
 			await this.editorService.openEditor({
-				resource: fileOutputChannelDescriptor.file,
+				resource: channel.uri,
 				options: {
 					pinned: true,
 				},
@@ -331,19 +445,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private getFileOutputChannelDescriptor(): IFileOutputChannelDescriptor | null {
-		const channel = this.outputService.getActiveChannel();
-		if (channel) {
-			const descriptor = this.outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0];
-			if (descriptor?.file) {
-				return <IFileOutputChannelDescriptor>descriptor;
-			}
-		}
-		return null;
-	}
-
 	private registerConfigureActiveOutputLogLevelAction(): void {
-		const that = this;
 		const logLevelMenu = new MenuId('workbench.output.menu.logLevel');
 		this._register(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 			submenu: logLevelMenu,
@@ -370,11 +472,12 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					});
 				}
 				async run(accessor: ServicesAccessor): Promise<void> {
-					const channel = that.outputService.getActiveChannel();
+					const outputService = accessor.get(IOutputService);
+					const channel = outputService.getActiveChannel();
 					if (channel) {
-						const channelDescriptor = that.outputService.getChannelDescriptor(channel.id);
-						if (channelDescriptor?.log && channelDescriptor.file) {
-							return accessor.get(ILoggerService).setLogLevel(channelDescriptor.file, logLevel);
+						const channelDescriptor = outputService.getChannelDescriptor(channel.id);
+						if (channelDescriptor) {
+							outputService.setLogLevel(channelDescriptor, logLevel);
 						}
 					}
 				}
@@ -402,12 +505,15 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
-				const channel = that.outputService.getActiveChannel();
+				const outputService = accessor.get(IOutputService);
+				const loggerService = accessor.get(ILoggerService);
+				const defaultLogLevelsService = accessor.get(IDefaultLogLevelsService);
+				const channel = outputService.getActiveChannel();
 				if (channel) {
-					const channelDescriptor = that.outputService.getChannelDescriptor(channel.id);
-					if (channelDescriptor?.log && channelDescriptor.file) {
-						const logLevel = accessor.get(ILoggerService).getLogLevel(channelDescriptor.file);
-						return await accessor.get(IDefaultLogLevelsService).setDefaultLogLevel(logLevel, channelDescriptor.extensionId);
+					const channelDescriptor = outputService.getChannelDescriptor(channel.id);
+					if (channelDescriptor && isSingleSourceOutputChannelDescriptor(channelDescriptor)) {
+						const logLevel = loggerService.getLogLevel(channelDescriptor.source.resource);
+						return await defaultLogLevelsService.setDefaultLogLevel(logLevel, channelDescriptor.extensionId);
 					}
 				}
 			}
@@ -458,14 +564,11 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerOpenLogFileAction(): void {
-		interface IOutputChannelQuickPickItem extends IQuickPickItem {
-			channel: IOutputChannelDescriptor;
-		}
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openLogFile',
-					title: nls.localize2('openLogFile', "Open Log File..."),
+					title: nls.localize2('openLogFile', "Open Log..."),
 					category: Categories.Developer,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -486,15 +589,13 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				const outputService = accessor.get(IOutputService);
 				const quickInputService = accessor.get(IQuickInputService);
 				const editorService = accessor.get(IEditorService);
-				const fileConfigurationService = accessor.get(IFilesConfigurationService);
-
-				let entry: IOutputChannelQuickPickItem | undefined;
+				let entry: IQuickPickItem | undefined;
 				const argName = args && typeof args === 'string' ? args : undefined;
-				const extensionChannels: IOutputChannelQuickPickItem[] = [];
-				const coreChannels: IOutputChannelQuickPickItem[] = [];
+				const extensionChannels: IQuickPickItem[] = [];
+				const coreChannels: IQuickPickItem[] = [];
 				for (const c of outputService.getChannelDescriptors()) {
-					if (c.file && c.log) {
-						const e = { id: c.id, label: c.label, channel: c };
+					if (c.log) {
+						const e = { id: c.id, label: c.label };
 						if (c.extensionId) {
 							extensionChannels.push(e);
 						} else {
@@ -511,22 +612,199 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						entries.push({ type: 'separator' });
 						entries.push(...coreChannels.sort((a, b) => a.label.localeCompare(b.label)));
 					}
-					entry = <IOutputChannelQuickPickItem | undefined>await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log File") });
+					entry = <IQuickPickItem | undefined>await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log File") });
 				}
-				if (entry) {
-					const resource = assertIsDefined(entry.channel.file);
-					await fileConfigurationService.updateReadonly(resource, true);
-					await editorService.openEditor({
-						resource,
-						options: {
-							pinned: true,
-						}
-					});
+				if (entry?.id) {
+					const channel = outputService.getChannel(entry.id);
+					if (channel) {
+						await editorService.openEditor({
+							resource: channel.uri,
+							options: {
+								pinned: true,
+							}
+						});
+					}
 				}
 			}
 		}));
 	}
 
+	private registerLogLevelFilterActions(): void {
+		let order = 0;
+		const registerLogLevel = (logLevel: LogLevel, toggled: ContextKeyExpression) => {
+			this._register(registerAction2(class extends ViewAction<OutputViewPane> {
+				constructor() {
+					super({
+						id: `workbench.actions.${OUTPUT_VIEW_ID}.toggle.${LogLevelToString(logLevel)}`,
+						title: LogLevelToLocalizedString(logLevel).value,
+						metadata: {
+							description: localize2('toggleTraceDescription', "Show or hide {0} messages in the output", LogLevelToString(logLevel))
+						},
+						toggled,
+						menu: {
+							id: viewFilterSubmenu,
+							group: '2_log_filter',
+							when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID), CONTEXT_ACTIVE_LOG_FILE_OUTPUT),
+							order: order++
+						},
+						viewId: OUTPUT_VIEW_ID
+					});
+				}
+				async runInView(serviceAccessor: ServicesAccessor, view: OutputViewPane): Promise<void> {
+					this.toggleLogLevelFilter(serviceAccessor.get(IOutputService), logLevel);
+				}
+				private toggleLogLevelFilter(outputService: IOutputService, logLevel: LogLevel): void {
+					switch (logLevel) {
+						case LogLevel.Trace:
+							outputService.filters.trace = !outputService.filters.trace;
+							break;
+						case LogLevel.Debug:
+							outputService.filters.debug = !outputService.filters.debug;
+							break;
+						case LogLevel.Info:
+							outputService.filters.info = !outputService.filters.info;
+							break;
+						case LogLevel.Warning:
+							outputService.filters.warning = !outputService.filters.warning;
+							break;
+						case LogLevel.Error:
+							outputService.filters.error = !outputService.filters.error;
+							break;
+					}
+				}
+			}));
+		};
+
+		registerLogLevel(LogLevel.Trace, SHOW_TRACE_FILTER_CONTEXT);
+		registerLogLevel(LogLevel.Debug, SHOW_DEBUG_FILTER_CONTEXT);
+		registerLogLevel(LogLevel.Info, SHOW_INFO_FILTER_CONTEXT);
+		registerLogLevel(LogLevel.Warning, SHOW_WARNING_FILTER_CONTEXT);
+		registerLogLevel(LogLevel.Error, SHOW_ERROR_FILTER_CONTEXT);
+	}
+
+	private registerClearFilterActions(): void {
+		this._register(registerAction2(class extends ViewAction<OutputViewPane> {
+			constructor() {
+				super({
+					id: `workbench.actions.${OUTPUT_VIEW_ID}.clearFilterText`,
+					title: localize('clearFiltersText', "Clear filters text"),
+					keybinding: {
+						when: OUTPUT_FILTER_FOCUS_CONTEXT,
+						weight: KeybindingWeight.WorkbenchContrib,
+						primary: KeyCode.Escape
+					},
+					viewId: OUTPUT_VIEW_ID
+				});
+			}
+			async runInView(serviceAccessor: ServicesAccessor, outputView: OutputViewPane): Promise<void> {
+				outputView.clearFilterText();
+			}
+		}));
+	}
+
+	private registerExportLogsAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.exportLogs`,
+					title: nls.localize2('exportLogs', "Export Logs..."),
+					f1: true,
+					category: Categories.Developer,
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: '1_export',
+						order: 2,
+					}],
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const outputService = accessor.get(IOutputService);
+				const quickInputService = accessor.get(IQuickInputService);
+				const extensionLogs: IOutputChannelDescriptor[] = [], logs: IOutputChannelDescriptor[] = [], userLogs: IOutputChannelDescriptor[] = [];
+				for (const channel of outputService.getChannelDescriptors()) {
+					if (channel.log) {
+						if (channel.extensionId) {
+							extensionLogs.push(channel);
+						} else if (channel.user) {
+							userLogs.push(channel);
+						} else {
+							logs.push(channel);
+						}
+					}
+				}
+				const entries: Array<IOutputChannelDescriptor | IQuickPickSeparator> = [];
+				for (const log of logs.sort((a, b) => a.label.localeCompare(b.label))) {
+					entries.push(log);
+				}
+				if (extensionLogs.length && logs.length) {
+					entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
+				}
+				for (const log of extensionLogs.sort((a, b) => a.label.localeCompare(b.label))) {
+					entries.push(log);
+				}
+				if (userLogs.length && (extensionLogs.length || logs.length)) {
+					entries.push({ type: 'separator', label: nls.localize('userLogs', "User Logs") });
+				}
+				for (const log of userLogs.sort((a, b) => a.label.localeCompare(b.label))) {
+					entries.push(log);
+				}
+				const result = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log"), canPickMany: true });
+				if (result?.length) {
+					await outputService.saveOutputAs(...result);
+				}
+			}
+		}));
+	}
+
+	private registerImportLogAction(): void {
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.importLog`,
+					title: nls.localize2('importLog', "Import Log..."),
+					f1: true,
+					category: Categories.Developer,
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: '2_add',
+						order: 2,
+					}],
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const outputService = accessor.get(IOutputService);
+				const fileDialogService = accessor.get(IFileDialogService);
+				const result = await fileDialogService.showOpenDialog({
+					title: nls.localize('importLogFile', "Import Log File"),
+					canSelectFiles: true,
+					canSelectFolders: false,
+					canSelectMany: true,
+					filters: [{
+						name: nls.localize('logFiles', "Log Files"),
+						extensions: ['log']
+					}]
+				});
+
+				if (result?.length) {
+					const channelName = basename(result[0]);
+					const channelId = `${IMPORTED_LOG_ID_PREFIX}${Date.now()}`;
+					// Register and show the channel
+					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({
+						id: channelId,
+						label: channelName,
+						log: true,
+						user: true,
+						source: result.length === 1
+							? { resource: result[0] }
+							: result.map(resource => ({ resource, name: basename(resource).split('.')[0] }))
+					});
+					outputService.showChannel(channelId);
+				}
+			}
+		}));
+	}
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(OutputContribution, LifecyclePhase.Restored);

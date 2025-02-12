@@ -16,7 +16,6 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { EditorsOrder } from '../../../common/editor.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { getSearchView } from '../../search/browser/searchActionsBase.js';
-import { SearchResult } from '../../search/browser/searchModel.js';
 import { SearchEditor } from './searchEditor.js';
 import { OpenSearchEditorArgs } from './searchEditor.contribution.js';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from './searchEditorInput.js';
@@ -26,6 +25,7 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -185,7 +185,7 @@ export const openNewSearchEditor =
 	};
 
 export const createEditorFromSearchResult =
-	async (accessor: ServicesAccessor, searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, onlySearchInOpenEditors: boolean) => {
+	async (accessor: ServicesAccessor, searchResult: ISearchResult, rawIncludePattern: string, rawExcludePattern: string, onlySearchInOpenEditors: boolean) => {
 		if (!searchResult.query) {
 			console.error('Expected searchResult.query to be defined. Got', searchResult);
 			return;

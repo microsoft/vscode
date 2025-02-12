@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
+import * as cssValue from '../../../../base/browser/cssValue.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { debounce, memoize } from '../../../../base/common/decorators.js';
 import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from '../../../../base/common/event.js';
-import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -94,6 +95,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances).concat(this._backgroundedTerminalInstances);
 	}
+	/** Gets all non-background terminals. */
+	get foregroundInstances(): ITerminalInstance[] {
+		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
+	}
 	get detachedInstances(): Iterable<IDetachedTerminalInstance> {
 		return this._detachedXterms;
 	}
@@ -160,7 +165,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 	@memoize get onAnyInstanceProcessIdReady() { return this._register(this.createOnInstanceEvent(e => e.onProcessIdReady)).event; }
 	@memoize get onAnyInstanceSelectionChange() { return this._register(this.createOnInstanceEvent(e => e.onDidChangeSelection)).event; }
 	@memoize get onAnyInstanceTitleChange() { return this._register(this.createOnInstanceEvent(e => e.onTitleChanged)).event; }
-
+	@memoize get onAnyInstanceShellTypeChanged() { return this._register(this.createOnInstanceEvent(e => Event.map(e.onDidChangeShellType, () => e))).event; }
+	@memoize get onAnyInstanceAddedCapabilityType() { return this._register(this.createOnInstanceEvent(e => e.capabilities.onDidAddCapabilityType)).event; }
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
@@ -203,7 +209,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// down. When shutting down the panel is locked in place so that it is restored upon next
 		// launch.
 		this._register(this._terminalGroupService.onDidChangeActiveInstance(instance => {
-			if (!instance && !this._isShuttingDown) {
+			if (!instance && !this._isShuttingDown && this._terminalConfigService.config.hideOnLastClosed) {
 				this._terminalGroupService.hidePanel();
 			}
 			if (instance?.shellType) {
@@ -416,7 +422,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		if (instance.target !== TerminalLocation.Editor &&
 			instance.hasChildProcesses &&
 			(this._terminalConfigurationService.config.confirmOnKill === 'panel' || this._terminalConfigurationService.config.confirmOnKill === 'always')) {
-
 			const veto = await this._showTerminalCloseConfirmation(true);
 			if (veto) {
 				return;
@@ -832,17 +837,19 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
-		const instanceDisposables: IDisposable[] = [
-			instance.onDimensionsChanged(() => {
-				this._onDidChangeInstanceDimensions.fire(instance);
-				if (this._terminalConfigurationService.config.enablePersistentSessions && this.isProcessSupportRegistered) {
-					this._saveState();
-				}
-			}),
-			instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance),
-			instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e))
-		];
-		instance.onDisposed(() => dispose(instanceDisposables));
+		const instanceDisposables = new DisposableStore();
+		instanceDisposables.add(instance.onDimensionsChanged(() => {
+			this._onDidChangeInstanceDimensions.fire(instance);
+			if (this._terminalConfigurationService.config.enablePersistentSessions && this.isProcessSupportRegistered) {
+				this._saveState();
+			}
+		}));
+		instanceDisposables.add(instance.onDidFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
+		instanceDisposables.add(instance.onRequestAddInstanceToGroup(async e => await this._addInstanceToGroup(instance, e)));
+		const disposeListener = this._register(instance.onDisposed(() => {
+			instanceDisposables.dispose();
+			this._store.delete(disposeListener);
+		}));
 	}
 
 	private async _addInstanceToGroup(instance: ITerminalInstance, e: IRequestAddInstanceToGroupEvent): Promise<void> {
@@ -903,10 +910,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	protected async _showTerminalCloseConfirmation(singleTerminal?: boolean): Promise<boolean> {
 		let message: string;
-		if (this.instances.length === 1 || singleTerminal) {
+		const foregroundInstances = this.foregroundInstances;
+		if (foregroundInstances.length === 1 || singleTerminal) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "Do you want to terminate the active terminal session?");
 		} else {
-			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "Do you want to terminate the {0} active terminal sessions?", this.instances.length);
+			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "Do you want to terminate the {0} active terminal sessions?", foregroundInstances.length);
 		}
 		const { confirmed } = await this._dialogService.confirm({
 			type: 'warning',
@@ -1023,16 +1031,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-		const xterm = this._instantiationService.createInstance(
-			XtermTerminal,
-			ctor,
-			options.cols,
-			options.rows,
-			options.colorProvider,
-			options.capabilities || new TerminalCapabilityStore(),
-			'',
-			false,
-		);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, ctor, {
+			cols: options.cols,
+			rows: options.rows,
+			xtermColorProvider: options.colorProvider,
+			capabilities: options.capabilities || new TerminalCapabilityStore(),
+		});
 
 		if (options.readonly) {
 			xterm.raw.attachCustomKeyEventHandler(() => false);
@@ -1216,7 +1220,7 @@ class TerminalEditorStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = dom.createStyleSheet(container);
+		this._styleElement = domStylesheets.createStyleSheet(container);
 		this._register(toDisposable(() => this._styleElement.remove()));
 		this.updateStyles();
 	}
@@ -1261,8 +1265,8 @@ class TerminalEditorStyle extends Themable {
 			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
-					`.monaco-workbench .terminal-tab.${iconClasses[0]}::before` +
-					`{content: ''; background-image: ${dom.asCSSUrl(uri)};}`
+					cssValue.inline`.monaco-workbench .terminal-tab.${cssValue.className(iconClasses[0])}::before
+					{content: ''; background-image: ${cssValue.asCSSUrl(uri)};}`
 				);
 			}
 			if (ThemeIcon.isThemeIcon(icon)) {
@@ -1271,10 +1275,8 @@ class TerminalEditorStyle extends Themable {
 				if (iconContribution) {
 					const def = productIconTheme.getIcon(iconContribution);
 					if (def) {
-						css += (
-							`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
-							`{content: '${def.fontCharacter}' !important; font-family: ${dom.asCSSPropertyValue(def.font?.id ?? 'codicon')} !important;}`
-						);
+						css += cssValue.inline`.monaco-workbench .terminal-tab.codicon-${cssValue.className(icon.id)}::before
+							{content: ${cssValue.stringValue(def.fontCharacter)} !important; font-family: ${cssValue.stringValue(def.font?.id ?? 'codicon')} !important;}`;
 					}
 				}
 			}
@@ -1283,7 +1285,7 @@ class TerminalEditorStyle extends Themable {
 		// Add colors
 		const iconForegroundColor = colorTheme.getColor(iconForeground);
 		if (iconForegroundColor) {
-			css += `.monaco-workbench .show-file-icons .file-icon.terminal-tab::before { color: ${iconForegroundColor}; }`;
+			css += cssValue.inline`.monaco-workbench .show-file-icons .file-icon.terminal-tab::before { color: ${iconForegroundColor}; }`;
 		}
 
 		css += getColorStyleContent(colorTheme, true);

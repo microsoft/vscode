@@ -6,9 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { List } from '../../../../base/browser/ui/list/listWidget.js';
@@ -900,7 +898,7 @@ class InputWithButton implements IDisposable {
 	private _domNode: HTMLDivElement | undefined;
 	private _inputNode: HTMLInputElement | undefined;
 	private _buttonNode: HTMLElement | undefined;
-	private _buttonHover: IManagedHover | undefined;
+	private _buttonHoverContent: string = '';
 	private _buttonGenHoverText: string | undefined;
 	private _buttonCancelHoverText: string | undefined;
 	private _sparkleIcon: HTMLElement | undefined;
@@ -934,8 +932,14 @@ class InputWithButton implements IDisposable {
 
 			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate new name suggestions");
 			this._buttonCancelHoverText = nls.localize('cancelRenameSuggestionsButton', "Cancel");
-			this._buttonHover = getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), this._buttonNode, this._buttonGenHoverText);
-			this._disposables.add(this._buttonHover);
+			this._buttonHoverContent = this._buttonGenHoverText;
+			this._disposables.add(getBaseLayerHoverDelegate().setupDelayedHover(this._buttonNode, () => ({
+				content: this._buttonHoverContent,
+				appearance: {
+					showPointer: true,
+					compact: true,
+				}
+			})));
 
 			this._domNode.appendChild(this._buttonNode);
 
@@ -985,17 +989,17 @@ class InputWithButton implements IDisposable {
 		dom.clearNode(this.button);
 		this.button.appendChild(this._sparkleIcon);
 		this.button.setAttribute('aria-label', 'Generating new name suggestions');
-		this._buttonHover?.update(this._buttonGenHoverText);
+		this._buttonHoverContent = this._buttonGenHoverText!;
 		this.input.focus();
 	}
 
 	setStopButton() {
 		this._buttonState = 'stop';
-		this._stopIcon ??= renderIcon(Codicon.primitiveSquare);
+		this._stopIcon ??= renderIcon(Codicon.stopCircle);
 		dom.clearNode(this.button);
 		this.button.appendChild(this._stopIcon);
 		this.button.setAttribute('aria-label', 'Cancel generating new name suggestions');
-		this._buttonHover?.update(this._buttonCancelHoverText);
+		this._buttonHoverContent = this._buttonCancelHoverText!;
 		this.input.focus();
 	}
 

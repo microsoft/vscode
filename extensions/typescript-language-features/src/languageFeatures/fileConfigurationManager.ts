@@ -19,6 +19,13 @@ interface FileConfiguration {
 	readonly preferences: Proto.UserPreferences;
 }
 
+interface FormattingOptions {
+
+	readonly tabSize: number | undefined;
+
+	readonly insertSpaces: boolean | undefined;
+}
+
 function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration): boolean {
 	return equals(a, b);
 }
@@ -51,21 +58,21 @@ export default class FileConfigurationManager extends Disposable {
 		}
 	}
 
-	private getFormattingOptions(
-		document: vscode.TextDocument
-	): vscode.FormattingOptions | undefined {
-		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
-		return editor
-			? {
-				tabSize: editor.options.tabSize,
-				insertSpaces: editor.options.insertSpaces
-			} as vscode.FormattingOptions
-			: undefined;
+	private getFormattingOptions(document: vscode.TextDocument): FormattingOptions | undefined {
+		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.uri.toString() === document.uri.toString());
+		if (!editor) {
+			return undefined;
+		}
+
+		return {
+			tabSize: typeof editor.options.tabSize === 'number' ? editor.options.tabSize : undefined,
+			insertSpaces: typeof editor.options.insertSpaces === 'boolean' ? editor.options.insertSpaces : undefined,
+		};
 	}
 
 	public async ensureConfigurationOptions(
 		document: vscode.TextDocument,
-		options: vscode.FormattingOptions,
+		options: FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const file = this.client.toOpenTsFilePath(document);
@@ -122,7 +129,7 @@ export default class FileConfigurationManager extends Disposable {
 
 	private getFileOptions(
 		document: vscode.TextDocument,
-		options: vscode.FormattingOptions
+		options: FormattingOptions
 	): FileConfiguration {
 		return {
 			formatOptions: this.getFormatOptions(document, options),
@@ -132,7 +139,7 @@ export default class FileConfigurationManager extends Disposable {
 
 	private getFormatOptions(
 		document: vscode.TextDocument,
-		options: vscode.FormattingOptions
+		options: FormattingOptions
 	): Proto.FormatCodeSettings {
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
@@ -231,15 +238,23 @@ export default class FileConfigurationManager extends Disposable {
 	}
 
 	private getOrganizeImportsPreferences(config: vscode.WorkspaceConfiguration): Proto.UserPreferences {
+		const organizeImportsCollation = config.get<'ordinal' | 'unicode'>('organizeImports.unicodeCollation');
+		const organizeImportsCaseSensitivity = config.get<'auto' | 'caseInsensitive' | 'caseSensitive'>('organizeImports.caseSensitivity');
 		return {
 			// More specific settings
-			organizeImportsAccentCollation: config.get<boolean>('organizeImports.accentCollation'),
-			organizeImportsCaseFirst: withDefaultAsUndefined(config.get<'default' | 'upper' | 'lower'>('organizeImports.caseFirst', 'default'), 'default'),
-			organizeImportsCollation: config.get<'ordinal' | 'unicode'>('organizeImports.collation'),
-			organizeImportsIgnoreCase: withDefaultAsUndefined(config.get<'auto' | 'caseInsensitive' | 'caseSensitive'>('organizeImports.caseSensitivity'), 'auto'),
-			organizeImportsLocale: config.get<string>('organizeImports.locale'),
-			organizeImportsNumericCollation: config.get<boolean>('organizeImports.numericCollation'),
 			organizeImportsTypeOrder: withDefaultAsUndefined(config.get<'auto' | 'last' | 'inline' | 'first'>('organizeImports.typeOrder', 'auto'), 'auto'),
+			organizeImportsIgnoreCase: organizeImportsCaseSensitivity === 'caseInsensitive' ? true
+				: organizeImportsCaseSensitivity === 'caseSensitive' ? false
+					: 'auto',
+			organizeImportsCollation,
+
+			// The rest of the settings are only applicable when using unicode collation
+			...(organizeImportsCollation === 'unicode' ? {
+				organizeImportsCaseFirst: organizeImportsCaseSensitivity === 'caseInsensitive' ? undefined : withDefaultAsUndefined(config.get<'default' | 'upper' | 'lower' | false>('organizeImports.caseFirst', false), 'default'),
+				organizeImportsAccentCollation: config.get<boolean>('organizeImports.accentCollation'),
+				organizeImportsLocale: config.get<string>('organizeImports.locale'),
+				organizeImportsNumericCollation: config.get<boolean>('organizeImports.numericCollation'),
+			} : {}),
 		};
 	}
 }

@@ -105,6 +105,7 @@ export class DebugExtensionsContribution extends Disposable implements IWorkbenc
 				location: ProgressLocation.Notification,
 				title: nls.localize('debugExtensionHost.progress', "Attaching Debugger To Extension Host"),
 			}, async p => {
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
 				await this._debugService.startDebugging(undefined, {
 					type: 'node',
 					name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),

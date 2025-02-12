@@ -42,3 +42,14 @@ export const chatAvatarForeground = registerColor(
 	foreground,
 	localize('chat.avatarForeground', 'The foreground color of a chat avatar.')
 );
+
+export const chatEditedFileForeground = registerColor(
+	'chat.editedFileForeground',
+	{
+		light: '#895503',
+		dark: '#E2C08D',
+		hcDark: '#E2C08D',
+		hcLight: '#895503'
+	},
+	localize('chat.editedFileForeground', 'The foreground color of a chat edited file in the edited file list.')
+);

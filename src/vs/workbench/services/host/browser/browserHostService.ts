@@ -16,7 +16,7 @@ import { IWorkspace, IWorkspaceProvider } from '../../../browser/web.api.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { EventType, ModifierKeyEmitter, addDisposableListener, addDisposableThrottledListener, detectFullscreen, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from '../../../../base/browser/dom.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { parseLineAndColumnAware } from '../../../../base/common/extpath.js';
@@ -36,11 +36,11 @@ import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../plat
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { mainWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { URI } from '../../../../base/common/uri.js';
 
 enum HostShutdownReason {
 
@@ -79,7 +79,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
@@ -240,7 +239,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		const payload = this.preservePayload(false /* not an empty window */, options);
 		const fileOpenables: IFileToOpen[] = [];
+
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
+		const foldersToRemove: URI[] = [];
 
 		for (const openable of toOpen) {
 			openable.label = openable.label || this.getRecentLabel(openable);
@@ -248,7 +249,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 			// Folder
 			if (isFolderToOpen(openable)) {
 				if (options?.addMode) {
-					foldersToAdd.push(({ uri: openable.folderUri }));
+					foldersToAdd.push({ uri: openable.folderUri });
+				} else if (options?.removeMode) {
+					foldersToRemove.push(openable.folderUri);
 				} else {
 					this.doOpen({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 				}
@@ -265,11 +268,17 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}
 
-		// Handle Folders to Add
-		if (foldersToAdd.length > 0) {
-			this.withServices(accessor => {
+		// Handle Folders to add or remove
+		if (foldersToAdd.length > 0 || foldersToRemove.length > 0) {
+			this.withServices(async accessor => {
 				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
-				workspaceEditingService.addFolders(foldersToAdd);
+				if (foldersToAdd.length > 0) {
+					await workspaceEditingService.addFolders(foldersToAdd);
+				}
+
+				if (foldersToRemove.length > 0) {
+					await workspaceEditingService.removeFolders(foldersToRemove);
+				}
 			});
 		}
 
@@ -411,10 +420,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}
 
-		const newWindowProfile = (options?.forceProfile
+		const newWindowProfile = options?.forceProfile
 			? this.userDataProfilesService.profiles.find(profile => profile.name === options?.forceProfile)
-			: undefined) ?? this.userDataProfileService.currentProfile;
-		if (!newWindowProfile.isDefault) {
+			: undefined;
+		if (newWindowProfile && !newWindowProfile.isDefault) {
 			newPayload.push(['profile', newWindowProfile.name]);
 		}
 
@@ -430,7 +439,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: Verbosity.LONG });
 		}
 
-		return this.labelService.getUriLabel(openable.fileUri);
+		return this.labelService.getUriLabel(openable.fileUri, { appendWorkspaceSuffix: true });
 	}
 
 	private shouldReuse(options: IOpenWindowOptions = Object.create(null), isFile: boolean): boolean {
@@ -576,10 +585,76 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	//#endregion
 
-	//#region File
+	//#region Screenshots
 
-	getPathForFile(): undefined {
-		return undefined; // unsupported in browser environments
+	async getScreenshot(): Promise<ArrayBufferLike | undefined> {
+		// Gets a screenshot from the browser. This gets the screenshot via the browser's display
+		// media API which will typically offer a picker of all available screens and windows for
+		// the user to select. Using the video stream provided by the display media API, this will
+		// capture a single frame of the video and convert it to a JPEG image.
+		const store = new DisposableStore();
+
+		// Create a video element to play the captured screen source
+		const video = document.createElement('video');
+		store.add(toDisposable(() => video.remove()));
+		let stream: MediaStream | undefined;
+		try {
+			// Create a stream from the screen source (capture screen without audio)
+			stream = await navigator.mediaDevices.getDisplayMedia({
+				audio: false,
+				video: true
+			});
+
+			// Set the stream as the source of the video element
+			video.srcObject = stream;
+			video.play();
+
+			// Wait for the video to load properly before capturing the screenshot
+			await Promise.all([
+				new Promise<void>(r => store.add(addDisposableListener(video, 'loadedmetadata', () => r()))),
+				new Promise<void>(r => store.add(addDisposableListener(video, 'canplaythrough', () => r())))
+			]);
+
+			const canvas = document.createElement('canvas');
+			canvas.width = video.videoWidth;
+			canvas.height = video.videoHeight;
+
+			const ctx = canvas.getContext('2d');
+			if (!ctx) {
+				return undefined;
+			}
+
+			// Draw the portion of the video (x, y) with the specified width and height
+			ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+			// Convert the canvas to a Blob (JPEG format), use .95 for quality
+			const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95));
+			if (!blob) {
+				throw new Error('Failed to create blob from canvas');
+			}
+
+			// Convert the Blob to an ArrayBuffer
+			return blob.arrayBuffer();
+
+		} catch (error) {
+			console.error('Error taking screenshot:', error);
+			return undefined;
+		} finally {
+			store.dispose();
+			if (stream) {
+				for (const track of stream.getTracks()) {
+					track.stop();
+				}
+			}
+		}
+	}
+
+	//#endregion
+
+	//#region Native Handle
+
+	async getNativeWindowHandle(_windowId: number) {
+		return undefined;
 	}
 
 	//#endregion

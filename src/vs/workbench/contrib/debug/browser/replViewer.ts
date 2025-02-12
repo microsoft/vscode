@@ -196,7 +196,12 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 		templateData.value.className = 'value';
 
 		const locationReference = element.expression?.valueLocationReference;
-		templateData.elementDisposable.add(this.expressionRenderer.renderValue(templateData.value, element.value, { wasANSI: true, session: element.session, locationReference }));
+		templateData.elementDisposable.add(this.expressionRenderer.renderValue(templateData.value, element.value, {
+			wasANSI: true,
+			session: element.session,
+			locationReference,
+			hover: false,
+		}));
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.setSource(element.sourceData);
@@ -215,6 +220,7 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 	disposeTemplate(templateData: IOutputReplElementTemplateData): void {
 		templateData.source.dispose();
 		templateData.elementDisposable.dispose();
+		templateData.count.dispose();
 	}
 
 	disposeElement(_element: ITreeNode<ReplOutputElement, FuzzyScore>, _index: number, templateData: IOutputReplElementTemplateData): void {

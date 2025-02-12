@@ -2,6 +2,13 @@
 #   Copyright (c) Microsoft Corporation. All rights reserved.
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
+
+# Prevent recursive sourcing
+if [[ -n "$VSCODE_PROFILE_INITIALIZED" ]]; then
+	return
+fi
+export VSCODE_PROFILE_INITIALIZED=1
+
 if [[ $options[norcs] = off && -o "login" ]]; then
 	if [[ -f $USER_ZDOTDIR/.zprofile ]]; then
 		VSCODE_ZDOTDIR=$ZDOTDIR

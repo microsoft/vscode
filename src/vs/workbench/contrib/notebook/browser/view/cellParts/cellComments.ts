@@ -71,7 +71,7 @@ export class CellComments extends CellContentPart {
 			{
 				actionRunner: () => {
 				},
-				collapse: () => { }
+				collapse: async () => { return true; }
 			}
 		) as unknown as CommentThreadWidget<ICellRange>;
 		widgetDisposables.add(widget);

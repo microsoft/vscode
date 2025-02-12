@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { IDimension } from '../../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
@@ -14,14 +15,11 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { findInFilesCommand } from '../../../search/browser/searchActionsFind.js';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction, registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
-import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
-import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
-import { ITerminalProcessInfo, ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
-import { TerminalFindWidget } from './terminalFindWidget.js';
-import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { TerminalFindCommandId } from '../common/terminal.find.js';
 import './media/terminalFind.css';
+import { TerminalFindWidget } from './terminalFindWidget.js';
 
 // #region Terminal Contributions
 
@@ -44,35 +42,33 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 	get findWidget(): TerminalFindWidget { return this._findWidget.value; }
 
 	constructor(
-		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
-		processManager: ITerminalProcessManager | ITerminalProcessInfo,
-		widgetManager: TerminalWidgetManager,
+		ctx: ITerminalContributionContext | IDetachedCompatibleTerminalContributionContext,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalService terminalService: ITerminalService,
 	) {
 		super();
 
 		this._findWidget = new Lazy(() => {
-			const findWidget = instantiationService.createInstance(TerminalFindWidget, this._instance);
+			const findWidget = instantiationService.createInstance(TerminalFindWidget, ctx.instance);
 
 			// Track focus and set state so we can force the scroll bar to be visible
 			findWidget.focusTracker.onDidFocus(() => {
 				TerminalFindContribution.activeFindWidget = this;
-				this._instance.forceScrollbarVisibility();
-				if (!isDetachedTerminalInstance(this._instance)) {
-					terminalService.setActiveInstance(this._instance);
+				ctx.instance.forceScrollbarVisibility();
+				if (!isDetachedTerminalInstance(ctx.instance)) {
+					terminalService.setActiveInstance(ctx.instance);
 				}
 			});
 			findWidget.focusTracker.onDidBlur(() => {
 				TerminalFindContribution.activeFindWidget = undefined;
-				this._instance.resetScrollbarVisibility();
+				ctx.instance.resetScrollbarVisibility();
 			});
 
-			if (!this._instance.domElement) {
+			if (!ctx.instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
 
-			this._instance.domElement?.appendChild(findWidget.getDomNode());
+			ctx.instance.domElement?.appendChild(findWidget.getDomNode());
 			if (this._lastLayoutDimensions) {
 				findWidget.layout(this._lastLayoutDimensions.width);
 			}

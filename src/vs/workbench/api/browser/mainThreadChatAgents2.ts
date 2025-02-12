@@ -21,16 +21,18 @@ import { ILanguageFeaturesService } from '../../../editor/common/services/langua
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
+import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
-import { IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -78,16 +80,21 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _chatParticipantDetectionProviders = this._register(new DisposableMap<number, IDisposable>());
 
+	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
+
 	private readonly _pendingProgress = new Map<string, (part: IChatProgress) => void>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
 	private _responsePartHandlePool = 0;
 	private readonly _activeTasks = new Map<string, IChatTask>();
 
+	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, IChatContentInlineReference>>();
+
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -132,8 +139,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatService.transferChatSession({ sessionId, inputValue }, URI.revive(toWorkspace));
 	}
 
-	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void {
-		const staticAgentRegistration = this._chatAgentService.getAgent(id);
+	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		const staticAgentRegistration = this._chatAgentService.getAgent(id, true);
 		if (!staticAgentRegistration && !dynamicProps) {
 			if (this._chatAgentService.getAgentsByName(id).length) {
 				// Likely some extension authors will not adopt the new ID, so give a hint if they register a
@@ -153,6 +161,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					this._pendingProgress.delete(request.requestId);
 				}
 			},
+			setRequestPaused: (requestId, isPaused) => {
+				this._proxy.$setRequestPaused(handle, requestId, isPaused);
+			},
 			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];
@@ -160,8 +171,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
 			},
-			provideWelcomeMessage: (location: ChatAgentLocation, token: CancellationToken) => {
-				return this._proxy.$provideWelcomeMessage(handle, location, token);
+			provideWelcomeMessage: (token: CancellationToken) => {
+				return this._proxy.$provideWelcomeMessage(handle, token);
 			},
 			provideChatTitle: (history, token) => {
 				return this._proxy.$provideChatTitle(handle, history, token);
@@ -187,7 +198,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					metadata: revive(metadata),
 					slashCommands: [],
 					disambiguation: [],
-					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
+					locations: [ChatAgentLocation.Panel], // TODO all dynamic participants are panel only?
 				},
 				impl);
 		} else {
@@ -202,7 +213,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		});
 	}
 
-	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void {
+	async $updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): Promise<void> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
 		const data = this._agents.get(handle);
 		if (!data) {
 			this._logService.error(`MainThreadChatAgents2#$updateAgent: No agent with handle ${handle} registered`);
@@ -239,7 +251,28 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 			}
 		}
+
+		if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId) {
+			if (!this._unresolvedAnchors.has(requestId)) {
+				this._unresolvedAnchors.set(requestId, new Map());
+			}
+			this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, revivedProgress);
+		}
+
 		this._pendingProgress.get(requestId)?.(revivedProgress);
+	}
+
+	$handleAnchorResolve(requestId: string, handle: string, resolveAnchor: Dto<IChatContentInlineReference> | undefined): void {
+		const anchor = this._unresolvedAnchors.get(requestId)?.get(handle);
+		if (!anchor) {
+			return;
+		}
+
+		this._unresolvedAnchors.get(requestId)?.delete(handle);
+		if (resolveAnchor) {
+			const revivedAnchor = revive(resolveAnchor) as IChatContentInlineReference;
+			anchor.inlineReference = revivedAnchor.inlineReference;
+		}
 	}
 
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void {
@@ -317,6 +350,19 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	$unregisterChatParticipantDetectionProvider(handle: number): void {
 		this._chatParticipantDetectionProviders.deleteAndDispose(handle);
+	}
+
+	$registerRelatedFilesProvider(handle: number, metadata: IChatRelatedFileProviderMetadata): void {
+		this._chatRelatedFilesProviders.set(handle, this._chatEditingService.registerRelatedFilesProvider(handle, {
+			description: metadata.description,
+			provideRelatedFiles: async (request, token) => {
+				return (await this._proxy.$provideRelatedFiles(handle, request, token))?.map((v) => ({ uri: URI.from(v.uri), description: v.description })) ?? [];
+			}
+		}));
+	}
+
+	$unregisterRelatedFilesProvider(handle: number): void {
+		this._chatRelatedFilesProviders.deleteAndDispose(handle);
 	}
 }
 

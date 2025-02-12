@@ -26,8 +26,9 @@ export class BufferContentTracker extends Disposable {
 
 	constructor(
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService) {
+	) {
 		super();
 	}
 

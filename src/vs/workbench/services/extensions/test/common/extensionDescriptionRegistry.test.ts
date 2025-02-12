@@ -46,6 +46,7 @@ suite('ExtensionDescriptionRegistry', () => {
 			targetPlatform: TargetPlatform.UNDEFINED,
 			extensionDependencies: [],
 			enabledApiProposals: undefined,
+			preRelease: false,
 		};
 	}
 });

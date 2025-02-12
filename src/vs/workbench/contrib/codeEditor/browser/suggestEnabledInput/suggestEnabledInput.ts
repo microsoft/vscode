@@ -361,7 +361,7 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService, configurationService);
-		this.history = new HistoryNavigator<string>(history, 100);
+		this.history = new HistoryNavigator<string>(new Set(history), 100);
 	}
 
 	public addToHistory(): void {

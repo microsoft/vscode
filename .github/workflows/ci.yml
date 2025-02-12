@@ -18,7 +18,6 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 60
     env:
-      CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +28,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "2.x"
+          python-version: "3.x"
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -57,6 +56,7 @@ jobs:
       - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
+          npm_config_foreground_scripts: "true"
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: npm ci
@@ -82,7 +82,7 @@ jobs:
         run: npm run test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: npm run test-browser-no-install --browser chromium
+        run: npm run test-browser-no-install -- --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
@@ -162,7 +162,7 @@ jobs:
 
       - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
-        run: DISPLAY=:10 npm run test-browser-no-install --browser chromium
+        run: DISPLAY=:10 npm run test-browser-no-install -- --browser chromium
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
@@ -238,7 +238,7 @@ jobs:
         run: npm run test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: DISPLAY=:10 npm run test-browser-no-install --browser chromium
+        run: DISPLAY=:10 npm run test-browser-no-install -- --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh

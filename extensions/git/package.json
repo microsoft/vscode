@@ -32,8 +32,10 @@
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
+    "statusBarItemTooltip",
     "tabInputMultiDiff",
     "tabInputTextMerge",
+    "textEditorDiffInformation",
     "timeline"
   ],
   "categories": [
@@ -447,14 +449,20 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.graph.checkout",
+        "title": "%command.graphCheckout%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.checkoutDetached",
         "title": "%command.checkoutDetached%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.checkoutRefDetached",
-        "title": "%command.checkoutRefDetached%",
+        "command": "git.graph.checkoutDetached",
+        "title": "%command.graphCheckoutDetached%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -473,6 +481,18 @@
       {
         "command": "git.deleteBranch",
         "title": "%command.deleteBranch%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.deleteBranch",
+        "title": "%command.graphDeleteBranch%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.deleteRemoteBranch",
+        "title": "%command.deleteRemoteBranch%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -509,6 +529,12 @@
       {
         "command": "git.deleteTag",
         "title": "%command.deleteTag%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.deleteTag",
+        "title": "%command.graphDeleteTag%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -567,7 +593,7 @@
         "title": "%command.pull%",
         "icon": "$(repo-pull)",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
       },
       {
         "command": "git.push",
@@ -616,7 +642,7 @@
         "title": "%command.push%",
         "icon": "$(repo-push)",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
       },
       {
         "command": "git.cherryPick",
@@ -625,8 +651,14 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.cherryPickRef",
-        "title": "%command.cherryPickRef%",
+        "command": "git.graph.cherryPick",
+        "title": "%command.graphCherryPick%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.cherryPickAbort",
+        "title": "%command.cherryPickAbort%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -900,13 +932,6 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.viewAllChanges",
-        "title": "%command.viewAllChanges%",
-        "icon": "$(diff-multiple)",
-        "category": "Git",
-        "enablement": "!operationInProgress"
-      },
-      {
         "command": "git.copyCommitId",
         "title": "%command.timelineCopyCommitId%",
         "category": "Git"
@@ -914,6 +939,16 @@
       {
         "command": "git.copyCommitMessage",
         "title": "%command.timelineCopyCommitMessage%",
+        "category": "Git"
+      },
+      {
+        "command": "git.blame.toggleEditorDecoration",
+        "title": "%command.blameToggleEditorDecoration%",
+        "category": "Git"
+      },
+      {
+        "command": "git.blame.toggleStatusBarItem",
+        "title": "%command.blameToggleStatusBarItem%",
         "category": "Git"
       }
     ],
@@ -930,19 +965,19 @@
         "command": "git.stageSelectedRanges",
         "key": "ctrl+k ctrl+alt+s",
         "mac": "cmd+k cmd+alt+s",
-        "when": "isInDiffEditor"
+        "when": "editorTextFocus && resourceScheme == file"
       },
       {
         "command": "git.unstageSelectedRanges",
         "key": "ctrl+k ctrl+n",
         "mac": "cmd+k cmd+n",
-        "when": "isInDiffEditor"
+        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && resourceScheme == git"
       },
       {
         "command": "git.revertSelectedRanges",
         "key": "ctrl+k ctrl+r",
         "mac": "cmd+k cmd+r",
-        "when": "isInDiffEditor"
+        "when": "editorTextFocus && resourceScheme == file"
       }
     ],
     "menus": {
@@ -1013,7 +1048,7 @@
         },
         {
           "command": "git.stageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file"
         },
         {
           "command": "git.stageChange",
@@ -1021,7 +1056,7 @@
         },
         {
           "command": "git.revertSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file"
         },
         {
           "command": "git.revertChange",
@@ -1041,7 +1076,7 @@
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == git"
         },
         {
           "command": "git.clean",
@@ -1196,12 +1231,20 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.deleteRemoteBranch",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.renameBranch",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.cherryPick",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.cherryPickAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitCherryPickInProgress"
         },
         {
           "command": "git.pull",
@@ -1428,10 +1471,6 @@
           "when": "false"
         },
         {
-          "command": "git.viewAllChanges",
-          "when": "false"
-        },
-        {
           "command": "git.stageFile",
           "when": "false"
         },
@@ -1460,12 +1499,32 @@
           "when": "false"
         },
         {
-          "command": "git.checkoutRefDetached",
+          "command": "git.graph.checkout",
           "when": "false"
         },
         {
-          "command": "git.cherryPickRef",
+          "command": "git.graph.checkoutDetached",
           "when": "false"
+        },
+        {
+          "command": "git.graph.deleteBranch",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.deleteTag",
+          "when": "false"
+        },
+        {
+          "command": "git.graph.cherryPick",
+          "when": "false"
+        },
+        {
+          "command": "git.diff.stageHunk",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
+        },
+        {
+          "command": "git.diff.stageSelection",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
         }
       ],
       "scm/title": [
@@ -1958,30 +2017,45 @@
       "scm/history/title": [
         {
           "command": "git.fetchAll",
-          "group": "navigation@999",
+          "group": "navigation@900",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "git.pullRef",
+          "group": "navigation@901",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.pushRef",
+          "when": "scmProvider == git && scmCurrentHistoryItemRefHasRemote",
+          "group": "navigation@902"
+        },
+        {
+          "command": "git.publish",
+          "when": "scmProvider == git && !scmCurrentHistoryItemRefHasRemote",
+          "group": "navigation@903"
         }
       ],
       "scm/historyItem/context": [
         {
-          "command": "git.createTag",
+          "command": "git.graph.checkoutDetached",
           "when": "scmProvider == git",
-          "group": "1_create@1"
+          "group": "1_checkout@2"
         },
         {
           "command": "git.branch",
           "when": "scmProvider == git",
-          "group": "1_create@2"
+          "group": "2_branch@2"
         },
         {
-          "command": "git.cherryPickRef",
+          "command": "git.createTag",
           "when": "scmProvider == git",
-          "group": "2_modify@1"
+          "group": "3_tag@1"
         },
         {
-          "command": "git.checkoutRefDetached",
+          "command": "git.graph.cherryPick",
           "when": "scmProvider == git",
-          "group": "2_modify@2"
+          "group": "4_modify@1"
         },
         {
           "command": "git.copyCommitId",
@@ -1992,6 +2066,23 @@
           "command": "git.copyCommitMessage",
           "when": "scmProvider == git && !listMultiSelection",
           "group": "9_copy@2"
+        }
+      ],
+      "scm/historyItemRef/context": [
+        {
+          "command": "git.graph.checkout",
+          "when": "scmProvider == git",
+          "group": "1_checkout@1"
+        },
+        {
+          "command": "git.graph.deleteBranch",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\/|^refs\\/remotes\\//",
+          "group": "2_branch@2"
+        },
+        {
+          "command": "git.graph.deleteTag",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/tags\\//",
+          "group": "3_tag@2"
         }
       ],
       "editor/title": [
@@ -2007,7 +2098,7 @@
         },
         {
           "command": "git.openChange",
-          "group": "navigation",
+          "group": "navigation@2",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
@@ -2021,21 +2112,6 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit"
         },
         {
-          "command": "git.stageSelectedRanges",
-          "group": "2_git@1",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
-        },
-        {
-          "command": "git.unstageSelectedRanges",
-          "group": "2_git@2",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
-        },
-        {
-          "command": "git.revertSelectedRanges",
-          "group": "2_git@3",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
-        },
-        {
           "command": "git.stashApplyEditor",
           "alt": "git.stashPopEditor",
           "group": "navigation@1",
@@ -2045,23 +2121,58 @@
           "command": "git.stashDropEditor",
           "group": "navigation@2",
           "when": "config.git.enabled && !git.missing && resourceScheme == git-stash"
+        },
+        {
+          "command": "git.stage",
+          "group": "2_git@1",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasUnstagedChanges"
+        },
+        {
+          "command": "git.unstage",
+          "group": "2_git@2",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.activeResourceHasStagedChanges"
+        },
+        {
+          "command": "git.stage",
+          "group": "2_git@1",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
+        },
+        {
+          "command": "git.stageSelectedRanges",
+          "group": "2_git@2",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
+        },
+        {
+          "command": "git.unstage",
+          "group": "2_git@3",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git"
+        },
+        {
+          "command": "git.unstageSelectedRanges",
+          "group": "2_git@4",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git"
+        },
+        {
+          "command": "git.revertSelectedRanges",
+          "group": "2_git@5",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
         }
       ],
       "editor/context": [
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "isInDiffRightEditor && !isEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "isInDiffRightEditor && !isEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == git"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "isInDiffRightEditor && !isEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && isInDiffRightEditor && !isEmbeddedDiffEditor && resourceScheme == file"
         }
       ],
       "editor/content": [
@@ -2335,6 +2446,10 @@
         {
           "command": "git.deleteBranch",
           "group": "3_modify@2"
+        },
+        {
+          "command": "git.deleteRemoteBranch",
+          "group": "3_modify@3"
         },
         {
           "command": "git.publish",
@@ -3154,6 +3269,67 @@
           "maximum": 100,
           "markdownDescription": "%config.similarityThreshold%",
           "scope": "resource"
+        },
+        "git.blame.editorDecoration.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameEditorDecoration.enabled%"
+        },
+        "git.blame.editorDecoration.template": {
+          "type": "string",
+          "default": "${subject}, ${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameEditorDecoration.template%"
+        },
+        "git.blame.statusBarItem.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.blameStatusBarItem.enabled%"
+        },
+        "git.blame.statusBarItem.template": {
+          "type": "string",
+          "default": "${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameStatusBarItem.template%"
+        },
+        "git.commitShortHashLength": {
+          "type": "number",
+          "default": 7,
+          "minimum": 7,
+          "maximum": 40,
+          "markdownDescription": "%config.commitShortHashLength%",
+          "scope": "resource"
+        },
+        "git.diagnosticsCommitHook.Severity": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning",
+            "information",
+            "hint"
+          ],
+          "enumDescriptions": [
+            "%config.diagnosticsCommitHook.Severity.error%",
+            "%config.diagnosticsCommitHook.Severity.warning%",
+            "%config.diagnosticsCommitHook.Severity.information%",
+            "%config.diagnosticsCommitHook.Severity.hint%"
+          ],
+          "default": "error",
+          "markdownDescription": "%config.diagnosticsCommitHook.Severity%",
+          "scope": "resource"
+        },
+        "git.diagnosticsCommitHook.Source": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "%config.diagnosticsCommitHook.Source%",
+          "scope": "resource"
+        },
+        "git.untrackedChangesSoftDelete": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.untrackedChangesSoftDelete%",
+          "scope": "resource"
         }
       }
     },
@@ -3257,6 +3433,16 @@
           "highContrast": "#8db9e2",
           "highContrastLight": "#1258a7"
         }
+      },
+      {
+        "id": "git.blame.editorDecorationForeground",
+        "description": "%colors.blameEditorDecoration%",
+        "defaults": {
+          "dark": "editorCodeLens.foreground",
+          "light": "editorCodeLens.foreground",
+          "highContrast": "editorCodeLens.foreground",
+          "highContrastLight": "editorCodeLens.foreground"
+        }
       }
     ],
     "configurationDefaults": {
@@ -3281,22 +3467,22 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.missing%",
-        "when": "config.git.enabled && git.missing"
+        "when": "config.git.enabled && git.missing && remoteName != ''"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.missing.mac%",
-        "when": "config.git.enabled && git.missing && isMac"
+        "when": "config.git.enabled && git.missing && remoteName == '' && isMac"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.missing.windows%",
-        "when": "config.git.enabled && git.missing && isWindows"
+        "when": "config.git.enabled && git.missing && remoteName == '' && isWindows"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.missing.linux%",
-        "when": "config.git.enabled && git.missing && isLinux"
+        "when": "config.git.enabled && git.missing && remoteName == '' && isLinux"
       },
       {
         "view": "scm",
@@ -3379,12 +3565,12 @@
     ]
   },
   "dependencies": {
-    "@joaomoreno/unique-names-generator": "^5.1.0",
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@joaomoreno/unique-names-generator": "^5.2.0",
+    "@vscode/extension-telemetry": "^0.9.8",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",
-    "jschardet": "3.1.3",
+    "jschardet": "3.1.4",
     "picomatch": "2.3.1",
     "vscode-uri": "^2.0.0",
     "which": "4.0.0"

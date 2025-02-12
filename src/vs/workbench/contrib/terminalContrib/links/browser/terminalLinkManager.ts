@@ -54,11 +54,11 @@ export class TerminalLinkManager extends DisposableStore {
 		capabilities: ITerminalCapabilityStore,
 		private readonly _linkResolver: ITerminalLinkResolver,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INotificationService private readonly _notificationService: INotificationService,
+		@INotificationService notificationService: INotificationService,
+		@ITerminalConfigurationService terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
-		@ITunnelService private readonly _tunnelService: ITunnelService
+		@ITunnelService private readonly _tunnelService: ITunnelService,
 	) {
 		super();
 
@@ -112,13 +112,13 @@ export class TerminalLinkManager extends DisposableStore {
 					throw new Error(`Could not find scheme in link "${text}"`);
 				}
 				const scheme = text.substring(0, colonIndex);
-				if (this._terminalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
-					this._notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
+				if (terminalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
+					notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
 						{
 							label: nls.localize('allow', 'Allow {0}', scheme),
 							run: () => {
 								const allowedLinkSchemes = [
-									...this._terminalConfigurationService.config.allowedLinkSchemes,
+									...terminalConfigurationService.config.allowedLinkSchemes,
 									scheme
 								];
 								this._configurationService.updateValue(`terminal.integrated.allowedLinkSchemes`, allowedLinkSchemes);

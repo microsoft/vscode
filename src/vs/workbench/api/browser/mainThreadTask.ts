@@ -34,6 +34,7 @@ import {
 import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 
 namespace TaskExecutionDTO {
 	export function from(value: ITaskExecution): ITaskExecutionDTO {
@@ -489,10 +490,14 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 							console.error(`Task System: can not convert task: ${JSON.stringify(dto.definition, undefined, 0)}. Task will be dropped`);
 						}
 					}
+					const processedExtension: IExtensionDescription = {
+						...value.extension,
+						extensionLocation: URI.revive(value.extension.extensionLocation)
+					};
 					return {
 						tasks,
-						extension: value.extension
-					} as ITaskSet;
+						extension: processedExtension
+					} satisfies ITaskSet;
 				});
 			},
 			resolveTask: (task: ConfiguringTask) => {

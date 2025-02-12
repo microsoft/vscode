@@ -79,7 +79,8 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IEditorProgressService private readonly _progressService: IEditorProgressService,
 	) {
 		super();
 
@@ -114,7 +115,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					command.arguments[0] = { ...command.arguments[0], autoSend: false };
 				}
 			}
-			await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
+			await this.applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
 			return;
 		}
 		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
@@ -147,13 +148,15 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this._model.trigger(trigger);
 	}
 
-	private async _applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
+	async applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
+		const progress = this._progressService.show(true, 500);
 		try {
 			await this._instantiationService.invokeFunction(applyCodeAction, action, actionReason, { preview, editor: this._editor });
 		} finally {
 			if (retrigger) {
 				this._trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.QuickFix, filter: {} });
 			}
+			progress.done();
 		}
 	}
 
@@ -196,7 +199,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				if (validActionToApply) {
 					try {
 						this.hideLightBulbWidget();
-						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
+						await this.applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();
 					}
@@ -288,7 +291,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this._applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
+				this.applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
 				this._actionWidgetService.hide(false);
 				currentDecorations.clear();
 			},

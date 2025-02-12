@@ -80,7 +80,7 @@
 		(globalThis as any).__VSCODE_WEB_ESM_PROMISE = resolve;
 	});
 
-	define('vs/web-api', [], () => {
+	define('vs/web-api', [], (): ILoaderPlugin => {
 		return {
 			load: (_name, _req, _load, _config) => {
 				const script: any = document.createElement('script');
@@ -90,7 +90,7 @@
 
 				return promise.then(mod => _load(mod));
 			}
-		} as ILoaderPlugin;
+		};
 	});
 
 	define(

@@ -15,11 +15,16 @@ import { basename } from '../../../../../base/common/path.js';
 import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { localize } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -28,22 +33,33 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ColorScheme } from '../../../../browser/web.api.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
+import { ExplorerFolderContext } from '../../../files/common/files.js';
+import { chatEditingWidgetFileReadonlyContextKey, chatEditingWidgetFileStateContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
-import { ChatTreeItem } from '../chat.js';
+import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 const $ = dom.$;
 
 export interface IChatReferenceListItem extends IChatContentReference {
 	title?: string;
+	description?: string;
+	state?: WorkingSetEntryState;
+	excluded?: boolean;
+	isMarkedReadonly?: boolean;
 }
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
+
+export interface IChatCollapsibleListOptions {
+	expandedWhenEmptyResponse?: boolean;
+}
 
 export class ChatCollapsibleListContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -51,22 +67,34 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	private readonly hasFollowingContent: boolean;
+
 	constructor(
 		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
 		labelOverride: string | undefined,
-		element: IChatResponseViewModel,
+		context: IChatContentPartRenderContext,
 		contentReferencesListPool: CollapsibleListPool,
+		options: IChatCollapsibleListOptions,
 		@IOpenerService openerService: IOpenerService,
+		@IMenuService menuService: IMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
 	) {
 		super();
 
+		const element = context.element as IChatResponseViewModel;
+		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
 		const referencesLabel = labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1));
 		const iconElement = $('.chat-used-context-icon');
-		const icon = (element: IChatResponseViewModel) => element.usedReferencesExpanded ? Codicon.chevronDown : Codicon.chevronRight;
+		const isExpanded = () =>
+			element.usedReferencesExpanded ?? (
+				options.expandedWhenEmptyResponse && element.response.value.length === 0
+			);
+		const icon = (element: IChatResponseViewModel) => {
+			return isExpanded() ? Codicon.chevronDown : Codicon.chevronRight;
+		};
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 		const buttonElement = $('.chat-used-context-label', undefined);
 
@@ -83,15 +111,15 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		this.domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 		collapseButton.element.prepend(iconElement);
-		this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
-		this.domNode.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+		this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
+		this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
 		this._register(collapseButton.onDidClick(() => {
 			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
-			element.usedReferencesExpanded = !element.usedReferencesExpanded;
+			element.usedReferencesExpanded = !isExpanded();
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
-			this.domNode.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+			this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
 			this._onDidChangeHeight.fire();
-			this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
+			this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
 		}));
 
 		const ref = this._register(contentReferencesListPool.get());
@@ -118,34 +146,30 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 				}
 			}
 		}));
-		this._register(list.onContextMenu((e) => {
-			e.browserEvent.preventDefault();
-			e.browserEvent.stopPropagation();
 
-			if (e.element && 'reference' in e.element && typeof e.element.reference === 'object') {
-				const uriOrLocation = 'variableName' in e.element.reference ? e.element.reference.value : e.element.reference;
-				const uri = URI.isUri(uriOrLocation) ? uriOrLocation :
-					uriOrLocation?.uri;
-				if (uri) {
-					this.contextMenuService.showContextMenu({
-						getAnchor: () => e.anchor,
-						getActions: () => {
-							return [{
-								id: 'workbench.action.chat.copyReference',
-								title: localize('copyReference', "Copy"),
-								label: localize('copyReference', "Copy"),
-								tooltip: localize('copyReference', "Copy"),
-								enabled: e.element?.kind === 'reference',
-								class: undefined,
-								run: () => {
-									void this.clipboardService.writeResources([uri]);
-								}
-							}];
-						}
-					});
-				}
+		this._register(list.onContextMenu(e => {
+			dom.EventHelper.stop(e.browserEvent, true);
+
+			const uri = e.element && getResourceForElement(e.element);
+			if (!uri) {
+				return;
 			}
 
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => {
+					const menu = menuService.getMenuActions(MenuId.ChatAttachmentsContext, list.contextKeyService, { shouldForwardArgs: true, arg: uri });
+					return getFlatContextMenuActions(menu);
+				}
+			});
+		}));
+
+		const resourceContextKey = this._register(this.instantiationService.createInstance(ResourceContextKey));
+		this._register(list.onDidChangeFocus(e => {
+			resourceContextKey.reset();
+			const element = e.elements.length ? e.elements[0] : undefined;
+			const uri = element && getResourceForElement(element);
+			resourceContextKey.set(uri ?? null);
 		}));
 
 		const maxItemsShown = 6;
@@ -157,8 +181,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'references' && other.references.length === this.data.length ||
-			other.kind === 'codeCitations' && other.citations.length === this.data.length;
+		return other.kind === 'references' && other.references.length === this.data.length && (!!followingContent.length === this.hasFollowingContent);
 	}
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
@@ -179,6 +202,7 @@ export class CollapsibleListPool extends Disposable {
 
 	constructor(
 		private _onDidChangeVisibility: Event<boolean>,
+		private readonly menuId: MenuId | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -193,26 +217,12 @@ export class CollapsibleListPool extends Disposable {
 		const container = $('.chat-used-context-list');
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const getDragURI = (element: IChatCollapsibleListItem): URI | null => {
-			if (element.kind === 'warning') {
-				return null;
-			}
-			const { reference } = element;
-			if (typeof reference === 'string' || 'variableName' in reference) {
-				return null;
-			} else if (URI.isUri(reference)) {
-				return reference;
-			} else {
-				return reference.uri;
-			}
-		};
-
 		const list = this.instantiationService.createInstance(
 			WorkbenchList<IChatCollapsibleListItem>,
 			'ChatListRenderer',
 			container,
 			new CollapsibleListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels)],
+			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId)],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -235,9 +245,9 @@ export class CollapsibleListPool extends Disposable {
 					getWidgetAriaLabel: () => localize('chatCollapsibleList', "Collapsible Chat List")
 				},
 				dnd: {
-					getDragURI: (element: IChatCollapsibleListItem) => getDragURI(element)?.toString() ?? null,
+					getDragURI: (element: IChatCollapsibleListItem) => getResourceForElement(element)?.toString() ?? null,
 					getDragLabel: (elements, originalEvent) => {
-						const uris: URI[] = coalesce(elements.map(getDragURI));
+						const uris: URI[] = coalesce(elements.map(getResourceForElement));
 						if (!uris.length) {
 							return undefined;
 						} else if (uris.length === 1) {
@@ -252,7 +262,7 @@ export class CollapsibleListPool extends Disposable {
 					onDragStart: (data, originalEvent) => {
 						try {
 							const elements = data.getData() as IChatCollapsibleListItem[];
-							const uris: URI[] = coalesce(elements.map(getDragURI));
+							const uris: URI[] = coalesce(elements.map(getResourceForElement));
 							this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, uris, originalEvent));
 						} catch {
 							// noop
@@ -289,8 +299,11 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 }
 
 interface ICollapsibleListTemplate {
-	label: IResourceLabel;
-	templateDisposables: IDisposable;
+	readonly contextKeyService?: IContextKeyService;
+	readonly label: IResourceLabel;
+	readonly templateDisposables: DisposableStore;
+	toolbar: MenuWorkbenchToolBar | undefined;
+	actionBarContainer?: HTMLElement;
 }
 
 class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
@@ -299,15 +312,29 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 
 	constructor(
 		private labels: ResourceLabels,
+		private menuId: MenuId | undefined,
 		@IThemeService private readonly themeService: IThemeService,
-		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IProductService private readonly productService: IProductService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICollapsibleListTemplate {
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
-		return { templateDisposables, label };
+
+		let toolbar;
+		let actionBarContainer;
+		let contextKeyService;
+		if (this.menuId) {
+			actionBarContainer = $('.chat-collapsible-list-action-bar');
+			contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
+			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined } }));
+			label.element.appendChild(actionBarContainer);
+		}
+
+		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService };
 	}
 
 
@@ -330,6 +357,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		const reference = data.reference;
 		const icon = this.getReferenceIcon(data);
 		templateData.label.element.style.display = 'flex';
+		let arg: URI | undefined;
 		if (typeof reference === 'object' && 'variableName' in reference) {
 			if (reference.value) {
 				const uri = URI.isUri(reference.value) ? reference.value : reference.value.uri;
@@ -340,38 +368,53 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 						description: `#${reference.variableName}`,
 						range: 'range' in reference.value ? reference.value.range : undefined,
 					}, { icon, title: data.options?.status?.description ?? data.title });
+			} else if (reference.variableName.startsWith('kernelVariable')) {
+				const variable = reference.variableName.split(':')[1];
+				const asVariableName = `${variable}`;
+				const label = `Kernel variable`;
+				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description });
 			} else {
-				const variable = this.chatVariablesService.getVariable(reference.variableName);
-				// This is a hack to get chat attachment ThemeIcons to render for resource labels
-				const asThemeIcon = variable?.icon ? `$(${variable.icon.id}) ` : '';
-				const asVariableName = `#${reference.variableName}`; // Fallback, shouldn't really happen
-				const label = `${asThemeIcon}${variable?.fullName ?? asVariableName}`;
-				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description ?? variable?.description });
+				// Nothing else is expected to fall into here
+				templateData.label.setLabel('Unknown variable type');
 			}
 		} else if (typeof reference === 'string') {
 			templateData.label.setLabel(reference, undefined, { iconPath: URI.isUri(icon) ? icon : undefined, title: data.options?.status?.description ?? data.title });
 
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
+			arg = uri;
+			const extraClasses = data.excluded ? ['excluded'] : [];
 			if (uri.scheme === 'https' && isEqualAuthority(uri.authority, 'github.com') && uri.path.includes('/tree/')) {
 				// Parse a nicer label for GitHub URIs that point at a particular commit + file
 				const label = uri.path.split('/').slice(1, 3).join('/');
 				const description = uri.path.split('/').slice(5).join('/');
-				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title });
+				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title, strikethrough: data.excluded, extraClasses });
 			} else if (uri.scheme === this.productService.urlProtocol && isEqualAuthority(uri.authority, SETTINGS_AUTHORITY)) {
 				// a nicer label for settings URIs
 				const settingId = uri.path.substring(1);
-				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId) });
+				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId), strikethrough: data.excluded, extraClasses });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString() });
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString(), strikethrough: data.excluded, extraClasses });
 			} else {
-				templateData.label.setFile(uri, {
-					fileKind: FileKind.FILE,
-					// Should not have this live-updating data on a historical reference
-					fileDecorations: { badges: false, colors: false },
-					range: 'range' in reference ? reference.range : undefined,
-					title: data.options?.status?.description ?? data.title
-				});
+				if (data.state === WorkingSetEntryState.Transient || data.state === WorkingSetEntryState.Suggested) {
+					templateData.label.setResource(
+						{
+							resource: uri,
+							name: basenameOrAuthority(uri),
+							description: data.description ?? localize('chat.openEditor', 'Open Editor'),
+							range: 'range' in reference ? reference.range : undefined,
+						}, { icon, title: data.options?.status?.description ?? data.title, italic: data.state === WorkingSetEntryState.Suggested, strikethrough: data.excluded, extraClasses });
+				} else {
+					templateData.label.setFile(uri, {
+						fileKind: FileKind.FILE,
+						// Should not have this live-updating data on a historical reference
+						fileDecorations: undefined,
+						range: 'range' in reference ? reference.range : undefined,
+						title: data.options?.status?.description ?? data.title,
+						strikethrough: data.excluded,
+						extraClasses
+					});
+				}
 			}
 		}
 
@@ -385,9 +428,110 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				}
 			}
 		}
+
+		if (data.state !== undefined) {
+			if (templateData.actionBarContainer) {
+				if (data.state === WorkingSetEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
+					templateData.actionBarContainer.classList.add('modified');
+					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
+				} else if (data.state !== WorkingSetEntryState.Modified) {
+					templateData.actionBarContainer.classList.remove('modified');
+					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
+				}
+			}
+			if (templateData.toolbar) {
+				templateData.toolbar.context = arg;
+			}
+			if (templateData.contextKeyService) {
+				if (data.state !== undefined) {
+					chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+				}
+				chatEditingWidgetFileReadonlyContextKey.bindTo(templateData.contextKeyService).set(!!data.isMarkedReadonly);
+			}
+		}
 	}
 
 	disposeTemplate(templateData: ICollapsibleListTemplate): void {
 		templateData.templateDisposables.dispose();
 	}
 }
+
+function getResourceForElement(element: IChatCollapsibleListItem): URI | null {
+	if (element.kind === 'warning') {
+		return null;
+	}
+	const { reference } = element;
+	if (typeof reference === 'string' || 'variableName' in reference) {
+		return null;
+	} else if (URI.isUri(reference)) {
+		return reference;
+	} else {
+		return reference.uri;
+	}
+}
+
+//#region Resource context menu
+
+registerAction2(class AddToChatAction extends Action2 {
+
+	static readonly id = 'workbench.action.chat.addToChatAction';
+
+	constructor() {
+		super({
+			id: AddToChatAction.id,
+			title: {
+				...localize2('addToChat', "Add File to Chat"),
+			},
+			f1: false,
+			menu: [{
+				id: MenuId.ChatAttachmentsContext,
+				group: 'chat',
+				order: 1,
+				when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext.negate()),
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const variablesService = accessor.get(IChatVariablesService);
+
+		if (!resource) {
+			return;
+		}
+
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		variablesService.attachContext('file', resource, widget.location);
+	}
+});
+
+registerAction2(class OpenChatReferenceLinkAction extends Action2 {
+
+	static readonly id = 'workbench.action.chat.copyLink';
+
+	constructor() {
+		super({
+			id: OpenChatReferenceLinkAction.id,
+			title: {
+				...localize2('copyLink', "Copy Link"),
+			},
+			f1: false,
+			menu: [{
+				id: MenuId.ChatAttachmentsContext,
+				group: 'chat',
+				order: 0,
+				when: ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.http), ResourceContextKey.Scheme.isEqualTo(Schemas.https)),
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
+		await accessor.get(IClipboardService).writeResources([resource]);
+	}
+});
+
+//#endregion

@@ -13,6 +13,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, LanguageModelsService } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 
 suite('LanguageModels', function () {
 
@@ -30,7 +31,8 @@ suite('LanguageModels', function () {
 					return Promise.resolve();
 				}
 			},
-			new NullLogService()
+			new NullLogService(),
+			new MockContextKeyService()
 		);
 
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelExtensionPoint.name)!;
@@ -142,7 +144,7 @@ suite('LanguageModels', function () {
 			}
 		}));
 
-		const models = await languageModels.selectLanguageModels({ identifier: 'actual-lm' });
+		const models = await languageModels.selectLanguageModels({ id: 'actual-lm' });
 		assert.ok(models.length === 1);
 
 		const first = models[0];

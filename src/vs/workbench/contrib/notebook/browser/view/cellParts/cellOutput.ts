@@ -6,12 +6,12 @@
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../../base/browser/fastDomNode.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
-import { Action, IAction } from '../../../../../../base/common/actions.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import * as nls from '../../../../../../nls.js';
-import { createAndFillInActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -31,9 +31,9 @@ import { INotebookExecutionStateService } from '../../../common/notebookExecutio
 import { INotebookKernel } from '../../../common/notebookKernelService.js';
 import { INotebookService } from '../../../common/notebookService.js';
 import { COPY_OUTPUT_COMMAND_ID } from '../../controller/cellOutputActions.js';
-import { TEXT_BASED_MIMETYPES } from '../../contrib/clipboard/cellOutputClipboard.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT } from '../../../common/notebookContextKeys.js';
+import { TEXT_BASED_MIMETYPES } from '../../viewModel/cellOutputTextHelper.js';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -332,11 +332,7 @@ class CellOutputElement extends Disposable {
 		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
 
 		const updateMenuToolbar = () => {
-			const primary: IAction[] = [];
-			let secondary: IAction[] = [];
-			const result = { primary, secondary };
-
-			createAndFillInActionBarActions(menu!, { shouldForwardArgs: true }, result, () => false);
+			let { secondary } = getActionBarActions(menu!.getActions({ shouldForwardArgs: true }), () => false);
 			if (!isCopyEnabled) {
 				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
 			}

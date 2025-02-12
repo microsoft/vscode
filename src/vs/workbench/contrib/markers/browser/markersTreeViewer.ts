@@ -201,6 +201,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 
 	disposeTemplate(templateData: IResourceMarkersTemplateData): void {
 		templateData.resourceLabel.dispose();
+		templateData.count.dispose();
 	}
 
 	private onDidChangeRenderNodeCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {
@@ -348,11 +349,11 @@ class MarkerWidget extends Disposable {
 				return undefined;
 			}
 		}));
-		this.disposables.add(toDisposable(() => multilineActionbar.dispose()));
+		this.disposables.add(multilineActionbar);
 
 		const viewModel = this.markersViewModel.getViewModel(marker);
 		const multiline = viewModel && viewModel.multiline;
-		const action = new Action(toggleMultilineAction);
+		const action = this.disposables.add(new Action(toggleMultilineAction));
 		action.enabled = !!viewModel && marker.lines.length > 1;
 		action.tooltip = multiline ? localize('single line', "Show message in single line") : localize('multi line', "Show message in multiple lines");
 		action.class = ThemeIcon.asClassName(multiline ? expandedIcon : collapsedIcon);

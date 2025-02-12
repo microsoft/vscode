@@ -71,7 +71,6 @@ export class CodeCell extends Disposable {
 		this.registerNotebookEditorListeners();
 		this.registerViewCellLayoutChange();
 		this.registerCellEditorEventListeners();
-		this.registerDecorations();
 		this.registerMouseListener();
 
 		this._register(Event.any(this.viewCell.onDidStartExecution, this.viewCell.onDidStopExecution)((e) => {
@@ -367,41 +366,6 @@ export class CodeCell extends Disposable {
 				this._attachInputExpandButton(this._inputCollapseElement);
 			}
 		}));
-	}
-
-	private registerDecorations() {
-		// Apply decorations
-		this._register(this.viewCell.onCellDecorationsChanged((e) => {
-			e.added.forEach(options => {
-				if (options.className) {
-					this.templateData.rootContainer.classList.add(options.className);
-				}
-
-				if (options.outputClassName) {
-					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.outputClassName], []);
-				}
-			});
-
-			e.removed.forEach(options => {
-				if (options.className) {
-					this.templateData.rootContainer.classList.remove(options.className);
-				}
-
-				if (options.outputClassName) {
-					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.outputClassName]);
-				}
-			});
-		}));
-
-		this.viewCell.getCellDecorations().forEach(options => {
-			if (options.className) {
-				this.templateData.rootContainer.classList.add(options.className);
-			}
-
-			if (options.outputClassName) {
-				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.outputClassName], []);
-			}
-		});
 	}
 
 	private registerMouseListener() {

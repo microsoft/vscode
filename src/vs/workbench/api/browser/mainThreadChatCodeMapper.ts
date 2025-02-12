@@ -25,15 +25,17 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCodeMapper);
 	}
 
-	$registerCodeMapperProvider(handle: number): void {
+	$registerCodeMapperProvider(handle: number, displayName: string): void {
 		const impl: ICodeMapperProvider = {
+			displayName,
 			mapCode: async (uiRequest: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) => {
 				const requestId = String(MainThreadChatCodemapper._requestHandlePool++);
 				this._responseMap.set(requestId, response);
 				const extHostRequest: ICodeMapperRequestDto = {
 					requestId,
 					codeBlocks: uiRequest.codeBlocks,
-					conversation: uiRequest.conversation
+					chatRequestId: uiRequest.chatRequestId,
+					location: uiRequest.location
 				};
 				try {
 					return await this._proxy.$mapCode(handle, extHostRequest, token).then((result) => result ?? undefined);
@@ -55,9 +57,7 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 		const response = this._responseMap.get(requestId);
 		if (response) {
 			const resource = URI.revive(data.uri);
-			for (const edit of data.edits) {
-				response.textEdit(edit, resource);
-			}
+			response.textEdit(resource, data.edits);
 		}
 		return Promise.resolve();
 	}

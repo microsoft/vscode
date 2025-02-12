@@ -7,8 +7,10 @@ import './media/paneviewlet.css';
 import * as nls from '../../../../nls.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { asCssVariable, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from '../../../../base/browser/dom.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { after, append, $, trackFocus, EventType, addDisposableListener, Dimension, reset, isAncestorOfActiveElement, isActiveElement } from '../../../../base/browser/dom.js';
+import { createCSSRule } from '../../../../base/browser/domStylesheets.js';
+import { asCssValueWithDefault, asCSSUrl } from '../../../../base/browser/cssValue.js';
+import { DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, IAction, IActionRunner } from '../../../../base/common/actions.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -53,6 +55,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { PANEL_BACKGROUND, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from '../../../common/theme.js';
 import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -235,7 +238,8 @@ class ViewWelcomeController {
 			return;
 		}
 
-		for (const { content, precondition } of contents) {
+		let buttonsCount = 0;
+		for (const { content, precondition, renderSecondaryButtons } of contents) {
 			const lines = content.split('\n');
 
 			for (let line of lines) {
@@ -250,13 +254,14 @@ class ViewWelcomeController {
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
 					const buttonContainer = append(this.element!, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, secondary: renderSecondaryButtons && buttonsCount > 0 ? true : false, ...defaultButtonStyles, });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.delegate.id, uri: node.href });
 						this.openerService.open(node.href, { allowCommands: true });
 					}, null, this.renderDisposables);
 					this.renderDisposables.add(button);
+					buttonsCount++;
 
 					if (precondition) {
 						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
@@ -271,7 +276,7 @@ class ViewWelcomeController {
 
 					for (const node of linkedText.nodes) {
 						if (typeof node === 'string') {
-							append(p, document.createTextNode(node));
+							append(p, ...renderLabelWithIcons(node));
 						} else {
 							const link = this.renderDisposables.add(this.instantiationService.createInstance(Link, p, node, {}));
 
@@ -361,6 +366,8 @@ export abstract class ViewPane extends Pane implements IView {
 	private iconContainerHover?: IManagedHover;
 	protected twistiesContainer?: HTMLElement;
 	private viewWelcomeController!: ViewWelcomeController;
+
+	private readonly headerActionViewItems: DisposableMap<string, IActionViewItem> = this._register(new DisposableMap());
 
 	protected readonly scopedContextKeyService: IContextKeyService;
 
@@ -453,7 +460,13 @@ export abstract class ViewPane extends Pane implements IView {
 		actions.classList.toggle('show-expanded', this.showActions === ViewPaneShowActions.WhenExpanded);
 		this.toolbar = this.instantiationService.createInstance(WorkbenchToolBar, actions, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionViewItemProvider: (action, options) => this.getActionViewItem(action, options),
+			actionViewItemProvider: (action, options) => {
+				const item = this.createActionViewItem(action, options);
+				if (item) {
+					this.headerActionViewItems.set(item.action.id, item);
+				}
+				return item;
+			},
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			renderDropdownAsChildElement: true,
@@ -568,10 +581,12 @@ export abstract class ViewPane extends Pane implements IView {
 			this.titleContainerHover?.update(calculatedTitle);
 		}
 
+		const ariaLabel = this._getAriaLabel(calculatedTitle);
 		if (this.iconContainer) {
 			this.iconContainerHover?.update(calculatedTitle);
-			this.iconContainer.setAttribute('aria-label', this._getAriaLabel(calculatedTitle));
+			this.iconContainer.setAttribute('aria-label', ariaLabel);
 		}
+		this.ariaHeaderLabel = this.getAriaHeaderLabel(ariaLabel);
 
 		this._title = title;
 		this._onDidChangeTitleArea.fire();
@@ -652,6 +667,8 @@ export abstract class ViewPane extends Pane implements IView {
 			this.viewWelcomeController.focus();
 		} else if (this.element) {
 			this.element.focus();
+		}
+		if (isActiveElement(this.element) || isAncestorOfActiveElement(this.element)) {
 			this._onDidFocus.fire();
 		}
 	}
@@ -680,7 +697,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
-	getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === VIEWPANE_FILTER_ACTION.id) {
 			const that = this;
 			return new class extends BaseActionViewItem {
@@ -838,12 +855,13 @@ export abstract class ViewAction<T extends IView> extends Action2 {
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: any[]): unknown {
 		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
 		if (view) {
 			return this.runInView(accessor, <T>view, ...args);
 		}
+		return undefined;
 	}
 
-	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): unknown;
 }

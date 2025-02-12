@@ -31,15 +31,14 @@ const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
+const { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
-const { isAMD } = require('./lib/amd');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
 // Build
-const vscodeEntryPoints = !isAMD() ? [
-	buildfile.base,
+const vscodeEntryPoints = [
+	buildfile.workerEditor,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
@@ -47,28 +46,18 @@ const vscodeEntryPoints = !isAMD() ? [
 	buildfile.workerProfileAnalysis,
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
-	buildfile.workbenchDesktop(),
-	buildfile.code
-].flat() : [
-	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
-	buildfile.base,
-	buildfile.workerExtensionHost,
-	buildfile.workerNotebook,
-	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
-	buildfile.workerProfileAnalysis,
-	buildfile.workbenchDesktop(),
+	buildfile.workbenchDesktop,
 	buildfile.code
 ].flat();
 
-const vscodeResourceIncludes = !isAMD() ? [
+const vscodeResourceIncludes = [
 
 	// NLS
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
 
 	// Workbench
-	'out-build/vs/code/electron-sandbox/workbench/workbench.esm.html',
+	'out-build/vs/code/electron-sandbox/workbench/workbench.html',
 
 	// Electron Preload
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
@@ -85,7 +74,7 @@ const vscodeResourceIncludes = !isAMD() ? [
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 
 	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/*.fish',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.fish',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
@@ -105,43 +94,13 @@ const vscodeResourceIncludes = !isAMD() ? [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
 
 	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 
 	// Process Explorer
-	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.esm.html',
+	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.html',
 
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
-
-	// Issue Reporter
-	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.esm.html'
-] : [
-	'out-build/nls.messages.json',
-	'out-build/nls.keys.json',
-	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
-	'!out-build/vs/code/browser/**/*.html',
-	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
-	'!out-build/vs/editor/standalone/**/*.svg',
-	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
-	'out-build/vs/base/browser/ui/codicons/codicon/**',
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
-	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/contrib/debug/**/*.json',
-	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/*.fish',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
-	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
-	'out-build/vs/editor/common/languages/highlights/*.scm',
-	'out-build/vs/**/markdown.css',
-	'out-build/vs/workbench/contrib/tasks/**/*.json',
-	'!**/test/**'
 ];
 
 const vscodeResources = [
@@ -153,73 +112,55 @@ const vscodeResources = [
 	'!out-build/vs/code/browser/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
-	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
 	'!**/test/**'
 ];
 
-// Do not change the order of these files! They will
-// be inlined into the target window file in this order
-// and they depend on each other in this way.
-const windowBootstrapFiles = [];
-if (isAMD()) {
-	windowBootstrapFiles.push('out-build/vs/loader.js');
-}
-windowBootstrapFiles.push('out-build/bootstrap-window.js');
-
-const commonJSEntryPoints = [
+const bootstrapEntryPoints = [
 	'out-build/main.js',
 	'out-build/cli.js',
 	'out-build/bootstrap-fork.js'
 ];
 
-const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
+const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 	util.rimraf('out-vscode'),
 	// Optimize: bundles source files automatically based on
-	// AMD and CommonJS import statements based on the passed
-	// in entry points. In addition, concat window related
-	// bootstrap files into a single file.
-	optimize.optimizeTask(
+	// import statements based on the passed in entry points.
+	// In addition, concat window related bootstrap files into
+	// a single file.
+	optimize.bundleTask(
 		{
 			out: 'out-vscode',
-			amd: {
+			esm: {
 				src: 'out-build',
-				entryPoints: vscodeEntryPoints,
+				entryPoints: [
+					...vscodeEntryPoints,
+					...bootstrapEntryPoints
+				],
 				resources: vscodeResources,
-				loaderConfig: optimize.loaderConfig(),
-				bundleInfo: undefined
-			},
-			commonJS: {
-				src: 'out-build',
-				entryPoints: commonJSEntryPoints,
-				platform: 'node',
-				external: [
-					'electron',
-					'minimist',
-					'original-fs',
-					// We cannot inline `product.json` from here because
-					// it is being changed during build time at a later
-					// point in time (such as `checksums`)
-					// We have a manual step to inline these later.
-					'../product.json',
-					'../package.json',
-				]
-			},
-			manual: [
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
-				// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop.
-				{ src: [...windowBootstrapFiles, 'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.js'], out: 'vs/workbench/contrib/issue/electron-sandbox/issueReporter.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' }
-			]
+				fileContentMapper: filePath => {
+					if (
+						filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
+						filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')) {
+						return async (content) => {
+							const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
+							return `${bootstrapWindowContent}\n${content}`; // prepend bootstrap-window.js content to entry points that are Electron windows
+						};
+					}
+					return undefined;
+				},
+				skipTSBoilerplateRemoval: entryPoint =>
+					entryPoint === 'vs/code/electron-sandbox/workbench/workbench' ||
+					entryPoint === 'vs/code/electron-sandbox/processExplorer/processExplorer',
+			}
 		}
 	)
 ));
-gulp.task(optimizeVSCodeTask);
+gulp.task(bundleVSCodeTask);
 
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
-	optimizeVSCodeTask,
+	bundleVSCodeTask,
 	util.rimraf('out-vscode-min'),
 	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
@@ -296,7 +237,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			!isAMD() ? 'vs/code/electron-sandbox/workbench/workbench.esm.html' : 'vs/code/electron-sandbox/workbench/workbench.html',
+			'vs/code/electron-sandbox/workbench/workbench.html',
 			'vs/code/electron-sandbox/workbench/workbench.js'
 		]);
 
@@ -326,11 +267,10 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		}
 
 		const name = product.nameShort;
-		const packageJsonUpdates = { name, version, ...(!isAMD() ? { type: 'module', main: 'out/main.js' } : {}) }; // TODO@esm this should be configured in the top level package.json
+		const packageJsonUpdates = { name, version };
 
-		// for linux url handling
 		if (platform === 'linux') {
-			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
+			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
 		}
 
 		let packageJsonContents;
@@ -359,7 +299,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
 		const productionDependencies = getProductionDependencies(root);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!**/*.mk`]).flat();
+		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
@@ -377,12 +317,10 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
-			], isAMD() ? [
-				'**/*.mk',
-			] : [
+			], [
 				'**/*.mk',
 				'!node_modules/vsda/**' // stay compatible with extensions that depend on us shipping `vsda` into ASAR
-			], isAMD() ? [] : [
+			], [
 				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
 
@@ -489,7 +427,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		}
 
 		result = inlineMeta(result, {
-			targetPaths: commonJSEntryPoints,
+			targetPaths: bootstrapEntryPoints,
 			packageJsonFn: () => packageJsonContents,
 			productJsonFn: () => productJsonContents
 		});
@@ -549,6 +487,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 		const tasks = [
+			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 		];
@@ -562,9 +501,10 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 			compileBuildTask,
-			compileExtensionsBuildTask,
+			cleanExtensionsBuildTask,
+			compileNonNativeExtensionsBuildTask,
 			compileExtensionMediaBuildTask,
-			minified ? minifyVSCodeTask : optimizeVSCodeTask,
+			minified ? minifyVSCodeTask : bundleVSCodeTask,
 			vscodeTaskCI
 		));
 		gulp.task(vscodeTask);
@@ -599,7 +539,7 @@ gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
 		core,
-		compileExtensionsBuildTask,
+		compileAllExtensionsBuildTask,
 		function () {
 			const pathToMetadata = './out-build/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
-import { ConsoleLogger, getLogLevel, ILoggerService, ILogService, NullLogger } from '../../platform/log/common/log.js';
+import { ConsoleLogger, getLogLevel, ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { ConfigurationService } from '../../platform/configuration/common/configurationService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -12,7 +12,7 @@ import { IRequestService } from '../../platform/request/common/request.js';
 import { RequestService } from '../../platform/request/node/requestService.js';
 import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
-import { IExtensionGalleryService, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { IAllowedExtensionsService, IExtensionGalleryService, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionGalleryServiceWithNoStorageService } from '../../platform/extensionManagement/common/extensionGalleryService.js';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from '../../platform/extensionManagement/node/extensionManagementService.js';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
@@ -50,6 +50,7 @@ import { LogService } from '../../platform/log/common/logService.js';
 import { LoggerService } from '../../platform/log/node/loggerService.js';
 import { localize } from '../../nls.js';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
+import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 
 class CliMain extends Disposable {
 
@@ -128,13 +129,14 @@ class CliMain extends Disposable {
 			userDataProfilesService.init()
 		]);
 
-		services.set(IRequestService, new SyncDescriptor(RequestService, [new NullLogger()]));
+		services.set(IRequestService, new SyncDescriptor(RequestService, ['remote']));
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 		services.set(ITelemetryService, NullTelemetryService);
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService));
+		services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService));
 
@@ -150,7 +152,7 @@ class CliMain extends Disposable {
 
 		// Install Extension
 		else if (this.args['install-extension'] || this.args['install-builtin-extension']) {
-			const installOptions: InstallOptions = { isMachineScoped: !!this.args['do-not-sync'], installPreReleaseVersion: !!this.args['pre-release'] };
+			const installOptions: InstallOptions = { isMachineScoped: !!this.args['do-not-sync'], installPreReleaseVersion: !!this.args['pre-release'], donotIncludePackAndDependencies: !!this.args['do-not-include-pack-dependencies'] };
 			return extensionManagementCLI.installExtensions(this.asExtensionIdOrVSIX(this.args['install-extension'] || []), this.asExtensionIdOrVSIX(this.args['install-builtin-extension'] || []), installOptions, !!this.args['force']);
 		}
 

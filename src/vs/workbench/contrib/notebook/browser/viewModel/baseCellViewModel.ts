@@ -19,13 +19,13 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../../edit
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from '../../../codeEditor/browser/toggleWordWrap.js';
-import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 import { CellEditState, CellFocusMode, CellLayoutChangeEvent, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from '../notebookBrowser.js';
 import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
 import { CellViewModelStateChangeEvent } from '../notebookViewEvents.js';
 import { ViewContext } from './viewContext.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellKind, INotebookCellStatusBarItem, INotebookFindOptions } from '../../common/notebookCommon.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -179,6 +179,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	private _isDisposed = false;
+	private _isReadonly = false;
 
 	constructor(
 		readonly viewType: string,
@@ -189,6 +190,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		private readonly _modelService: ITextModelService,
 		private readonly _undoRedoService: IUndoRedoService,
 		private readonly _codeEditorService: ICodeEditorService,
+		private readonly _inlineChatSessionService: IInlineChatSessionService
 		// private readonly _keymapService: INotebookKeymapService
 	) {
 		super();
@@ -228,7 +230,14 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 
-	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
+	updateOptions(e: NotebookOptionsChangeEvent): void {
+		if (this._textEditor && typeof e.readonly === 'boolean') {
+			this._textEditor.updateOptions({ readOnly: e.readonly });
+		}
+		if (typeof e.readonly === 'boolean') {
+			this._isReadonly = e.readonly;
+		}
+	}
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
 	abstract layoutChange(change: CellLayoutChangeEvent, source?: string): void;
@@ -262,7 +271,9 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
-
+		if (this._isReadonly) {
+			editor.updateOptions({ readOnly: this._isReadonly });
+		}
 		if (this._editorViewStates) {
 			this._restoreViewState(this._editorViewStates);
 		} else {
@@ -305,14 +316,11 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._editorListeners.push(editor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
-		const inlineChatController = InlineChatController.get(this._textEditor);
-		if (inlineChatController) {
-			this._editorListeners.push(inlineChatController.onWillStartSession(() => {
-				if (this.textBuffer.getLength() === 0) {
-					this.enableAutoLanguageDetection();
-				}
-			}));
-		}
+		this._editorListeners.push(this._inlineChatSessionService.onWillStartSession((e) => {
+			if (e === this._textEditor && this.textBuffer.getLength() === 0) {
+				this.enableAutoLanguageDetection();
+			}
+		}));
 
 		this._onDidChangeState.fire({ selectionChanged: true });
 		this._onDidChangeEditorAttachState.fire();

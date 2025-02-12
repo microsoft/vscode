@@ -32,10 +32,10 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
 	constructor(
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 		this._editorViewState = this.add(instantiationService.createInstance(PickerEditorState));
@@ -266,7 +266,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		this._editorSequencer.queue(async () => {
 			await this._editorViewState.openTransientEditor({
 				resource: link.uri,
-				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
+				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection }
 			});
 		});
 	}

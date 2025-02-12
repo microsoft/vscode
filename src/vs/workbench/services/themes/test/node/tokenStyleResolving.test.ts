@@ -192,6 +192,9 @@ suite('Themes - TokenStyleResolving', () => {
 		tokenStyle = themeData.resolveScopes([['meta.structure.dictionary.json', 'string.quoted.double.json']]);
 		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
 
+		tokenStyle = themeData.resolveScopes([['source.json', 'meta.structure.dictionary.json', 'string.quoted.double.json']]);
+		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
+
 		tokenStyle = themeData.resolveScopes([['keyword'], ['storage.type'], ['entity.name.class']]);
 		assertTokenStyle(tokenStyle, ts('#66D9EF', { italic: true, bold: false, underline: false }), 'storage.type');
 

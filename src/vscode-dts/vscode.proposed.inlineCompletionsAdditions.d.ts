@@ -29,6 +29,13 @@ declare module 'vscode' {
 		 * Defaults to `false`.
 		*/
 		completeBracketPairs?: boolean;
+
+		warning?: InlineCompletionWarning;
+	}
+
+	export interface InlineCompletionWarning {
+		message: MarkdownString | string;
+		icon?: ThemeIcon;
 	}
 
 	export interface InlineCompletionItemProviderMetadata {
@@ -50,6 +57,7 @@ declare module 'vscode' {
 		/**
 		 * Is called when an inline completion item was accepted partially.
 		 * @param acceptedLength The length of the substring of the inline completion that was accepted already.
+		 * @deprecated Use `handleDidPartiallyAcceptCompletionItem` with `PartialAcceptInfo` instead.
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
@@ -66,10 +74,16 @@ declare module 'vscode' {
 
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
+
+		readonly requestUuid?: string;
 	}
 
 	export interface PartialAcceptInfo {
 		kind: PartialAcceptTriggerKind;
+		/**
+		 * The length of the substring of the provided inline completion text that was accepted already.
+		*/
+		acceptedLength: number;
 	}
 
 	export enum PartialAcceptTriggerKind {

@@ -19,7 +19,6 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IDebugService } from '../../../debug/common/debug.js';
 import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
 import { insertCell } from './cellOperations.js';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED } from './chat/notebookChatContext.js';
 import { NotebookChatController } from './chat/notebookChatController.js';
 import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from './coreActions.js';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
@@ -56,6 +55,10 @@ export const executeCondition = ContextKeyExpr.and(
 export const executeThisCellCondition = ContextKeyExpr.and(
 	executeCondition,
 	NOTEBOOK_CELL_EXECUTING.toNegated());
+
+export const executeSectionCondition = ContextKeyExpr.and(
+	NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
+);
 
 function renderAllMarkdownCells(context: INotebookActionContext): void {
 	for (let i = 0; i < context.notebookEditor.getLength(); i++) {
@@ -192,10 +195,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			precondition: executeThisCellCondition,
 			title: localize('notebookActions.execute', "Execute Cell"),
 			keybinding: {
-				when: ContextKeyExpr.or(
-					NOTEBOOK_CELL_LIST_FOCUSED,
-					ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED)
-				),
+				when: NOTEBOOK_CELL_LIST_FOCUSED,
 				primary: KeyMod.WinCtrl | KeyCode.Enter,
 				win: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter

@@ -41,12 +41,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	get commands(): readonly TerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
-	// TODO: as is unsafe here and it duplicates behavor of executingCommand
 	get executingCommandObject(): ITerminalCommand | undefined {
 		if (this._currentCommand.commandStartMarker) {
-			return { marker: this._currentCommand.commandStartMarker } as ITerminalCommand;
+			// HACK: This does a lot more than the consumer of the API needs. It's also a little
+			//       misleading since it's not promoting the current command yet.
+			return this._currentCommand.promoteToFullCommand(this._cwd, undefined, this._handleCommandStartOptions?.ignoreCommandLine ?? false, undefined);
 		}
 		return undefined;
+	}
+	get executingCommandConfidence(): 'low' | 'medium' | 'high' | undefined {
+		const casted = this._currentCommand as PartialTerminalCommand | ITerminalCommand;
+		return 'commandLineConfidence' in casted ? casted.commandLineConfidence : undefined;
 	}
 	get currentCommand(): ICurrentPartialCommand {
 		return this._currentCommand;
@@ -353,7 +358,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, options?.marker?.line, this._currentCommand.command, this._currentCommand);
 
 		// HACK: Handle a special case on some versions of bash where identical commands get merged
-		// in the output of `history`, this detects that case and sets the exit code to the the last
+		// in the output of `history`, this detects that case and sets the exit code to the last
 		// command's exit code. This covered the majority of cases but will fail if the same command
 		// runs with a different exit code, that will need a more robust fix where we send the
 		// command ID and exit code over to the capability to adjust there.
@@ -430,6 +435,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				this._currentCommand.commandStartX = e.startX;
 				this._currentCommand.promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
 				this._cwd = e.cwd;
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
 				this._onCommandStarted.fire({ marker } as ITerminalCommand);
 				continue;
 			}
@@ -511,6 +517,7 @@ class UnixPtyHeuristics extends Disposable {
 		}
 		this._hooks.commandMarkers.length = 0;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._hooks.onCommandStartedEmitter.fire({ marker: options?.marker || currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', currentCommand.commandStartX, currentCommand.commandStartMarker?.line);
 	}
@@ -770,6 +777,7 @@ class WindowsPtyHeuristics extends Disposable {
 				this._capability.currentCommand.commandStartLineContent = line.translateToString(true);
 			}
 		}
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._hooks.onCommandStartedEmitter.fire({ marker: this._capability.currentCommand.commandStartMarker } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._capability.currentCommand.commandStartX, this._capability.currentCommand.commandStartMarker?.line);
 	}

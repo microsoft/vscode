@@ -12,7 +12,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { CommentCommandId } from '../common/commentCommandIds.js';
 import { ToggleTabFocusModeAction } from '../../../../editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode.js';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 
 
@@ -25,6 +25,8 @@ export namespace CommentAccessibilityHelpNLS {
 	export const previousRange = nls.localize('previous', "- Go to Previous Commenting Range{0}.", `<keybinding:${CommentCommandId.PreviousRange}>`);
 	export const nextCommentThread = nls.localize('nextCommentThreadKb', "- Go to Next Comment Thread{0}.", `<keybinding:${CommentCommandId.NextThread}>`);
 	export const previousCommentThread = nls.localize('previousCommentThreadKb', "- Go to Previous Comment Thread{0}.", `<keybinding:${CommentCommandId.PreviousThread}>`);
+	export const nextCommentedRange = nls.localize('nextCommentedRangeKb', "- Go to Next Commented Range{0}.", `<keybinding:${CommentCommandId.NextCommentedRange}>`);
+	export const previousCommentedRange = nls.localize('previousCommentedRangeKb', "- Go to Previous Commented Range{0}.", `<keybinding:${CommentCommandId.PreviousCommentedRange}>`);
 	export const addComment = nls.localize('addCommentNoKb', "- Add Comment on Current Selection{0}.", `<keybinding:${CommentCommandId.Add}>`);
 	export const submitComment = nls.localize('submitComment', "- Submit Comment{0}.", `<keybinding:${CommentCommandId.Submit}>`);
 }
@@ -42,7 +44,7 @@ export class CommentsAccessibilityHelpProvider extends Disposable implements IAc
 	}
 }
 
-export class CommentsAccessibilityHelp implements IAccessibleViewImplentation {
+export class CommentsAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 110;
 	readonly name = 'comments';
 	readonly type = AccessibleViewType.Help;

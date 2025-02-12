@@ -56,6 +56,7 @@ export interface ISCMResourceGroup {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly label: string;
+	contextValue: string | undefined;
 	readonly hideWhenEmpty: boolean;
 	readonly onDidChange: Event<void>;
 
@@ -78,9 +79,8 @@ export interface ISCMProvider extends IDisposable {
 	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
 	readonly acceptInputCommand?: Command;
-	readonly actionButton?: ISCMActionButtonDescriptor;
+	readonly actionButton: IObservable<ISCMActionButtonDescriptor | undefined>;
 	readonly statusBarCommands: IObservable<readonly Command[] | undefined>;
-	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
@@ -116,16 +116,15 @@ export interface ISCMInputChangeEvent {
 }
 
 export interface ISCMActionButtonDescriptor {
-	command: Command;
+	command: Command & { shortTitle?: string };
 	secondaryCommands?: Command[][];
-	description?: string;
 	enabled: boolean;
 }
 
 export interface ISCMActionButton {
 	readonly type: 'actionButton';
 	readonly repository: ISCMRepository;
-	readonly button?: ISCMActionButtonDescriptor;
+	readonly button: ISCMActionButtonDescriptor;
 }
 
 export interface ISCMInput {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
-import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, ExtensionManagementError, ExtensionManagementErrorCode, EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, ExtensionManagementError, ExtensionManagementErrorCode, EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ExtensionType, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -32,6 +32,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 	constructor(
 		channel: IChannel,
 		private readonly localExtensionManagementServer: IExtensionManagementServer,
+		@IProductService productService: IProductService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IRemoteUserDataProfilesService remoteUserDataProfilesService: IRemoteUserDataProfilesService,
@@ -39,11 +40,11 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(channel, userDataProfileService, userDataProfilesService, remoteUserDataProfilesService, uriIdentityService);
+		super(channel, productService, allowedExtensionsService, userDataProfileService, userDataProfilesService, remoteUserDataProfilesService, uriIdentityService);
 	}
 
 	override async install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {

@@ -11,9 +11,6 @@ parameters:
     type: boolean
   - name: VSCODE_ARCH
     type: string
-  - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -33,9 +30,9 @@ steps:
     - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
-        azureSubscription: "vscode-builds-subscription"
+        azureSubscription: vscode
         KeyVaultName: vscode-build-secrets
-        SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+        SecretsFilter: "github-distro-mixin-password"
 
     - task: DownloadPipelineArtifact@2
       inputs:
@@ -114,6 +111,8 @@ steps:
         echo "Npm install failed $i, trying again..."
       done
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -131,6 +130,28 @@ steps:
       VSCODE_ARCH: $(VSCODE_ARCH)
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download vscode sysroots
+
+  - ${{ if or(eq(parameters.VSCODE_ARCH, 'arm64'), eq(parameters.VSCODE_ARCH, 'armhf')) }}:
+    - script: |
+        set -e
+        includes=$(cat << 'EOF'
+        {
+          "target_defaults": {
+            "conditions": [
+              ["OS=='linux'", {
+                'cflags_cc!': [ '-std=gnu++20' ],
+                'cflags_cc': [ '-std=gnu++2a' ],
+              }]
+            ]
+          }
+        }
+        EOF
+        )
+        if [ ! -d "$HOME/.gyp" ]; then
+          mkdir -p "$HOME/.gyp"
+        fi
+        echo "$includes" > "$HOME/.gyp/include.gypi"
+      displayName: Override gnu target for arm64 and arm
 
   - script: |
       set -e
@@ -158,20 +179,6 @@ steps:
     - script: node build/azure-pipelines/distro/mixin-npm
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
       displayName: Mixin distro node modules
-
-  - ${{ else }}:
-    # Ref https://github.com/microsoft/vscode/issues/189019
-    # for the node-gyp rebuild step
-    - script: |
-        set -e
-
-        cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
-        cd ../.. && ./.github/workflows/check-clean-git-state.sh
-      env:
-        npm_config_arch: $(NPM_ARCH)
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Rebuild debug version of native modules (OSS)
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
@@ -251,8 +258,6 @@ steps:
       - script: |
           set -e
 
-          source ./build/azure-pipelines/linux/setup-env.sh
-
           EXPECTED_GLIBC_VERSION="2.28" \
           EXPECTED_GLIBCXX_VERSION="3.4.25" \
           ./build/azure-pipelines/linux/verify-glibc-requirements.sh
@@ -266,8 +271,6 @@ steps:
       - script: |
           set -e
 
-          source ./build/azure-pipelines/linux/setup-env.sh
-
           EXPECTED_GLIBC_VERSION="2.28" \
           EXPECTED_GLIBCXX_VERSION="3.4.26" \
           ./build/azure-pipelines/linux/verify-glibc-requirements.sh
@@ -278,7 +281,7 @@ steps:
         displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
   - ${{ else }}:
-    - script: npm run gulp "transpile-client-swc" "transpile-extensions"
+    - script: npm run gulp "transpile-client-esbuild" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
@@ -290,7 +293,6 @@ steps:
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
-        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
@@ -305,6 +307,11 @@ steps:
     - script:  |
         set -e
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
+        file_output=$(file $(ls .build/linux/deb/*/deb/*.deb))
+        if [[ "$file_output" != *"data compression xz"* ]]; then
+          echo "Error: unknown compression. $file_output"
+          exit 1
+        fi
         echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/deb/*/deb/*.deb)"
       displayName: Build deb package
 
@@ -344,14 +351,26 @@ steps:
       inputs:
         version: 6.x
 
-    - task: EsrpClientTool@1
-      continueOnError: true
-      displayName: Download ESRPClient
+    - task: EsrpCodeSigning@5
+      inputs:
+        UseMSIAuthentication: true
+        ConnectedServiceName: vscode-esrp
+        AppRegistrationClientId: $(ESRP_CLIENT_ID)
+        AppRegistrationTenantId: $(ESRP_TENANT_ID)
+        AuthAKVName: vscode-esrp
+        AuthSignCertName: esrp-sign
+        FolderPath: .
+        Pattern: noop
+      displayName: 'Install ESRP Tooling'
 
-    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/deb '*.deb'
+    - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp .build/linux/deb '*.deb'
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Codesign deb
 
-    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
+    - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp .build/linux/rpm '*.rpm'
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Codesign rpm
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"

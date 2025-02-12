@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from '@xterm/xterm';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { convertBufferRangeToViewport } from './terminalLinkHelpers.js';
@@ -16,12 +16,11 @@ import type { URI } from '../../../../../base/common/uri.js';
 import type { IParsedLink } from './terminalLinkParsing.js';
 import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover.js';
 
-export class TerminalLink extends DisposableStore implements ILink {
+export class TerminalLink extends Disposable implements ILink {
 	decorations: ILinkDecorations;
-	asyncActivate: Promise<void> | undefined;
 
-	private _tooltipScheduler: RunOnceScheduler | undefined;
-	private _hoverListeners: DisposableStore | undefined;
+	private readonly _tooltipScheduler: MutableDisposable<RunOnceScheduler> = this._register(new MutableDisposable());
+	private readonly _hoverListeners = this._register(new MutableDisposable());
 
 	private readonly _onInvalidated = new Emitter<void>();
 	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
@@ -50,38 +49,28 @@ export class TerminalLink extends DisposableStore implements ILink {
 		};
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this._hoverListeners?.dispose();
-		this._hoverListeners = undefined;
-		this._tooltipScheduler?.dispose();
-		this._tooltipScheduler = undefined;
-	}
-
 	activate(event: MouseEvent | undefined, text: string): void {
-		// Trigger the xterm.js callback synchronously but track the promise resolution so we can
-		// use it in tests
-		this.asyncActivate = this._activateCallback(event, text);
+		this._activateCallback(event, text);
 	}
 
 	hover(event: MouseEvent, text: string): void {
 		const w = dom.getWindow(event);
 		const d = w.document;
 		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
-		this._hoverListeners = new DisposableStore();
-		this._hoverListeners.add(dom.addDisposableListener(d, 'keydown', e => {
+		const hoverListeners = this._hoverListeners.value = new DisposableStore();
+		hoverListeners.add(dom.addDisposableListener(d, 'keydown', e => {
 			if (!e.repeat && this._isModifierDown(e)) {
 				this._enableDecorations();
 			}
 		}));
-		this._hoverListeners.add(dom.addDisposableListener(d, 'keyup', e => {
+		hoverListeners.add(dom.addDisposableListener(d, 'keyup', e => {
 			if (!e.repeat && !this._isModifierDown(e)) {
 				this._disableDecorations();
 			}
 		}));
 
 		// Listen for when the terminal renders on the same line as the link
-		this._hoverListeners.add(this._xterm.onRender(e => {
+		hoverListeners.add(this._xterm.onRender(e => {
 			const viewportRangeY = this.range.start.y - this._viewportY;
 			if (viewportRangeY >= e.start && viewportRangeY <= e.end) {
 				this._onInvalidated.fire();
@@ -91,7 +80,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		// Only show the tooltip and highlight for high confidence links (not word/search workspace
 		// links). Feedback was that this makes using the terminal overly noisy.
 		if (this._isHighConfidenceLink) {
-			this._tooltipScheduler = new RunOnceScheduler(() => {
+			this._tooltipScheduler.value = new RunOnceScheduler(() => {
 				this._tooltipCallback(
 					this,
 					convertBufferRangeToViewport(this.range, this._viewportY),
@@ -99,15 +88,13 @@ export class TerminalLink extends DisposableStore implements ILink {
 					this._isHighConfidenceLink ? () => this._disableDecorations() : undefined
 				);
 				// Clear out scheduler until next hover event
-				this._tooltipScheduler?.dispose();
-				this._tooltipScheduler = undefined;
+				this._tooltipScheduler.clear();
 			}, this._configurationService.getValue('workbench.hover.delay'));
-			this.add(this._tooltipScheduler);
-			this._tooltipScheduler.schedule();
+			this._tooltipScheduler.value.schedule();
 		}
 
 		const origin = { x: event.pageX, y: event.pageY };
-		this._hoverListeners.add(dom.addDisposableListener(d, dom.EventType.MOUSE_MOVE, e => {
+		hoverListeners.add(dom.addDisposableListener(d, dom.EventType.MOUSE_MOVE, e => {
 			// Update decorations
 			if (this._isModifierDown(e)) {
 				this._enableDecorations();
@@ -119,16 +106,14 @@ export class TerminalLink extends DisposableStore implements ILink {
 			if (Math.abs(e.pageX - origin.x) > w.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > w.devicePixelRatio * 2) {
 				origin.x = e.pageX;
 				origin.y = e.pageY;
-				this._tooltipScheduler?.schedule();
+				this._tooltipScheduler.value?.schedule();
 			}
 		}));
 	}
 
 	leave(): void {
-		this._hoverListeners?.dispose();
-		this._hoverListeners = undefined;
-		this._tooltipScheduler?.dispose();
-		this._tooltipScheduler = undefined;
+		this._hoverListeners.clear();
+		this._tooltipScheduler.clear();
 	}
 
 	private _enableDecorations(): void {

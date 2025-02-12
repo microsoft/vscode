@@ -93,6 +93,7 @@ registerSimpleEditorSettingMigration('renderFinalNewline', [[true, 'on'], [false
 registerSimpleEditorSettingMigration('cursorSmoothCaretAnimation', [[true, 'on'], [false, 'off']]);
 registerSimpleEditorSettingMigration('occurrencesHighlight', [[true, 'singleFile'], [false, 'off']]);
 registerSimpleEditorSettingMigration('wordBasedSuggestions', [[true, 'matchingDocuments'], [false, 'off']]);
+registerSimpleEditorSettingMigration('defaultColorDecorators', [[true, 'auto'], [false, 'never']]);
 
 registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {

@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Color } from '../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IEditorMouseEvent, isCodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import * as languages from '../../../../editor/common/languages.js';
@@ -26,6 +26,9 @@ import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCo
 import { peekViewBorder } from '../../../../editor/contrib/peekView/browser/peekView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { StableEditorScrollState } from '../../../../editor/browser/stableEditorScroll.js';
+import Severity from '../../../../base/common/severity.js';
+import * as nls from '../../../../nls.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
@@ -128,15 +131,16 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		editor: ICodeEditor,
 		private _uniqueOwner: string,
 		private _commentThread: languages.CommentThread,
-		private _pendingComment: string | undefined,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingComment: languages.PendingComment | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
-		super(editor, { keepEditorSelection: true, isAccessible: true });
+		super(editor, { keepEditorSelection: true, isAccessible: true, showArrow: !!_commentThread.range });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
 		this._scopedInstantiationService = this._globalToDispose.add(instantiationService.createChild(new ServiceCollection(
@@ -188,7 +192,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	public reveal(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
 		this.makeVisible(commentUniqueId, focus);
-		const comment = this._commentThread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueId);
+		const comment = this._commentThread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueId) ?? this._commentThread.comments?.[0];
 		this.commentService.setActiveCommentAndThread(this.uniqueOwner, { thread: this._commentThread, comment });
 	}
 
@@ -242,17 +246,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	public getPendingComments(): { newComment: string | undefined; edits: { [key: number]: string } } {
+	public getPendingComments(): { newComment: languages.PendingComment | undefined; edits: { [key: number]: languages.PendingComment } } {
 		return {
 			newComment: this._commentThreadWidget.getPendingComment(),
 			edits: this._commentThreadWidget.getPendingEdits()
 		};
 	}
 
-	public setPendingComment(comment: string) {
-		this._pendingComment = comment;
+	public setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
 		this.expand();
-		this._commentThreadWidget.setPendingComment(comment);
+		this._commentThreadWidget.setPendingComment(pending);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -295,7 +299,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					}
 				},
 				collapse: () => {
-					this.collapse();
+					return this.collapse(true);
 				}
 			}
 		) as unknown as CommentThreadWidget<IRange>;
@@ -316,8 +320,35 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.commentService.disposeCommentThread(this.uniqueOwner, this._commentThread.threadId);
 	}
 
-	public collapse() {
+	private doCollapse() {
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
+	}
+
+	public async collapse(confirm: boolean = false): Promise<boolean> {
+		if (!confirm || (await this.confirmCollapse())) {
+			this.doCollapse();
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	private async confirmCollapse(): Promise<boolean> {
+		const confirmSetting = this.configurationService.getValue<'whenHasUnsubmittedComments' | 'never'>('comments.thread.confirmOnCollapse');
+
+		if (confirmSetting === 'whenHasUnsubmittedComments' && this._commentThreadWidget.hasUnsubmittedComments) {
+			const result = await this.dialogService.confirm({
+				message: nls.localize('confirmCollapse', "Collapsing a comment thread will discard unsubmitted comments. Do you want to collapse this comment thread?"),
+				primaryButton: nls.localize('collapse', "Collapse"),
+				type: Severity.Warning,
+				checkbox: { label: nls.localize('neverAskAgain', "Never ask me again"), checked: false }
+			});
+			if (result.checkboxChecked) {
+				await this.configurationService.updateValue('comments.thread.confirmOnCollapse', 'never');
+			}
+			return result.confirmed;
+		}
+		return true;
 	}
 
 	public expand(setActive?: boolean) {
@@ -388,7 +419,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
 			this._refresh(dimension);
 		}));
-		if ((this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) || (range === undefined)) {
+		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
 			this.show(this.arrowPosition(range), 2);
 		}
 
@@ -502,6 +533,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
+	}
+
+	async collapseAndFocusRange() {
+		if (await this.collapse(true) && Range.isIRange(this.commentThread.range) && isCodeEditor(this.editor)) {
+			this.editor.setSelection(this.commentThread.range);
+		}
 	}
 
 	override hide() {

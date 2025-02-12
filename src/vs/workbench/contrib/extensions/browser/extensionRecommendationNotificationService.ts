@@ -443,7 +443,7 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 			if (galleryExtensions.length) {
 				const extensions = await this.extensionsWorkbenchService.getExtensions(galleryExtensions.map(id => ({ id })), { source: 'install-recommendations' }, CancellationToken.None);
 				for (const extension of extensions) {
-					if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
+					if (extension.gallery && await this.extensionManagementService.canInstall(extension.gallery) === true) {
 						result.push(extension);
 					}
 				}
@@ -451,7 +451,7 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 			if (resourceExtensions.length) {
 				const extensions = await this.extensionsWorkbenchService.getResourceExtensions(resourceExtensions, true);
 				for (const extension of extensions) {
-					if (await this.extensionsWorkbenchService.canInstall(extension)) {
+					if (await this.extensionsWorkbenchService.canInstall(extension) === true) {
 						result.push(extension);
 					}
 				}

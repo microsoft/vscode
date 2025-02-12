@@ -9,13 +9,12 @@ import * as http from 'http';
 import * as net from 'net';
 import { performance } from 'perf_hooks';
 import * as url from 'url';
-import { LoaderStats, isESM } from '../../base/common/amd.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
-import { connectionTokenQueryName, FileAccess, getServerRootPath, Schemas } from '../../base/common/network.js';
+import { connectionTokenQueryName, FileAccess, getServerProductSegment, Schemas } from '../../base/common/network.js';
 import { dirname, join } from '../../base/common/path.js';
 import * as perf from '../../base/common/performance.js';
 import * as platform from '../../base/common/platform.js';
@@ -40,10 +39,8 @@ import { determineServerConnectionToken, requestHasValidConnectionToken as httpR
 import { IServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
-// ESM-uncomment-begin
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-// ESM-uncomment-end
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -69,7 +66,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	private readonly _webClientServer: WebClientServer | null;
 	private readonly _webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
 
-	private readonly _serverRootPath: string;
+	private readonly _serverBasePath: string | undefined;
+	private readonly _serverProductPath: string;
 
 	private shutdownTimer: NodeJS.Timeout | undefined;
 
@@ -86,13 +84,18 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	) {
 		super();
 
-		this._serverRootPath = getServerRootPath(_productService, serverBasePath);
+		if (serverBasePath !== undefined && serverBasePath.charCodeAt(serverBasePath.length - 1) === CharCode.Slash) {
+			// Remove trailing slash from base path
+			serverBasePath = serverBasePath.substring(0, serverBasePath.length - 1);
+		}
+		this._serverBasePath = serverBasePath; // undefined or starts with a slash
+		this._serverProductPath = `/${getServerProductSegment(_productService)}`; // starts with a slash
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
 		this._webClientServer = (
 			hasWebClient
-				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverRootPath)
+				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverProductPath)
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
@@ -117,9 +120,13 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		// for now accept all paths, with or without server root path
-		if (pathname.startsWith(this._serverRootPath) && pathname.charCodeAt(this._serverRootPath.length) === CharCode.Slash) {
-			pathname = pathname.substring(this._serverRootPath.length);
+		// Serve from both '/' and serverBasePath
+		if (this._serverBasePath !== undefined && pathname.startsWith(this._serverBasePath)) {
+			pathname = pathname.substring(this._serverBasePath.length) || '/';
+		}
+		// for now accept all paths, with or without server product path
+		if (pathname.startsWith(this._serverProductPath) && pathname.charCodeAt(this._serverProductPath.length) === CharCode.Slash) {
+			pathname = pathname.substring(this._serverProductPath.length);
 		}
 
 		// Version
@@ -175,7 +182,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 		// workbench web UI
 		if (this._webClientServer) {
-			this._webClientServer.handle(req, res, parsedUrl);
+			this._webClientServer.handle(req, res, parsedUrl, pathname);
 			return;
 		}
 
@@ -785,7 +792,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		serverBasePath = `/${serverBasePath}`;
 	}
 
-	const hasWebClient = fs.existsSync(FileAccess.asFileUri(`vs/code/browser/workbench/workbench.${isESM ? 'esm.' : ''}html`).fsPath);
+	const hasWebClient = fs.existsSync(FileAccess.asFileUri(`vs/code/browser/workbench/workbench.html`).fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!
@@ -851,16 +858,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	});
 
 	if (args['print-startup-performance']) {
-		const stats = LoaderStats.get();
 		let output = '';
-		output += '\n\n### Load AMD-module\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.amdLoad);
-		output += '\n\n### Load commonjs-module\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.nodeRequire);
-		output += '\n\n### Invoke AMD-module factory\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.amdInvoke);
-		output += '\n\n### Invoke commonjs-module\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.nodeEval);
 		output += `Start-up time: ${vscodeServerListenTime - vscodeServerStartTime}\n`;
 		output += `Code loading time: ${vscodeServerCodeLoadedTime - vscodeServerStartTime}\n`;
 		output += `Initialized time: ${currentTime - vscodeServerStartTime}\n`;

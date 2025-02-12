@@ -28,7 +28,7 @@ import { MarshalledCommentThreadInternal } from '../../../common/comments.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { CommentsAccessibleView } from './commentsAccessibleView.js';
+import { CommentsAccessibleView, CommentThreadAccessibleView } from './commentsAccessibleView.js';
 import { CommentsAccessibilityHelp } from './commentsAccessibility.js';
 
 registerAction2(class Collapse extends ViewAction<CommentsPanel> {
@@ -138,6 +138,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			description: nls.localize('collapseOnResolve', "Controls whether the comment thread should collapse when the thread is resolved.")
+		},
+		'comments.thread.confirmOnCollapse': {
+			type: 'string',
+			enum: ['whenHasUnsubmittedComments', 'never'],
+			enumDescriptions: [nls.localize('confirmOnCollapse.whenHasUnsubmittedComments', "Show a confirmation dialog when collapsing a comment thread with unsubmitted comments."), nls.localize('confirmOnCollapse.never', "Never show a confirmation dialog when collapsing a comment thread.")],
+			default: 'whenHasUnsubmittedComments',
+			description: nls.localize('confirmOnCollapse', "Controls whether a confirmation dialog is shown when collapsing a comment thread.")
 		}
 	}
 });
@@ -193,4 +200,5 @@ export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchCon
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(UnresolvedCommentsBadge, LifecyclePhase.Eventually);
 
 AccessibleViewRegistry.register(new CommentsAccessibleView());
+AccessibleViewRegistry.register(new CommentThreadAccessibleView());
 AccessibleViewRegistry.register(new CommentsAccessibilityHelp());

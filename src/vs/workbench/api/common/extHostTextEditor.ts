@@ -412,6 +412,7 @@ export class ExtHostTextEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _disposed: boolean = false;
 	private _hasDecorationsForKey = new Set<string>();
+	private _diffInformation: vscode.TextEditorDiffInformation[] | undefined;
 
 	readonly value: vscode.TextEditor;
 
@@ -465,6 +466,9 @@ export class ExtHostTextEditor {
 			set visibleRanges(_value: Range[]) {
 				throw new ReadonlyError('visibleRanges');
 			},
+			get diffInformation() {
+				return that._diffInformation;
+			},
 			// --- options
 			get options(): vscode.TextEditorOptions {
 				return that._options.value;
@@ -491,7 +495,7 @@ export class ExtHostTextEditor {
 				return that._applyEdit(edit);
 			},
 			// --- snippet edit
-			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
+			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; keepWhitespace?: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
 				if (that._disposed) {
 					return Promise.reject(new Error('TextEditor#insertSnippet not possible on closed editors'));
 				}
@@ -516,6 +520,9 @@ export class ExtHostTextEditor {
 							ranges.push({ startLineNumber: lineNumber, startColumn: column, endLineNumber: lineNumber, endColumn: column });
 						}
 					}
+				}
+				if (options.keepWhitespace === undefined) {
+					options.keepWhitespace = false;
 				}
 				return _proxy.$tryInsertSnippet(id, document.value.version, snippet.value, ranges, options);
 			},
@@ -598,6 +605,11 @@ export class ExtHostTextEditor {
 	_acceptSelections(selections: Selection[]): void {
 		ok(!this._disposed);
 		this._selections = selections;
+	}
+
+	_acceptDiffInformation(diffInformation: vscode.TextEditorDiffInformation[] | undefined): void {
+		ok(!this._disposed);
+		this._diffInformation = diffInformation;
 	}
 
 	private async _trySetSelection(): Promise<vscode.TextEditor | null | undefined> {

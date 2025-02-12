@@ -77,7 +77,7 @@ export class CodeLensCache implements ICodeLensCache {
 			};
 		});
 		const copyModel = new CodeLensModel();
-		copyModel.add({ lenses: copyItems, dispose: () => { } }, this._fakeProvider);
+		copyModel.add({ lenses: copyItems }, this._fakeProvider);
 
 		const item = new CacheItem(model.getLineCount(), copyModel);
 		this._cache.set(model.uri.toString(), item);

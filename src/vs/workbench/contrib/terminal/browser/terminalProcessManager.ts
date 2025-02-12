@@ -41,10 +41,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { getActiveWindow, runWhenWindowIdle } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
-
-// HACK: This file should not depend on terminalContrib
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalSuggestSettingId } from '../../terminalContrib/suggest/common/terminalSuggestConfiguration.js';
+import { TerminalContribSettingId } from '../terminalContribExports.js';
 
 const enum ProcessConstants {
 	/**
@@ -97,6 +94,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _processListeners?: IDisposable[];
 	private _isDisconnected: boolean = false;
 
+	private _processTraits: IProcessReadyEvent | undefined;
 	private _shellLaunchConfig?: IShellLaunchConfig;
 	private _dimensions: ITerminalDimensions = { cols: 0, rows: 0 };
 
@@ -131,6 +129,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	get hasChildProcesses(): boolean { return this._hasChildProcesses; }
 	get reconnectionProperties(): IReconnectionProperties | undefined { return this._shellLaunchConfig?.attachPersistentProcess?.reconnectionProperties || this._shellLaunchConfig?.reconnectionProperties || undefined; }
 	get extEnvironmentVariableCollection(): IMergedEnvironmentVariableCollection | undefined { return this._extEnvironmentVariableCollection; }
+	get processTraits(): IProcessReadyEvent | undefined { return this._processTraits; }
 
 	constructor(
 		private readonly _instanceId: number,
@@ -289,7 +288,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					const options: ITerminalProcessOptions = {
 						shellIntegration: {
 							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-							suggestEnabled: this._configurationService.getValue(TerminalSuggestSettingId.Enabled),
+							suggestEnabled: this._configurationService.getValue(TerminalContribSettingId.SuggestEnabled),
 							nonce: this.shellIntegrationNonce
 						},
 						windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,
@@ -360,6 +359,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		this._processListeners = [
 			newProcess.onProcessReady((e: IProcessReadyEvent) => {
+				this._processTraits = e;
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._initialCwd });
@@ -490,7 +490,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const options: ITerminalProcessOptions = {
 			shellIntegration: {
 				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-				suggestEnabled: this._configurationService.getValue(TerminalSuggestSettingId.Enabled),
+				suggestEnabled: this._configurationService.getValue(TerminalContribSettingId.SuggestEnabled),
 				nonce: this.shellIntegrationNonce
 			},
 			windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,

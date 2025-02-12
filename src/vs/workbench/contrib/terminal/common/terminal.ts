@@ -14,16 +14,11 @@ import * as nls from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalTabAction, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IEnvironmentVariableInfo } from './environmentVariable.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
-
-// Import commands to skip shell from terminalContrib - this is an exception to the eslint rule
-// since they need to be included in the terminal module
-import { defaultTerminalAccessibilityCommandsToSkipShell } from '../../terminalContrib/accessibility/common/terminal.accessibility.js'; // eslint-disable-line local/code-import-patterns
-import { defaultTerminalFindCommandToSkipShell } from '../../terminalContrib/find/common/terminal.find.js'; // eslint-disable-line local/code-import-patterns
-import { defaultTerminalSuggestCommandsToSkipShell } from '../../terminalContrib/suggest/common/terminal.suggest.js'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalContribCommandsToSkipShell } from '../terminalContribExports.js';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -162,7 +157,6 @@ export interface ITerminalConfiguration {
 	mouseWheelScrollSensitivity: number;
 	tabStopWidth: number;
 	sendKeybindingsToShell: boolean;
-	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
 	lineHeight: number;
@@ -205,7 +199,6 @@ export interface ITerminalConfiguration {
 	customGlyphs: boolean;
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 	ignoreProcessNames: string[];
-	autoReplies: { [key: string]: string };
 	shellIntegration?: {
 		enabled: boolean;
 		decorationsEnabled: 'both' | 'gutter' | 'overviewRuler' | 'never';
@@ -214,9 +207,15 @@ export interface ITerminalConfiguration {
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
 	rescaleOverlappingGlyphs: boolean;
+	fontLigatures?: {
+		enabled: boolean;
+		featureSettings: string;
+		fallbackLigatures: string[];
+	};
 	experimental?: {
 		windowsUseConptyDll?: boolean;
 	};
+	hideOnLastClosed: boolean;
 }
 
 export interface ITerminalFont {
@@ -241,6 +240,7 @@ export interface IRemoteTerminalAttachTarget {
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
 }
 
 export interface IBeforeProcessDataEvent {
@@ -279,6 +279,8 @@ export interface ITerminalProcessInfo {
 export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProcessManager): t is ITerminalProcessManager => typeof (t as ITerminalProcessManager).write === 'function';
 
 export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
+	readonly processTraits: IProcessReadyEvent | undefined;
+
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
 
@@ -402,11 +404,9 @@ export const enum TerminalCommandId {
 	QuickKill = 'workbench.action.terminal.quickKill',
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
 	ShellIntegrationLearnMore = 'workbench.action.terminal.learnMore',
-	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
 	CopyLastCommandOutput = 'workbench.action.terminal.copyLastCommandOutput',
 	CopyLastCommandAndLastCommandOutput = 'workbench.action.terminal.copyLastCommandAndLastCommandOutput',
-	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
 	CopySelection = 'workbench.action.terminal.copySelection',
 	CopySelectionAsHtml = 'workbench.action.terminal.copySelectionAsHtml',
@@ -464,7 +464,6 @@ export const enum TerminalCommandId {
 	Rename = 'workbench.action.terminal.rename',
 	RenameActiveTab = 'workbench.action.terminal.renameActiveTab',
 	RenameWithArgs = 'workbench.action.terminal.renameWithArg',
-	QuickOpenTerm = 'workbench.action.quickOpenTerm',
 	ScrollToPreviousCommand = 'workbench.action.terminal.scrollToPreviousCommand',
 	ScrollToNextCommand = 'workbench.action.terminal.scrollToNextCommand',
 	SelectToPreviousCommand = 'workbench.action.terminal.selectToPreviousCommand',
@@ -478,7 +477,6 @@ export const enum TerminalCommandId {
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	MoveIntoNewWindow = 'workbench.action.terminal.moveIntoNewWindow',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
-	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 	StartVoice = 'workbench.action.terminal.startVoice',
@@ -497,7 +495,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,
-	TerminalCommandId.GoToRecentDirectory,
 	TerminalCommandId.FocusNextPane,
 	TerminalCommandId.FocusNext,
 	TerminalCommandId.FocusPreviousPane,
@@ -520,7 +517,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ResizePaneUp,
 	TerminalCommandId.RunActiveFile,
 	TerminalCommandId.RunSelectedText,
-	TerminalCommandId.RunRecentCommand,
 	TerminalCommandId.ScrollDownLine,
 	TerminalCommandId.ScrollDownPage,
 	TerminalCommandId.ScrollToBottom,
@@ -540,6 +536,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.Toggle,
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
+	'workbench.action.tasks.rerunForActiveTerminal',
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',
@@ -578,6 +575,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.previousPanelView',
 	'workbench.action.nextSideBarView',
 	'workbench.action.previousSideBarView',
+	'workbench.action.debug.disconnect',
 	'workbench.action.debug.start',
 	'workbench.action.debug.stop',
 	'workbench.action.debug.run',
@@ -624,9 +622,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.terminal.chat.runCommand',
 	'workbench.action.terminal.chat.insertCommand',
 	'workbench.action.terminal.chat.viewInChat',
-	...defaultTerminalAccessibilityCommandsToSkipShell,
-	...defaultTerminalFindCommandToSkipShell,
-	...defaultTerminalSuggestCommandsToSkipShell,
+	...defaultTerminalContribCommandsToSkipShell,
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {

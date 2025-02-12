@@ -15,21 +15,20 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { InputFocusedContextKey } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, EditMode, InlineChatResponseType, MENU_INLINE_CHAT_WIDGET_STATUS } from '../../../../inlineChat/common/inlineChat.js';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, InlineChatResponseType, MENU_INLINE_CHAT_WIDGET_STATUS } from '../../../../inlineChat/common/inlineChat.js';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_HAS_AGENT, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS } from './notebookChatContext.js';
 import { NotebookChatController } from './notebookChatController.js';
 import { CELL_TITLE_CELL_GROUP_ID, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getContextFromActiveEditor, getEditorFromArgsOrActivePane } from '../coreActions.js';
 import { insertNewCell } from '../insertCellActions.js';
 import { CellEditState } from '../../notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from '../../../common/notebookCommon.js';
-import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from '../../../common/notebookContextKeys.js';
+import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from '../../../common/notebookContextKeys.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT } from '../../../../chat/common/chatContextKeys.js';
-import { AbstractInlineChatAction } from '../../../../inlineChat/browser/inlineChatActions.js';
+import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
 import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
-import { HunkInformation } from '../../../../inlineChat/browser/inlineChatSession.js';
+import { EditorAction2 } from '../../../../../../editor/browser/editorExtensions.js';
 
 registerAction2(class extends NotebookAction {
 	constructor() {
@@ -165,7 +164,6 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('focusNextChatWidget', 'Focus Next Cell Chat Widget'),
 				keybinding: {
 					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
 						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.and(
 							ContextKeyExpr.has(InputFocusedContextKey),
@@ -178,7 +176,11 @@ registerAction2(class extends NotebookCellAction {
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 				},
-				f1: false
+				f1: false,
+				precondition: ContextKeyExpr.or(
+					ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK.negate(), NOTEBOOK_CELL_EDITOR_FOCUSED),
+					ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_EDITOR_FOCUSED.negate()),
+				)
 			});
 	}
 
@@ -315,10 +317,7 @@ async function startChat(accessor: ServicesAccessor, context: INotebookActionCon
 	const configurationService = accessor.get(IConfigurationService);
 	const commandService = accessor.get(ICommandService);
 
-	if (configurationService.getValue<boolean>(NotebookSetting.cellChat)) {
-		context.notebookEditor.focusContainer();
-		NotebookChatController.get(context.notebookEditor)?.run(index, input, autoSend);
-	} else if (configurationService.getValue<boolean>(NotebookSetting.cellGenerate)) {
+	if (configurationService.getValue<boolean>(NotebookSetting.cellGenerate) || configurationService.getValue<boolean>(NotebookSetting.cellChat)) {
 		const activeCell = context.notebookEditor.getActiveCell();
 		const targetCell = activeCell?.getTextLength() === 0 && source !== 'insertToolbar' ? activeCell : (await insertNewCell(accessor, context, CellKind.Code, 'below', true));
 
@@ -671,7 +670,7 @@ registerAction2(class extends NotebookCellAction {
 });
 
 
-export class AcceptChangesAndRun extends AbstractInlineChatAction {
+export class AcceptChangesAndRun extends EditorAction2 {
 
 	constructor() {
 		super({
@@ -684,7 +683,6 @@ export class AcceptChangesAndRun extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(
 				NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 				CTX_INLINE_CHAT_VISIBLE,
-				ContextKeyExpr.or(CTX_INLINE_CHAT_DOCUMENT_CHANGED.toNegated(), CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview))
 			),
 			keybinding: undefined,
 			menu: [{
@@ -693,7 +691,7 @@ export class AcceptChangesAndRun extends AbstractInlineChatAction {
 				order: 2,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
 				)
@@ -701,10 +699,11 @@ export class AcceptChangesAndRun extends AbstractInlineChatAction {
 		});
 	}
 
-	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, codeEditor: ICodeEditor, hunk?: HunkInformation | any): Promise<void> {
+	override runEditorCommand(accessor: ServicesAccessor, codeEditor: ICodeEditor) {
 		const editor = getContextFromActiveEditor(accessor.get(IEditorService));
+		const ctrl = InlineChatController.get(codeEditor);
 
-		if (!editor) {
+		if (!editor || !ctrl) {
 			return;
 		}
 

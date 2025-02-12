@@ -5,22 +5,19 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - task: SFP.build-tasks.esrpclient-tools-task.EsrpClientTool@2
-    displayName: "Use EsrpClient"
-
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
-      SecretsFilter: "github-distro-mixin-password,esrp-aad-username,esrp-aad-password"
+      SecretsFilter: "github-distro-mixin-password"
 
   - task: AzureKeyVault@2
-    displayName: "Azure Key Vault: Get Secrets"
+    displayName: "Azure Key Vault: Get ESRP Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode-build-packages
-      SecretsFilter: "vscode-esrp,c24324f7-e65f-4c45-8702-ed2d4c35df99"
+      azureSubscription: vscode-esrp
+      KeyVaultName: vscode-esrp
+      SecretsFilter: esrp-auth,esrp-sign
 
   # allow-any-unicode-next-line
   - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
@@ -29,6 +26,8 @@ steps:
   - pwsh: |
       npm ci
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
   - download: current
@@ -38,14 +37,14 @@ steps:
   - task: AzureCLI@2
     displayName: Fetch secrets
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       scriptType: pscore
       scriptLocation: inlineScript
       addSpnToEnvironment: true
       inlineScript: |
         Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
+        Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
@@ -61,41 +60,30 @@ steps:
     env:
       AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
       AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
-      AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
+      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
     displayName: Create build if it hasn't been created before
 
   - pwsh: |
-      $ErrorActionPreference = "Stop"
-      $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
-      $AuthCertBytes = [System.Convert]::FromBase64String("$(vscode-esrp)")
-      $CertCollection.Import($AuthCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
-      $RequestSigningCertIndex = $CertCollection.Count
-      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(c24324f7-e65f-4c45-8702-ed2d4c35df99)")
-      $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
-      $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
-      $CertStore.Open("ReadWrite")
-      $CertStore.AddRange($CertCollection)
-      $CertStore.Close()
-      $AuthCertSubjectName = $CertCollection[0].Subject
-      $RequestSigningCertSubjectName = $CertCollection[$RequestSigningCertIndex].Subject
-      Write-Host "##vso[task.setvariable variable=RELEASE_AUTH_CERT_SUBJECT_NAME]$AuthCertSubjectName"
-      Write-Host "##vso[task.setvariable variable=RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME]$RequestSigningCertSubjectName"
-    displayName: Import certificates
+      $publishAuthTokens = (node build/azure-pipelines/common/getPublishAuthTokens)
+      Write-Host "##vso[task.setvariable variable=PUBLISH_AUTH_TOKENS;issecret=true]$publishAuthTokens"
+    env:
+      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
+      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
+      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
+    displayName: Get publish auth tokens
 
   - pwsh: node build/azure-pipelines/common/publish.js
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
       AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
       AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
-      AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
+      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      RELEASE_TENANT_ID: "$(PRSS_RELEASE_TENANT_ID)"
-      RELEASE_CLIENT_ID: "$(PRSS_RELEASE_CLIENT_ID)"
-      RELEASE_AUTH_CERT_SUBJECT_NAME: "$(RELEASE_AUTH_CERT_SUBJECT_NAME)"
-      RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME: "$(RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME)"
-      PROVISION_TENANT_ID: "$(PRSS_PROVISION_TENANT_ID)"
-      PROVISION_AAD_USERNAME: "$(esrp-aad-username)"
-      PROVISION_AAD_PASSWORD: "$(esrp-aad-password)"
+      PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
+      RELEASE_TENANT_ID: "$(ESRP_TENANT_ID)"
+      RELEASE_CLIENT_ID: "$(ESRP_CLIENT_ID)"
+      RELEASE_AUTH_CERT: "$(esrp-auth)"
+      RELEASE_REQUEST_SIGNING_CERT: "$(esrp-sign)"
     displayName: Process artifacts
     retryCountOnTaskFailure: 3
 

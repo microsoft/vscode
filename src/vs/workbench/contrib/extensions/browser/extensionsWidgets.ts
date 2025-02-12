@@ -6,7 +6,7 @@
 import './media/extensionsWidgets.css';
 import * as semver from '../../../../base/common/semver/semver.js';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from '../common/extensions.js';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab, IExtensionsViewState } from '../common/extensions.js';
 import { append, $, reset, addDisposableListener, EventType, finalHandler } from '../../../../base/browser/dom.js';
 import * as platform from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from './extensionsIcons.js';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -38,11 +38,14 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { extensionVerifiedPublisherIconColor, verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -244,7 +247,6 @@ export class SponsorWidget extends ExtensionWidget {
 		private container: HTMLElement,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.render();
@@ -264,15 +266,6 @@ export class SponsorWidget extends ExtensionWidget {
 		const label = $('span', undefined, localize('sponsor', "Sponsor"));
 		append(sponsor, sponsorIconElement, label);
 		this.disposables.add(onClick(sponsor, () => {
-			type SponsorExtensionClassification = {
-				owner: 'sandy081';
-				comment: 'Reporting when sponosor extension action is executed';
-				'extensionId': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension to be sponsored' };
-			};
-			type SponsorExtensionEvent = {
-				'extensionId': string;
-			};
-			this.telemetryService.publicLog2<SponsorExtensionEvent, SponsorExtensionClassification>('extensionsAction.sponsorExtension', { extensionId: this.extension!.identifier.id });
 			this.openerService.open(this.extension!.publisherSponsorLink!);
 		}));
 	}
@@ -425,6 +418,7 @@ class RemoteBadge extends Disposable {
 export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	private element: HTMLElement | undefined;
+	private countBadge: CountBadge | undefined;
 
 	constructor(
 		private readonly parent: HTMLElement,
@@ -436,6 +430,8 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	private clear(): void {
 		this.element?.remove();
+		this.countBadge?.dispose();
+		this.countBadge = undefined;
 	}
 
 	render(): void {
@@ -444,8 +440,8 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 			return;
 		}
 		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
-		const countBadge = new CountBadge(this.element, {}, defaultCountBadgeStyles);
-		countBadge.setCount(this.extension.extensionPack.length);
+		this.countBadge = new CountBadge(this.element, {}, defaultCountBadgeStyles);
+		this.countBadge.setCount(this.extension.extensionPack.length);
 	}
 }
 
@@ -478,17 +474,23 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 	}
 }
 
-export class ExtensionActivationStatusWidget extends ExtensionWidget {
+export class ExtensionRuntimeStatusWidget extends ExtensionWidget {
 
 	constructor(
+		private readonly extensionViewState: IExtensionsViewState,
 		private readonly container: HTMLElement,
-		private readonly small: boolean,
 		@IExtensionService extensionService: IExtensionService,
+		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
 		this._register(extensionService.onDidChangeExtensionsStatus(extensions => {
 			if (this.extension && extensions.some(e => areSameExtensions({ id: e.value }, this.extension!.identifier))) {
+				this.update();
+			}
+		}));
+		this._register(extensionFeaturesManagementService.onDidChangeAccessData(e => {
+			if (this.extension && ExtensionIdentifier.equals(this.extension.identifier.id, e.extension)) {
 				this.update();
 			}
 		}));
@@ -501,21 +503,25 @@ export class ExtensionActivationStatusWidget extends ExtensionWidget {
 			return;
 		}
 
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
-		if (!extensionStatus || !extensionStatus.activationTimes) {
-			return;
+		if (this.extensionViewState.filters.featureId && this.extension.state === ExtensionState.Installed) {
+			const accessData = this.extensionFeaturesManagementService.getAllAccessDataForExtension(new ExtensionIdentifier(this.extension.identifier.id)).get(this.extensionViewState.filters.featureId);
+			const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(this.extensionViewState.filters.featureId);
+			if (feature?.icon && accessData) {
+				const featureAccessTimeElement = append(this.container, $('span.activationTime'));
+				featureAccessTimeElement.textContent = localize('feature access label', "{0} reqs", accessData.accessTimes.length);
+				const iconElement = append(this.container, $('span' + ThemeIcon.asCSSSelector(feature.icon)));
+				iconElement.style.paddingLeft = '4px';
+				return;
+			}
 		}
 
-		const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-		if (this.small) {
+		const extensionStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
+		if (extensionStatus?.activationTimes) {
+			const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
 			append(this.container, $('span' + ThemeIcon.asCSSSelector(activationTimeIcon)));
 			const activationTimeElement = append(this.container, $('span.activationTime'));
 			activationTimeElement.textContent = `${activationTime}ms`;
-		} else {
-			const activationTimeElement = append(this.container, $('span.activationTime'));
-			activationTimeElement.textContent = `${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : ${activationTime}ms`;
 		}
-
 	}
 
 }
@@ -533,6 +539,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		private readonly options: ExtensionHoverOptions,
 		private readonly extensionStatusAction: ExtensionStatusAction,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
@@ -648,11 +655,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 		const preReleaseMessage = ExtensionHoverWidget.getPreReleaseMessage(this.extension);
 		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
+		const extensionFeaturesAccessData = this.extensionFeaturesManagementService.getAllAccessDataForExtension(new ExtensionIdentifier(this.extension.identifier.id));
 		const extensionStatus = this.extensionStatusAction.status;
 		const runtimeState = this.extension.runtimeState;
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus.length || runtimeState || recommendationMessage || preReleaseMessage) {
+		if (extensionRuntimeStatus || extensionFeaturesAccessData.size || extensionStatus.length || runtimeState || recommendationMessage || preReleaseMessage) {
 
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
@@ -675,6 +683,20 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 						markdown.appendMarkdown(`${errorsLink || messageLink}`);
 					}
 					markdown.appendText(`\n`);
+				}
+			}
+
+			if (extensionFeaturesAccessData.size) {
+				const registry = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry);
+				for (const [featureId, accessData] of extensionFeaturesAccessData) {
+					if (accessData?.accessTimes.length) {
+						const feature = registry.getExtensionFeature(featureId);
+						if (feature) {
+							markdown.appendMarkdown(localize('feature usage label', "{0} usage", feature.label));
+							markdown.appendMarkdown(`: [${localize('total', "{0} {1} requests in last 30 days", accessData.accessTimes.length, feature.accessDataLabel ?? feature.label)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features]))}`)})`);
+							markdown.appendText(`\n`);
+						}
+					}
 				}
 			}
 
@@ -837,10 +859,9 @@ export class ExtensionRecommendationWidget extends ExtensionWidget {
 	}
 }
 
-export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hcDark: '#FF8E00', hcLight: textLinkForeground }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
-export const extensionVerifiedPublisherIconColor = registerColor('extensionIcon.verifiedForeground', textLinkForeground, localize('extensionIconVerifiedForeground', "The icon color for extension verified publisher."), true);
-export const extensionPreReleaseIconColor = registerColor('extensionIcon.preReleaseForeground', { dark: '#1d9271', light: '#1d9271', hcDark: '#1d9271', hcLight: textLinkForeground }, localize('extensionPreReleaseForeground', "The icon color for pre-release extension."), true);
-export const extensionSponsorIconColor = registerColor('extensionIcon.sponsorForeground', { light: '#B51E78', dark: '#D758B3', hcDark: null, hcLight: '#B51E78' }, localize('extensionIcon.sponsorForeground', "The icon color for extension sponsor."), true);
+export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hcDark: '#FF8E00', hcLight: textLinkForeground }, localize('extensionIconStarForeground', "The icon color for extension ratings."), false);
+export const extensionPreReleaseIconColor = registerColor('extensionIcon.preReleaseForeground', { dark: '#1d9271', light: '#1d9271', hcDark: '#1d9271', hcLight: textLinkForeground }, localize('extensionPreReleaseForeground', "The icon color for pre-release extension."), false);
+export const extensionSponsorIconColor = registerColor('extensionIcon.sponsorForeground', { light: '#B51E78', dark: '#D758B3', hcDark: null, hcLight: '#B51E78' }, localize('extensionIcon.sponsorForeground', "The icon color for extension sponsor."), false);
 
 registerThemingParticipant((theme, collector) => {
 	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);

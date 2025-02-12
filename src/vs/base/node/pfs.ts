@@ -718,6 +718,8 @@ export const Promises = new class {
 
 	get realpath() { return promisify(fs.realpath); }	// `fs.promises.realpath` will use `fs.realpath.native` which we do not want
 
+	get ftruncate() { return promisify(fs.ftruncate); } // not exposed as API in 20.x yet
+
 	//#endregion
 
 	//#region Implemented by us

@@ -55,7 +55,7 @@ export interface IProgressOptions {
 	readonly title?: string;
 	readonly source?: string | INotificationSource;
 	readonly total?: number;
-	readonly cancellable?: boolean;
+	readonly cancellable?: boolean | string;
 	readonly buttons?: string[];
 }
 

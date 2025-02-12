@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -25,16 +25,16 @@ import { ISerializableCommandAction } from '../../action/common/action.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { ICodeWindow } from '../../window/electron-main/window.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable, useWindowControlsOverlay } from '../../window/common/window.js';
-import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { defaultWindowState, ICodeWindow } from '../../window/electron-main/window.js';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -47,6 +47,8 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
+import { randomPath } from '../../../base/common/extpath.js';
+import { IStateService } from '../../state/node/state.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -68,7 +70,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService
+		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStateService private readonly stateService: IStateService
 	) {
 		super();
 	}
@@ -187,6 +191,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return undefined;
 	}
 
+	async getNativeWindowHandle(fallbackWindowId: number | undefined, windowId: number): Promise<VSBuffer | undefined> {
+		const window = this.windowById(windowId, fallbackWindowId);
+		if (window?.win) {
+			return VSBuffer.wrap(window.win.getNativeWindowHandle());
+		}
+		return undefined;
+	}
+
 	openWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
@@ -210,6 +222,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				diffMode: options.diffMode,
 				mergeMode: options.mergeMode,
 				addMode: options.addMode,
+				removeMode: options.removeMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
 				waitMarkerFileURI: options.waitMarkerFileURI,
@@ -237,11 +250,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.toggleFullScreen();
 	}
 
-	async handleTitleDoubleClick(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.handleTitleDoubleClick();
-	}
-
 	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
 		const point = screen.getCursorScreenPoint();
 		const display = screen.getDisplayNearestPoint(point);
@@ -252,21 +260,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async isMaximized(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		return window?.win?.isMaximized() ?? false;
-	}
-
-	async maximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.maximize();
-	}
-
-	async unmaximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.unmaximize();
-	}
-
-	async minimizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.minimize();
 	}
 
 	async moveWindowTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
@@ -315,7 +308,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): Promise<void> {
-		this.themeMainService.saveWindowSplash(windowId, splash);
+		const window = this.codeWindowById(windowId);
+
+		this.themeMainService.saveWindowSplash(windowId, window?.openedWorkspace, splash);
+	}
+
+	async overrideDefaultTitlebarStyle(windowId: number | undefined, style: 'custom' | undefined): Promise<void> {
+		if (style === 'custom') {
+			this.stateService.setItem('window.titleBarStyleOverride', style);
+		} else {
+			this.stateService.removeItem('window.titleBarStyleOverride');
+		}
 	}
 
 	//#endregion
@@ -540,10 +543,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				}
 			});
 
-			res.stderr?.once('data', (data: Buffer) => {
-				this.logService.error(`Error openening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
-				return shell.openExternal(url);
-			});
+			if (!isWindows) {
+				// On Linux/macOS, listen to stderr and treat that as failure
+				// for opening the browser to fallback to the default.
+				// On Windows, unfortunately PowerShell seems to always write
+				// to stderr so we cannot use it there
+				// (see also https://github.com/microsoft/vscode/issues/230636)
+				res.stderr?.once('data', (data: Buffer) => {
+					this.logService.error(`Error openening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
+					return shell.openExternal(url);
+				});
+			}
 		} catch (error) {
 			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);
 			return shell.openExternal(url);
@@ -568,35 +578,44 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { unlock?: boolean }): Promise<void> {
 		const sudoPrompt = await import('@vscode/sudo-prompt');
 
-		return new Promise<void>((resolve, reject) => {
-			const sudoCommand: string[] = [`"${this.cliPath}"`];
-			if (options?.unlock) {
-				sudoCommand.push('--file-chmod');
-			}
+		const argsFile = randomPath(this.environmentMainService.userDataPath, 'code-elevated');
+		await Promises.writeFile(argsFile, JSON.stringify({ source: source.fsPath, target: target.fsPath }));
 
-			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
-
-			const promptOptions = {
-				name: this.productService.nameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
-			};
-
-			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
-				if (stdout) {
-					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const sudoCommand: string[] = [`"${this.cliPath}"`];
+				if (options?.unlock) {
+					sudoCommand.push('--file-chmod');
 				}
 
-				if (stderr) {
-					this.logService.trace(`[sudo-prompt] received stderr: ${stderr}`);
-				}
+				sudoCommand.push('--file-write', `"${argsFile}"`);
 
-				if (error) {
-					reject(error);
-				} else {
-					resolve(undefined);
-				}
+				const promptOptions = {
+					name: this.productService.nameLong.replace('-', ''),
+					icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
+				};
+
+				this.logService.trace(`[sudo-prompt] running command: ${sudoCommand.join(' ')}`);
+
+				sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
+					if (stdout) {
+						this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+					}
+
+					if (stderr) {
+						this.logService.error(`[sudo-prompt] received stderr: ${stderr}`);
+					}
+
+					if (error) {
+						reject(error);
+					} else {
+						resolve(undefined);
+					}
+				});
 			});
-		});
+		} finally {
+			await fs.promises.unlink(argsFile);
+		}
 	}
 
 	async isRunningUnderARM64Translation(): Promise<boolean> {
@@ -670,6 +689,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#endregion
 
 
+	//#region Screenshots
+
+	async getScreenshot(windowId: number | undefined, options?: INativeHostOptions): Promise<ArrayBufferLike | undefined> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		const captured = await window?.win?.webContents.capturePage();
+
+		return captured?.toJPEG(95);
+	}
+
+	//#endregion
+
+
 	//#region Process
 
 	async getProcessId(windowId: number | undefined): Promise<number | undefined> {
@@ -688,6 +719,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
 		return clipboard.readText(type);
+	}
+
+	async readImage(): Promise<Uint8Array> {
+		return clipboard.readImage().toPNG();
 	}
 
 	async writeClipboardText(windowId: number | undefined, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
@@ -822,12 +857,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
-		if (this.environmentMainService.extensionTestsLocationURI) {
-			const testProxy = this.configurationService.getValue<string>('integration-test.http.proxy');
-			if (testProxy) {
-				return testProxy;
-			}
-		}
 		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;
 
@@ -855,27 +884,51 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Development
 
-	async openDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
+	private gpuInfoWindowId: number | undefined;
 
-		let mode: 'bottom' | undefined = undefined;
-		if (isLinux && useWindowControlsOverlay(this.configurationService)) {
-			mode = 'bottom'; // TODO@bpasero WCO and devtools collide with default option 'right'
-		}
-		window?.win?.webContents.openDevTools(mode ? { mode } : undefined);
+	async openDevTools(windowId: number | undefined, options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.webContents.openDevTools(options?.mode ? { mode: options.mode, activate: options.activate } : undefined);
 	}
 
 	async toggleDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		const webContents = window?.win?.webContents;
-		if (!webContents) {
+		window?.win?.webContents.toggleDevTools();
+	}
+
+	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
+		const parentWindow = this.codeWindowById(windowId);
+		if (!parentWindow) {
 			return;
 		}
 
-		if (isLinux && useWindowControlsOverlay(this.configurationService) && !webContents.isDevToolsOpened()) {
-			webContents.openDevTools({ mode: 'bottom' }); // TODO@bpasero WCO and devtools collide with default option 'right'
-		} else {
-			webContents.toggleDevTools();
+		if (typeof this.gpuInfoWindowId !== 'number') {
+			const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
+			options.backgroundColor = undefined;
+
+			const gpuInfoWindow = new BrowserWindow(options);
+			gpuInfoWindow.setMenuBarVisibility(false);
+			gpuInfoWindow.loadURL('chrome://gpu');
+
+			gpuInfoWindow.once('ready-to-show', () => gpuInfoWindow.show());
+			gpuInfoWindow.once('close', () => this.gpuInfoWindowId = undefined);
+
+			parentWindow.win?.on('close', () => {
+				if (this.gpuInfoWindowId) {
+					BrowserWindow.fromId(this.gpuInfoWindowId)?.close();
+					this.gpuInfoWindowId = undefined;
+				}
+			});
+
+			this.gpuInfoWindowId = gpuInfoWindow.id;
+		}
+
+		if (typeof this.gpuInfoWindowId === 'number') {
+			const window = BrowserWindow.fromId(this.gpuInfoWindowId);
+			if (window?.isMinimized()) {
+				window?.restore();
+			}
+			window?.focus();
 		}
 	}
 

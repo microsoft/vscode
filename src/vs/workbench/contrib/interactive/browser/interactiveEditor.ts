@@ -5,12 +5,13 @@
 
 import './media/interactive.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditorViewState, ICompositeCodeEditor } from '../../../../editor/common/editorCommon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -31,13 +32,12 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modes
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
+import { ReplEditorSettings, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { NotebookOptions } from '../../notebook/browser/notebookOptions.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { createActionViewItem, getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { ParameterHintsController } from '../../../../editor/contrib/parameterHints/browser/parameterHints.js';
 import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
@@ -64,6 +64,8 @@ import { ContentHoverController } from '../../../../editor/contrib/hover/browser
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { ReplInputHintContentWidget } from './replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { INLINE_CHAT_ID } from '../../inlineChat/common/inlineChat.js';
+import { ReplEditorControl } from '../../replNotebook/browser/replEditor.js';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -216,16 +218,12 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			renderDropdownAsChildElement: true
 		}));
 
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
+		const { primary, secondary } = getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		this._runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 
 	private _createLayoutStyles(): void {
-		this._styleElement = DOM.createStyleSheet(this._rootElement);
+		this._styleElement = domStylesheets.createStyleSheet(this._rootElement);
 		const styleSheets: string[] = [];
 
 		const {
@@ -368,7 +366,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		this._widgetDisposableStore.clear();
 
 		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group.id, notebookInput, {
-			isEmbedded: true,
+			isReplHistory: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
@@ -408,7 +406,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					TabCompletionController.ID,
 					ContentHoverController.ID,
 					GlyphHoverController.ID,
-					MarkerController.ID
+					MarkerController.ID,
+					INLINE_CHAT_ID,
 				])
 			}
 		});
@@ -503,12 +502,18 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			}
 		}));
 
+		this._codeEditorWidget.onDidChangeModelDecorations(() => {
+			if (this.isVisible()) {
+				this._updateInputHint();
+			}
+		});
+
 		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModel(() => {
 			this._updateInputHint();
 		}));
 
 		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(InteractiveWindowSetting.showExecutionHint)) {
+			if (e.affectsConfiguration(ReplEditorSettings.showExecutionHint)) {
 				this._updateInputHint();
 			}
 		});
@@ -587,7 +592,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		const index = this._notebookWidget.value!.getCellIndex(cvm);
 		if (index === this._notebookWidget.value!.getLength() - 1) {
 			// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
-			if (this._configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
+			if (this._configurationService.getValue<boolean>(ReplEditorSettings.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
 				this._notebookWidget.value!.scrollToBottom();
 			}
 		}
@@ -653,6 +658,15 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		return new DOM.Dimension(Math.max(0, width), Math.max(0, height));
 	}
 
+	private _hasConflictingDecoration() {
+		return Boolean(this._codeEditorWidget.getLineDecorations(1)?.find((d) =>
+			d.options.beforeContentClassName
+			|| d.options.afterContentClassName
+			|| d.options.before?.content
+			|| d.options.after?.content
+		));
+	}
+
 	private _updateInputHint(): void {
 		if (!this._codeEditorWidget) {
 			return;
@@ -660,8 +674,9 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		const shouldHide =
 			!this._codeEditorWidget.hasModel() ||
-			this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
-			this._codeEditorWidget.getModel()!.getValueLength() !== 0;
+			this._configurationService.getValue<boolean>(ReplEditorSettings.showExecutionHint) === false ||
+			this._codeEditorWidget.getModel()!.getValueLength() !== 0 ||
+			this._hasConflictingDecoration();
 
 		if (!this._hintElement && !shouldHide) {
 			this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
@@ -721,10 +736,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		super.clearInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
+	override getControl(): ReplEditorControl & ICompositeCodeEditor {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			codeEditor: this._codeEditorWidget
+			activeCodeEditor: this._codeEditorWidget,
+			onDidChangeActiveEditor: Event.None
 		};
 	}
 }

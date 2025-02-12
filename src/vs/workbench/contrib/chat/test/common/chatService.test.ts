@@ -21,7 +21,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatAgentLocation, ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
-import { ISerializableChatData } from '../../common/chatModel.js';
+import { IChatModel, ISerializableChatData } from '../../common/chatModel.js';
 import { IChatFollowup, IChatService } from '../../common/chatService.js';
 import { ChatService } from '../../common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../common/chatSlashCommands.js';
@@ -33,6 +33,7 @@ import { NullWorkbenchAssignmentService } from '../../../../services/assignment/
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -64,6 +65,27 @@ const chatAgentWithUsedContext: IChatAgent = {
 	},
 	async provideFollowups(sessionId, token) {
 		return [{ kind: 'reply', message: 'Something else', agentId: '', tooltip: 'a tooltip' } satisfies IChatFollowup];
+	},
+};
+
+const chatAgentWithMarkdownId = 'ChatProviderWithMarkdown';
+const chatAgentWithMarkdown: IChatAgent = {
+	id: chatAgentWithMarkdownId,
+	name: chatAgentWithMarkdownId,
+	extensionId: nullExtensionDescription.identifier,
+	publisherDisplayName: '',
+	extensionPublisherId: '',
+	extensionDisplayName: '',
+	locations: [ChatAgentLocation.Panel],
+	metadata: {},
+	slashCommands: [],
+	disambiguation: [],
+	async invoke(request, progress, history, token) {
+		progress({ kind: 'markdownContent', content: new MarkdownString('test') });
+		return { metadata: { metadataKey: 'value' } };
+	},
+	async provideFollowups(sessionId, token) {
+		return [];
 	},
 };
 
@@ -106,7 +128,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
 
-		chatAgentService = instantiationService.createInstance(ChatAgentService);
+		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
 		instantiationService.stub(IChatAgentService, chatAgentService);
 
 		const agent: IChatAgentImplementation = {
@@ -116,6 +138,7 @@ suite('ChatService', () => {
 		};
 		testDisposables.add(chatAgentService.registerAgent('testAgent', { ...getAgentData('testAgent'), isDefault: true }));
 		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, getAgentData(chatAgentWithUsedContextId)));
+		testDisposables.add(chatAgentService.registerAgent(chatAgentWithMarkdownId, getAgentData(chatAgentWithMarkdownId)));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
 		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' } });
 	});
@@ -160,7 +183,7 @@ suite('ChatService', () => {
 		assert(response);
 		await response.responseCompletePromise;
 
-		await assertSnapshot(model.toExport());
+		await assertSnapshot(toSnapshotExportData(model));
 	});
 
 	test('history', async () => {
@@ -210,7 +233,7 @@ suite('ChatService', () => {
 		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await assertSnapshot(model.toExport());
+		await assertSnapshot(toSnapshotExportData(model));
 
 		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
 		assert(response);
@@ -222,7 +245,7 @@ suite('ChatService', () => {
 		await response2.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 2);
 
-		await assertSnapshot(model.toExport());
+		await assertSnapshot(toSnapshotExportData(model));
 	});
 
 	test('can deserialize', async () => {
@@ -251,6 +274,50 @@ suite('ChatService', () => {
 		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
 		assert(chatModel2);
 
-		await assertSnapshot(chatModel2.toExport());
+		await assertSnapshot(toSnapshotExportData(chatModel2));
+	});
+
+	test('can deserialize with response', async () => {
+		let serializedChatData: ISerializableChatData;
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+
+		{
+			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+
+			const chatModel1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+			assert.strictEqual(chatModel1.getRequests().length, 0);
+
+			const response = await testService.sendRequest(chatModel1.sessionId, `@${chatAgentWithUsedContextId} test request`);
+			assert(response);
+
+			await response.responseCompletePromise;
+
+			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
+		}
+
+		// try deserializing the state into a new service
+
+		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
+		assert(chatModel2);
+
+		await assertSnapshot(toSnapshotExportData(chatModel2));
 	});
 });
+
+
+function toSnapshotExportData(model: IChatModel) {
+	const exp = model.toExport();
+	return {
+		...exp,
+		requests: exp.requests.map(r => {
+			return {
+				...r,
+				timestamp: undefined,
+				requestId: undefined, // id contains a random part
+				responseId: undefined, // id contains a random part
+			};
+		})
+	};
+}

@@ -249,6 +249,10 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	return !!(match && regexp.lastIndex === 0);
 }
 
+export function joinStrings(items: (string | undefined | null | false)[], separator: string): string {
+	return items.filter(item => item !== undefined && item !== null && item !== false).join(separator);
+}
+
 export function splitLines(str: string): string[] {
 	return str.split(/\r\n|\r|\n/);
 }
@@ -302,6 +306,12 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 		}
 	}
 	return -1;
+}
+
+export function getIndentationLength(str: string): number {
+	const idx = firstNonWhitespaceIndex(str);
+	if (idx === -1) { return str.length; }
+	return idx;
 }
 
 /**
@@ -739,7 +749,7 @@ export function isEmojiImprecise(x: number): boolean {
  * happens at favorable positions - such as whitespace or punctuation characters.
  * The return value can be longer than the given value of `n`. Leading whitespace is always trimmed.
  */
-export function lcut(text: string, n: number, prefix = '') {
+export function lcut(text: string, n: number, prefix = ''): string {
 	const trimmed = text.trimStart();
 
 	if (trimmed.length < n) {
@@ -762,6 +772,34 @@ export function lcut(text: string, n: number, prefix = '') {
 	}
 
 	return prefix + trimmed.substring(i).trimStart();
+}
+
+/**
+ * Given a string and a max length returns a shorted version. Shorting
+ * happens at favorable positions - such as whitespace or punctuation characters.
+ * The return value can be longer than the given value of `n`. Trailing whitespace is always trimmed.
+ */
+export function rcut(text: string, n: number, suffix = ''): string {
+	const trimmed = text.trimEnd();
+
+	if (trimmed.length < n) {
+		return trimmed;
+	}
+
+	const parts = text.split(/\b/);
+	let result = '';
+	for (const part of parts) {
+		if (result.length > 0 && result.length + part.length > n) {
+			break;
+		}
+		result += part;
+	}
+
+	if (result === trimmed) {
+		return result;
+	}
+
+	return result.trim().replace(/b$/, '') + suffix;
 }
 
 // Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_

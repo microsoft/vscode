@@ -120,8 +120,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.selectionClipboardPaste',
-			label: nls.localize('actions.pasteSelectionClipboard', "Paste Selection Clipboard"),
-			alias: 'Paste Selection Clipboard',
+			label: nls.localize2('actions.pasteSelectionClipboard', "Paste Selection Clipboard"),
 			precondition: EditorContextKeys.writable
 		});
 	}

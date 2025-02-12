@@ -410,10 +410,17 @@ suite('CellRange', function () {
 suite('NotebookWorkingCopyTypeIdentifier', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('works', function () {
+	test('supports notebook type only', function () {
 		const viewType = 'testViewType';
-		const type = NotebookWorkingCopyTypeIdentifier.create('testViewType');
-		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse(type), viewType);
+		const type = NotebookWorkingCopyTypeIdentifier.create(viewType);
+		assert.deepEqual(NotebookWorkingCopyTypeIdentifier.parse(type), { notebookType: viewType, viewType });
+		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse('something'), undefined);
+	});
+
+	test('supports different viewtype', function () {
+		const notebookType = { notebookType: 'testNotebookType', viewType: 'testViewType' };
+		const type = NotebookWorkingCopyTypeIdentifier.create(notebookType.notebookType, notebookType.viewType);
+		assert.deepEqual(NotebookWorkingCopyTypeIdentifier.parse(type), notebookType);
 		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse('something'), undefined);
 	});
 });

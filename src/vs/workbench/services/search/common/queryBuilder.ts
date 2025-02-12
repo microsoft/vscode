@@ -646,7 +646,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string; globPorti
 	};
 }
 
-function patternListToIExpression(...patterns: string[]): glob.IExpression {
+function patternListToIExpression(...patterns: string[]): glob.IExpression | undefined {
 	return patterns.length ?
 		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null)) :
 		undefined;

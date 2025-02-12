@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MockObject, mockObject } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
 import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ChatAgentService, IChatAgentData, IChatAgentImplementation } from '../../common/chatAgents.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 const testAgentId = 'testAgent';
 const testAgentData: IChatAgentData = {
@@ -23,14 +24,25 @@ const testAgentData: IChatAgentData = {
 	disambiguation: [],
 };
 
+class TestingContextKeyService extends MockContextKeyService {
+	private _contextMatchesRulesReturnsTrue = false;
+	public contextMatchesRulesReturnsTrue() {
+		this._contextMatchesRulesReturnsTrue = true;
+	}
+
+	public override contextMatchesRules(rules: ContextKeyExpression): boolean {
+		return this._contextMatchesRulesReturnsTrue;
+	}
+}
+
 suite('ChatAgents', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let chatAgentService: IChatAgentService;
-	let contextKeyService: MockObject<IContextKeyService>;
+	let chatAgentService: ChatAgentService;
+	let contextKeyService: TestingContextKeyService;
 	setup(() => {
-		contextKeyService = mockObject<IContextKeyService>()();
-		chatAgentService = new ChatAgentService(contextKeyService as any);
+		contextKeyService = new TestingContextKeyService();
+		chatAgentService = store.add(new ChatAgentService(contextKeyService, store.add(new TestStorageService())));
 	});
 
 	test('registerAgent', async () => {
@@ -57,7 +69,7 @@ suite('ChatAgents', function () {
 		}));
 		assert.strictEqual(chatAgentService.getAgents().length, 0);
 
-		contextKeyService.contextMatchesRules.returns(true);
+		contextKeyService.contextMatchesRulesReturnsTrue();
 		assert.strictEqual(chatAgentService.getAgents().length, 1);
 	});
 

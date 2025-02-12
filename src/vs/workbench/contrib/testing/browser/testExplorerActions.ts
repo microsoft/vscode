@@ -173,7 +173,7 @@ abstract class RunVisibleAction extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public runInView(accessor: ServicesAccessor, view: TestingExplorerView, ...elements: TestItemTreeElement[]): Promise<unknown> {
-		const { include, exclude } = view.getTreeIncludeExclude(elements.map(e => e.test));
+		const { include, exclude } = view.getTreeIncludeExclude(this.bitset, elements.map(e => e.test));
 		return accessor.get(ITestService).runTests({
 			tests: include,
 			exclude,
@@ -494,8 +494,15 @@ class StartContinuousRunAction extends Action2 {
 			menu: continuousMenus(false),
 		});
 	}
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const crs = accessor.get(ITestingContinuousRunService);
+		const profileService = accessor.get(ITestProfileService);
+
+		const lastRunProfiles = [...profileService.all()].flatMap(p => p.profiles.filter(p => crs.lastRunProfileIds.has(p.profileId)));
+		if (lastRunProfiles.length) {
+			return crs.start(lastRunProfiles);
+		}
+
 		const selected = await selectContinuousRunProfiles(crs, accessor.get(INotificationService), accessor.get(IQuickInputService), accessor.get(ITestProfileService).all());
 		if (selected.length) {
 			crs.start(selected);
@@ -530,7 +537,7 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<ITestResult | undefined> {
-		const { include, exclude } = view.getTreeIncludeExclude();
+		const { include, exclude } = view.getTreeIncludeExclude(this.group);
 		return accessor.get(ITestService).runTests({ tests: include, exclude, group: this.group });
 	}
 }
@@ -570,7 +577,7 @@ export class GetExplorerSelection extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public override runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		const { include, exclude } = view.getTreeIncludeExclude(undefined, undefined, 'selected');
+		const { include, exclude } = view.getTreeIncludeExclude(TestRunProfileBitset.Run, undefined, 'selected');
 		const mapper = (i: InternalTestItem) => i.item.extId;
 		return { include: include.map(mapper), exclude: exclude.map(mapper) };
 	}
@@ -953,7 +960,12 @@ export class GoToTest extends Action2 {
 			id: TestCommandId.GoToTest,
 			title: localize2('testing.editFocusedTest', 'Go to Test'),
 			icon: Codicon.goToFile,
-			menu: testItemInlineAndInContext(ActionOrder.GoToTest, TestingContextKeys.testItemHasUri.isEqualTo(true)),
+			menu: {
+				id: MenuId.TestItem,
+				group: 'builtin@1',
+				order: ActionOrder.GoToTest,
+				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
+			},
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
 				when: FocusedViewContext.isEqualTo(Testing.ExplorerViewId),

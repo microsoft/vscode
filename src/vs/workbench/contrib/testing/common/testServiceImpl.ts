@@ -159,9 +159,7 @@ export class TestService extends Disposable implements ITestService {
 				continue;
 			}
 
-			const allProfiles = this.testProfiles.getControllerProfiles(test.controllerId)
-				.filter(p => (p.group & req.group) !== 0 && canUseProfileWithTest(p, test));
-			const bestProfile = allProfiles.find(p => p.isDefault) || allProfiles[0];
+			const bestProfile = this.testProfiles.getDefaultProfileForTest(req.group, test);
 			if (!bestProfile) {
 				continue;
 			}

@@ -6,7 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
-import { EditMode, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_HAS_STASHED_SESSION } from '../common/inlineChat.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
@@ -36,7 +36,6 @@ export type TelemetryData = {
 	finishedByEdit: boolean;
 	startTime: string;
 	endTime: string;
-	editMode: string;
 	acceptedHunks: number;
 	discardedHunks: number;
 	responseTypes: string;
@@ -53,7 +52,6 @@ export type TelemetryDataClassification = {
 	finishedByEdit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits cause the session to terminate' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
-	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
 	acceptedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of accepted hunks' };
 	discardedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of discarded hunks' };
 	responseTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma separated list of response types like edits, message, mixed' };
@@ -81,12 +79,11 @@ export class SessionWholeRange {
 	}
 
 	fixup(changes: readonly DetailedLineRangeMapping[]): void {
-
 		const newDeco: IModelDeltaDecoration[] = [];
 		for (const { modified } of changes) {
-			const modifiedRange = modified.isEmpty
-				? new Range(modified.startLineNumber, 1, modified.startLineNumber, this._textModel.getLineLength(modified.startLineNumber))
-				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, this._textModel.getLineLength(modified.endLineNumberExclusive - 1));
+			const modifiedRange = this._textModel.validateRange(modified.isEmpty
+				? new Range(modified.startLineNumber, 1, modified.startLineNumber, Number.MAX_SAFE_INTEGER)
+				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER));
 
 			newDeco.push({ range: modifiedRange, options: SessionWholeRange._options });
 		}
@@ -126,7 +123,6 @@ export class Session {
 	private readonly _versionByRequest = new Map<string, number>();
 
 	constructor(
-		readonly editMode: EditMode,
 		readonly headless: boolean,
 		/**
 		 * The URI of the document which is being EditorEdit
@@ -155,7 +151,6 @@ export class Session {
 			finishedByEdit: false,
 			rounds: '',
 			undos: '',
-			editMode,
 			unstashed: 0,
 			acceptedHunks: 0,
 			discardedHunks: 0,
@@ -298,8 +293,8 @@ export class StashedSession {
 
 function lineRangeAsRange(lineRange: LineRange, model: ITextModel): Range {
 	return lineRange.isEmpty
-		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
-		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
+		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, Number.MAX_SAFE_INTEGER)
+		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER);
 }
 
 export class HunkData {

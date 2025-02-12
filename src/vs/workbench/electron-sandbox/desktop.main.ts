@@ -45,7 +45,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
 import { safeStringify } from '../../base/common/objects.js';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
-import { isBigSurOrNewer, isCI, isMacintosh } from '../../base/common/platform.js';
+import { isBigSurOrNewer, isCI, isLinux, isMacintosh } from '../../base/common/platform.js';
 import { Schemas } from '../../base/common/network.js';
 import { DiskFileSystemProvider } from '../services/files/electron-sandbox/diskFileSystemProvider.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
@@ -61,6 +61,8 @@ import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-san
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-sandbox/window.js';
 import { mainWindow } from '../../base/browser/window.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions } from '../../platform/configuration/common/configurationRegistry.js';
 
 export class DesktopMain extends Disposable {
 
@@ -79,6 +81,17 @@ export class DesktopMain extends Disposable {
 
 		// Apply fullscreen early if configured
 		setFullscreen(!!this.configuration.fullscreen, mainWindow);
+
+		// Apply custom title override to defaults if any
+		if (isLinux && product.quality === 'stable' && this.configuration.overrideDefaultTitlebarStyle === 'custom') {
+			const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+			configurationRegistry.registerDefaultConfigurations([{
+				overrides: {
+					'window.titleBarStyle': 'custom',
+					'window.customTitleBarVisibility': 'auto'
+				}
+			}]);
+		}
 	}
 
 	private reviveUris() {
@@ -192,10 +205,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(INativeWorkbenchEnvironmentService, environmentService);
 
 		// Logger
-		const loggers = [
-			...this.configuration.loggers.global.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })),
-			...this.configuration.loggers.window.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource), hidden: true })),
-		];
+		const loggers = this.configuration.loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) }));
 		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, environmentService.windowLogsPath, loggers, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
@@ -307,10 +317,6 @@ export class DesktopMain extends Disposable {
 			})
 		]);
 
-		if (configurationService.getValue<boolean>('files.experimentalWatcherNext') === true) {
-			diskFileSystemProvider.setUseNextWatcher();
-		}
-
 		// Workspace Trust Service
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
@@ -399,6 +405,10 @@ export class DesktopMain extends Disposable {
 			return keyboardLayoutService;
 		}
 	}
+}
+
+export interface IDesktopMain {
+	main(configuration: INativeWindowConfiguration): Promise<void>;
 }
 
 export function main(configuration: INativeWindowConfiguration): Promise<void> {

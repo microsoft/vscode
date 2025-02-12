@@ -43,7 +43,7 @@ import { IStateService } from '../../state/node/state.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { isESM } from '../../../base/common/amd.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -137,7 +137,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Update the window controls immediately based on cached or default values
-		if (useCustomTitleStyle && (useWindowControlsOverlay(this.configurationService) || isMacintosh)) {
+		if (useCustomTitleStyle && useWindowControlsOverlay(this.configurationService)) {
 			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
 			if (cachedWindowControlHeight) {
 				this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -314,46 +314,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		win.focus();
 	}
 
-	handleTitleDoubleClick(): void {
-		const win = this.win;
-		if (!win) {
-			return;
-		}
-
-		// Respect system settings on mac with regards to title click on windows title
-		if (isMacintosh) {
-			const action = electron.systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
-			switch (action) {
-				case 'Minimize':
-					win.minimize();
-					break;
-				case 'None':
-					break;
-				case 'Maximize':
-				default:
-					if (win.isMaximized()) {
-						win.unmaximize();
-					} else {
-						win.maximize();
-					}
-			}
-		}
-
-		// Linux/Windows: just toggle maximize/minimized state
-		else {
-			if (win.isMaximized()) {
-				win.unmaximize();
-			} else {
-				win.maximize();
-			}
-		}
-	}
-
 	//#region Window Control Overlays
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
-
-	private readonly hasWindowControlOverlay = useWindowControlsOverlay(this.configurationService);
 
 	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
 		const win = this.win;
@@ -366,8 +329,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
-		// Windows/Linux: window control overlay (WCO)
-		if (this.hasWindowControlOverlay) {
+		// Windows/Linux: update window controls via setTitleBarOverlay()
+		if (!isMacintosh && useWindowControlsOverlay(this.configurationService)) {
 			win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
@@ -375,13 +338,18 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			});
 		}
 
-		// macOS: traffic lights
+		// macOS: update window controls via setWindowButtonPosition()
 		else if (isMacintosh && options.height !== undefined) {
-			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
-			if (!verticalOffset) {
+			// The traffic lights have a height of 12px. There's an invisible margin
+			// of 2px at the top and bottom, and 1px on the left and right. Therefore,
+			// the height for centering is 12px + 2 * 2px = 16px. When the position
+			// is set, the horizontal margin is offset to ensure the distance between
+			// the traffic lights and the window frame is equal in both directions.
+			const offset = Math.floor((options.height - 16) / 2);
+			if (!offset) {
 				win.setWindowButtonPosition(null);
 			} else {
-				win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
+				win.setWindowButtonPosition({ x: offset + 1, y: offset });
 			}
 		}
 	}
@@ -958,7 +926,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Proxy
 		if (!e || e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.noProxy')) {
-			let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+			const inspect = this.configurationService.inspect<string>('http.proxy');
+			let newHttpProxy = (inspect.userLocalValue || '').trim()
 				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
 				|| undefined;
 
@@ -1036,7 +1005,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
@@ -1093,9 +1062,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		// Update window related properties
+		try {
+			configuration.handle = VSBuffer.wrap(this._win.getNativeWindowHandle());
+		} catch (error) {
+			this.logService.error(`Error getting native window handle: ${error}`);
+		}
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
-		configuration.partsSplash = this.themeMainService.getWindowSplash();
+		configuration.partsSplash = this.themeMainService.getWindowSplash(configuration.workspace);
 		configuration.zoomLevel = this.getZoomLevel();
 		configuration.isCustomZoomLevel = typeof this.customZoomLevel === 'number';
 		if (configuration.isCustomZoomLevel && configuration.partsSplash) {
@@ -1145,10 +1119,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			home: this.userDataProfilesService.profilesHome
 		};
 		configuration.logLevel = this.loggerMainService.getLogLevel();
-		configuration.loggers = {
-			window: this.loggerMainService.getRegisteredLoggers(this.id),
-			global: this.loggerMainService.getRegisteredLoggers()
-		};
+		configuration.loggers = this.loggerMainService.getGlobalLoggers();
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });

@@ -7,9 +7,8 @@ import { Promises } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { defaultUserDataProfileIcon, DidChangeUserDataProfileEvent, IUserDataProfileService } from './userDataProfile.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from './userDataProfile.js';
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 
@@ -44,12 +43,4 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		});
 		await Promises.settled(joiners);
 	}
-
-	getShortName(profile: IUserDataProfile): string {
-		if (!profile.isDefault && profile.shortName && ThemeIcon.fromId(profile.shortName)) {
-			return profile.shortName;
-		}
-		return `$(${defaultUserDataProfileIcon.id})`;
-	}
-
 }

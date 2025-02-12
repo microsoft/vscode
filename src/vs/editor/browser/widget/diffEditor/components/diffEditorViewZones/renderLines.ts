@@ -17,7 +17,7 @@ import { InlineDecoration, ViewLineRenderingData } from '../../../../../common/v
 
 const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 
-export function renderLines(source: LineSource, options: RenderOptions, decorations: InlineDecoration[], domNode: HTMLElement): RenderLinesResult {
+export function renderLines(source: LineSource, options: RenderOptions, decorations: InlineDecoration[], domNode: HTMLElement, noExtra = false): RenderLinesResult {
 	applyFontInfo(domNode, options.fontInfo);
 
 	const hasCharChanges = (decorations.length > 0);
@@ -44,7 +44,8 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 					source.mightContainNonBasicASCII,
 					source.mightContainRTL,
 					options,
-					sb
+					sb,
+					noExtra,
 				));
 				renderedLineCount++;
 				lastBreakOffset = breakOffset;
@@ -61,6 +62,7 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 				source.mightContainRTL,
 				options,
 				sb,
+				noExtra,
 			));
 			renderedLineCount++;
 		}
@@ -83,9 +85,9 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 export class LineSource {
 	constructor(
 		public readonly lineTokens: LineTokens[],
-		public readonly lineBreakData: (ModelLineProjectionData | null)[],
-		public readonly mightContainNonBasicASCII: boolean,
-		public readonly mightContainRTL: boolean,
+		public readonly lineBreakData: (ModelLineProjectionData | null)[] = lineTokens.map(t => null),
+		public readonly mightContainNonBasicASCII: boolean = true,
+		public readonly mightContainRTL: boolean = true,
 	) { }
 }
 
@@ -125,7 +127,25 @@ export class RenderOptions {
 		public readonly renderWhitespace: FindComputedEditorOptionValueById<EditorOption.renderWhitespace>,
 		public readonly renderControlCharacters: boolean,
 		public readonly fontLigatures: FindComputedEditorOptionValueById<EditorOption.fontLigatures>,
+		public readonly setWidth = true,
 	) { }
+
+	public withSetWidth(setWidth: boolean): RenderOptions {
+		return new RenderOptions(
+			this.tabSize,
+			this.fontInfo,
+			this.disableMonospaceOptimizations,
+			this.typicalHalfwidthCharacterWidth,
+			this.scrollBeyondLastColumn,
+			this.lineHeight,
+			this.lineDecorationsWidth,
+			this.stopRenderingLineAfter,
+			this.renderWhitespace,
+			this.renderControlCharacters,
+			this.fontLigatures,
+			setWidth,
+		);
+	}
 }
 
 export interface RenderLinesResult {
@@ -143,16 +163,21 @@ function renderOriginalLine(
 	mightContainRTL: boolean,
 	options: RenderOptions,
 	sb: StringBuilder,
+	noExtra: boolean,
 ): number {
 
 	sb.appendString('<div class="view-line');
-	if (!hasCharChanges) {
+	if (!noExtra && !hasCharChanges) {
 		// No char changes
 		sb.appendString(' char-delete');
 	}
 	sb.appendString('" style="top:');
 	sb.appendString(String(viewLineIdx * options.lineHeight));
-	sb.appendString('px;width:1000000px;">');
+	if (options.setWidth) {
+		sb.appendString('px;width:1000000px;">');
+	} else {
+		sb.appendString('px;">');
+	}
 
 	const lineContent = lineTokens.getLineContent();
 	const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, mightContainNonBasicASCII);

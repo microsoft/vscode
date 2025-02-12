@@ -295,7 +295,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 				extensionsToEnable.push(extension);
 			} else {
 				const canInstall = await extensionWorkbenchService.canInstall(extension);
-				if (canInstall) {
+				if (canInstall === true) {
 					extensionsToInstall.push(extension);
 				}
 			}

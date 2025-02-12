@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, extUri } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { Range, IRange } from '../../../../editor/common/core/range.js';
-import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from '../../../../platform/markers/common/markers.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Hasher } from '../../../../base/common/hash.js';
-import { splitLines } from '../../../../base/common/strings.js';
 import { IMatch } from '../../../../base/common/filters.js';
+import { hash } from '../../../../base/common/hash.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { basename, extUri } from '../../../../base/common/resources.js';
+import { splitLines } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { IMarker, IMarkerData, IRelatedInformation, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { unsupportedSchemas } from '../../../../platform/markers/common/markerService.js';
 
 export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
@@ -124,8 +124,7 @@ export class MarkerTableItem extends Marker {
 		readonly sourceMatches?: IMatch[],
 		readonly codeMatches?: IMatch[],
 		readonly messageMatches?: IMatch[],
-		readonly fileMatches?: IMatch[],
-		readonly ownerMatches?: IMatch[],
+		readonly fileMatches?: IMatch[]
 	) {
 		super(marker.id, marker.marker, marker.relatedInformation);
 	}
@@ -247,11 +246,7 @@ export class MarkersModel {
 	}
 
 	private id(...values: (string | number)[]): string {
-		const hasher = new Hasher();
-		for (const value of values) {
-			hasher.hash(value);
-		}
-		return `${hasher.value}`;
+		return `${hash(values)}`;
 	}
 
 	dispose(): void {

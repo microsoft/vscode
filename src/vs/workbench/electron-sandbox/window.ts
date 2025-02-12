@@ -8,13 +8,13 @@ import { localize } from '../../nls.js';
 import { URI } from '../../base/common/uri.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { equals } from '../../base/common/objects.js';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
 import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../base/common/actions.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from '../common/editor.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
-import { WindowMinimumSize, IOpenFileRequest, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from '../../platform/window/common/window.js';
+import { WindowMinimumSize, IOpenFileRequest, IAddRemoveFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from '../../platform/window/common/window.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { IWorkbenchThemeService } from '../services/themes/common/workbenchThemeService.js';
 import { ApplyZoomTarget, applyZoom } from '../../platform/window/electron-sandbox/window.js';
@@ -25,13 +25,13 @@ import { ipcRenderer, process } from '../../base/parts/sandbox/electron-sandbox/
 import { IWorkspaceEditingService } from '../services/workspaces/common/workspaceEditing.js';
 import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from '../../platform/actions/common/actions.js';
 import { ICommandAction } from '../../platform/action/common/action.js';
-import { createAndFillInActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
 import { RunOnceScheduler } from '../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
 import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/workspaces.js';
 import { IIntegrityService } from '../services/integrity/common/integrity.js';
-import { isWindows, isMacintosh, isCI } from '../../base/common/platform.js';
+import { isWindows, isMacintosh } from '../../base/common/platform.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
@@ -41,13 +41,12 @@ import { WorkbenchState, IWorkspaceContextService } from '../../platform/workspa
 import { coalesce } from '../../base/common/arrays.js';
 import { ConfigurationTarget, IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
-import { assertIsDefined } from '../../base/common/types.js';
 import { IOpenerService, IResolvedExternalUri, OpenOptions } from '../../platform/opener/common/opener.js';
 import { Schemas } from '../../base/common/network.js';
 import { INativeHostService } from '../../platform/native/common/native.js';
 import { posix } from '../../base/common/path.js';
 import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping, extractQueryLocalHostUriMetaDataForPortMapping } from '../../platform/tunnel/common/tunnel.js';
-import { IWorkbenchLayoutService, Parts, positionFromString, Position } from '../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, positionFromString, Position } from '../services/layout/browser/layoutService.js';
 import { IWorkingCopyService } from '../services/workingCopy/common/workingCopyService.js';
 import { WorkingCopyCapabilities } from '../services/workingCopy/common/workingCopy.js';
 import { IFilesConfigurationService } from '../services/filesConfiguration/common/filesConfigurationService.js';
@@ -80,14 +79,14 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { getWorkbenchContribution } from '../common/contributions.js';
 import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.js';
 import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
-import { isESM } from '../../base/common/amd.js';
 
 export class NativeWindow extends BaseWindow {
 
 	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
 
-	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
+	private readonly addRemoveFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddRemoveFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
+	private pendingFoldersToRemove: URI[] = [];
 
 	private isDocumentedEdited = false;
 
@@ -211,11 +210,11 @@ export class NativeWindow extends BaseWindow {
 		// Support openFiles event for existing and new files
 		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
 
-		// Support addFolders event if we have a workspace opened
-		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => { this.onAddFoldersRequest(request); });
+		// Support addRemoveFolders event for workspace management
+		ipcRenderer.on('vscode:addRemoveFolders', (event: unknown, request: IAddRemoveFoldersRequest) => this.onAddRemoveFoldersRequest(request));
 
 		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => { this.notificationService.info(message); });
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
 		// Shell Environment Issue Notifications
 		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => {
@@ -396,21 +395,6 @@ export class NativeWindow extends BaseWindow {
 			}
 
 			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.handleRepresentedFilename(part)));
-		}
-
-		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && !hasNativeTitlebar(this.configurationService)) {
-			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
-				const targetWindow = getWindow(container);
-				const targetWindowId = targetWindow.vscodeWindowId;
-				const titlePart = assertIsDefined(this.layoutService.getContainer(targetWindow, Parts.TITLEBAR_PART));
-
-				disposables.add(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
-					EventHelper.stop(e);
-
-					this.nativeHostService.handleTitleDoubleClick({ targetWindowId });
-				}));
-			}, { container: this.layoutService.mainContainer, disposables: this._store }));
 		}
 
 		// Document edited: indicate for dirty working copies
@@ -708,17 +692,6 @@ export class NativeWindow extends BaseWindow {
 
 	private async handleWarnings(): Promise<void> {
 
-		// Check for cyclic dependencies
-		if (!isESM && typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
-			if (isCI) {
-				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
-				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
-			} else {
-				this.dialogService.error(localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
-				this.nativeHostService.openDevTools();
-			}
-		}
-
 		// After restored phase is fine for the following ones
 		await this.lifecycleService.when(LifecyclePhase.Restored);
 
@@ -761,12 +734,11 @@ export class NativeWindow extends BaseWindow {
 			}
 		}
 
-		// macOS 10.13 and 10.14 warning
+		// macOS 10.15 warning
 		if (isMacintosh) {
 			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
 			const eolReleases = new Map<string, string>([
-				['17', 'macOS High Sierra'],
-				['18', 'macOS Mojave'],
+				['19', 'macOS Catalina'],
 			]);
 
 			if (eolReleases.has(majorVersion)) {
@@ -817,20 +789,6 @@ export class NativeWindow extends BaseWindow {
 		});
 	}
 
-	private async openTunnel(address: string, port: number): Promise<RemoteTunnel | string | undefined> {
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
-			getAddress: async (): Promise<IAddress> => {
-				return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
-			}
-		} : undefined;
-		const tunnel = await this.tunnelService.getExistingTunnel(address, port);
-		if (!tunnel || (typeof tunnel === 'string')) {
-			return this.tunnelService.openTunnel(addressProvider, address, port);
-		}
-		return tunnel;
-	}
-
 	async resolveExternalUri(uri: URI, options?: OpenOptions): Promise<IResolvedExternalUri | undefined> {
 		let queryTunnel: RemoteTunnel | string | undefined;
 		if (options?.allowTunneling) {
@@ -855,10 +813,11 @@ export class NativeWindow extends BaseWindow {
 					}
 				}
 			}
+
 			if (portMappingRequest) {
 				const tunnel = await this.openTunnel(portMappingRequest.address, portMappingRequest.port);
 				if (tunnel && (typeof tunnel !== 'string')) {
-					const addressAsUri = URI.parse(tunnel.localAddress);
+					const addressAsUri = URI.parse(tunnel.localAddress).with({ path: uri.path });
 					const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 					return {
 						resolved,
@@ -888,6 +847,22 @@ export class NativeWindow extends BaseWindow {
 		}
 
 		return undefined;
+	}
+
+	private async openTunnel(address: string, port: number): Promise<RemoteTunnel | string | undefined> {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
+			getAddress: async (): Promise<IAddress> => {
+				return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
+			}
+		} : undefined;
+
+		const tunnel = await this.tunnelService.getExistingTunnel(address, port);
+		if (!tunnel || (typeof tunnel === 'string')) {
+			return this.tunnelService.openTunnel(addressProvider, address, port);
+		}
+
+		return tunnel;
 	}
 
 	private setupOpenHandlers(): void {
@@ -944,14 +919,12 @@ export class NativeWindow extends BaseWindow {
 			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
 		}
 
-		const actions: Array<MenuItemAction | Separator> = [];
-
 		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
 		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
 		const ignoredItems = Array.isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
-		createAndFillInActionBarActions(this.touchBarMenu, undefined, actions);
+		const actions = getFlatActionBarActions(this.touchBarMenu.getActions());
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
@@ -992,27 +965,32 @@ export class NativeWindow extends BaseWindow {
 
 	//#endregion
 
-	private onAddFoldersRequest(request: IAddFoldersRequest): void {
+	private onAddRemoveFoldersRequest(request: IAddRemoveFoldersRequest): void {
 
 		// Buffer all pending requests
 		this.pendingFoldersToAdd.push(...request.foldersToAdd.map(folder => URI.revive(folder)));
+		this.pendingFoldersToRemove.push(...request.foldersToRemove.map(folder => URI.revive(folder)));
 
 		// Delay the adding of folders a bit to buffer in case more requests are coming
-		if (!this.addFoldersScheduler.isScheduled()) {
-			this.addFoldersScheduler.schedule();
+		if (!this.addRemoveFoldersScheduler.isScheduled()) {
+			this.addRemoveFoldersScheduler.schedule();
 		}
 	}
 
-	private doAddFolders(): void {
-		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
-
-		for (const folder of this.pendingFoldersToAdd) {
-			foldersToAdd.push(({ uri: folder }));
-		}
+	private async doAddRemoveFolders(): Promise<void> {
+		const foldersToAdd: IWorkspaceFolderCreationData[] = this.pendingFoldersToAdd.map(folder => ({ uri: folder }));
+		const foldersToRemove = this.pendingFoldersToRemove.slice(0);
 
 		this.pendingFoldersToAdd = [];
+		this.pendingFoldersToRemove = [];
 
-		this.workspaceEditingService.addFolders(foldersToAdd);
+		if (foldersToAdd.length) {
+			await this.workspaceEditingService.addFolders(foldersToAdd);
+		}
+
+		if (foldersToRemove.length) {
+			await this.workspaceEditingService.removeFolders(foldersToRemove);
+		}
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {

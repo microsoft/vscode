@@ -23,7 +23,7 @@ import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDragg
 import { IFileService } from '../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../platform/label/common/label.js';
-import { extractSelection } from '../../platform/opener/common/opener.js';
+import { extractSelection, withSelection } from '../../platform/opener/common/opener.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { IWindowOpenable } from '../../platform/window/common/window.js';
 import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
@@ -203,7 +203,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	// Extract resources from URIs or Editors that
 	// can be handled by the file service
-	const resources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
+	const resources = coalesce(resourcesOrEditors.map((resourceOrEditor): IResourceStat | undefined => {
 		if (URI.isUri(resourceOrEditor)) {
 			return { resource: resourceOrEditor };
 		}
@@ -216,7 +216,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			return undefined; // editor without resource
 		}
 
-		return resourceOrEditor;
+		return { ...resourceOrEditor, resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource };
 	}));
 
 	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
@@ -269,7 +269,12 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			const { selection, uri } = extractSelection(resourceOrEditor);
 			editor = { resource: uri, options: selection ? { selection } : undefined };
 		} else if (!resourceOrEditor.isDirectory) {
-			editor = { resource: resourceOrEditor.resource };
+			editor = {
+				resource: resourceOrEditor.resource,
+				options: {
+					selection: resourceOrEditor.selection,
+				}
+			};
 		}
 
 		if (!editor) {
@@ -334,7 +339,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		const uriListEntries: URI[] = [];
 		for (const editor of draggedEditors) {
 			if (editor.resource) {
-				uriListEntries.push(editor.resource);
+				uriListEntries.push(editor.options?.selection ? withSelection(editor.resource, editor.options.selection) : editor.resource);
 			} else if (isResourceDiffEditorInput(editor)) {
 				if (editor.modified.resource) {
 					uriListEntries.push(editor.modified.resource);

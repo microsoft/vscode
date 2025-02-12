@@ -63,6 +63,7 @@ export interface ICommentController {
 	options?: CommentOptions;
 	contextValue?: string;
 	owner: string;
+	activeComment: { thread: CommentThread; comment?: Comment } | undefined;
 	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined, editorId?: string): Promise<void>;
 	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void>;
 	deleteCommentThreadMain(commentThreadId: string): void;
@@ -91,6 +92,7 @@ export interface ICommentService {
 	readonly onDidChangeCommentingEnabled: Event<boolean>;
 	readonly isCommentingEnabled: boolean;
 	readonly commentsModel: ICommentsModel;
+	readonly lastActiveCommentcontroller: ICommentController | undefined;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(uniqueOwner: string, commentsByResource: CommentThread<IRange | ICellRange>[]): void;
 	removeWorkspaceComments(uniqueOwner: string): void;
@@ -165,6 +167,7 @@ export class CommentService extends Disposable implements ICommentService {
 	private _commentMenus = new Map<string, CommentMenus>();
 	private _isCommentingEnabled: boolean = true;
 	private _workspaceHasCommenting: IContextKey<boolean>;
+	private _commentingEnabled: IContextKey<boolean>;
 
 	private _continueOnComments = new Map<string, PendingCommentThread[]>(); // uniqueOwner -> PendingCommentThread[]
 	private _continueOnCommentProviders = new Set<IContinueOnCommentProvider>();
@@ -188,6 +191,7 @@ export class CommentService extends Disposable implements ICommentService {
 		this._handleConfiguration();
 		this._handleZenMode();
 		this._workspaceHasCommenting = CommentContextKeys.WorkspaceHasCommenting.bindTo(contextKeyService);
+		this._commentingEnabled = CommentContextKeys.commentingEnabled.bindTo(contextKeyService);
 		const storageListener = this._register(new DisposableStore());
 
 		const storageEvent = Event.debounce(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, CONTINUE_ON_COMMENTS, storageListener), (last, event) => last?.external ? last : event, 500);
@@ -275,6 +279,7 @@ export class CommentService extends Disposable implements ICommentService {
 	enableCommenting(enable: boolean): void {
 		if (enable !== this._isCommentingEnabled) {
 			this._isCommentingEnabled = enable;
+			this._commentingEnabled.set(enable);
 			this._onDidChangeCommentingEnabled.fire(enable);
 		}
 	}
@@ -288,11 +293,15 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	/**
-	 * The active comment thread is the the thread that is currently being edited.
+	 * The active comment thread is the thread that is currently being edited.
 	 * @param commentThread
 	 */
 	setActiveEditingCommentThread(commentThread: CommentThread | null) {
 		this._onDidChangeActiveEditingCommentThread.fire(commentThread);
+	}
+
+	get lastActiveCommentcontroller() {
+		return this._lastActiveCommentController;
 	}
 
 	private _lastActiveCommentController: ICommentController | undefined;

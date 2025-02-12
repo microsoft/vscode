@@ -37,4 +37,4 @@ export const copyIcon = registerIcon('notebook-copy', Codicon.copy, localize('co
 export const previousChangeIcon = registerIcon('notebook-diff-editor-previous-change', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
 export const nextChangeIcon = registerIcon('notebook-diff-editor-next-change', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
 
-export const variablesViewIcon = registerIcon('variables-view-icon', Codicon.debugAlt, localize('variablesViewIcon', 'View icon of the variables view.'));
+export const variablesViewIcon = registerIcon('variables-view-icon', Codicon.variableGroup, localize('variablesViewIcon', 'View icon of the variables view.'));

@@ -3,27 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './documentSymbolsTree.css';
-import '../../../../../editor/contrib/symbolIcons/browser/symbolIcons.js'; // The codicon symbol colors are defined here and must be loaded to get colors
+import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
-import { ITreeNode, ITreeRenderer, ITreeFilter } from '../../../../../base/browser/ui/tree/tree.js';
-import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from '../../../../../editor/common/languages.js';
-import { OutlineElement, OutlineGroup, OutlineModel } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
-import { localize } from '../../../../../nls.js';
 import { IconLabel, IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from '../../../../services/outline/browser/outline.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ITreeDragAndDrop, ITreeDragOverReaction, ITreeFilter, ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { DocumentSymbol, getAriaLabelForSymbol, SymbolKind, symbolKindNames, SymbolKinds, SymbolTag } from '../../../../../editor/common/languages.js';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { OutlineElement, OutlineGroup, OutlineModel } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import '../../../../../editor/contrib/symbolIcons/browser/symbolIcons.js'; // The codicon symbol colors are defined here and must be loaded to get colors
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { fillInSymbolsDragData, IResourceStat } from '../../../../../platform/dnd/browser/dnd.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { withSelection } from '../../../../../platform/opener/common/opener.js';
+import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
+import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from '../../../../services/outline/browser/outline.js';
+import './documentSymbolsTree.css';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -58,6 +65,72 @@ export class DocumentSymbolIdentityProvider implements IIdentityProvider<Documen
 	getId(element: DocumentSymbolItem): { toString(): string } {
 		return element.id;
 	}
+}
+
+export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbolItem> {
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) { }
+
+	getDragURI(element: DocumentSymbolItem): string | null {
+		const resource = OutlineModel.get(element)?.uri;
+		if (!resource) {
+			return null;
+		}
+
+		if (element instanceof OutlineElement) {
+			const symbolUri = symbolRangeUri(resource, element.symbol);
+			return symbolUri.fsPath + (symbolUri.fragment ? '#' + symbolUri.fragment : '');
+		} else {
+			return resource.fsPath;
+		}
+	}
+
+	getDragLabel(elements: DocumentSymbolItem[], originalEvent: DragEvent): string | undefined {
+		// Multi select not supported
+		if (elements.length !== 1) {
+			return undefined;
+		}
+
+		const element = elements[0];
+		return element instanceof OutlineElement ? element.symbol.name : element.label;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const elements = (data as ElementsDragAndDropData<DocumentSymbolItem, DocumentSymbolItem[]>).elements;
+		const item = elements[0];
+		if (!item || !originalEvent.dataTransfer) {
+			return;
+		}
+
+		const resource = OutlineModel.get(item)?.uri;
+		if (!resource) {
+			return;
+		}
+
+		const outlineElements = item instanceof OutlineElement ? [item] : Array.from(item.children.values());
+
+		fillInSymbolsDragData(outlineElements.map(oe => ({
+			name: oe.symbol.name,
+			fsPath: resource.fsPath,
+			range: oe.symbol.range,
+			kind: oe.symbol.kind
+		})), originalEvent);
+
+		this._instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, outlineElements.map((oe): IResourceStat => ({
+			resource,
+			selection: oe.symbol.range,
+		})), originalEvent));
+	}
+
+	onDragOver(): boolean | ITreeDragOverReaction { return false; }
+	drop(): void { }
+	dispose(): void { }
+}
+
+function symbolRangeUri(resource: URI, symbol: DocumentSymbol): URI {
+	return withSelection(resource, symbol.range);
 }
 
 class DocumentSymbolGroupTemplate {

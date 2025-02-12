@@ -201,6 +201,30 @@ export class GettingStartedDetailsRenderer {
 		</html>`;
 	}
 
+	async renderVideo(path: URI, poster?: URI): Promise<string> {
+		const nonce = generateUuid();
+
+		return `<!DOCTYPE html>
+		<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+				<style nonce="${nonce}">
+					video {
+						max-width: 100%;
+						max-height: 100%;
+						object-fit: cover;
+					}
+				</style>
+			</head>
+			<body>
+				<video controls autoplay ${poster ? `poster="${poster?.toString(true)}"` : ''} muted>
+					<source src="${path.toString(true)}" type="video/mp4">
+				</video>
+			</body>
+		</html>`;
+	}
+
 	private async readAndCacheSVGFile(path: URI): Promise<string> {
 		if (!this.svgCache.has(path)) {
 			const contents = await this.readContentsOfPath(path, false);
@@ -225,14 +249,7 @@ export class GettingStartedDetailsRenderer {
 				const contents = await new Promise<string>((resolve, reject) => {
 					const provider = gettingStartedContentRegistry.getProvider(moduleId);
 					if (!provider) {
-						// ESM-comment-begin
-						// require([moduleId], content => {
-						// resolve(content.default());
-						// });
-						// ESM-comment-end
-						// ESM-uncomment-begin
 						reject(`Getting started: no provider registered for ${moduleId}`);
-						// ESM-uncomment-end
 					} else {
 						resolve(provider());
 					}

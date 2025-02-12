@@ -11,6 +11,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol.js';
 import { IHostService } from '../../services/host/browser/host.js';
 import { IUserActivityService } from '../../services/userActivity/common/userActivityService.js';
+import { encodeBase64 } from '../../../base/common/buffer.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -29,10 +30,22 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		Event.latch(hostService.onDidChangeFocus)
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 		userActivityService.onDidChangeIsActive(this.proxy.$onDidChangeWindowActive, this.proxy, this.disposables);
+		this.registerNativeHandle();
 	}
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+
+	registerNativeHandle(): void {
+		Event.latch(this.hostService.onDidChangeActiveWindow)(
+			async windowId => {
+				const handle = await this.hostService.getNativeWindowHandle(windowId);
+				this.proxy.$onDidChangeActiveNativeWindowHandle(handle ? encodeBase64(handle) : undefined);
+			},
+			this,
+			this.disposables
+		);
 	}
 
 	$getInitialState() {

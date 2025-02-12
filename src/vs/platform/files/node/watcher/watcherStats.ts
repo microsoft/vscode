@@ -34,8 +34,8 @@ export function computeStats(
 	lines.push('[Summary]');
 	lines.push(`- Recursive Requests:     total: ${allRecursiveRequests.length}, suspended: ${recursiveRequestsStatus.suspended}, polling: ${recursiveRequestsStatus.polling}, failed: ${failedRecursiveRequests}`);
 	lines.push(`- Non-Recursive Requests: total: ${allNonRecursiveRequests.length}, suspended: ${nonRecursiveRequestsStatus.suspended}, polling: ${nonRecursiveRequestsStatus.polling}`);
-	lines.push(`- Recursive Watchers:     total: ${recursiveWatcher.watchers.size}, active: ${recursiveWatcherStatus.active}, failed: ${recursiveWatcherStatus.failed}, stopped: ${recursiveWatcherStatus.stopped}`);
-	lines.push(`- Non-Recursive Watchers: total: ${nonRecursiveWatcher.watchers.size}, active: ${nonRecursiveWatcherStatus.active}, failed: ${nonRecursiveWatcherStatus.failed}, reusing: ${nonRecursiveWatcherStatus.reusing}`);
+	lines.push(`- Recursive Watchers:     total: ${Array.from(recursiveWatcher.watchers).length}, active: ${recursiveWatcherStatus.active}, failed: ${recursiveWatcherStatus.failed}, stopped: ${recursiveWatcherStatus.stopped}`);
+	lines.push(`- Non-Recursive Watchers: total: ${Array.from(nonRecursiveWatcher.watchers).length}, active: ${nonRecursiveWatcherStatus.active}, failed: ${nonRecursiveWatcherStatus.failed}, reusing: ${nonRecursiveWatcherStatus.reusing}`);
 	lines.push(`- I/O Handles Impact:     total: ${recursiveRequestsStatus.polling + nonRecursiveRequestsStatus.polling + recursiveWatcherStatus.active + nonRecursiveWatcherStatus.active}`);
 
 	lines.push(`\n[Recursive Requests (${allRecursiveRequests.length}, suspended: ${recursiveRequestsStatus.suspended}, polling: ${recursiveRequestsStatus.polling})]:`);
@@ -60,7 +60,7 @@ export function computeStats(
 	fillNonRecursiveWatcherStats(nonRecursiveWatcheLines, nonRecursiveWatcher);
 	lines.push(...alignTextColumns(nonRecursiveWatcheLines));
 
-	return allRecursiveRequests.some(r => r.useNext) ? `\n\n[File Watcher NEXT] request stats:\n\n${lines.join('\n')}\n\n` : `\n\n[File Watcher CLASSIC] request stats:\n\n${lines.join('\n')}\n\n`;
+	return `\n\n[File Watcher] request stats:\n\n${lines.join('\n')}\n\n`;
 }
 
 function alignTextColumns(lines: string[]) {
@@ -106,7 +106,7 @@ function computeRecursiveWatchStatus(recursiveWatcher: ParcelWatcher): { active:
 	let failed = 0;
 	let stopped = 0;
 
-	for (const watcher of recursiveWatcher.watchers.values()) {
+	for (const watcher of recursiveWatcher.watchers) {
 		if (!watcher.failed && !watcher.stopped) {
 			active++;
 		}
@@ -185,11 +185,11 @@ function fillRequestStats(lines: string[], request: IUniversalWatchRequest, watc
 }
 
 function requestDetailsToString(request: IUniversalWatchRequest): string {
-	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}${isRecursiveWatchRequest(request) ? `, useNext: ${request.useNext}` : ''}`;
+	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}`;
 }
 
 function fillRecursiveWatcherStats(lines: string[], recursiveWatcher: ParcelWatcher): void {
-	const watchers = sortByPathPrefix(Array.from(recursiveWatcher.watchers.values()));
+	const watchers = sortByPathPrefix(Array.from(recursiveWatcher.watchers));
 
 	const { active, failed, stopped } = computeRecursiveWatchStatus(recursiveWatcher);
 	lines.push(`\n[Recursive Watchers (${watchers.length}, active: ${active}, failed: ${failed}, stopped: ${stopped})]:`);
@@ -213,7 +213,7 @@ function fillRecursiveWatcherStats(lines: string[], recursiveWatcher: ParcelWatc
 }
 
 function fillNonRecursiveWatcherStats(lines: string[], nonRecursiveWatcher: NodeJSWatcher): void {
-	const allWatchers = sortByPathPrefix(Array.from(nonRecursiveWatcher.watchers.values()));
+	const allWatchers = sortByPathPrefix(Array.from(nonRecursiveWatcher.watchers));
 	const activeWatchers = allWatchers.filter(watcher => !watcher.instance.failed && !watcher.instance.isReusingRecursiveWatcher);
 	const failedWatchers = allWatchers.filter(watcher => watcher.instance.failed);
 	const reusingWatchers = allWatchers.filter(watcher => watcher.instance.isReusingRecursiveWatcher);

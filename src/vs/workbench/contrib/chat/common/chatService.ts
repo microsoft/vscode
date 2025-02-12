@@ -20,6 +20,7 @@ import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ICh
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { IToolConfirmationMessages } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -31,6 +32,7 @@ export interface IChatResponseErrorDetails {
 	responseIsIncomplete?: boolean;
 	responseIsFiltered?: boolean;
 	responseIsRedacted?: boolean;
+	isQuotaExceeded?: boolean;
 }
 
 export interface IChatResponseProgressFileTreeData {
@@ -97,19 +99,15 @@ export interface IChatCodeCitation {
 }
 
 export interface IChatContentInlineReference {
+	resolveId?: string;
 	inlineReference: URI | Location | IWorkspaceSymbol;
 	name?: string;
 	kind: 'inlineReference';
 }
 
-export interface IChatAgentDetection {
-	agentId: string;
-	command?: IChatAgentCommand;
-	kind: 'agentDetection';
-}
-
 export interface IChatMarkdownContent {
 	content: IMarkdownString;
+	inlineReferences?: Record<string, IChatContentInlineReference>;
 	kind: 'markdownContent';
 }
 
@@ -180,6 +178,7 @@ export interface IChatTextEdit {
 	uri: URI;
 	edits: TextEdit[];
 	kind: 'textEdit';
+	done?: boolean;
 }
 
 export interface IChatConfirmation {
@@ -191,6 +190,33 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatToolInvocation {
+	/** Presence of this property says that confirmation is required */
+	confirmationMessages?: IToolConfirmationMessages;
+	confirmed: DeferredPromise<boolean>;
+	/** A 3-way: undefined=don't know yet. */
+	isConfirmed: boolean | undefined;
+	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
+
+	isComplete: boolean;
+	isCompleteDeferred: DeferredPromise<void>;
+	kind: 'toolInvocation';
+}
+
+/**
+ * This is a IChatToolInvocation that has been serialized, like after window reload, so it is no longer an active tool invocation.
+ */
+export interface IChatToolInvocationSerialized {
+	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
+	isConfirmed: boolean;
+	isComplete: boolean;
+	kind: 'toolInvocationSerialized';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -199,7 +225,6 @@ export type IChatProgress =
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatCodeCitation
-	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatTask
 	| IChatTaskResult
@@ -208,7 +233,9 @@ export type IChatProgress =
 	| IChatTextEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
-	| IChatConfirmation;
+	| IChatConfirmation
+	| IChatToolInvocation
+	| IChatToolInvocationSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -299,7 +326,15 @@ export interface IChatInlineChatCodeAction {
 	action: 'accepted' | 'discarded';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
+
+export interface IChatEditingSessionAction {
+	kind: 'chatEditingSessionAction';
+	uri: URI;
+	hasRemainingEdits: boolean;
+	outcome: 'accepted' | 'rejected' | 'saved';
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
@@ -374,6 +409,7 @@ export interface IChatTerminalLocationData {
 export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
 
 export interface IChatSendRequestOptions {
+	userSelectedModelId?: string;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;
@@ -382,6 +418,7 @@ export interface IChatSendRequestOptions {
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
+	workingSet?: URI[];
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
@@ -391,6 +428,11 @@ export interface IChatSendRequestOptions {
 	 * The label of the confirmation action that was selected.
 	 */
 	confirmation?: string;
+
+	/**
+	 * Flag to indicate whether a prompt instructions attachment is present.
+	 */
+	hasInstructionAttachments?: boolean;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -401,7 +443,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined;
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;

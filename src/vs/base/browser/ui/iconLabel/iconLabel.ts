@@ -5,6 +5,7 @@
 
 import './iconlabel.css';
 import * as dom from '../../dom.js';
+import * as css from '../../cssValue.js';
 import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { IMatch } from '../../../common/filters.js';
@@ -23,6 +24,7 @@ export interface IIconLabelCreationOptions {
 	readonly supportDescriptionHighlights?: boolean;
 	readonly supportIcons?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverTargetOverride?: HTMLElement;
 }
 
 export interface IIconLabelValueOptions {
@@ -165,7 +167,11 @@ export class IconLabel extends Disposable {
 			} else {
 				iconNode = existingIconNode;
 			}
-			iconNode.style.backgroundImage = dom.asCSSUrl(options?.iconPath);
+			iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
+			iconNode.style.backgroundRepeat = 'no-repeat';
+			iconNode.style.backgroundPosition = 'center';
+			iconNode.style.backgroundSize = 'contain';
+
 		} else if (existingIconNode) {
 			existingIconNode.remove();
 		}
@@ -208,6 +214,14 @@ export class IconLabel extends Disposable {
 			return;
 		}
 
+		let hoverTarget = htmlElement;
+		if (this.creationOptions?.hoverTargetOverride) {
+			if (!dom.isAncestor(htmlElement, this.creationOptions.hoverTargetOverride)) {
+				throw new Error('hoverTargetOverrride must be an ancestor of the htmlElement');
+			}
+			hoverTarget = this.creationOptions.hoverTargetOverride;
+		}
+
 		if (this.hoverDelegate.showNativeHover) {
 			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IManagedHoverTooltipMarkdownString | undefined): void {
 				if (isString(tooltip)) {
@@ -219,9 +233,9 @@ export class IconLabel extends Disposable {
 					htmlElement.removeAttribute('title');
 				}
 			}
-			setupNativeHover(htmlElement, tooltip);
+			setupNativeHover(hoverTarget, tooltip);
 		} else {
-			const hoverDisposable = getBaseLayerHoverDelegate().setupManagedHover(this.hoverDelegate, htmlElement, tooltip);
+			const hoverDisposable = getBaseLayerHoverDelegate().setupManagedHover(this.hoverDelegate, hoverTarget, tooltip);
 			if (hoverDisposable) {
 				this.customHovers.set(htmlElement, hoverDisposable);
 			}

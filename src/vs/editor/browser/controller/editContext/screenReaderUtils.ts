@@ -31,6 +31,9 @@ export interface ScreenReaderContentState {
 	/** the editor range in the view coordinate system that matches the selection inside `value` */
 	selection: Range;
 
+	/** the position of the start of the `value` in the editor */
+	startPositionWithinEditor: Position;
+
 	/** the visible line count (wrapped, not necessarily matching \n characters) for the text in `value` before `selectionStart` */
 	newlineCountBeforeSelection: number;
 }
@@ -97,6 +100,7 @@ export class PagedScreenReaderStrategy {
 			selection: selection,
 			selectionStart: pretext.length,
 			selectionEnd: pretext.length + text.length,
+			startPositionWithinEditor: pretextRange.getStartPosition(),
 			newlineCountBeforeSelection: pretextRange.endLineNumber - pretextRange.startLineNumber,
 		};
 	}

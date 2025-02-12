@@ -11,6 +11,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
+	white-space: nowrap !important;
 	flex: 1;
 }
 

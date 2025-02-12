@@ -12,10 +12,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
-
-// HACK: This file should not depend on terminalContrib
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalDeveloperCommandId } from '../../terminalContrib/developer/common/terminal.developer.js';
+import { TerminalContribCommandId } from '../terminalContribExports.js';
 
 export abstract class BaseTerminalBackend extends Disposable {
 	private _isPtyHostUnresponsive: boolean = false;
@@ -68,7 +65,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 					text: `$(debug-disconnect) ${localize('ptyHostStatus.short', 'Pty Host')}`,
 					tooltip: localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, terminals may stop working. Click to manually restart the pty host."),
 					ariaLabel: localize('ptyHostStatus.ariaLabel', 'Pty Host is unresponsive'),
-					command: TerminalDeveloperCommandId.RestartPtyHost,
+					command: TerminalContribCommandId.DeveloperRestartPtyHost,
 					kind: 'warning'
 				};
 			}

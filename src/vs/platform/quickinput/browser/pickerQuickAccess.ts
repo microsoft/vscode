@@ -153,7 +153,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			picker.busy = false;
 
 			// Create new cancellation source for this run
-			picksCts = new CancellationTokenSource(token);
+			picksCts = picksDisposables.add(new CancellationTokenSource(token));
 
 			// Collect picks and support both long running and short or combined
 			const picksToken = picksCts.token;
@@ -330,7 +330,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				if (!event.inBackground) {
 					picker.hide(); // hide picker unless we accept in background
 				}
-				runOptions.handleAccept?.(picker.activeItems[0]);
+				runOptions.handleAccept?.(picker.activeItems[0], event.inBackground);
 				return;
 			}
 

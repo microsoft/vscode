@@ -18,20 +18,24 @@ export const enum AccessibleViewProviderId {
 	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
-	Chat = 'panelChat',
+	PanelChat = 'panelChat',
 	InlineChat = 'inlineChat',
+	QuickChat = 'quickChat',
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',
 	Notebook = 'notebook',
+	ReplEditor = 'replEditor',
 	Editor = 'editor',
 	Hover = 'hover',
 	Notification = 'notification',
 	EmptyEditorHint = 'emptyEditorHint',
 	Comments = 'comments',
+	CommentThread = 'commentThread',
 	Repl = 'repl',
 	ReplHelp = 'replHelp',
 	RunAndDebug = 'runAndDebug',
 	Walkthrough = 'walkthrough',
+	SourceControl = 'scm'
 }
 
 export const enum AccessibleViewType {

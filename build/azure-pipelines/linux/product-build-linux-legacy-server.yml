@@ -5,9 +5,6 @@ parameters:
     type: boolean
   - name: VSCODE_ARCH
     type: string
-  - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
 
 steps:
   - task: NodeTool@0
@@ -21,7 +18,7 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
@@ -45,7 +42,9 @@ steps:
         libxkbfile-dev \
         libkrb5-dev \
         libgbm1 \
-        rpm
+        rpm \
+        gcc-10 \
+        g++-10
       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
       sudo chmod +x /etc/init.d/xvfb
       sudo update-rc.d xvfb defaults
@@ -80,7 +79,7 @@ steps:
     - task: Docker@1
       displayName: "Pull Docker image"
       inputs:
-        azureSubscriptionEndpoint: "vscode-builds-subscription"
+        azureSubscriptionEndpoint: vscode
         azureContainerRegistry: vscodehub.azurecr.io
         command: "Run an image"
         imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
@@ -98,13 +97,17 @@ steps:
         echo "Npm install failed $i, trying again..."
       done
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
   - script: |
       set -e
 
       export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
-      source ./build/azure-pipelines/linux/setup-env.sh --only-remote
+      export CC=$(which gcc-10)
+      export CXX=$(which g++-10)
+      source ./build/azure-pipelines/linux/setup-env.sh --skip-sysroot
 
       for i in {1..5}; do # try 5 times
         npm ci && break
@@ -206,7 +209,6 @@ steps:
         VSCODE_RUN_UNIT_TESTS: false
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: false
-        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 

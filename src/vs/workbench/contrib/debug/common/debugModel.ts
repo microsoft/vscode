@@ -1091,9 +1091,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return `${resources.basenameOrAuthority(this.uri)} ${this.lineNumber}`;
 	}
 
-	public setSessionDidTrigger(sessionId: string): void {
-		this.sessionsDidTrigger ??= new Set();
-		this.sessionsDidTrigger.add(sessionId);
+	public setSessionDidTrigger(sessionId: string, didTrigger = true): void {
+		if (didTrigger) {
+			this.sessionsDidTrigger ??= new Set();
+			this.sessionsDidTrigger.add(sessionId);
+		} else {
+			this.sessionsDidTrigger?.delete(sessionId);
+		}
 	}
 
 	public getSessionDidTrigger(sessionId: string): boolean {

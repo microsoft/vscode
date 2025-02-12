@@ -10,7 +10,7 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
@@ -46,6 +46,8 @@ steps:
         echo "Npm install failed $i, trying again..."
       done
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
   - download: current
@@ -65,6 +67,13 @@ steps:
       unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64
       DEBUG=* node build/darwin/create-universal-app.js $(agent.builddirectory)
     displayName: Create Universal App
+
+  - script: |
+      set -e
+      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js universal
+    displayName: Verify arch of Mach-O objects
 
   - script: |
       set -e

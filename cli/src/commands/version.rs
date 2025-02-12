@@ -48,7 +48,7 @@ pub async fn show(ctx: CommandContext) -> Result<i32, AnyError> {
 	let vm = CodeVersionManager::new(ctx.log.clone(), &ctx.paths, platform);
 
 	let version = vm.get_preferred_version();
-	println!("Current quality: {}", version);
+	println!("Current quality: {version}");
 	match vm.try_get_entrypoint(&version).await {
 		Some(p) => println!("Installation path: {}", p.display()),
 		None => println!("No existing installation found"),

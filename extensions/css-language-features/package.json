@@ -23,9 +23,6 @@
       "supported": true
     }
   },
-  "enabledApiProposals": [
-    "documentPaste"
-  ],
   "scripts": {
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
@@ -997,7 +994,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "10.0.0-next.8",
+    "vscode-languageclient": "^10.0.0-next.13",
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {

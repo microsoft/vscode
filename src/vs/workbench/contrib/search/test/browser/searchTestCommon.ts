@@ -17,11 +17,11 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookEditorWidgetService } from '../../../notebook/browser/services/notebookEditorServiceImpl.js';
-import { SearchResult } from '../../browser/searchModel.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileMatch } from '../../../../services/search/common/search.js';
 import { TestEditorGroupsService, TestEditorService } from '../../../../test/browser/workbenchTestServices.js';
+import { ISearchResult } from '../../browser/searchTreeModel/searchTreeCommon.js';
 
 export function createFileUriFromPathFromRoot(path?: string): URI {
 	const rootName = getRootName();
@@ -65,6 +65,6 @@ export function stubNotebookEditorService(instantiationService: TestInstantiatio
 	return notebookEditorWidgetService;
 }
 
-export function addToSearchResult(searchResult: SearchResult, allRaw: IFileMatch[], searchInstanceID = '') {
+export function addToSearchResult(searchResult: ISearchResult, allRaw: IFileMatch[], searchInstanceID = '') {
 	searchResult.add(allRaw, searchInstanceID, false);
 }

@@ -40,11 +40,12 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { RangeHighlightDecorations } from '../../../browser/codeeditor.js';
 import { settingsEditIcon } from './preferencesIcons.js';
 import { EditPreferenceWidget } from './preferencesWidgets.js';
-import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { EXPERIMENTAL_INDICATOR_DESCRIPTION, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -186,8 +187,8 @@ class EditSettingRenderer extends Disposable {
 	) {
 		super();
 
-		this.editPreferenceWidgetForCursorPosition = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
-		this.editPreferenceWidgetForMouseMove = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
+		this.editPreferenceWidgetForCursorPosition = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
+		this.editPreferenceWidgetForMouseMove = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
 		this.toggleEditPreferencesForMouseMoveDelayer = new Delayer<void>(75);
 
 		this._register(this.editPreferenceWidgetForCursorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCursorPosition, e)));
@@ -547,6 +548,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 					}
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
+						this.handleUnstableSettingConfiguration(setting, configuration, markerData);
 						if (this.handlePolicyConfiguration(setting, configuration, markerData)) {
 							continue;
 						}
@@ -565,7 +567,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 								break;
 						}
 					} else {
-						markerData.push(this.gemerateUnknownConfigurationMarker(setting));
+						markerData.push(this.generateUnknownConfigurationMarker(setting));
 					}
 				}
 			}
@@ -605,7 +607,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 					});
 				}
 			} else {
-				markerData.push(this.gemerateUnknownConfigurationMarker(setting));
+				markerData.push(this.generateUnknownConfigurationMarker(setting));
 			}
 		}
 	}
@@ -621,7 +623,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 					message: nls.localize('defaultProfileSettingWhileNonDefaultActive', "This setting cannot be applied while a non-default profile is active. It will be applied when the default profile is active.")
 				});
 			} else if (isEqual(this.userDataProfileService.currentProfile.settingsResource, this.settingsEditorModel.uri)) {
-				if (configuration.scope === ConfigurationScope.APPLICATION) {
+				if (configuration.scope && APPLICATION_SCOPES.includes(configuration.scope)) {
 					// If we're in a profile setting file, and the setting is application-scoped, fade it out.
 					markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 				} else if (this.configurationService.isSettingAppliedForAllProfiles(setting.key)) {
@@ -635,7 +637,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 				}
 			}
 		}
-		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
+		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.APPLICATION_MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
@@ -652,7 +654,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	private handleWorkspaceConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (configuration.scope === ConfigurationScope.APPLICATION) {
+		if (configuration.scope && APPLICATION_SCOPES.includes(configuration.scope)) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 		}
 
@@ -669,7 +671,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	private handleWorkspaceFolderConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (configuration.scope === ConfigurationScope.APPLICATION) {
+		if (configuration.scope && APPLICATION_SCOPES.includes(configuration.scope)) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 		}
 
@@ -691,6 +693,14 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
 			this.addCodeActions(marker, codeActions);
+		}
+	}
+
+	private handleUnstableSettingConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
+		if (configuration.tags?.includes('preview')) {
+			markerData.push(this.generatePreviewSettingMarker(setting));
+		} else if (configuration.tags?.includes('experimental')) {
+			markerData.push(this.generateExperimentalSettingMarker(setting));
 		}
 	}
 
@@ -720,7 +730,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		};
 	}
 
-	private gemerateUnknownConfigurationMarker(setting: ISetting): IMarkerData {
+	private generateUnknownConfigurationMarker(setting: ISetting): IMarkerData {
 		return {
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
@@ -739,6 +749,22 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			diagnostics,
 			kind: CodeActionKind.QuickFix.value
 		}];
+	}
+
+	private generatePreviewSettingMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			...setting.range,
+			message: PREVIEW_INDICATOR_DESCRIPTION
+		};
+	}
+
+	private generateExperimentalSettingMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			...setting.range,
+			message: EXPERIMENTAL_INDICATOR_DESCRIPTION
+		};
 	}
 
 	private addCodeActions(range: IRange, codeActions: languages.CodeAction[]): void {

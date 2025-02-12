@@ -6,7 +6,8 @@
 import './media/processExplorer.css';
 import '../../../base/browser/ui/codicons/codiconStyles.js'; // make sure codicon css is loaded
 import { localize } from '../../../nls.js';
-import { $, append, createStyleSheet } from '../../../base/browser/dom.js';
+import { $, append } from '../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../base/browser/domStylesheets.js';
 import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { DataTree } from '../../../base/browser/ui/tree/dataTree.js';
 import { IDataSource, ITreeNode, ITreeRenderer } from '../../../base/browser/ui/tree/tree.js';
@@ -18,7 +19,7 @@ import { ipcRenderer } from '../../../base/parts/sandbox/electron-sandbox/global
 import { IRemoteDiagnosticError, isRemoteDiagnosticError } from '../../../platform/diagnostics/common/diagnostics.js';
 import { ByteSize } from '../../../platform/files/common/files.js';
 import { ElectronIPCMainProcessService } from '../../../platform/ipc/electron-sandbox/mainProcessService.js';
-import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from '../../../platform/issue/common/issue.js';
+import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from '../../../platform/process/common/process.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { NativeHostService } from '../../../platform/native/common/nativeHostService.js';
 import { getIconsStyleSheet } from '../../../platform/theme/browser/iconsStyleSheet.js';
@@ -589,6 +590,10 @@ function createCodiconStyleSheet() {
 	const delayer = new RunOnceScheduler(updateAll, 0);
 	iconsStyleSheet.onDidChange(() => delayer.schedule());
 	delayer.schedule();
+}
+
+export interface IProcessExplorerMain {
+	startup(configuration: ProcessExplorerWindowConfiguration): void;
 }
 
 export function startup(configuration: ProcessExplorerWindowConfiguration): void {

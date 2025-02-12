@@ -28,10 +28,17 @@ type NotebookMetadata = {
 	[propName: string]: unknown;
 };
 
+type OptionsWithCellContentMetadata = vscode.NotebookDocumentContentOptions & { cellContentMetadata: { attachments: boolean } };
+
+
 export function activate(context: vscode.ExtensionContext, serializer: vscode.NotebookSerializer) {
 	keepNotebookModelStoreInSync(context);
-	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
+	const notebookSerializerOptions: OptionsWithCellContentMetadata = {
 		transientOutputs: false,
+		transientDocumentMetadata: {
+			cells: true,
+			indentAmount: true
+		},
 		transientCellMetadata: {
 			breakpointMargin: true,
 			id: false,
@@ -41,9 +48,10 @@ export function activate(context: vscode.ExtensionContext, serializer: vscode.No
 		cellContentMetadata: {
 			attachments: true
 		}
-	} as vscode.NotebookDocumentContentOptions));
+	};
+	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, notebookSerializerOptions));
 
-	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('interactive', serializer, {
+	const interactiveSerializeOptions: OptionsWithCellContentMetadata = {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
@@ -54,7 +62,8 @@ export function activate(context: vscode.ExtensionContext, serializer: vscode.No
 		cellContentMetadata: {
 			attachments: true
 		}
-	} as vscode.NotebookDocumentContentOptions));
+	};
+	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('interactive', serializer, interactiveSerializeOptions));
 
 	vscode.languages.registerCodeLensProvider({ pattern: '**/*.ipynb' }, {
 		provideCodeLenses: (document) => {
@@ -116,10 +125,10 @@ export function activate(context: vscode.ExtensionContext, serializer: vscode.No
 			const edit = new vscode.WorkspaceEdit();
 			edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
 				...document.metadata,
-				metadata: <NotebookMetadata>{
+				metadata: {
 					...(document.metadata.metadata ?? {}),
 					...metadata
-				},
+				} satisfies NotebookMetadata,
 			})]);
 			return vscode.workspace.applyEdit(edit);
 		},

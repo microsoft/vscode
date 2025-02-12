@@ -49,16 +49,23 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		if (dragData.type === 'composite') {
 			const currentContainer = this.viewDescriptorService.getViewContainerById(dragData.id)!;
 			const currentLocation = this.viewDescriptorService.getViewContainerLocation(currentContainer);
+			let moved = false;
 
 			// ... on the same composite bar
 			if (currentLocation === this.targetContainerLocation) {
 				if (targetCompositeId) {
 					this.moveComposite(dragData.id, targetCompositeId, before);
+					moved = true;
 				}
 			}
 			// ... on a different composite bar
 			else {
 				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before), 'dnd');
+				moved = true;
+			}
+
+			if (moved) {
+				this.openComposite(currentContainer.id, true);
 			}
 		}
 
@@ -260,11 +267,15 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	setCompositeBarItems(items: ICompositeBarItem[]): void {
 		this.model.setItems(items);
-		this.updateCompositeSwitcher();
+		this.updateCompositeSwitcher(true);
 	}
 
 	getPinnedComposites(): ICompositeBarItem[] {
 		return this.model.pinnedItems;
+	}
+
+	getPinnedCompositeIds(): string[] {
+		return this.getPinnedComposites().map(c => c.id);
 	}
 
 	getVisibleComposites(): ICompositeBarItem[] {
@@ -414,7 +425,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (item) {
 			// TODO @lramos15 how do we tell the activity to re-render the badge? This triggers an onDidChange but isn't the right way to do it.
 			// I could add another specific function like `activity.updateBadgeEnablement` would then the activity store the sate?
-			item.activityAction.activity = item.activityAction.activity;
+			item.activityAction.activities = item.activityAction.activities;
 		}
 	}
 
@@ -439,7 +450,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Case: we closed the default composite
 		// Solv: we open the next visible composite from top
 		else {
-			this.options.openComposite(this.visibleComposites.filter(cid => cid !== compositeId)[0]);
+			const visibleComposite = this.visibleComposites.find(cid => cid !== compositeId);
+			if (visibleComposite) {
+				this.options.openComposite(visibleComposite);
+			}
 		}
 	}
 
@@ -503,7 +517,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	private updateCompositeSwitcher(): void {
+	private updateCompositeSwitcher(donotTrigger?: boolean): void {
 		const compositeSwitcherBar = this.compositeSwitcherBar;
 		if (!compositeSwitcherBar || !this.dimension) {
 			return; // We have not been rendered yet so there is nothing to update.
@@ -622,7 +636,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
 
-		this._onDidChange.fire();
+		if (!donotTrigger) {
+			this._onDidChange.fire();
+		}
 	}
 
 	private getOverflowingComposites(): { id: string; name?: string }[] {
@@ -649,19 +665,22 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	getContextMenuActions(e?: MouseEvent | GestureEvent): IAction[] {
 		const actions: IAction[] = this.model.visibleItems
-			.map(({ id, name, activityAction }) => (toAction({
-				id,
-				label: this.getAction(id).label || name || id,
-				checked: this.isPinned(id),
-				enabled: activityAction.enabled,
-				run: () => {
-					if (this.isPinned(id)) {
-						this.unpin(id);
-					} else {
-						this.pin(id, true);
+			.map(({ id, name, activityAction }) => {
+				const isPinned = this.isPinned(id);
+				return toAction({
+					id,
+					label: this.getAction(id).label || name || id,
+					checked: isPinned,
+					enabled: activityAction.enabled && (!isPinned || this.getPinnedCompositeIds().length > 1),
+					run: () => {
+						if (this.isPinned(id)) {
+							this.unpin(id);
+						} else {
+							this.pin(id, true);
+						}
 					}
-				}
-			})));
+				});
+			});
 
 		this.options.fillExtraContextMenuActions(actions, e);
 

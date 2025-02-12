@@ -16,7 +16,7 @@ import { CodeActionTriggerType } from '../../../common/languages.js';
 import { IModelDecoration } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IMarkerDecorationsService } from '../../../common/services/markerDecorations.js';
-import { getCodeActions, quickFixCommandId } from '../../codeAction/browser/codeAction.js';
+import { ApplyCodeActionReason, getCodeActions, quickFixCommandId } from '../../codeAction/browser/codeAction.js';
 import { CodeActionController } from '../../codeAction/browser/codeActionController.js';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../../codeAction/common/types.js';
 import { MarkerController, NextMarkerAction } from '../../gotoError/browser/gotoError.js';
@@ -254,6 +254,19 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						});
 					}
 				});
+
+				const aiCodeAction = actions.validActions.find(action => action.action.isAI);
+				if (aiCodeAction) {
+					context.statusBar.addAction({
+						label: aiCodeAction.action.title,
+						commandId: aiCodeAction.action.command?.id ?? '',
+						run: () => {
+							const controller = CodeActionController.get(this._editor);
+							controller?.applyCodeAction(aiCodeAction, false, false, ApplyCodeActionReason.FromProblemsHover);
+						}
+					});
+				}
+
 			}, onUnexpectedError);
 		}
 	}

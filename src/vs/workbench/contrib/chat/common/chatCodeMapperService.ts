@@ -9,37 +9,28 @@ import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
-
 export interface ICodeMapperResponse {
-	textEdit: (textEdit: TextEdit, resource: URI) => void;
+	textEdit: (resource: URI, textEdit: TextEdit[]) => void;
 }
 
 export interface ICodeMapperCodeBlock {
-	code: string;
-	resource: URI;
-}
-
-export interface ConversationRequest {
-	readonly type: 'request';
-	readonly message: string;
-}
-
-export interface ConversationResponse {
-	readonly type: 'response';
-	readonly message: string;
-	// readonly references?: DocumentContextItem[];
+	readonly code: string;
+	readonly resource: URI;
+	readonly markdownBeforeBlock?: string;
 }
 
 export interface ICodeMapperRequest {
-	codeBlocks: ICodeMapperCodeBlock[];
-	conversation: (ConversationRequest | ConversationResponse)[];
+	readonly codeBlocks: ICodeMapperCodeBlock[];
+	readonly chatRequestId?: string;
+	readonly location?: string;
 }
 
 export interface ICodeMapperResult {
-	errorMessage?: string;
+	readonly errorMessage?: string;
 }
 
 export interface ICodeMapperProvider {
+	readonly displayName: string;
 	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
 }
 
@@ -47,6 +38,7 @@ export const ICodeMapperService = createDecorator<ICodeMapperService>('codeMappe
 
 export interface ICodeMapperService {
 	readonly _serviceBrand: undefined;
+	readonly providers: ICodeMapperProvider[];
 	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable;
 	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
 }
@@ -54,7 +46,7 @@ export interface ICodeMapperService {
 export class CodeMapperService implements ICodeMapperService {
 	_serviceBrand: undefined;
 
-	private readonly providers: ICodeMapperProvider[] = [];
+	public readonly providers: ICodeMapperProvider[] = [];
 
 	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable {
 		this.providers.push(provider);
@@ -71,9 +63,10 @@ export class CodeMapperService implements ICodeMapperService {
 	async mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) {
 		for (const provider of this.providers) {
 			const result = await provider.mapCode(request, response, token);
-			if (result) {
-				return result;
+			if (token.isCancellationRequested) {
+				return undefined;
 			}
+			return result;
 		}
 		return undefined;
 	}

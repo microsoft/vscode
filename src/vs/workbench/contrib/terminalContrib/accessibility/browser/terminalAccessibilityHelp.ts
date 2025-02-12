@@ -7,7 +7,6 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ShellIntegrationStatus, TerminalSettingId, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
 import { ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
@@ -19,6 +18,7 @@ import { TerminalAccessibilityCommandId } from '../common/terminal.accessibility
 import { TerminalLinksCommandId } from '../../links/common/terminal.links.js';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { accessibleViewIsShown, accessibleViewCurrentProviderId, AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { TerminalHistoryCommandId } from '../../history/common/terminal.history.js';
 
 export const enum ClassName {
 	Active = 'active',
@@ -46,10 +46,9 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,
 		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
-		@IInstantiationService _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
@@ -76,8 +75,8 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 			content.push('- ' + localize('goToNextCommand', 'Go to Next Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToNextCommand));
 			content.push('- ' + localize('goToPreviousCommand', 'Go to Previous Command<keybinding:{0}> in the accessible view', TerminalAccessibilityCommandId.AccessibleBufferGoToPreviousCommand));
 			content.push('- ' + localize('goToSymbol', 'Go to Symbol<keybinding:{0}>', AccessibilityCommandId.GoToSymbol));
-			content.push('- ' + localize('runRecentCommand', 'Run Recent Command<keybinding:{0}>', TerminalCommandId.RunRecentCommand));
-			content.push('- ' + localize('goToRecentDirectory', 'Go to Recent Directory<keybinding:{0}>', TerminalCommandId.GoToRecentDirectory));
+			content.push('- ' + localize('runRecentCommand', 'Run Recent Command<keybinding:{0}>', TerminalHistoryCommandId.RunRecentCommand));
+			content.push('- ' + localize('goToRecentDirectory', 'Go to Recent Directory<keybinding:{0}>', TerminalHistoryCommandId.GoToRecentDirectory));
 		} else {
 			content.push(localize('noShellIntegration', 'Shell integration is not enabled. Some accessibility features may not be available.'));
 		}

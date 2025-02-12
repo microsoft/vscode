@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { revive } from '../../../../base/common/marshalling.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { IToolData } from './languageModelToolsService.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
@@ -50,8 +52,9 @@ export const chatSubcommandLeader = '/';
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
+ * @deprecated, but kept for backwards compatibility with old persisted chat requests
  */
-export class ChatRequestVariablePart implements IParsedChatRequestPart {
+class ChatRequestVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'var';
 	readonly kind = ChatRequestVariablePart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string, readonly variableId: string) { }
@@ -72,7 +75,7 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 export class ChatRequestToolPart implements IParsedChatRequestPart {
 	static readonly Kind = 'tool';
 	readonly kind = ChatRequestToolPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly toolName: string, readonly toolId: string) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly toolName: string, readonly toolId: string, readonly displayName?: string, readonly icon?: IToolData['icon']) { }
 
 	get text(): string {
 		return `${chatVariableLeader}${this.toolName}`;
@@ -140,7 +143,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean) { }
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
@@ -174,7 +177,9 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestToolPart).toolName,
-					(part as ChatRequestToolPart).toolId
+					(part as ChatRequestToolPart).toolId,
+					(part as ChatRequestToolPart).displayName,
+					(part as ChatRequestToolPart).icon,
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
 				let agent = (part as ChatRequestAgentPart).agent;
@@ -204,7 +209,10 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestDynamicVariablePart).text,
 					(part as ChatRequestDynamicVariablePart).id,
 					(part as ChatRequestDynamicVariablePart).modelDescription,
-					revive((part as ChatRequestDynamicVariablePart).data)
+					revive((part as ChatRequestDynamicVariablePart).data),
+					(part as ChatRequestDynamicVariablePart).fullName,
+					(part as ChatRequestDynamicVariablePart).icon,
+					(part as ChatRequestDynamicVariablePart).isFile
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

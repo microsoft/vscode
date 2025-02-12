@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream, bufferToStream, streamToBuffer } from '../../../../base/common/buffer.js';
+import { VSBufferReadableStream, streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { filter } from '../../../../base/common/objects.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,7 +18,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
 import { NotebookTextModel } from './model/notebookTextModel.js';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookSetting } from './notebookCommon.js';
+import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookSetting } from './notebookCommon.js';
 import { INotebookLoggingService } from './notebookLoggingService.js';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from './notebookService.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -28,6 +27,7 @@ import { IFileWorkingCopyManager } from '../../../services/workingCopy/common/fi
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from '../../../services/workingCopy/common/storedFileWorkingCopy.js';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from '../../../services/workingCopy/common/untitledFileWorkingCopy.js';
 import { WorkingCopyCapabilities } from '../../../services/workingCopy/common/workingCopy.js';
+import { INotebookSynchronizerService } from './notebookSynchronizerService.js';
 
 //#region --- simple content provider
 
@@ -55,7 +55,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		scratchpad: boolean,
-		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
+		@INotebookSynchronizerService private readonly _notebookSynchronizerService: INotebookSynchronizerService
 	) {
 		super();
 
@@ -119,12 +120,15 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return false;
 	}
 
-	revert(options?: IRevertOptions): Promise<void> {
+	async revert(options?: IRevertOptions): Promise<void> {
 		assertType(this.isResolved());
+		if (this._workingCopy) {
+			await this._notebookSynchronizerService.revert(this._workingCopy);
+		}
 		return this._workingCopy!.revert(options);
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
+	async save(options?: ISaveOptions): Promise<boolean> {
 		assertType(this.isResolved());
 		return this._workingCopy!.save(options);
 	}
@@ -261,16 +265,20 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				if (!token.isCancellationRequested) {
 					type notebookSaveErrorData = {
 						isRemote: boolean;
+						isIPyNbWorkerSerializer: boolean;
 						error: Error;
 					};
 					type notebookSaveErrorClassification = {
 						owner: 'amunger';
 						comment: 'Detect if we are having issues saving a notebook on the Extension Host';
 						isRemote: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the save is happening on a remote file system' };
+						isIPyNbWorkerSerializer: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the IPynb files are serialized in workers' };
 						error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 					};
+					const isIPynb = this._notebookModel.viewType === 'jupyter-notebook' || this._notebookModel.viewType === 'interactive';
 					this._telemetryService.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
 						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
+						isIPyNbWorkerSerializer: isIPynb && this._configurationService.getValue<boolean>('ipynb.experimental.serialization'),
 						error: error
 					});
 				}
@@ -290,47 +298,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 
 	async snapshot(context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
-		const serializer = await this.getNotebookSerializer();
-
-		const data: NotebookData = {
-			metadata: filter(this._notebookModel.metadata, key => !serializer.options.transientDocumentMetadata[key]),
-			cells: [],
-		};
-
-		let outputSize = 0;
-		for (const cell of this._notebookModel.cells) {
-			const cellData: ICellDto2 = {
-				cellKind: cell.cellKind,
-				language: cell.language,
-				mime: cell.mime,
-				source: cell.getValue(),
-				outputs: [],
-				internalMetadata: cell.internalMetadata
-			};
-
-			const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
-			if (context === SnapshotContext.Backup && outputSizeLimit > 0) {
-				cell.outputs.forEach(output => {
-					output.outputs.forEach(item => {
-						outputSize += item.data.byteLength;
-					});
-				});
-				if (outputSize > outputSizeLimit) {
-					throw new Error('Notebook too large to backup');
-				}
-			}
-
-			cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
-			cellData.metadata = filter(cell.metadata, key => !serializer.options.transientCellMetadata[key]);
-
-			data.cells.push(cellData);
-		}
-
-		const bytes = await serializer.notebookToData(data);
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		return bufferToStream(bytes);
+		return this._notebookService.createNotebookTextDocumentSnapshot(this._notebookModel.uri, context, token);
 	}
 
 	async update(stream: VSBufferReadableStream, token: CancellationToken): Promise<void> {

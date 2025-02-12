@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -13,8 +12,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
-import { CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys.js';
-import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
 export function registerQuickChatActions() {
@@ -65,37 +63,6 @@ export function registerQuickChatActions() {
 		}
 	});
 
-	registerAction2(class LaunchInlineChatFromQuickChatAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.quickchat.launchInlineChat',
-				title: localize2('chat.launchInlineChat.label', "Launch Inline Chat"),
-				f1: false,
-				category: CHAT_CATEGORY
-			});
-		}
-
-		async run(accessor: ServicesAccessor) {
-			const quickChatService = accessor.get(IQuickChatService);
-			const codeEditorService = accessor.get(ICodeEditorService);
-			if (quickChatService.focused) {
-				quickChatService.close();
-			}
-			const codeEditor = codeEditorService.getActiveCodeEditor();
-			if (!codeEditor) {
-				return;
-			}
-
-			const controller = InlineChatController.get(codeEditor);
-			if (!controller) {
-				return;
-			}
-
-			await controller.run();
-			controller.focus();
-		}
-	});
-
 }
 
 class QuickChatGlobalAction extends Action2 {
@@ -103,16 +70,18 @@ class QuickChatGlobalAction extends Action2 {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
 			title: localize2('quickChat', 'Quick Chat'),
-			precondition: CONTEXT_CHAT_ENABLED,
+			precondition: ChatContextKeys.enabled,
 			icon: Codicon.commentDiscussion,
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-				linux: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI
-				}
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyL,
+			},
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'e_quickChat',
+				order: 5
 			},
 			metadata: {
 				description: localize('toggle.desc', 'Toggle the quick chat'),

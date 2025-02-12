@@ -412,8 +412,7 @@ export class RenameAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.rename',
-			label: nls.localize('rename.label', "Rename Symbol"),
-			alias: 'Rename Symbol',
+			label: nls.localize2('rename.label', "Rename Symbol"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

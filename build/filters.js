@@ -49,6 +49,7 @@ module.exports.unicodeFilter = [
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/**',
 	'!extensions/php-language-features/src/features/phpGlobalFunctions.ts',
+	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
@@ -79,7 +80,6 @@ module.exports.indentationFilter = [
 	'!src/vs/base/node/cpuUsage.sh',
 	'!src/vs/editor/common/languages/highlights/*.scm',
 	'!test/unit/assert.js',
-	'!test/unit/assert-esm.js',
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
 	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
@@ -89,6 +89,7 @@ module.exports.indentationFilter = [
 	'!test/automation/out/**',
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
+	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/typescript-language-features/resources/walkthroughs/**',
 	'!extensions/typescript-language-features/package-manager/node-maintainer/**',
@@ -170,10 +171,11 @@ module.exports.copyrightFilter = [
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/markdown-math/notebook-out/**',
 	'!extensions/ipynb/notebook-out/**',
+	'!extensions/simple-browser/media/codicon.css',
+	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/node-maintainer/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
-	'!src/vs/editor/test/node/classification/typescript-test.ts',
 ];
 
 module.exports.tsFormattingFilter = [
@@ -195,11 +197,13 @@ module.exports.tsFormattingFilter = [
 
 module.exports.eslintFilter = [
 	'**/*.js',
+	'**/*.cjs',
+	'**/*.mjs',
 	'**/*.ts',
-	...readFileSync(join(__dirname, '../.eslintignore'))
-		.toString().split(/\r\n|\n/)
-		.filter(line => !line.startsWith('#'))
-		.filter(line => !!line)
+	...readFileSync(join(__dirname, '..', '.eslint-ignore'))
+		.toString()
+		.split(/\r\n|\n/)
+		.filter(line => line && !line.startsWith('#'))
 		.map(line => line.startsWith('!') ? line.slice(1) : `!${line}`)
 ];
 

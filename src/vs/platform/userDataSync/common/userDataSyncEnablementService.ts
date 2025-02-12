@@ -4,18 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { isWeb } from '../../../base/common/platform.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IApplicationStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncEnablementService, IUserDataSyncStoreManagementService, SyncResource } from './userDataSync.js';
-
-type SyncEnablementClassification = {
-	owner: 'sandy081';
-	comment: 'Reporting when Settings Sync is turned on or off';
-	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if settings sync is enabled or not' };
-};
 
 const enablementKey = 'sync.enable';
 
@@ -31,12 +24,11 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 	) {
 		super();
-		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, this._register(new DisposableStore()))(e => this.onDidStorageChange(e)));
+		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, this._store)(e => this.onDidStorageChange(e)));
 	}
 
 	isEnabled(): boolean {
@@ -57,7 +49,6 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 		if (enabled && !this.canToggleEnablement()) {
 			return;
 		}
-		this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(enablementKey, { enabled });
 		this.storageService.store(enablementKey, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 

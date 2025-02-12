@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from '..
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings, ThemeSettingDefaults } from '../../../services/themes/common/workbenchThemeService.js';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings } from '../../../services/themes/common/workbenchThemeService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from '../../../../platform/theme/common/colorRegistry.js';
@@ -31,17 +31,12 @@ import { Emitter } from '../../../../base/common/event.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { FileIconThemeData } from '../../../services/themes/browser/fileIconThemeData.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { isWeb } from '../../../../base/common/platform.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IHostService } from '../../../services/host/browser/host.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -226,7 +221,7 @@ class MarketplaceThemesPicker {
 			disposables.add(this.onDidChange(() => {
 				let items = this.themes;
 				if (this._searchOngoing) {
-					items = items.concat({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
+					items = items.concat({ label: '$(loading~spin) Searching for themes...', id: undefined, alwaysShow: true });
 				} else if (items.length === 0 && this._searchError) {
 					items = [{ label: `$(error) ${localize('search.error', 'Error while searching for themes: {0}', this._searchError)}`, id: undefined, alwaysShow: true }];
 				}
@@ -661,7 +656,7 @@ registerAction2(class extends Action2 {
 
 		const theme = themeService.getColorTheme();
 		const colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
-		const colorIds = colors.map(c => c.id).sort();
+		const colorIds = colors.filter(c => !c.deprecationMessage).map(c => c.id).sort();
 		const resultingColors: { [key: string]: string | null } = {};
 		const inherited: string[] = [];
 		for (const colorId of colorIds) {
@@ -843,127 +838,3 @@ MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	},
 	order: 3
 });
-
-type DefaultThemeUpdatedNotificationReaction = 'keepNew' | 'keepOld' | 'tryNew' | 'cancel' | 'browse';
-
-class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribution {
-
-	static STORAGE_KEY = 'themeUpdatedNotificationShown';
-
-	constructor(
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IWorkbenchThemeService private readonly _workbenchThemeService: IWorkbenchThemeService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IHostService private readonly _hostService: IHostService,
-	) {
-		if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
-			return;
-		}
-		setTimeout(async () => {
-			if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
-				return;
-			}
-			if (await this._hostService.hadLastFocus()) {
-				this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-				if (this._workbenchThemeService.hasUpdatedDefaultThemes()) {
-					this._showYouGotMigratedNotification();
-				} else {
-					const currentTheme = this._workbenchThemeService.getColorTheme().settingsId;
-					if (currentTheme === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD || currentTheme === ThemeSettingDefaults.COLOR_THEME_DARK_OLD) {
-						this._tryNewThemeNotification();
-					}
-				}
-			}
-		}, 3000);
-	}
-
-	private async _showYouGotMigratedNotification(): Promise<void> {
-		const usingLight = this._workbenchThemeService.getColorTheme().type === ColorScheme.LIGHT;
-		const newThemeSettingsId = usingLight ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
-		const newTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
-		if (newTheme) {
-			const choices = [
-				{
-					label: localize('button.keep', "Keep New Theme"),
-					run: () => {
-						this._writeTelemetry('keepNew');
-					}
-				},
-				{
-					label: localize('button.browse', "Browse Themes"),
-					run: () => {
-						this._writeTelemetry('browse');
-						this._commandService.executeCommand(SelectColorThemeCommandId);
-					}
-				},
-				{
-					label: localize('button.revert', "Revert"),
-					run: async () => {
-						this._writeTelemetry('keepOld');
-						const oldSettingsId = usingLight ? ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD : ThemeSettingDefaults.COLOR_THEME_DARK_OLD;
-						const oldTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === oldSettingsId);
-						if (oldTheme) {
-							this._workbenchThemeService.setColorTheme(oldTheme, 'auto');
-						}
-					}
-				}
-			];
-			await this._notificationService.prompt(
-				Severity.Info,
-				localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. If you prefer, you can switch back to the old theme or try one of the many other color themes available.", newTheme.label),
-				choices,
-				{
-					onCancel: () => this._writeTelemetry('cancel')
-				}
-			);
-		}
-	}
-
-	private async _tryNewThemeNotification(): Promise<void> {
-		const newThemeSettingsId = this._workbenchThemeService.getColorTheme().type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
-		const theme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
-		if (theme) {
-			const choices: IPromptChoice[] = [{
-				label: localize('button.tryTheme', "Try New Theme"),
-				run: () => {
-					this._writeTelemetry('tryNew');
-					this._workbenchThemeService.setColorTheme(theme, 'auto');
-				}
-			},
-			{
-				label: localize('button.cancel', "Cancel"),
-				run: () => {
-					this._writeTelemetry('cancel');
-				}
-			}];
-			await this._notificationService.prompt(
-				Severity.Info,
-				localize({ key: 'newThemeNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. Do you want to give it a try?", theme.label),
-				choices,
-				{ onCancel: () => this._writeTelemetry('cancel') }
-			);
-		}
-	}
-
-	private _writeTelemetry(outcome: DefaultThemeUpdatedNotificationReaction): void {
-		type ThemeUpdatedNoticationClassification = {
-			owner: 'aeschli';
-			comment: 'Reaction to the notification that theme has updated to a new default theme';
-			web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this is running on web' };
-			reaction: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Outcome of the notification' };
-		};
-		type ThemeUpdatedNoticationEvent = {
-			web: boolean;
-			reaction: DefaultThemeUpdatedNotificationReaction;
-		};
-
-		this._telemetryService.publicLog2<ThemeUpdatedNoticationEvent, ThemeUpdatedNoticationClassification>('themeUpdatedNotication', {
-			web: isWeb,
-			reaction: outcome
-		});
-	}
-}
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(DefaultThemeUpdatedNotificationContribution, LifecyclePhase.Eventually);
