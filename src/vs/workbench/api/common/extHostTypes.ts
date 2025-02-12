@@ -4899,6 +4899,9 @@ export class LanguageModelToolResult {
 	}
 }
 
+export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+}
+
 export enum LanguageModelChatToolMode {
 	Auto = 1,
 	Required = 2

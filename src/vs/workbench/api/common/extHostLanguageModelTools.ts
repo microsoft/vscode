@@ -124,7 +124,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new CancellationError();
 		}
 
-		return typeConvert.LanguageModelToolResult.from(extensionResult);
+		return typeConvert.LanguageModelToolResult.from(extensionResult, item.extension);
 	}
 
 	async $prepareToolInvocation(toolId: string, input: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
