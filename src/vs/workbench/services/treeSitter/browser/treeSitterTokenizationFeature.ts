@@ -28,7 +28,7 @@ import { setTimeout0 } from '../../../../base/common/platform.js';
 import { findLikelyRelevantLines } from '../../../../editor/common/model/textModelTokens.js';
 import { TreeSitterCodeEditors } from './treeSitterCodeEditors.js';
 
-const ALLOWED_SUPPORT = ['typescript'];
+const ALLOWED_SUPPORT = ['typescript', 'ini'];
 type TreeSitterQueries = string;
 
 export const ITreeSitterTokenizationFeature = createDecorator<ITreeSitterTokenizationFeature>('treeSitterTokenizationFeature');
@@ -126,6 +126,9 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			this._parseAndTokenizeViewPort(e.model, e.ranges);
 		}));
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
+			if (e.textModel.getLanguageId() !== this._languageId) {
+				return;
+			}
 			if (this._tokenizationStoreService.hasTokens(e.textModel)) {
 				// Mark the range for refresh immediately
 				for (const range of e.ranges) {
