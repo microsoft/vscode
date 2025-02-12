@@ -383,10 +383,15 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			codeWindow: this.window
 		}, undefined, this.window);
 
-		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
+		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer,
+			{
+				...this._editorOptions,
+				rulers: undefined
+			}, {
 			...{
 				isSimpleWidget: false,
 				contributions: getDefaultNotebookCreationOptions().cellEditorContributions
+					?.filter(c => c.id !== 'workbench.notebook.cellToolbar'),
 			}
 		});
 
