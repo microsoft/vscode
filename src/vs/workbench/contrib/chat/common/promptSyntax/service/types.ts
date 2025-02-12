@@ -11,12 +11,12 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 /**
  * Provides prompt syntax services.
  */
-export const IPromptSyntaxService = createDecorator<IPromptSyntaxService>('IPromptSyntaxService');
+export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
 
 /**
- * Provides prompt syntax services.
+ * Provides prompt services.
  */
-export interface IPromptSyntaxService extends IDisposable {
+export interface IPromptsService extends IDisposable {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -25,7 +25,7 @@ export interface IPromptSyntaxService extends IDisposable {
 	 *
 	 * @throws {Error} If a newly created parser gets immediately disposed.
 	 */
-	getParserFor(
+	getSyntaxParserFor(
 		model: ITextModel,
 	): TextModelPromptParser & { disposed: false };
 }

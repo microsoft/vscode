@@ -9,13 +9,13 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
 import { waitRandom } from '../../../../../../../base/test/common/testUtils.js';
+import { IPromptsService } from '../../../../common/promptSyntax/service/types.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
-import { IPromptSyntaxService } from '../../../../common/promptSyntax/service/types.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { PromptSyntaxService } from '../../../../common/promptSyntax/service/promptSyntaxService.js';
+import { PromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -92,7 +92,7 @@ const assertLinks = (
 suite('PromptSyntaxService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let service: IPromptSyntaxService;
+	let service: IPromptsService;
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
@@ -101,7 +101,7 @@ suite('PromptSyntaxService', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IFileService, disposables.add(instantiationService.createInstance(FileService)));
 
-		service = disposables.add(instantiationService.createInstance(PromptSyntaxService));
+		service = disposables.add(instantiationService.createInstance(PromptsService));
 	});
 
 	suite('getParserFor', () => {
@@ -119,7 +119,7 @@ suite('PromptSyntaxService', () => {
 				createURI('/Users/vscode/repos/test/file1.txt'),
 			));
 
-			const parser1 = service.getParserFor(model1);
+			const parser1 = service.getSyntaxParserFor(model1);
 			assert.strictEqual(
 				parser1.uri.toString(),
 				model1.uri.toString(),
@@ -166,7 +166,7 @@ suite('PromptSyntaxService', () => {
 			 */
 
 			// get the same parser again, the call must return the same object
-			const parser1_1 = service.getParserFor(model1);
+			const parser1_1 = service.getSyntaxParserFor(model1);
 			assert.strictEqual(
 				parser1,
 				parser1_1,
@@ -193,7 +193,7 @@ suite('PromptSyntaxService', () => {
 			// wait for some random amount of time
 			await waitRandom(5);
 
-			const parser2 = service.getParserFor(model2);
+			const parser2 = service.getSyntaxParserFor(model2);
 
 			assert.strictEqual(
 				parser2.uri.toString(),
@@ -303,7 +303,7 @@ suite('PromptSyntaxService', () => {
 			 * a new non-disposed parser object back with correct properties.
 			 */
 
-			const parser1_2 = service.getParserFor(model1);
+			const parser1_2 = service.getSyntaxParserFor(model1);
 
 			assert(
 				!parser1_2.disposed,
@@ -382,7 +382,7 @@ suite('PromptSyntaxService', () => {
 				undefined,
 				createURI('/Users/vscode/repos/test/some-folder/file.md'),
 			));
-			const parser2_1 = service.getParserFor(model2_1);
+			const parser2_1 = service.getSyntaxParserFor(model2_1);
 
 			assert(
 				!parser2_1.disposed,
@@ -437,7 +437,7 @@ suite('PromptSyntaxService', () => {
 				createURI('/repos/test/file1.txt'),
 			));
 
-			const parser = service.getParserFor(model);
+			const parser = service.getSyntaxParserFor(model);
 
 			// sanity checks
 			assert(
@@ -507,7 +507,7 @@ suite('PromptSyntaxService', () => {
 			model.dispose();
 
 			assert.throws(() => {
-				service.getParserFor(model);
+				service.getSyntaxParserFor(model);
 			}, 'Cannot create a prompt parser for a disposed model.');
 		});
 	});
