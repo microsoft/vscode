@@ -17,6 +17,7 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatResponseModel } from './chatModel.js';
+import { ICellEditReplaceOperation } from './chatService.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -149,6 +150,7 @@ export interface IModifiedFileEntry {
 
 export interface IChatEditingSessionStream {
 	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
+	notebookEdits(resource: URI, edits: ICellEditReplaceOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
 }
 
 export const enum ChatEditingSessionState {

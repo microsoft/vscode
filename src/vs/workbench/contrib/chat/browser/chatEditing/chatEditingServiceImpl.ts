@@ -13,7 +13,6 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { derived, IObservable, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -36,8 +35,8 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatNotebookEditGroup, IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
+import { ICellEditReplaceOperation, IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -224,7 +223,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const observerDisposables = new DisposableStore();
 
-		let editsSource: AsyncIterableSource<IChatTextEditGroup> | undefined;
+		let editsSource: AsyncIterableSource<IChatTextEditGroup | IChatNotebookEditGroup> | undefined;
 		let editsPromise: Promise<void> | undefined;
 		const editsSeen = new ResourceMap<{ seen: number }>();
 		const editedFilesExist = new ResourceMap<Promise<void>>();
@@ -249,14 +248,13 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			}
 
 			for (const part of responseModel.response.value) {
-				if (part.kind !== 'codeblockUri' && part.kind !== 'textEditGroup') {
+				if (part.kind !== 'codeblockUri' && part.kind !== 'textEditGroup' && part.kind !== 'notebookEditGroup') {
 					continue;
 				}
 				// ensure editor is open asap
-				if (!editedFilesExist.get(part.uri)) {
-					const uri = part.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(part.uri)?.notebook ?? part.uri : part.uri;
-
-					editedFilesExist.set(part.uri, this._fileService.exists(uri).then((e) => {
+				const uri = CellUri.parse(part.uri)?.notebook || part.uri;
+				if (!editedFilesExist.get(uri)) {
+					editedFilesExist.set(uri, this._fileService.exists(uri).then((e) => {
 						if (!e) {
 							return;
 						}
@@ -277,6 +275,30 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
 				const newEdits = allEdits.slice(entry.seen);
 				entry.seen += newEdits.length;
+
+				if (part.kind === 'notebookEditGroup') {
+					const allEdits: ICellEditReplaceOperation[][] = part.edits;
+					// The -1 is not great, we sent a notebook edit with an empty array to indicate the start of the edit for this notebook.
+					// Perhaps we should not send an empty edit for the noteobook Uri,
+					// instead we should sent an empty notebook edit for the notebook Uri.
+					const newEdits = allEdits.slice(entry.seen - 1);
+					entry.seen += newEdits.length;
+					if (newEdits.length > 0 || (entry.seen - 1) === 0) {
+						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
+						editsSource ??= new AsyncIterableSource();
+						editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'notebookEditGroup', done: part.kind === 'notebookEditGroup' && part.done });
+					}
+				} else {
+					const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
+					const newEdits = allEdits.slice(entry.seen);
+					entry.seen += newEdits.length;
+
+					if (newEdits.length > 0 || entry.seen === 0) {
+						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
+						editsSource ??= new AsyncIterableSource();
+						editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+					}
+				}
 
 				if (newEdits.length > 0 || entry.seen === 0) {
 					// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
@@ -299,9 +321,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 								continue;
 							}
 							for (let i = 0; i < item.edits.length; i++) {
-								const group = item.edits[i];
 								const isLastGroup = i === item.edits.length - 1;
-								builder.textEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
+								if (item.kind === 'notebookEditGroup') {
+									const group = item.edits[i];
+									builder.notebookEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
+								} else {
+									const group = item.edits[i];
+									builder.textEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
+								}
 							}
 						}
 					}).finally(() => {
@@ -350,7 +377,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const stream: IChatEditingSessionStream = {
 			textEdits: (resource: URI, textEdits: TextEdit[], isDone: boolean, responseModel: IChatResponseModel) => {
 				session.acceptTextEdits(resource, textEdits, isDone, responseModel);
-			}
+			},
+			notebookEdits(resource: URI, edits: ICellEditReplaceOperation[], isLastEdits: boolean, responseModel: IChatResponseModel) {
+				session.acceptNotebookEdits(resource, edits, isLastEdits, responseModel);
+			},
 		};
 		session.acceptStreamingEditsStart();
 		try {

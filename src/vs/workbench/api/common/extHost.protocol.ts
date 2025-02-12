@@ -54,7 +54,7 @@ import { ChatAgentLocation, IChatAgentMetadata, IChatAgentRequest, IChatAgentRes
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
-import { IChatContentInlineReference, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
 import { IPreparedToolInvocation, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
@@ -1313,7 +1313,12 @@ export interface ICodeMapperTextEdit {
 	edits: languages.TextEdit[];
 }
 
-export type ICodeMapperProgressDto = Dto<ICodeMapperTextEdit>;
+export type ICodeMapperProgressDto = Dto<ICodeMapperTextEdit> | ICodeMapperNotebookEditDto;
+
+export interface ICodeMapperNotebookEditDto {
+	uri: URI;
+	edits: ICellEditOperationDto[];
+}
 
 export interface MainThreadCodeMapperShape extends IDisposable {
 	$registerCodeMapperProvider(handle: number, displayName: string): void;
@@ -1423,8 +1428,9 @@ export type IDocumentContextDto = {
 };
 
 export type IChatProgressDto =
-	| Dto<Exclude<IChatProgress, IChatTask>>
-	| IChatTaskDto;
+	| Dto<Exclude<IChatProgress, IChatTask | IChatNotebookEdit>>
+	| IChatTaskDto
+	| IChatNotebookEditDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -2140,6 +2146,19 @@ export interface IWorkspaceEditEntryMetadataDto {
 	iconPath?: { id: string } | UriComponents | { light: UriComponents; dark: UriComponents };
 }
 
+export interface IChatNotebookEditDto {
+	uri: URI;
+	edits: ICellEditReplaceOperationDto[];
+	kind: 'notebookEdit';
+	done?: boolean;
+}
+
+export type ICellEditReplaceOperationDto = {
+	editType: notebookCommon.CellEditType.Replace;
+	index: number;
+	count: number;
+	cells: NotebookCellDataDto[];
+};
 
 export type ICellEditOperationDto =
 	notebookCommon.ICellMetadataEdit

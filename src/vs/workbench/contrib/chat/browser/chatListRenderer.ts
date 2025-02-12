@@ -44,7 +44,7 @@ import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { annotateSpecialMarkdownContent } from '../common/annotations.js';
 import { ChatAgentLocation, IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
+import { IChatNotebookEditGroup, IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData } from '../common/chatService.js';
 import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
@@ -60,6 +60,7 @@ import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandCont
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
+import { ChatNotebookEditContentPart } from './chatContentParts/chatNtoebookEditContentPart.js';
 import { ChatProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
@@ -834,6 +835,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.instantiationService.createInstance(ChatCommandButtonContentPart, content, context);
 		} else if (content.kind === 'textEditGroup') {
 			return this.renderTextEdit(context, content, templateData);
+		} else if (content.kind === 'notebookEditGroup') {
+			return this.renderNotebookEdit(context, content, templateData);
 		} else if (content.kind === 'confirmation') {
 			return this.renderConfirmation(context, content, templateData);
 		} else if (content.kind === 'warning') {
@@ -929,6 +932,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderTextEdit(context: IChatContentPartRenderContext, chatTextEdit: IChatTextEditGroup, templateData: IChatListItemTemplate): IChatContentPart {
 		const textEditPart = this.instantiationService.createInstance(ChatTextEditContentPart, chatTextEdit, context, this.rendererOptions, this._diffEditorPool, this._currentLayoutWidth);
+		textEditPart.addDisposable(textEditPart.onDidChangeHeight(() => {
+			textEditPart.layout(this._currentLayoutWidth);
+			this.updateItemHeight(templateData);
+		}));
+
+		return textEditPart;
+	}
+
+	private renderNotebookEdit(context: IChatContentPartRenderContext, chatTextEdit: IChatNotebookEditGroup, templateData: IChatListItemTemplate): IChatContentPart {
+		const textEditPart = this.instantiationService.createInstance(ChatNotebookEditContentPart, chatTextEdit, context, this.rendererOptions);
 		textEditPart.addDisposable(textEditPart.onDidChangeHeight(() => {
 			textEditPart.layout(this._currentLayoutWidth);
 			this.updateItemHeight(templateData);

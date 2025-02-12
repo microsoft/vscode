@@ -14,6 +14,7 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
 import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { CellEditType, ICellDto2, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
@@ -186,6 +187,19 @@ export interface IChatTextEdit {
 	done?: boolean;
 }
 
+export type ICellEditReplaceOperation = {
+	editType: CellEditType.Replace;
+	index: number;
+	count: number;
+	cells: ICellDto2[];
+};
+export interface IChatNotebookEdit {
+	uri: URI;
+	edits: ICellEditReplaceOperation[];
+	kind: 'notebookEdit';
+	done?: boolean;
+}
+
 export interface IChatConfirmation {
 	title: string;
 	message: string;
@@ -237,6 +251,7 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatNotebookEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
@@ -479,3 +494,20 @@ export interface IChatService {
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
+
+export namespace NotebookEdits {
+	export function toCellEditReplaceOperation(edits: ICellEditOperation[]): ICellEditReplaceOperation[] {
+		const result: ICellEditReplaceOperation[] = [];
+		for (const edit of edits) {
+			if (edit.editType === CellEditType.Replace) {
+				result.push({
+					editType: CellEditType.Replace,
+					index: edit.index,
+					count: edit.count,
+					cells: edit.cells
+				});
+			}
+		}
+		return result;
+	}
+}
