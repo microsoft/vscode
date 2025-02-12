@@ -9,7 +9,6 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
-import { debounce } from '../../../../base/common/decorators.js';
 import { Range } from '../../../../editor/common/core/range.js';
 
 export interface IViewPortChangeEvent {
@@ -61,7 +60,6 @@ export class TreeSitterCodeEditors extends Disposable {
 		this._onViewportChange(editor);
 	}
 
-	@debounce(200)
 	private async _onViewportChange(editor: ICodeEditor): Promise<void> {
 		const ranges = this._nonIntersectingViewPortRanges(editor);
 		this._onDidChangeViewport.fire({ model: editor.getModel()!, ranges });
