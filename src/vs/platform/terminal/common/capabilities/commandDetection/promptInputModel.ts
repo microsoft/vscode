@@ -463,7 +463,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 				finalCellOnLine = line.getCell(position++);
 			}
-
 			if (!finalCellOnLine) {
 				return -1;
 			}
@@ -495,7 +494,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 		}
-		console.log('ghost text ', this.value.substring(ghostTextIndex));
 		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
 	}
 
