@@ -100,9 +100,6 @@ function Global:Prompt() {
 		Get-ChildItem Env: | ForEach-Object { $envMap[$_.Name] = $_.Value }
 		$envJson = $envMap | ConvertTo-Json -Compress
 		$Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$Nonce`a"
-
-		Write-Host "Sending environment variables: YOOOOOOO"
-		$Result += "bro I just printed env json for powershell"
 	}
 
 	# Before running the original prompt, put $? back to what it was:
