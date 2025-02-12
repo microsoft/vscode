@@ -60,6 +60,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 
 export namespace Command {
 
@@ -2600,6 +2601,47 @@ export namespace ChatResponseTextEditPart {
 
 }
 
+
+export namespace NotebookEdit {
+	export function toEditReplaceOperation(edit: vscode.NotebookEdit): Dto<extHostProtocol.ICellEditReplaceOperationDto | undefined> {
+		// We are only interested in cell replaces (insertions, deletions, replacements)
+		if (!edit.newCellMetadata && !edit.newNotebookMetadata) {
+			return {
+				editType: CellEditType.Replace,
+				index: edit.range.start,
+				count: edit.range.end - edit.range.start,
+				cells: edit.newCells.map(NotebookCellData.from)
+			};
+		}
+		return undefined;
+	}
+
+	export function fromEditReplaceOperation(edit: Dto<extHostProtocol.ICellEditReplaceOperationDto>): vscode.NotebookEdit {
+		return new types.NotebookEdit(new types.NotebookRange(edit.index, edit.index + edit.count), edit.cells.map(NotebookCellData.to));
+	}
+}
+
+
+export namespace ChatResponseNotebookEditPart {
+	export function from(part: vscode.ChatResponseNotebookEditPart): extHostProtocol.IChatNotebookEditDto {
+		return {
+			kind: 'notebookEdit',
+			uri: URI.revive(part.uri),
+			// We are only interested in cell replaces (insertions, deletions, replacements)
+			edits: part.edits.map(e => NotebookEdit.toEditReplaceOperation(e)).filter(isDefined),
+			done: part.isDone
+		};
+	}
+
+	export function to(part: extHostProtocol.IChatNotebookEditDto): vscode.ChatResponseNotebookEditPart {
+		if (part.done) {
+			return new types.ChatResponseNotebookEditPart(URI.revive(part.uri), true);
+		} else {
+			return new types.ChatResponseNotebookEditPart(URI.revive(part.uri), part.edits.map(NotebookEdit.fromEditReplaceOperation));
+		}
+	}
+}
+
 export namespace ChatResponseReferencePart {
 	export function from(part: types.ChatResponseReferencePart): Dto<IChatContentReference> {
 		const iconPath = ThemeIcon.isThemeIcon(part.iconPath) ? part.iconPath
@@ -2675,6 +2717,8 @@ export namespace ChatResponsePart {
 			return ChatResponseCommandButtonPart.from(part, commandsConverter, commandDisposables);
 		} else if (part instanceof types.ChatResponseTextEditPart) {
 			return ChatResponseTextEditPart.from(part);
+		} else if (part instanceof types.ChatResponseNotebookEditPart) {
+			return ChatResponseNotebookEditPart.from(part);
 		} else if (part instanceof types.ChatResponseMarkdownWithVulnerabilitiesPart) {
 			return ChatResponseMarkdownWithVulnerabilitiesPart.from(part);
 		} else if (part instanceof types.ChatResponseCodeblockUriPart) {

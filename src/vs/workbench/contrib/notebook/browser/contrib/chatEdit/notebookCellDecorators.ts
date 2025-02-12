@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
-import { IChatEditingService, ChatEditingSessionState } from '../../../../chat/common/chatEditingService.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { IChatEditingService, ChatEditingSessionState, IModifiedTextFileEntry, IChatEditingSession } from '../../../../chat/common/chatEditingService.js';
 import { INotebookEditor } from '../../notebookBrowser.js';
 import { ThrottledDelayer } from '../../../../../../base/common/async.js';
 import { ICodeEditor, IViewZone } from '../../../../../../editor/browser/editorBrowser.js';
@@ -24,6 +24,13 @@ import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFa
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../../scm/common/quickDiff.js';
+import { BaseChatEditorController } from '../../../../chat/browser/chatEditing/chatEditingBaseEditorController.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { IChatService } from '../../../../chat/common/chatService.js';
+import { IChatModel } from '../../../../chat/common/chatModel.js';
 
 
 export class NotebookCellDiffDecorator extends DisposableStore {
@@ -290,6 +297,107 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		});
 	}
 }
+
+export class NotebookModifiedCellEditorController extends BaseChatEditorController {
+	constructor(
+		editor: ICodeEditor,
+		entry: IModifiedTextFileEntry,
+		shouldBeReadOnly: IObservable<boolean | undefined>,
+		session: IChatEditingSession,
+		chatModel: IChatModel,
+		@IChatEditingService _chatEditingService: IChatEditingService,
+		@IInstantiationService _instantiationService: IInstantiationService,
+		@IChatAgentService _chatAgentService: IChatAgentService,
+		@IEditorService _editorService: IEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatService chatService: IChatService,
+	) {
+		super(editor, _chatEditingService, _instantiationService, _chatAgentService, _editorService, contextKeyService);
+		this.enabled.set(true, undefined);
+		this.sessionEntry.set({ session, entry, chatModel }, undefined);
+
+		// ---- readonly while streaming
+		this._register(autorun(r => {
+			this.shouldBeReadOnly.set(shouldBeReadOnly.read(r), undefined);
+		}));
+	}
+}
+
+// export class NotebookModifiedCellDecorators extends Disposable {
+// 	private readonly cellEditorDecorators = new WeakMap<IModifiedTextFileEntry, BaseChatEditorController>();
+// 	constructor(
+// 		notebookEditor: INotebookEditor,
+// 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+// 		@IInstantiationService _instantiationService: IInstantiationService,
+// 		@IChatService chatService: IChatService,
+
+// 	) {
+// 		super();
+
+// 		const modelObs = observableFromEvent(notebookEditor.onDidChangeModel, e => e);
+// 		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(notebookEditor.onDidChangeVisibleRanges, () => notebookEditor.visibleRanges), 50);
+// 		const sessionEntry = derived(this, r => {
+// 			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+// 			const model = modelObs.read(r);
+// 			if (!model) {
+// 				return;
+// 			}
+// 			const session = sessions.find(s => s.entries.read(r).some(e => isEqual(e.modifiedURI, model.uri)));
+// 			if (!session) {
+// 				return;
+// 			}
+// 			const chatModel = chatService.getSession(session.chatSessionId);
+// 			if (!chatModel) {
+// 				return;
+// 			}
+// 			const entry = session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri)) as ChatEditingModifiedNotebookEntry2;
+// 			if (!entry) {
+// 				return;
+// 			}
+// 			return { session, entry, chatModel };
+// 		});
+
+// 		const shouldBeReadOnly = derived(this, r => {
+// 			const session = sessionEntry.read(r)?.session;
+// 			return session?.state.read(r) === ChatEditingSessionState.StreamingEdits;
+// 		});
+
+// 		const visibleCellEditors = derived((r) => {
+// 			const entry = sessionEntry.read(r)?.entry;
+// 			if (!entry) {
+// 				return [];
+// 			}
+// 			onDidChangeVisibleRanges.read(r);
+// 			const entries = entry.entries.read(r);
+// 			return notebookEditor.codeEditors.map(([vm, e]) => {
+// 				const index = notebookEditor.getCellIndex(vm);
+// 				if (typeof index !== 'number' || index < 0) {
+// 					return;
+// 				}
+// 				const fileEntry = entries.find(e => e.cellIndex === index);
+// 				if (!fileEntry) {
+// 					return;
+// 				}
+// 				return [e, fileEntry];
+// 			}).filter(item => !!item) as [ICodeEditor, IModifiedTextFileEntry][];
+// 		});
+
+// 		this._register(autorunWithStore((r, store) => {
+// 			const info = sessionEntry.read(r);
+// 			if (!info) {
+// 				return;
+// 			}
+// 			const cellEditors = visibleCellEditors.read(r);
+// 			cellEditors.forEach(([editor, fileEntry]) => {
+// 				if (this.cellEditorDecorators.has(fileEntry)) {
+// 					return;
+// 				}
+// 				const cellDecorator = this._register(_instantiationService.createInstance(NotebookModifiedCellDecorator, editor, fileEntry, shouldBeReadOnly, info.session, info.chatModel));
+// 				this.cellEditorDecorators.set(fileEntry, cellDecorator);
+// 			});
+// 		}));
+// 	}
+// }
 
 function areDiffsEqual(a: IDocumentDiff | undefined, b: IDocumentDiff | undefined): boolean {
 	if (a && b) {

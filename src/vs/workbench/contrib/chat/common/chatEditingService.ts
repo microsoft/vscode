@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IOffsetEdit, OffsetEdit } from '../../../../editor/common/core/offsetEdit.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
@@ -16,7 +18,13 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICellEditOperation, INotebookTextModel } from '../../notebook/common/notebookCommon.js';
+import { IChatAgentResult } from './chatAgents.js';
 import { IChatResponseModel } from './chatModel.js';
+import { ICellEditReplaceOperation } from './chatService.js';
+
+export const STORAGE_CONTENTS_FOLDER = 'contents';
+export const STORAGE_STATE_FILE = 'state.json';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -125,30 +133,159 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
-export interface IModifiedFileEntry {
+export interface IModifiedEntryTelemetryInfo {
+	readonly agentId: string | undefined;
+	readonly command: string | undefined;
+	readonly sessionId: string;
+	readonly requestId: string;
+	readonly result: IChatAgentResult | undefined;
+}
+
+export interface IBaseSnapshotEntry {
+	readonly resource: URI;
+	readonly original: VSBuffer;
+	readonly current: VSBuffer;
+	readonly snapshotUri: URI;
+	readonly state: WorkingSetEntryState;
+	telemetryInfo: IModifiedEntryTelemetryInfo;
+	serialize(): Promise<ISnapshotEntryDTO>;
+}
+
+export interface ITextSnapshotEntry extends IBaseSnapshotEntry {
+	readonly kind: 'text';
+	readonly languageId: string;
+	readonly originalToCurrentEdit: OffsetEdit;
+}
+
+export interface INotebookSnapshotEntry extends IBaseSnapshotEntry {
+	kind: 'notebook';
+	/** Cell index along with edit offsets */
+	readonly originalToCurrentEdits: Map<number, OffsetEdit>;
+	readonly diffInfo: ICellDiffInfo[];
+}
+
+export type ISnapshotEntry = ITextSnapshotEntry | INotebookSnapshotEntry;
+
+interface IBaseSnapshotEntryDTO {
+	readonly resource: string;
+	readonly originalHash: string;
+	readonly currentHash: string;
+	readonly state: WorkingSetEntryState;
+	readonly snapshotUri: string;
+	readonly telemetryInfo: IModifiedEntryTelemetryInfoDTO;
+}
+
+export interface ITextSnapshotEntryDTO extends IBaseSnapshotEntryDTO {
+	readonly kind: 'text';
+	readonly languageId: string;
+	readonly originalToCurrentEdit: IOffsetEdit;
+}
+export interface INotebookSnapshotEntryDTO extends IBaseSnapshotEntryDTO {
+	readonly kind: 'notebook';
+	readonly viewType: string;
+	readonly originalToCurrentEdits: Record<number, IOffsetEdit>;
+	readonly diffInfo: ICellDiffInfo[];
+}
+export type ISnapshotEntryDTO = ITextSnapshotEntryDTO | INotebookSnapshotEntryDTO;
+
+export interface IModifiedEntryTelemetryInfoDTO {
+	readonly requestId: string;
+	readonly agentId?: string;
+	readonly command?: string;
+}
+
+
+export interface IModifiedBaseFileEntry extends IDisposable {
 	readonly entryId: string;
 	readonly originalURI: URI;
-	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 
 	readonly state: IObservable<WorkingSetEntryState>;
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+	readonly diffInfo: IObservable<IDocumentDiff>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 	readonly maxLineNumber: IObservable<number>;
-	readonly diffInfo: IObservable<IDocumentDiff>;
-	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
-	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
 	readonly lastModifyingRequestId: string;
-	accept(transaction: ITransaction | undefined): Promise<void>;
-	reject(transaction: ITransaction | undefined): Promise<void>;
-
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
+	readonly onDidDelete: Event<void>;
+	/**
+	 * Acquire a ref count on this object.
+	 */
+	acquire(): this;
+	acceptAgentEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
+
+	accept(transaction: ITransaction | undefined): Promise<void>;
+	reject(transaction: ITransaction | undefined): Promise<void>;
+	acceptStreamingEditsStart(tx: ITransaction): void;
+	acceptStreamingEditsEnd(tx: ITransaction): void;
+	updateTelemetryInfo(telemetryInfo: IModifiedEntryTelemetryInfo): void;
 	enableReviewModeUntilSettled(): void;
+	resetToInitialValue(): Promise<void>;
+	restoreFromSnapshot(snapshot: ISnapshotEntry): Promise<void>;
+}
+
+export interface IModifiedTextFileEntry extends IModifiedBaseFileEntry {
+	readonly kind: 'text';
+	readonly originalModel: ITextModel;
+	readonly modifiedModel: ITextModel;
+	readonly initialContent: string;
+	readonly originalToCurrentEdit: OffsetEdit;
+	readonly allEditsAreFromUs: boolean;
+	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
+	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
+	createSnapshot(requestId: string | undefined): Promise<ITextSnapshotEntry>;
+}
+
+
+/**
+ * All entries will contain a IDocumentDiff
+ * Even when there are no changes, diff will contain the number of lines in the document.
+ * This way we can always calculate the total number of lines in the document.
+ */
+export type ICellDiffInfo = {
+	originalCellIndex: number;
+	modifiedCellIndex: number;
+	type: 'unchanged';
+	diff: IDocumentDiff; // Null diff Change (property to be consistent with others, also we have a list of all line numbers)
+} | {
+	originalCellIndex: number;
+	modifiedCellIndex: number;
+	type: 'modified';
+	diff: IDocumentDiff; // List of the changes.
+	maxLineNumber: number;
+} |
+{
+	originalCellIndex: number;
+	type: 'delete';
+	diff: IDocumentDiff; // List of all the lines deleted.
+} |
+{
+	modifiedCellIndex: number;
+	type: 'insert';
+	diff: IDocumentDiff; // List of all the new lines.
+};
+
+
+export interface IModifiedNotebookFileEntry extends IModifiedBaseFileEntry {
+	readonly kind: 'notebook';
+	readonly entries: IObservable<(IModifiedTextFileEntry & { cellIndex: number })[]>;
+	readonly originalModel: INotebookTextModel;
+	readonly cellDiffInfo: IObservable<ICellDiffInfo[]>;
+	createSnapshot(requestId: string | undefined): Promise<INotebookSnapshotEntry>;
+	acceptAgentNotebookEdits(edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
+}
+
+export type IModifiedFileEntry = IModifiedTextFileEntry | IModifiedNotebookFileEntry;
+
+export function isTextFileEntry(entry: IModifiedFileEntry): entry is IModifiedTextFileEntry {
+	return entry?.kind === 'text';
 }
 
 export interface IChatEditingSessionStream {
 	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
+	notebookEdits(resource: URI, edits: ICellEditReplaceOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
 }
 
 export const enum ChatEditingSessionState {

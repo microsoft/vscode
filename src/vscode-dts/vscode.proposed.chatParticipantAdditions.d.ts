@@ -55,6 +55,14 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
 
+	export class ChatResponseNotebookEditPart {
+		uri: Uri;
+		edits: NotebookEdit[];
+		isDone?: boolean;
+		constructor(uri: Uri, done: true);
+		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
+	}
+
 	export class ChatResponseConfirmationPart {
 		title: string;
 		message: string;
@@ -165,6 +173,11 @@ declare module 'vscode' {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
 		textEdit(target: Uri, isDone: true): void;
+		/**
+		 * We probably do not need `true`, but left for now, as we're not sure if we need it.
+		 * I.e. do we use text edits to signal that a file started & is done?
+		 */
+		notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[] | true): void;
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri): void;

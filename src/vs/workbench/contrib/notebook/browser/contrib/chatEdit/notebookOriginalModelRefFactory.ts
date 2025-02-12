@@ -32,6 +32,9 @@ export class OriginalNotebookModelReferenceCollection extends ReferenceCollectio
 		if (model) {
 			return model;
 		}
+		if (fileEntry.kind === 'notebook') {
+			throw new Error('Notebook model not found');
+		}
 		const bytes = VSBuffer.fromString(fileEntry.originalModel.getValue());
 		const stream = bufferToStream(bytes);
 

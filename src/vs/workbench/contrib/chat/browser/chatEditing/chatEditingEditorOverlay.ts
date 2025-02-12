@@ -19,7 +19,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditingEditorActions.js';
-import { ChatEditorController } from './chatEditingEditorController.js';
 import '../media/chatEditorOverlay.css';
 import { findDiffEditorContainingCodeEditor } from '../../../../../editor/browser/widget/diffEditor/commands.js';
 import { IChatService } from '../../common/chatService.js';
@@ -27,6 +26,7 @@ import { IEditorContribution } from '../../../../../editor/common/editorCommon.j
 import { rcut } from '../../../../../base/common/strings.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { getChatEditorController } from './chatEditingHelpers.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -113,7 +113,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 						}
 
 						override onClick(event: EventLike, preserveFocus?: boolean): void {
-							ChatEditorController.get(that._editor)?.unlockScroll();
+							getChatEditorController(that._editor)?.unlockScroll();
 						}
 					};
 				}
@@ -245,6 +245,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			const entryIndex = indicies.entryIndex.read(r);
 			const changeIndex = indicies.changeIndex.read(r);
 
+			// const position = this.currentChange.read(r);
 			const entries = session.entries.read(r);
 
 			let activeIdx = entryIndex !== undefined && changeIndex !== undefined
@@ -260,6 +261,49 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 					activeIdx += diffInfo.changes.length;
 				}
 			}
+			// for (const entry of entries) {
+			// 	if (activeIdx !== -1 || entry !== activeEntry) {
+			// 		if (isTextFileEntry(entry)) {
+			// 			// just add up
+			// 			changes += entry.diffInfo.read(r).changes.length;
+			// 		}
+			// 		else {
+			// 			for (const diff of entry.cellDiffInfo.read(r)) {
+			// 				if (diff.type !== 'unchanged') {
+			// 					// just add up
+			// 					changes += diff.diff.changes.length;
+			// 				}
+			// 			}
+			// 		}
+
+			// 	} else {
+			// 		// Check if we have a notebook position.
+			// 		if (isTextFileEntry(entry)) {
+			// 			for (const change of entry.diffInfo.read(r).changes) {
+			// 				if (position && !('diffInfo' in position) && change.modified.includes(position.lineNumber)) {
+			// 					activeIdx = changes;
+			// 				}
+			// 				changes += 1;
+			// 			}
+			// 		} else {
+			// 			for (const diff of entry.cellDiffInfo.read(r)) {
+			// 				if (diff.type === 'modified' && position && 'diffInfo' in position && position.cellPosition) {
+			// 					const cellLineNumber = position.cellPosition.lineNumber;
+			// 					for (const change of diff.diff.changes) {
+			// 						// For deleted lines, the diff will be empty line.
+			// 						if (change.modified.includes(cellLineNumber) || (change.modified.isEmpty && change.modified.startLineNumber === cellLineNumber)) {
+			// 							activeIdx = changes;
+			// 						}
+			// 						changes += 1;
+			// 					}
+			// 				} else if (diff.type !== 'unchanged') {
+			// 					changes += diff.diff.changes.length;
+			// 				}
+			// 			}
+			// 		}
+			// 	}
+			// }
+
 
 			this._navigationBearings.set({ changeCount: changes, activeIdx, entriesCount: entries.length }, undefined);
 		}));

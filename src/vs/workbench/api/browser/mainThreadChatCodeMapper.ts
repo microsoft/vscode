@@ -5,9 +5,12 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { TextEdit } from '../../../editor/common/languages.js';
 import { ICodeMapperProvider, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../contrib/chat/common/chatCodeMapperService.js';
+import { CellEditType, ICellEditOperation } from '../../contrib/notebook/common/notebookCommon.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostCodeMapperShape, ExtHostContext, ICodeMapperProgressDto, ICodeMapperRequestDto, MainContext, MainThreadCodeMapperShape } from '../common/extHost.protocol.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
 
 @extHostNamedCustomer(MainContext.MainThreadCodeMapper)
 export class MainThreadChatCodemapper extends Disposable implements MainThreadCodeMapperShape {
@@ -56,9 +59,37 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 	$handleProgress(requestId: string, data: ICodeMapperProgressDto): Promise<void> {
 		const response = this._responseMap.get(requestId);
 		if (response) {
+			const edits = data.edits;
 			const resource = URI.revive(data.uri);
-			response.textEdit(resource, data.edits);
+			if (!edits.length) {
+				response.textEdit(resource, []);
+			} else if (areTextEdits(edits)) {
+				response.textEdit(resource, edits);
+			} else {
+				const cellEdits: ICellEditOperation[] = [];
+				edits.forEach(dto => {
+					if (dto.editType === CellEditType.Replace) {
+						cellEdits.push({
+							editType: dto.editType,
+							index: dto.index,
+							count: dto.count,
+							cells: dto.cells.map(NotebookDto.fromNotebookCellDataDto)
+						});
+					}
+				});
+				response.notebookEdit(resource, cellEdits);
+			}
 		}
 		return Promise.resolve();
+	}
+}
+
+
+
+function areTextEdits(edits: ICodeMapperProgressDto['edits']): edits is TextEdit[] {
+	if (edits.some(e => 'range' in e && 'text' in e)) {
+		return true;
+	} else {
+		return false;
 	}
 }

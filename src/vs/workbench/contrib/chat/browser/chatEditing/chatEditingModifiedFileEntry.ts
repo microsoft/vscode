@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { ObservableDisposable } from '../../../../../base/common/observableDisposable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
@@ -29,15 +31,16 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
-import { IChatAgentResult } from '../../common/chatAgents.js';
-import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedTextFileEntry, ITextSnapshotEntry, ITextSnapshotEntryDTO, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
+import { readSnapshotContentFromStorage, writeSnapshotContentIntoStorage } from './chatEditingModifiedBaseFileEntry.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 class AutoAcceptControl {
@@ -48,8 +51,8 @@ class AutoAcceptControl {
 	) { }
 }
 
-export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
-
+export class ChatEditingModifiedFileEntry extends ObservableDisposable implements IModifiedTextFileEntry {
+	public readonly kind = 'text';
 	public static readonly scheme = 'modified-file-entry';
 	private static lastEntryId = 0;
 	public readonly entryId = `${ChatEditingModifiedFileEntry.scheme}::${++ChatEditingModifiedFileEntry.lastEntryId}`;
@@ -57,9 +60,11 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	private readonly docSnapshot: ITextModel;
 	public readonly initialContent: string;
 	private readonly doc: ITextModel;
-	private readonly docFileEditorModel: IResolvedTextFileEditorModel;
+	private readonly docFileEditorModel: Partial<IResolvedTextFileEditorModel>;
 	private _allEditsAreFromUs: boolean = true;
-
+	public get allEditsAreFromUs() {
+		return this._allEditsAreFromUs;
+	}
 	private readonly _onDidDelete = this._register(new Emitter<void>());
 	public get onDidDelete() {
 		return this._onDidDelete.event;
@@ -86,7 +91,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._stateObs;
 	}
 
-	private readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
+	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
 	public get isCurrentlyBeingModifiedBy(): IObservable<IChatResponseModel | undefined> {
 		return this._isCurrentlyBeingModifiedByObs;
 	}
@@ -109,6 +114,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
+	public get originalToCurrentEdit(): OffsetEdit {
+		return this._edit;
+	}
 	private _isEditFromUs: boolean = false;
 	private _diffOperation: Promise<any> | undefined;
 	private _diffOperationIds: number = 0;
@@ -168,12 +176,13 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IFileService private readonly _fileService: IFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		if (kind === ChatEditKind.Created) {
 			this.createdInRequestId = this._telemetryInfo.requestId;
 		}
-		this.docFileEditorModel = this._register(resourceRef).object as IResolvedTextFileEditorModel;
+		this.docFileEditorModel = this._register(resourceRef).object as Partial<IResolvedTextFileEditorModel>;
 		this.doc = resourceRef.object.textEditorModel;
 
 		this.initialContent = initialContent ?? this.doc.getValue();
@@ -266,29 +275,20 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._telemetryInfo = telemetryInfo;
 	}
 
-	createSnapshot(requestId: string | undefined): ISnapshotEntry {
+	async createSnapshot(requestId: string | undefined): Promise<ITextSnapshotEntry> {
 		this._isFirstEditAfterStartOrSnapshot = true;
-		return {
-			resource: this.modifiedURI,
-			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, this.modifiedURI.path),
-			original: this.originalModel.getValue(),
-			current: this.modifiedModel.getValue(),
-			originalToCurrentEdit: this._edit,
-			state: this.state.get(),
-			telemetryInfo: this._telemetryInfo
-		};
+		return TextSnapshotEntry.create(this, requestId, this._edit, this.instantiationService);
 	}
 
-	restoreFromSnapshot(snapshot: ISnapshotEntry) {
+	async restoreFromSnapshot(snapshot: ITextSnapshotEntry) {
 		this._stateObs.set(snapshot.state, undefined);
-		this.docSnapshot.setValue(snapshot.original);
-		this._setDocValue(snapshot.current);
+		this.docSnapshot.setValue(snapshot.original.toString());
+		this._setDocValue(snapshot.current.toString());
 		this._edit = snapshot.originalToCurrentEdit;
 		this._updateDiffInfoSeq();
 	}
 
-	resetToInitialValue() {
+	async resetToInitialValue() {
 		this._setDocValue(this.initialContent);
 	}
 
@@ -393,7 +393,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 	}
 
-	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
+	async acceptAgentEdits(_resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 
 
 		// push stack element for the first edit
@@ -556,12 +556,14 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
-			await this.docFileEditorModel.revert({ soft: true });
+			if (this.docFileEditorModel.revert) {
+				await this.docFileEditorModel.revert({ soft: true });
+			}
 			await this._fileService.del(this.modifiedURI);
 			this._onDidDelete.fire();
 		} else {
 			this._setDocValue(this.docSnapshot.getValue());
-			if (this._allEditsAreFromUs) {
+			if (this._allEditsAreFromUs && this.docFileEditorModel.save) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
 				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
@@ -601,21 +603,65 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 }
 
-export interface IModifiedEntryTelemetryInfo {
-	readonly agentId: string | undefined;
-	readonly command: string | undefined;
-	readonly sessionId: string;
-	readonly requestId: string;
-	readonly result: IChatAgentResult | undefined;
-}
 
-export interface ISnapshotEntry {
-	readonly resource: URI;
-	readonly languageId: string;
-	readonly snapshotUri: URI;
-	readonly original: string;
-	readonly current: string;
-	readonly originalToCurrentEdit: OffsetEdit;
-	readonly state: WorkingSetEntryState;
-	telemetryInfo: IModifiedEntryTelemetryInfo;
+export class TextSnapshotEntry implements ITextSnapshotEntry {
+	public readonly kind = 'text';
+	constructor(
+		public readonly languageId: string,
+		public readonly original: VSBuffer,
+		public readonly current: VSBuffer,
+		public readonly originalToCurrentEdit: OffsetEdit,
+		public readonly resource: URI,
+		public readonly snapshotUri: URI,
+		public readonly state: WorkingSetEntryState,
+		public readonly telemetryInfo: IModifiedEntryTelemetryInfo,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
+	}
+
+	public static create(entry: IModifiedTextFileEntry, requestId: string | undefined,
+		edit: OffsetEdit, instantiationService: IInstantiationService): TextSnapshotEntry {
+
+		return instantiationService.createInstance(TextSnapshotEntry,
+			entry.modifiedModel.getLanguageId(),
+			VSBuffer.fromString(entry.originalModel.getValue()),
+			VSBuffer.fromString(entry.modifiedModel.getValue()),
+			edit,
+			entry.modifiedURI,
+			ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(entry.telemetryInfo.sessionId, requestId, entry.modifiedURI.path),
+			entry.state.get(),
+			entry.telemetryInfo);
+	}
+
+	public static async deserialize(entry: ITextSnapshotEntryDTO, sessionId: string, instantiationService: IInstantiationService): Promise<TextSnapshotEntry> {
+		return instantiationService.invokeFunction(async accessor => {
+			const [original, current] = await readSnapshotContentFromStorage(entry, sessionId, instantiationService);
+
+			return instantiationService.createInstance(TextSnapshotEntry,
+				entry.languageId,
+				original,
+				current,
+				OffsetEdit.fromJson(entry.originalToCurrentEdit),
+				URI.parse(entry.resource),
+				URI.parse(entry.snapshotUri),
+				entry.state,
+				{ requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command, sessionId: sessionId, result: undefined }
+			);
+		});
+	}
+
+	async serialize(): Promise<ITextSnapshotEntryDTO> {
+		const [originalHash, currentHash] = await writeSnapshotContentIntoStorage(this, this._instantiationService);
+		return {
+			kind: 'text',
+			resource: this.resource.toString(),
+			languageId: this.languageId,
+			originalHash,
+			currentHash,
+			originalToCurrentEdit: this.originalToCurrentEdit.edits.map(edit => ({ pos: edit.replaceRange.start, len: edit.replaceRange.length, txt: edit.newText } satisfies ISingleOffsetEdit)),
+			state: this.state,
+			snapshotUri: this.snapshotUri.toString(),
+			telemetryInfo: { requestId: this.telemetryInfo.requestId, agentId: this.telemetryInfo.agentId, command: this.telemetryInfo.command }
+		} satisfies ITextSnapshotEntryDTO;
+	}
 }

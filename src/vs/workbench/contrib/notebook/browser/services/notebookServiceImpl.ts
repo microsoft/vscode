@@ -808,6 +808,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		return bufferToStream(bytes);
 	}
 
+
 	async restoreNotebookTextModelFromSnapshot(uri: URI, viewType: string, snapshot: VSBufferReadableStream): Promise<NotebookTextModel> {
 		const model = this.getNotebookTextModel(uri);
 

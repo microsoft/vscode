@@ -15,7 +15,7 @@ import { ITextFileService } from '../../../../services/textfile/common/textfiles
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatService, NotebookEdits } from '../../common/chatService.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
 import { IToolInputProcessor } from './tools.js';
@@ -120,7 +120,10 @@ export class EditTool implements IToolImpl {
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });
-			}
+			},
+			notebookEdit(target, edits) {
+				model.acceptResponseProgress(request, { kind: 'notebookEdit', uri: target, edits: NotebookEdits.toCellEditReplaceOperation(edits) });
+			},
 		}, token);
 
 		model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });

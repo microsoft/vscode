@@ -24,6 +24,7 @@ import { IListService } from '../../../../../platform/list/browser/listService.j
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getChatEditorController } from './chatEditingHelpers.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -70,7 +71,7 @@ abstract class NavigateAction extends Action2 {
 		if (!isCodeEditor(editor) || !editor.hasModel()) {
 			return;
 		}
-		const ctrl = ChatEditorController.get(editor);
+		const ctrl = getChatEditorController(editor);
 		if (!ctrl) {
 			return;
 		}
@@ -128,7 +129,7 @@ async function openNextOrPreviousChange(accessor: ServicesAccessor, session: ICh
 
 	const newEditor = newEditorPane?.getControl();
 	if (isCodeEditor(newEditor)) {
-		ChatEditorController.get(newEditor)?.initNavigation();
+		getChatEditorController(newEditor)?.initNavigation();
 	}
 	return true;
 }
@@ -145,7 +146,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification),
+			precondition: ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -241,7 +242,7 @@ class RejectHunkAction extends EditorAction2 {
 			id: 'chatEditor.action.undoHunk',
 			title: localize2('undo', 'Discard this Change'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.discard,
 			f1: true,
 			keybinding: {
@@ -257,7 +258,7 @@ class RejectHunkAction extends EditorAction2 {
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		ChatEditorController.get(editor)?.rejectNearestChange(args[0]);
+		getChatEditorController(editor)?.rejectNearestChange(args[0]);
 	}
 }
 
@@ -267,7 +268,7 @@ class AcceptHunkAction extends EditorAction2 {
 			id: 'chatEditor.action.acceptHunk',
 			title: localize2('acceptHunk', 'Accept this Change'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.check,
 			f1: true,
 			keybinding: {
@@ -283,7 +284,7 @@ class AcceptHunkAction extends EditorAction2 {
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		ChatEditorController.get(editor)?.acceptNearestChange(args[0]);
+		getChatEditorController(editor)?.acceptNearestChange(args[0]);
 	}
 }
 
@@ -297,7 +298,7 @@ class ToggleDiffAction extends EditorAction2 {
 				condition: EditorContextKeys.inDiffEditor,
 				icon: Codicon.goToFile,
 			},
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.diffSingle,
 			keybinding: {
 				when: EditorContextKeys.focus,
@@ -317,7 +318,7 @@ class ToggleDiffAction extends EditorAction2 {
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		ChatEditorController.get(editor)?.toggleDiff(args[0]);
+		getChatEditorController(editor)?.toggleDiff(args[0]);
 	}
 }
 
@@ -328,7 +329,7 @@ class ToggleAccessibleDiffViewAction extends EditorAction2 {
 			title: localize2('accessibleDiff', 'Show Accessible Diff View'),
 			category: CHAT_CATEGORY,
 			f1: true,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), ChatContextKeys.requestInProgress.negate()),
 			keybinding: {
 				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,

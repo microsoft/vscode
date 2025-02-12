@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../media/chatEditorController.css';
-import { addStandardDisposableListener, getTotalWidth } from '../../../../../base/browser/dom.js';
+import { addStandardDisposableListener } from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
 import { EditorOption, IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
@@ -19,40 +19,41 @@ import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRange
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../editor/common/viewModel.js';
 import { localize } from '../../../../../nls.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatEditingSessionState, IChatEditingService, IModifiedTextFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedTextFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../scm/common/quickDiff.js';
-import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { isDiffEditorForEntry } from './chatEditing.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
-import { ChatEditorOverlayController } from './chatEditingEditorOverlay.js';
-import { IChatService } from '../../common/chatService.js';
 import { StableEditorScrollState } from '../../../../../editor/browser/stableEditorScroll.js';
-import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
-import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
-import { LineRange } from '../../../../../editor/common/core/lineRange.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IChatEditorController } from './chatEditingBaseEditorController.js';
+import { IChatModel } from '../../common/chatModel.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession, ctxReviewModeEnabled, DiffHunkWidget } from './chatEditingEditorController.js';
 
-export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chat.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
-export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
-export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
-export const ctxReviewModeEnabled = new RawContextKey<boolean>('chat.ctxReviewModeEnabled', true, localize('chat.ctxReviewModeEnabled', "Review mode for chat changes is enabled"));
+export interface IChatEditorController {
+	// modelURI: IObservable<URI | undefined>;
+	unlockScroll(): void;
+	revealNext(strict?: boolean): boolean;
+	revealPrevious(strict?: boolean): boolean;
+	initNavigation(): void;
+	rejectNearestChange(closestWidget: DiffHunkWidget | undefined): void;
+	acceptNearestChange(closestWidget: DiffHunkWidget | undefined): void;
+	toggleDiff(widget: DiffHunkWidget | undefined): Promise<void>;
+	// undoNearestChange(closestWidget: DiffHunkWidget | undefined): void;
+	// openDiff(widget: DiffHunkWidget | undefined): Promise<void>;
+}
 
-export class ChatEditorController extends Disposable implements IEditorContribution, IChatEditorController {
-
-	public static readonly ID = 'editor.contrib.chatEditorController';
+export abstract class BaseChatEditorController extends Disposable implements IEditorContribution {
+	protected readonly enabled = observableValue<boolean>(this, false);
+	protected readonly editor = observableValue<ICodeEditor | undefined>(this, undefined);
+	protected readonly sessionEntry = observableValue<{ entry: IModifiedTextFileEntry; session: IChatEditingSession; chatModel: IChatModel } | undefined>(this, undefined);
+	protected readonly shouldBeReadOnly = observableValue<boolean | undefined>(this, undefined);
 
 	private static _diffLineDecorationData = ModelDecorationOptions.register({ description: 'diff-line-decoration' });
 
@@ -63,41 +64,29 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _viewZones: string[] = [];
 
-	private readonly _overlayCtrl: ChatEditorOverlayController;
-
 	private readonly _ctxIsGlobalEditsSession: IContextKey<boolean>;
 	private readonly _ctxHasEditorModification: IContextKey<boolean>;
 	private readonly _ctxRequestInProgress: IContextKey<boolean>;
 	private readonly _ctxReviewModelEnabled: IContextKey<boolean>;
 
-	static get(editor: ICodeEditor): ChatEditorController | null {
-		return editor.getContribution<ChatEditorController>(ChatEditorController.ID);
-	}
-
-	private readonly _currentEntryIndex = observableValue<number | undefined>(this, undefined);
-	readonly currentEntryIndex: IObservable<number | undefined> = this._currentEntryIndex;
-
 	private readonly _currentChangeIndex = observableValue<number | undefined>(this, undefined);
-	readonly currentChangeIndex: IObservable<number | undefined> = this._currentChangeIndex;
-
-
-	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
+	protected readonly currentChangeIndex: IObservable<number | undefined> = this._currentChangeIndex;
 
 	private _scrollLock: boolean = false;
+	protected readonly _currentEntryIndex = observableValue<number | undefined>(this, undefined);
+	public readonly currentEntryIndex: IObservable<number | undefined> = this._currentEntryIndex;
+
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@IChatEditingService _chatEditingService: IChatEditingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatService chatService: IChatService,
 	) {
 		super();
 
-		this._overlayCtrl = ChatEditorOverlayController.get(_editor)!;
 		this._ctxIsGlobalEditsSession = ctxIsGlobalEditingSession.bindTo(contextKeyService);
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
 		this._ctxRequestInProgress = ctxHasRequestInProgress.bindTo(contextKeyService);
@@ -106,9 +95,11 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		const editorObs = observableCodeEditor(this._editor);
 		const fontInfoObs = editorObs.getOption(EditorOption.fontInfo);
 		const lineHeightObs = editorObs.getOption(EditorOption.lineHeight);
-		const modelObs = editorObs.model;
 
 		this._store.add(autorun(r => {
+			if (!this.enabled.read(r)) {
+				return;
+			}
 			let isStreamingEdits = false;
 			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
 				isStreamingEdits ||= session.state.read(r) === ChatEditingSessionState.StreamingEdits;
@@ -116,28 +107,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			this._ctxRequestInProgress.set(isStreamingEdits);
 		}));
 
-		const entryForEditor = derived(r => {
-			const model = modelObs.read(r);
-			if (!model) {
-				return;
-			}
-
-			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
-				const entries = session.entries.read(r);
-				const idx = entries.findIndex(e => isEqual(e.modifiedURI, model.uri));
-
-				const chatModel = chatService.getSession(session.chatSessionId);
-
-				if (idx >= 0 && chatModel) {
-					return { session, chatModel, entry: entries[idx] as IModifiedTextFileEntry, entries, idx };
-				}
-			}
-
-			return undefined;
-		});
-
 		const lastRequest = derived(r => {
-			const entry = entryForEditor.read(r);
+			const entry = this.sessionEntry.read(r);
 			if (!entry) {
 				return undefined;
 			}
@@ -156,41 +127,27 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		}));
 
 		this._register(autorunWithStore((r, store) => {
+			if (!this.enabled.read(r)) {
+				return;
+			}
 
-			const currentEditorEntry = entryForEditor.read(r);
+			const currentEditorEntry = this.sessionEntry.read(r);
 
 			if (!currentEditorEntry) {
 				this._ctxIsGlobalEditsSession.reset();
-				this._clear();
+				this.clear();
 				return;
 			}
 
 			if (this._editor.getOption(EditorOption.inDiffEditor) && !_instantiationService.invokeFunction(isDiffEditorForEntry, currentEditorEntry.entry, this._editor)) {
-				this._clear();
+				this.clear();
 				return;
 			}
 
-			const { session, entries, idx, entry } = currentEditorEntry;
+			const { session, entry } = currentEditorEntry;
 
 			this._ctxIsGlobalEditsSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModelEnabled.set(entry.reviewMode.read(r));
-
-			// context
-			this._currentEntryIndex.set(idx, undefined);
-
-			// overlay widget
-			if (entry.state.read(r) !== WorkingSetEntryState.Modified) {
-				this._overlayCtrl.hide();
-			} else {
-				this._overlayCtrl.showEntry(
-					session,
-					entry, entries[(idx + 1) % entries.length],
-					{
-						entryIndex: this._currentEntryIndex,
-						changeIndex: this._currentChangeIndex
-					}
-				);
-			}
 
 			// scrolling logic
 			if (entry.isCurrentlyBeingModifiedBy.read(r)) {
@@ -237,26 +194,13 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		}));
 
 		// ---- readonly while streaming
-
-		const shouldBeReadOnly = derived(this, r => {
-
-			const model = modelObs.read(r);
-			if (!model) {
-				return undefined;
-			}
-			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
-				if (session.readEntry(model.uri, r) && session.state.read(r) === ChatEditingSessionState.StreamingEdits) {
-					return true;
-				}
-			}
-			return false;
-		});
-
-
 		let actualOptions: IEditorOptions | undefined;
 
 		this._register(autorun(r => {
-			const value = shouldBeReadOnly.read(r);
+			if (!this.enabled.read(r)) {
+				return;
+			}
+			const value = this.shouldBeReadOnly.read(r);
 			if (value) {
 
 				actualOptions ??= {
@@ -277,65 +221,17 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				}
 			}
 		}));
-
-		this._store.add(autorun(r => {
-			const position = editorObs.positions.read(r)?.at(0);
-			const entry = entryForEditor.read(r);
-			if (!position || !entry) {
-				return;
-			}
-
-			const diff = entry.entry.diffInfo.read(r);
-			const mapping = diff.changes.find(m => m.modified.contains(position.lineNumber) || m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber);
-			if (mapping?.modified.isEmpty) {
-				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
-			} else if (mapping?.original.isEmpty) {
-				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineInserted, { source: 'chatEditingEditor.cursorPositionChanged' });
-			} else if (mapping) {
-				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineModified, { source: 'chatEditingEditor.cursorPositionChanged' });
-			}
-		}));
-
-
-
-		this._store.add(autorunWithStore((r, store) => {
-
-			const visible = this._accessibleDiffViewVisible.read(r);
-			const entry = entryForEditor.read(r)?.entry;
-
-			if (!visible || !entry) {
-				return;
-			}
-
-			const accessibleDiffWidget = new AccessibleDiffViewContainer();
-			_editor.addOverlayWidget(accessibleDiffWidget);
-			store.add(toDisposable(() => _editor.removeOverlayWidget(accessibleDiffWidget)));
-
-			store.add(_instantiationService.createInstance(
-				AccessibleDiffViewer,
-				accessibleDiffWidget.getDomNode(),
-				entryForEditor.map(Boolean),
-				(visible, tx) => this._accessibleDiffViewVisible.set(visible, tx),
-				constObservable(true),
-				editorObs.layoutInfo.map((v, r) => v.width),
-				editorObs.layoutInfo.map((v, r) => v.height),
-				entry.diffInfo.map(diff => diff.changes.slice()),
-				_instantiationService.createInstance(AccessibleDiffViewerModel, entry, _editor),
-			));
-		}));
 	}
 
 	override dispose(): void {
-		this._clear();
+		this.clear();
 		super.dispose();
 	}
 
-	private _clear() {
+	protected clear() {
 		this._clearDiffRendering();
-		this._overlayCtrl.hide();
 		this._diffLineDecorations.clear();
 		this._currentChangeIndex.set(undefined, undefined);
-		this._currentEntryIndex.set(undefined, undefined);
 		this._ctxHasEditorModification.reset();
 		this._ctxReviewModelEnabled.reset();
 	}
@@ -353,7 +249,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	}
 
 	private _updateDiffRendering(entry: IModifiedTextFileEntry, diff: IDocumentDiff, reviewMode: boolean): void {
-
 		const originalModel = entry.originalModel;
 
 		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
@@ -566,7 +461,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		for (const diffEntry of diff.changes) {
 			modifiedLineDecorations.push({
 				range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
-				options: ChatEditorController._diffLineDecorationData
+				options: BaseChatEditorController._diffLineDecorationData
 			});
 		}
 		this._diffLineDecorations.set(modifiedLineDecorations);
@@ -627,13 +522,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		this._currentChangeIndex.set(target, undefined);
 
-
-		const targetRange = decorations[target];
-		const targetPosition = next ? targetRange.getStartPosition() : targetRange.getEndPosition();
+		const targetPosition = next ? decorations[target].getStartPosition() : decorations[target].getEndPosition();
 		this._editor.setPosition(targetPosition);
 		this._editor.revealPositionInCenter(targetPosition, scrollType);
 		this._editor.focus();
-
 
 		return true;
 	}
@@ -680,17 +572,26 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		if (!this._editor.hasModel()) {
 			return;
 		}
-
-		let entry: IModifiedTextFileEntry | undefined;
-		for (const session of this._chatEditingService.editingSessionsObs.get()) {
-			entry = session.getEntry(this._editor.getModel().uri) as IModifiedTextFileEntry;
-			if (entry) {
-				break;
-			}
-		}
+		const entry = this.sessionEntry.get()?.entry;
 
 		if (!entry) {
 			return;
+		}
+
+		const lineRelativeTop = this._editor.getTopForLineNumber(this._editor.getPosition().lineNumber) - this._editor.getScrollTop();
+		let closestDistance = Number.MAX_VALUE;
+
+		if (!(widget instanceof DiffHunkWidget)) {
+			for (const candidate of this._diffHunkWidgets) {
+				const widgetTop = (<IOverlayWidgetPositionCoordinates | undefined>candidate.getPosition()?.preference)?.top;
+				if (widgetTop !== undefined) {
+					const distance = Math.abs(widgetTop - lineRelativeTop);
+					if (distance < closestDistance) {
+						closestDistance = distance;
+						widget = candidate;
+					}
+				}
+			}
 		}
 
 		let selection = this._editor.getSelection();
@@ -706,13 +607,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		if (isDiffEditor) {
 			// normal EDITOR
-			await this._editorService.openEditor({
-				resource: entry.modifiedURI,
-				options: {
-					selection,
-					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
-				}
-			});
+			await this._editorService.openEditor({ resource: entry.modifiedURI });
 
 		} else {
 			// DIFF editor
@@ -751,188 +646,5 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				});
 			}
 		}
-	}
-
-	showAccessibleDiffView(): void {
-		this._accessibleDiffViewVisible.set(true, undefined);
-	}
-}
-
-export class DiffHunkWidget implements IOverlayWidget {
-
-	private static _idPool = 0;
-	private readonly _id: string = `diff-change-widget-${DiffHunkWidget._idPool++}`;
-
-	private readonly _domNode: HTMLElement;
-	private readonly _store = new DisposableStore();
-	private _position: IOverlayWidgetPosition | undefined;
-	private _lastStartLineNumber: number | undefined;
-
-
-	constructor(
-		readonly entry: IModifiedTextFileEntry,
-		private readonly _change: DetailedLineRangeMapping,
-		private readonly _versionId: number,
-		private readonly _editor: ICodeEditor,
-		private readonly _lineDelta: number,
-		@IInstantiationService instaService: IInstantiationService,
-	) {
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'chat-diff-change-content-widget';
-
-		const toolbar = instaService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.ChatEditingEditorHunk, {
-			telemetrySource: 'chatEditingEditorHunk',
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			toolbarOptions: { primaryGroup: () => true, },
-			menuOptions: {
-				renderShortTitle: true,
-				arg: this,
-			},
-		});
-
-		this._store.add(toolbar);
-		this._store.add(toolbar.actionRunner.onWillRun(_ => _editor.focus()));
-		this._editor.addOverlayWidget(this);
-	}
-
-	dispose(): void {
-		this._store.dispose();
-		this._editor.removeOverlayWidget(this);
-	}
-
-	getId(): string {
-		return this._id;
-	}
-
-	layout(startLineNumber: number): void {
-
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const { contentLeft, contentWidth, verticalScrollbarWidth } = this._editor.getLayoutInfo();
-		const scrollTop = this._editor.getScrollTop();
-
-		this._position = {
-			stackOridinal: 1,
-			preference: {
-				top: this._editor.getTopForLineNumber(startLineNumber) - scrollTop - (lineHeight * this._lineDelta),
-				left: contentLeft + contentWidth - (2 * verticalScrollbarWidth + getTotalWidth(this._domNode))
-			}
-		};
-
-		this._editor.layoutOverlayWidget(this);
-		this._lastStartLineNumber = startLineNumber;
-	}
-
-	toggle(show: boolean) {
-		this._domNode.classList.toggle('hover', show);
-		if (this._lastStartLineNumber) {
-			this.layout(this._lastStartLineNumber);
-		}
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	getPosition(): IOverlayWidgetPosition | null {
-		return this._position ?? null;
-	}
-
-	getStartLineNumber(): number | undefined {
-		return this._lastStartLineNumber;
-	}
-
-	// ---
-
-	reject(): void {
-		if (this._versionId === this._editor.getModel()?.getVersionId()) {
-			this.entry.rejectHunk(this._change);
-		}
-	}
-
-	accept(): void {
-		if (this._versionId === this._editor.getModel()?.getVersionId()) {
-			this.entry.acceptHunk(this._change);
-		}
-	}
-}
-
-
-class AccessibleDiffViewContainer implements IOverlayWidget {
-
-	private readonly _domNode: HTMLElement;
-
-	constructor() {
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'accessible-diff-view';
-		this._domNode.style.width = '100%';
-		this._domNode.style.position = 'absolute';
-	}
-
-	getId(): string {
-		return 'chatEdits.accessibleDiffView';
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	getPosition(): IOverlayWidgetPosition | null {
-		return {
-			preference: { top: 0, left: 0 },
-			stackOridinal: 1
-		};
-	}
-}
-
-class AccessibleDiffViewerModel implements IAccessibleDiffViewerModel {
-	constructor(
-		private readonly entry: IModifiedTextFileEntry,
-		private readonly _editor: ICodeEditor,
-		@IModelService private readonly _modelService: IModelService,
-	) { }
-
-	getOriginalModel() {
-		return this._modelService.getModel(this.entry.originalURI)!;
-	}
-
-	getOriginalOptions() {
-		return this._editor.getOptions();
-	}
-
-	originalReveal(range: Range) {
-		const changes = this.entry.diffInfo.get().changes;
-		const idx = changes.findIndex(value => value.original.intersect(LineRange.fromRange(range)));
-		if (idx >= 0) {
-			range = changes[idx].modified.toInclusiveRange() ?? range;
-		}
-		this.modifiedReveal(range);
-	}
-
-	getModifiedModel() {
-		return this._editor.getModel()!;
-	}
-
-	getModifiedOptions() {
-		return this._editor.getOptions();
-	}
-
-	modifiedReveal(range: Range) {
-		if (range) {
-			this._editor.revealRange(range);
-			this._editor.setSelection(range);
-		}
-		this._editor.focus();
-	}
-
-	modifiedSetSelection(range: Range) {
-		this._editor.setSelection(range);
-	}
-
-	modifiedFocus() {
-		this._editor.focus();
-	}
-
-	getModifiedPosition() {
-		return this._editor.getPosition() ?? undefined;
 	}
 }
