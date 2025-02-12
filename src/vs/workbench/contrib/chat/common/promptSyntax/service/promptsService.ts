@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptSyntaxService } from './types.js';
+import { IPromptsService } from './types.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -12,9 +12,9 @@ import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
- * Provides prompt syntax services.
+ * Provides prompt services.
  */
-export class PromptSyntaxService extends Disposable implements IPromptSyntaxService {
+export class PromptsService extends Disposable implements IPromptsService {
 	declare readonly _serviceBrand: undefined;
 
 	/**
@@ -34,7 +34,7 @@ export class PromptSyntaxService extends Disposable implements IPromptSyntaxServ
 				/**
 				 * Note! When/if shared with "file" prompts, the `seenReferences` array below must be taken into account.
 				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
-				 * use case, timing of their calls to the {@link getParserFor} function, and state of this service.
+				 * use case, timing of their calls to the {@link getSyntaxParserFor} function, and state of this service.
 				 */
 				const parser: TextModelPromptParser = initService.createInstance(
 					TextModelPromptParser,
@@ -63,7 +63,7 @@ export class PromptSyntaxService extends Disposable implements IPromptSyntaxServ
 	 * 	- newly created parser is disposed immediately on initialization.
 	 * 	  See factory function in the {@link constructor} for more info.
 	 */
-	public getParserFor(
+	public getSyntaxParserFor(
 		model: ITextModel,
 	): TextModelPromptParser & { disposed: false } {
 		assert(

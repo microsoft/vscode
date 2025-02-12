@@ -44,8 +44,8 @@ import { ILanguageModelToolsService } from '../common/languageModelToolsService.
 import { PromptFilesConfig } from '../common/promptSyntax/config.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
 import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
-import { PromptSyntaxService } from '../common/promptSyntax/service/promptSyntaxService.js';
-import { IPromptSyntaxService } from '../common/promptSyntax/service/types.js';
+import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import './promptSyntax/contributions/usePromptCommand.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
@@ -451,4 +451,4 @@ registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, Instant
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);
 
-registerSingleton(IPromptSyntaxService, PromptSyntaxService, InstantiationType.Delayed);
+registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
