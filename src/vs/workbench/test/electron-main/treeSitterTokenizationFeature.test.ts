@@ -44,7 +44,7 @@ import { Color } from '../../../base/common/color.js';
 import { ITreeSitterTokenizationStoreService } from '../../../editor/common/model/treeSitterTokenStoreService.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { ITextModel } from '../../../editor/common/model.js';
-import { TokenUpdate } from '../../../editor/common/model/tokenStore.js';
+import { TokenQuality, TokenUpdate } from '../../../editor/common/model/tokenStore.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
@@ -72,7 +72,10 @@ class MockTelemetryService implements ITelemetryService {
 }
 
 class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
-	hasFullParseTokens(model: ITextModel): boolean {
+	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {
+		return true;
+	}
+	rangHasAnyTokens(model: ITextModel): boolean {
 		return true;
 	}
 	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
