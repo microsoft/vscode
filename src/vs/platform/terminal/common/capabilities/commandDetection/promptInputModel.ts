@@ -460,12 +460,10 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 					break;
 				}
 				const styleKey = this._getCellStyleAsString(nextCell);
-				if (finalCellOnLine.getChars().trim().length > 0) {
-					if (styleMap.has(styleKey)) {
-						styleMap.get(styleKey)!.push(position);
-					} else {
-						styleMap.set(styleKey, [position]);
-					}
+				if (styleMap.has(styleKey)) {
+					styleMap.get(styleKey)!.push(position);
+				} else {
+					styleMap.set(styleKey, [position]);
 				}
 
 				// Use this so that we don't override finalCellOnLine

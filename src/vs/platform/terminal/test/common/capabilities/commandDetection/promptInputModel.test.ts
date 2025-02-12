@@ -160,16 +160,46 @@ suite('PromptInputModel', () => {
 		await assertPromptInput('foo bar|');
 	});
 
-	test('ghost text', async () => {
-		await writePromise('$ ');
-		fireCommandStart();
-		await assertPromptInput('|');
+	suite('ghost text', () => {
+		test('basic ghost text', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
 
-		await writePromise('foo\x1b[2m bar\x1b[0m\x1b[4D');
-		await assertPromptInput('foo|[ bar]');
+			await writePromise('foo\x1b[2m bar\x1b[0m\x1b[4D');
+			await assertPromptInput('foo|[ bar]');
 
-		await writePromise('\x1b[2D');
-		await assertPromptInput('f|oo[ bar]');
+			await writePromise('\x1b[2D');
+			await assertPromptInput('f|oo[ bar]');
+		});
+		test('ghost text with cursor navigation', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('foo\x1b[2m bar\x1b[0m\x1b[4D');
+			await assertPromptInput('foo|[ bar]');
+
+			await writePromise('\x1b[2D');
+			await assertPromptInput('f|oo[ bar]');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('fo|o[ bar]');
+
+			await writePromise('\x1b[C');
+			await assertPromptInput('foo|[ bar]');
+		});
+		test('ghost text with different foreground colors only', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('foo\x1b[38;2;255;0;0m bar\x1b[0m\x1b[4D');
+			await assertPromptInput('foo|[ bar]');
+
+			await writePromise('\x1b[2D');
+			await assertPromptInput('f|oo [bar]');
+		});
 	});
 
 	test('wide input (Korean)', async () => {
