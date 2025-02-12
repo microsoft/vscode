@@ -163,11 +163,27 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		[PromptFilesConfig.CONFIG_KEY]: {
-			type: ['boolean', 'object', 'array', 'string', 'null'],
+			type: 'object',
 			title: PromptFilesConfig.CONFIG_TITLE,
 			markdownDescription: PromptFilesConfig.CONFIG_DESCRIPTION,
-			default: null,
+			default: {
+				[PromptFilesConfig.DEFAULT_LOCATION]: false,
+			},
+			required: [PromptFilesConfig.DEFAULT_LOCATION],
+			additionalProperties: { type: 'boolean' },
+			unevaluatedProperties: { type: 'boolean' },
+			restricted: true,
+			disallowConfigurationDefault: true,
 			tags: ['experimental'],
+			examples: [
+				{
+					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+				},
+				{
+					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+					'/Users/vscode/repos/prompts': true,
+				},
+			],
 		},
 	}
 });
