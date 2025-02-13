@@ -79,7 +79,7 @@ class SideBySideEditorLanguageSupport implements ILanguageSupport {
 	}
 }
 
-export function toEditorWithEncodingSupport(input: EditorInput): IEncodingSupport | null {
+function toEditorWithEncodingSupport(input: EditorInput): IEncodingSupport | null {
 
 	// Untitled Text Editor
 	if (input instanceof UntitledTextEditorInput) {

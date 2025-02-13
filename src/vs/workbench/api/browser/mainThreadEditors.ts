@@ -36,8 +36,6 @@ import { LineRangeMapping } from '../../../editor/common/diff/rangeMapping.js';
 import { equals } from '../../../base/common/arrays.js';
 import { Event } from '../../../base/common/event.js';
 import { DiffAlgorithmName } from '../../../editor/common/services/editorWorker.js';
-import { toEditorWithEncodingSupport } from '../../browser/parts/editor/editorStatus.js';
-import { EncodingMode } from '../../services/textfile/common/textfiles.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -406,52 +404,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		} finally {
 			quickDiffModelRef.dispose();
 		}
-	}
-
-	$tryGetEncoding(id: string): Promise<string | undefined> {
-		const editor = this._editorLocator.getEditor(id);
-
-		if (!editor) {
-			return Promise.reject(new Error('No such TextEditor'));
-		}
-
-		const editorPanes = this._editorService.visibleEditorPanes;
-		for (const editorPane of editorPanes) {
-			if (editor.matches(editorPane)) {
-				const encodingSupport = toEditorWithEncodingSupport(editorPane.input);
-				if (!encodingSupport) {
-					return Promise.reject(new Error('No file active at this time'));
-				}
-
-				const encoding = encodingSupport.getEncoding();
-
-				return Promise.resolve(encoding);
-			}
-		}
-
-		return Promise.reject(new Error('No text editor active at this time'));
-	}
-
-	$trySetEncoding(id: string, encoding: string, mode: number): Promise<void> {
-		const editor = this._editorLocator.getEditor(id);
-
-		if (!editor) {
-			return Promise.reject(new Error('No such TextEditor'));
-		}
-
-		const editorPanes = this._editorService.visibleEditorPanes;
-		for (const editorPane of editorPanes) {
-			if (editor.matches(editorPane)) {
-				const encodingSupport = toEditorWithEncodingSupport(editorPane.input);
-				if (!encodingSupport) {
-					return Promise.reject(new Error('No file active at this time'));
-				}
-
-				return encodingSupport.setEncoding(encoding, mode === 0 ? EncodingMode.Encode : EncodingMode.Decode);
-			}
-		}
-
-		return Promise.reject(new Error('No text editor active at this time'));
 	}
 }
 

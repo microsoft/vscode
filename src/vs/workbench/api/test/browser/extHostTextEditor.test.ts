@@ -89,9 +89,7 @@ suite('ExtHostTextEditorOptions', () => {
 			$trySetSelections: undefined!,
 			$tryApplyEdits: undefined!,
 			$tryInsertSnippet: undefined!,
-			$getDiffInformation: undefined!,
-			$tryGetEncoding: undefined!,
-			$trySetEncoding: undefined!
+			$getDiffInformation: undefined!
 		};
 		opts = new ExtHostTextEditorOptions(mockProxy, '1', {
 			tabSize: 4,
