@@ -26,7 +26,7 @@ declare module 'vscode' {
 		Node = 13
 	}
 
-
+	// Part of TerminalState since the shellType can change multiple times and this comes with an event.
 	export interface TerminalState {
 		/**
 		 * The current detected shell type of the terminal. New shell types may be added in the
@@ -36,4 +36,5 @@ declare module 'vscode' {
 		 */
 		readonly shellType?: TerminalShellType | number | undefined;
 	}
+
 }
