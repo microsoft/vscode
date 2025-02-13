@@ -200,6 +200,169 @@ suite('PromptInputModel', () => {
 			await writePromise('\x1b[2D');
 			await assertPromptInput('f|oo[ bar]');
 		});
+		test('no ghost text when foreground color matches earlier text', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[38;2;255;0;0mred1\x1b[0m ' +  // Red "red1"
+				'\x1b[38;2;0;255;0mgreen\x1b[0m ' + // Green "green"
+				'\x1b[38;2;255;0;0mred2\x1b[0m'     // Red "red2" (same as red1)
+			);
+
+			await assertPromptInput('red1 green red2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when foreground color is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[38;2;255;0;0mcmd\x1b[0m ' +   // Red "cmd"
+				'\x1b[38;2;0;255;0marg\x1b[0m ' +   // Green "arg"
+				'\x1b[38;2;0;0;255mfinal\x1b[5D'    // Blue "final" (ghost text)
+			);
+
+			await assertPromptInput('cmd arg |[final]');
+		});
+
+		test('no ghost text when background color matches earlier text', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[48;2;255;0;0mred_bg1\x1b[0m ' +  // Red background
+				'\x1b[48;2;0;255;0mgreen_bg\x1b[0m ' + // Green background
+				'\x1b[48;2;255;0;0mred_bg2\x1b[0m'     // Red background again
+			);
+
+			await assertPromptInput('red_bg1 green_bg red_bg2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when background color is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[48;2;255;0;0mred_bg\x1b[0m ' +  // Red background
+				'\x1b[48;2;0;255;0mgreen_bg\x1b[0m ' + // Green background
+				'\x1b[48;2;0;0;255mblue_bg\x1b[7D'     // Blue background (ghost text)
+			);
+
+			await assertPromptInput('red_bg green_bg |[blue_bg]');
+		});
+
+		test('ghost text detected when bold style is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'text ' +
+				'\x1b[1mBOLD\x1b[4D' // Bold "BOLD" (ghost text)
+			);
+
+			await assertPromptInput('text |[BOLD]');
+		});
+
+		test('no ghost text when earlier text has the same bold style', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[1mBOLD1\x1b[0m ' + // Bold "BOLD1"
+				'normal ' +
+				'\x1b[1mBOLD2\x1b[0m'    // Bold "BOLD2" (same style as "BOLD1")
+			);
+
+			await assertPromptInput('BOLD1 normal BOLD2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when italic style is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'text ' +
+				'\x1b[3mITALIC\x1b[6D' // Italic "ITALIC" (ghost text)
+			);
+
+			await assertPromptInput('text |[ITALIC]');
+		});
+
+		test('no ghost text when earlier text has the same italic style', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[3mITALIC1\x1b[0m ' + // Italic "ITALIC1"
+				'normal ' +
+				'\x1b[3mITALIC2\x1b[0m'    // Italic "ITALIC2" (same style as "ITALIC1")
+			);
+
+			await assertPromptInput('ITALIC1 normal ITALIC2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when underline style is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'text ' +
+				'\x1b[4mUNDERLINE\x1b[9D' // Underlined "UNDERLINE" (ghost text)
+			);
+
+			await assertPromptInput('text |[UNDERLINE]');
+		});
+
+		test('no ghost text when earlier text has the same underline style', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[4mUNDERLINE1\x1b[0m ' + // Underlined "UNDERLINE1"
+				'normal ' +
+				'\x1b[4mUNDERLINE2\x1b[0m'    // Underlined "UNDERLINE2" (same style as "UNDERLINE1")
+			);
+
+			await assertPromptInput('UNDERLINE1 normal UNDERLINE2|'); // No ghost text expected
+		});
+
+		test('ghost text detected when strikethrough style is unique at the end', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'text ' +
+				'\x1b[9mSTRIKE\x1b[6D' // Strikethrough "STRIKE" (ghost text)
+			);
+
+			await assertPromptInput('text |[STRIKE]');
+		});
+
+		test('no ghost text when earlier text has the same strikethrough style', async () => {
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise(
+				'\x1b[9mSTRIKE1\x1b[0m ' + // Strikethrough "STRIKE1"
+				'normal ' +
+				'\x1b[9mSTRIKE2\x1b[0m'    // Strikethrough "STRIKE2" (same style as "STRIKE1")
+			);
+
+			await assertPromptInput('STRIKE1 normal STRIKE2|'); // No ghost text expected
+		});
 	});
 
 	test('wide input (Korean)', async () => {
