@@ -517,7 +517,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _getCellStyleAsString(cell: IBufferCell): string {
-		return `${cell.getFgColor()}${cell.getBgColor()}${cell.isBold()}${cell.isItalic()}${cell.isDim()}${cell.isUnderline()}${cell.isBlink()}${cell.isInverse()}${cell.isInvisible()}${cell.isStrikethrough()}${cell.isOverline()}`;
+		return `${cell.getFgColor()}${cell.getBgColor()}${cell.isBold()}${cell.isItalic()}${cell.isDim()}${cell.isUnderline()}${cell.isBlink()}${cell.isInverse()}${cell.isInvisible()}${cell.isStrikethrough()}${cell.isOverline()}${cell.getFgColorMode()}${cell.getBgColorMode()}`;
 	}
 
 	private _cellStylesMatch(a: IBufferCell | undefined, b: IBufferCell | undefined): boolean {
