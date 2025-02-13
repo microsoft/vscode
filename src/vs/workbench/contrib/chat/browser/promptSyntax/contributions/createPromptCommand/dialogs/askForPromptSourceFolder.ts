@@ -10,14 +10,14 @@ import { WithUriValue } from '../../../../../../../../base/common/types.js';
 import { DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
-import { IPromptPath, IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
+import { IPrompt, IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
 import { IWorkspaceContextService } from '../../../../../../../../platform/workspace/common/workspace.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
- * Options for {@link askForPromptFolder} dialog.
+ * Options for {@link askForPromptSourceFolder} dialog.
  */
-interface IAskForPromptFolderOptions {
+interface IAskForFolderOptions {
 	/**
 	 * Prompt type.
 	 */
@@ -34,8 +34,8 @@ interface IAskForPromptFolderOptions {
  * Asks the user for a specific prompt folder, if multiple folders provided.
  * Returns immediately if only one folder available.
  */
-export const askForPromptFolder = async (
-	options: IAskForPromptFolderOptions,
+export const askForPromptSourceFolder = async (
+	options: IAskForFolderOptions,
 ): Promise<URI | undefined> => {
 	const { type, promptsService, quickInputService, labelService, openerService, workspaceService } = options;
 
@@ -146,7 +146,7 @@ interface ILabels {
  * when in a single-root workspace.
  */
 const createSingleRootWorkspaceLabels = (
-	{ uri }: IPromptPath,
+	{ uri }: IPrompt,
 	labelService: ILabelService,
 ): ILabels => {
 	return {
@@ -160,7 +160,7 @@ const createSingleRootWorkspaceLabels = (
  * when in a multi-root workspace.
  */
 const createMultiRootWorkspaceLabels = (
-	{ uri }: IPromptPath,
+	{ uri }: IPrompt,
 	labelService: ILabelService,
 ): ILabels => {
 	// TODO: @legomushroom - fix multi-root workspace labels

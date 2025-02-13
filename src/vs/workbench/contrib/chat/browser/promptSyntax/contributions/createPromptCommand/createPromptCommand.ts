@@ -7,11 +7,11 @@ import { localize } from '../../../../../../../nls.js';
 import { createPromptFile } from './utils/createPromptFile.js';
 import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
 import { askForPromptName } from './dialogs/askForPromptName.js';
-import { askForPromptFolder } from './dialogs/askForPromptLocation.js';
+import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
+import { IPrompt, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
 import { appendToCommandPalette } from '../../../../../files/browser/fileActions.contribution.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -48,7 +48,7 @@ const GLOBAL_COMMAND_TITLE = localize('commands.prompts.create.title.global', "C
  */
 const command = async (
 	accessor: ServicesAccessor,
-	type: IPromptPath['type'],
+	type: IPrompt['type'],
 ): Promise<void> => {
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
@@ -62,7 +62,7 @@ const command = async (
 		return;
 	}
 
-	const selectedFolder = await askForPromptFolder({
+	const selectedFolder = await askForPromptSourceFolder({
 		type: type,
 		labelService,
 		openerService,
