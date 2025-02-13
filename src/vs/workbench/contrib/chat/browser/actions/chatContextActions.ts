@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isElectron } from '../../../../../base/common/platform.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { dirname } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -25,7 +25,6 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext, TextCompareEditorActiveContext } from '../../../../common/contextkeys.js';
@@ -52,13 +51,13 @@ import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { ATTACH_PROMPT_ACTION_ID, AttachPromptAction, IChatAttachPromptActionOptions } from './chatAttachPromptAction.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -587,12 +586,8 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				await selectPromptAttachment({
-					widget,
-					quickInputService,
-					labelService,
-					openerService,
-				});
+				const options: IChatAttachPromptActionOptions = { widget };
+				await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -900,88 +895,11 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 	}
 });
 
-/**
- * Options for the {@link selectPromptAttachment} function.
- */
-interface ISelectPromptOptions {
-	widget: IChatWidget;
-	quickInputService: IQuickInputService;
-	labelService: ILabelService;
-	openerService: IOpenerService;
-}
-
-/**
- * Open the prompt files selection dialog and adds
- * selected prompts to the chat attachments model.
- */
-const selectPromptAttachment = async (options: ISelectPromptOptions): Promise<void> => {
-	const { widget, quickInputService, labelService, openerService } = options;
-	const { promptInstructions } = widget.attachmentModel;
-
-	// find all prompt instruction files in the user project
-	// and present them to the user so they can select one
-	const files = await promptInstructions.listNonAttachedFiles()
-		.then((files) => {
-			return files.map((file) => {
-				const fileBasename = basename(file);
-				const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
-				const result: IQuickPickItem & { value: URI } = {
-					type: 'item',
-					label: fileWithoutExtension,
-					description: labelService.getUriLabel(dirname(file), { relative: true }),
-					tooltip: file.fsPath,
-					value: file,
-				};
-
-				return result;
-			});
-		});
-
-	// if not prompt files found, render the "how to add" message
-	// to the user with a link to the documentation
-	if (files.length === 0) {
-		const docsQuickPick: IQuickPickItem & { value: URI } = {
-			type: 'item',
-			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how to create reusable prompts'),
-			description: DOCUMENTATION_URL,
-			tooltip: DOCUMENTATION_URL,
-			value: URI.parse(DOCUMENTATION_URL),
-		};
-
-		const result = await quickInputService.pick(
-			[docsQuickPick],
-			{
-				placeHolder: localize('noPromptFilesFoundLabel', 'No prompt files found.'),
-				canPickMany: false,
-			});
-
-		if (!result) {
-			return;
-		}
-
-		await openerService.open(result.value);
-		return;
-	}
-
-	// otherwise show the prompt file selection dialog
-	const selectedFile = await quickInputService.pick(
-		files,
-		{
-			placeHolder: localize('selectPromptFile', 'Select a prompt file'),
-			canPickMany: false,
-		});
-
-	// if a file was selected, add it to the chat attachments model
-	if (selectedFile) {
-		promptInstructions.add(selectedFile.value);
-	}
-
-	// if the file selection dialog was dismissed, nothing to do
-};
-
 function getEditingSession(chatEditingService: IChatEditingService, chatWidget: IChatWidget) {
 	if (!chatWidget.viewModel?.sessionId) {
 		return;
 	}
 	return chatEditingService.getEditingSession(chatWidget.viewModel.sessionId);
 }
+
+registerAction2(AttachPromptAction);

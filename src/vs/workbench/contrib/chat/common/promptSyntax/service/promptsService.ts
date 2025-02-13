@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPromptSyntaxService } from './types.js';
+import { IPrompt, IPromptsService } from './types.js';
 import { assert } from '../../../../../../base/common/assert.js';
+import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
@@ -12,9 +13,9 @@ import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 /**
- * Provides prompt syntax services.
+ * Provides prompt services.
  */
-export class PromptSyntaxService extends Disposable implements IPromptSyntaxService {
+export class PromptsService extends Disposable implements IPromptsService {
 	declare readonly _serviceBrand: undefined;
 
 	/**
@@ -22,8 +23,13 @@ export class PromptSyntaxService extends Disposable implements IPromptSyntaxServ
 	 */
 	private readonly cache: ObjectCache<TextModelPromptParser, ITextModel>;
 
+	/**
+	 * Prompt files locator utility.
+	 */
+	private readonly fileLocator = this.initService.createInstance(PromptFilesLocator);
+
 	constructor(
-		@IInstantiationService initService: IInstantiationService,
+		@IInstantiationService private readonly initService: IInstantiationService,
 	) {
 		super();
 
@@ -34,7 +40,7 @@ export class PromptSyntaxService extends Disposable implements IPromptSyntaxServ
 				/**
 				 * Note! When/if shared with "file" prompts, the `seenReferences` array below must be taken into account.
 				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
-				 * use case, timing of their calls to the {@link getParserFor} function, and state of this service.
+				 * use case, timing of their calls to the {@link getSyntaxParserFor} function, and state of this service.
 				 */
 				const parser: TextModelPromptParser = initService.createInstance(
 					TextModelPromptParser,
@@ -56,21 +62,31 @@ export class PromptSyntaxService extends Disposable implements IPromptSyntaxServ
 	}
 
 	/**
-	 * Gets a prompt syntax parser for the provided text model.
-	 *
 	 * @throws {Error} if:
 	 * 	- the provided model is disposed
 	 * 	- newly created parser is disposed immediately on initialization.
 	 * 	  See factory function in the {@link constructor} for more info.
 	 */
-	public getParserFor(
+	public getSyntaxParserFor(
 		model: ITextModel,
 	): TextModelPromptParser & { disposed: false } {
 		assert(
 			!model.isDisposed(),
-			'Cannot create a prompt parser for a disposed model.',
+			'Cannot create a prompt syntax parser for a disposed model.',
 		);
 
 		return this.cache.get(model);
+	}
+
+	public async listPromptFiles(): Promise<readonly IPrompt[]> {
+		const promptFiles = await this.fileLocator.listFiles([]);
+
+		return promptFiles.map((uri) => {
+			return {
+				uri,
+				// right now all prompts are coming from the local disk
+				source: 'local',
+			};
+		});
 	}
 }

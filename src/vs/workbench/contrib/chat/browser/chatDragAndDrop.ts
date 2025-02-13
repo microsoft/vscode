@@ -16,6 +16,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractSymbolDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { FileType, IFileService, IFileSystemProvider } from '../../../../platform/files/common/files.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
@@ -51,6 +52,7 @@ export class ChatDragAndDrop extends Themable {
 		@IFileService protected readonly fileService: IFileService,
 		@IEditorService protected readonly editorService: IEditorService,
 		@ITextModelService protected readonly textModelService: ITextModelService
+		@IDialogService protected readonly dialogService: IDialogService
 	) {
 		super(themeService);
 
@@ -235,7 +237,7 @@ export class ChatDragAndDrop extends Themable {
 
 	private async resolveAttachContext(editorInput: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
 		// Image
-		const imageContext = await getImageAttachContext(editorInput, this.fileService);
+		const imageContext = await getImageAttachContext(editorInput, this.fileService, this.dialogService);
 		if (imageContext) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 		}
@@ -352,9 +354,10 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@IEditorService editorService: IEditorService,
+     	@IDialogService dialogService: IDialogService,
 		@ITextModelService textModelService: ITextModelService
 	) {
-		super(attachmentModel, styles, themeService, extensionService, fileService, editorService, textModelService);
+		super(attachmentModel, styles, themeService, extensionService, fileService, editorService, dialogService, textModelService);
 	}
 
 	protected override handleDrop(context: IChatRequestVariableEntry[]): void {
@@ -441,7 +444,7 @@ async function getResourceAttachContext(resource: URI, isDirectory: boolean, tex
 	};
 }
 
-async function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService): Promise<IChatRequestVariableEntry | undefined> {
+async function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService, dialogService: IDialogService): Promise<IChatRequestVariableEntry | undefined> {
 	if (!editor.resource) {
 		return undefined;
 	}
@@ -449,6 +452,10 @@ async function getImageAttachContext(editor: EditorInput | IDraggedResourceEdito
 	if (/\.(png|jpg|jpeg|gif|webp)$/i.test(editor.resource.path)) {
 		const fileName = basename(editor.resource);
 		const readFile = await fileService.readFile(editor.resource);
+		if (readFile.size > 30 * 1024 * 1024) { // 30 MB
+			dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
+			throw new Error('Image is too large');
+		}
 		const resizedImage = await resizeImage(readFile.value.buffer);
 		return {
 			id: editor.resource.toString(),

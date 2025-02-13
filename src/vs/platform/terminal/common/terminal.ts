@@ -113,6 +113,7 @@ export const enum TerminalSettingId {
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationEnvironmentReporting = 'terminal.integrated.shellIntegration.environmentReporting',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
@@ -642,6 +643,10 @@ export interface IShellLaunchConfig {
 	 * Actions to include inline on hover of the terminal tab. E.g. the "Rerun task" action
 	 */
 	tabActions?: ITerminalTabAction[];
+	/**
+	 * Report terminal's shell environment variables to VS Code and extensions
+	 */
+	shellIntegrationEnvironmentReporting?: boolean;
 }
 
 export interface ITerminalTabAction {
@@ -683,6 +688,7 @@ export interface IShellLaunchConfigDto {
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
 	tabActions?: ITerminalTabAction[];
+	shellIntegrationEnvironmentReporting?: boolean;
 }
 
 /**
