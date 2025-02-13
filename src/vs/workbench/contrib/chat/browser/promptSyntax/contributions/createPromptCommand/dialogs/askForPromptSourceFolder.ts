@@ -5,12 +5,12 @@
 
 import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
-import { basename } from '../../../../../../../../base/common/resources.js';
 import { WithUriValue } from '../../../../../../../../base/common/types.js';
 import { DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
+import { basename, extUri } from '../../../../../../../../base/common/resources.js';
+import { IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
-import { IPrompt, IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
 import { IWorkspaceContextService } from '../../../../../../../../platform/workspace/common/workspace.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
@@ -50,6 +50,7 @@ export const askForPromptSourceFolder = async (
 	}
 
 	// if there is only one folder, no need to ask
+	// note! when we add more actions to the dialog, this will have to go
 	if (folders.length === 1) {
 		return folders[0].uri;
 	}
@@ -63,18 +64,37 @@ export const askForPromptSourceFolder = async (
 		matchOnDescription: true,
 	};
 
-	const foldersList = folders.map((promptPath): WithUriValue<IQuickPickItem> => {
-		const isMultirootWorkspace = (workspaceService.getWorkspace().folders.length > 1);
+	// create list of source folder locations
+	const foldersList = folders.map(({ uri }): WithUriValue<IQuickPickItem> => {
+		const { folders } = workspaceService.getWorkspace();
+		const isMultirootWorkspace = (folders.length > 1);
 
-		const labels = isMultirootWorkspace
-			? createMultiRootWorkspaceLabels(promptPath, labelService)
-			: createSingleRootWorkspaceLabels(promptPath, labelService);
+		const firstFolder = folders[0];
 
+		// if multi-root or empty workspace, or source folder `uri` does not point to
+		// the root folder of a single-root workspace, return the default label and description
+		if (isMultirootWorkspace || !firstFolder || !extUri.isEqual(firstFolder.uri, uri)) {
+			return {
+				type: 'item',
+				label: basename(uri),
+				description: labelService.getUriLabel(uri, { relative: true }),
+				tooltip: uri.fsPath,
+				value: uri,
+			};
+		}
+
+		// if source folder points to the root of this single-root workspace,
+		// use appropriate label and description strings to prevent confusion
 		return {
 			type: 'item',
-			...labels,
-			tooltip: promptPath.uri.fsPath,
-			value: promptPath.uri,
+			label: localize(
+				'commands.prompts.create.source-folder.current-workspace',
+				"Current Workspace",
+			),
+			// use absolute path as the description
+			description: labelService.getUriLabel(uri, { relative: false }),
+			tooltip: uri.fsPath,
+			value: uri,
 		};
 	});
 
@@ -124,63 +144,4 @@ const showNoFoldersDialog = async (
 	await openerService.open(result.value);
 
 	return;
-};
-
-/**
- * Result of the `create labels` utilities below.
- */
-interface ILabels {
-	/**
-	 * Label of a pick item.
-	 */
-	readonly label: string;
-
-	/**
-	 * Description of a pick item.
-	 */
-	readonly description: string;
-}
-
-/**
- * Creates picker item labels for a prompt source folder
- * when in a single-root workspace.
- */
-const createSingleRootWorkspaceLabels = (
-	{ uri }: IPrompt,
-	labelService: ILabelService,
-): ILabels => {
-	return {
-		label: basename(uri),
-		description: labelService.getUriLabel(uri, { relative: true }),
-	};
-};
-
-/**
- * Creates picker item labels for a prompt source folder
- * when in a multi-root workspace.
- */
-const createMultiRootWorkspaceLabels = (
-	{ uri }: IPrompt,
-	labelService: ILabelService,
-): ILabels => {
-	// TODO: @legomushroom - fix multi-root workspace labels
-	let label = basename(uri);
-	let description = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
-
-	// if the resulting `fullPath` is empty, the folder points to the root
-	// of the current workspace, so use the appropriate label and description
-	if (!description) {
-		label = localize(
-			'commands.prompts.create.source-folder.current-workspace',
-			"Current Workspace",
-		);
-
-		// use absolute path as the description
-		description = labelService.getUriLabel(uri, { relative: false });
-	}
-
-	return {
-		label,
-		description,
-	};
 };
