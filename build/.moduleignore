@@ -130,6 +130,7 @@ vsda/**
 !@vscode/windows-ca-certs/package.json
 !@vscode/windows-ca-certs/**/*.node
 
+@vscode/node-addon-api/**/*
 node-addon-api/**/*
 prebuild-install/**/*
 
