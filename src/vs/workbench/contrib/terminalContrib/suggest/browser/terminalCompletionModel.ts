@@ -64,6 +64,12 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 			return score;
 		}
 	}
+	if (!isArg) {
+		score = (b.completion.detail ? 1 : 0) + (b.completion.documentation ? 1 : 0) - (a.completion.detail ? 1 : 0) - (a.completion.documentation ? 1 : 0);
+		if (score !== 0) {
+			return score;
+		}
+	}
 
 	// Sort by folder depth (eg. `vscode/` should come before `vscode-.../`)
 	if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
