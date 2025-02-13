@@ -6,6 +6,7 @@
 import { IChatWidget } from '../../chat.js';
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { WithUriValue } from '../../../../../../base/common/types.js';
 import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -14,11 +15,6 @@ import { IPrompt, IPromptsService } from '../../../common/promptSyntax/service/t
 import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
-
-/**
- * Type for an {@link IQuickPickItem} with its `value` property being a `URI`.
- */
-type WithUriValue<T extends IQuickPickItem> = T & { value: URI };
 
 /**
  * Options for the {@link showSelectPromptDialog} function.

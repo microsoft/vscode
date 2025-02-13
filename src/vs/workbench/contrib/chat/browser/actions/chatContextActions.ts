@@ -11,6 +11,7 @@ import { isElectron } from '../../../../../base/common/platform.js';
 import { dirname } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { WithUriValue } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
@@ -556,7 +557,7 @@ export class AttachContextAction extends Action2 {
 				}
 				const attachments = widget.attachmentModel.getAttachmentIDs();
 				const itemsPromise = chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), CancellationToken.None)
-					.then((files) => (files ?? []).reduce<((IQuickPickItem & { value: URI }) | IQuickPickSeparator)[]>((acc, cur) => {
+					.then((files) => (files ?? []).reduce<(WithUriValue<IQuickPickItem> | IQuickPickSeparator)[]>((acc, cur) => {
 						acc.push({ type: 'separator', label: cur.group });
 						for (const file of cur.files) {
 							acc.push({
