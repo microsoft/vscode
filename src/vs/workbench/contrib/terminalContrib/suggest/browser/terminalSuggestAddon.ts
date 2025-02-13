@@ -169,6 +169,24 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}));
 		this._register(this._terminalConfigurationService.onConfigChanged(() => this._cachedFontInfo = undefined));
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(TerminalSuggestSettingId.InlineSuggestion)) {
+				const value = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).inlineSuggestion;
+				this._inlineCompletionItem.isInvalid = value === 'off';
+				switch (value) {
+					case 'alwaysOnTopExceptExactMatch': {
+						this._inlineCompletion.kind = TerminalCompletionItemKind.InlineSuggestion;
+						break;
+					}
+					case 'alwaysOnTop':
+					default: {
+						this._inlineCompletion.kind = TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop;
+						break;
+					}
+				}
+				this._model?.forceRefilterAll();
+			}
+		}));
 	}
 
 	activate(xterm: Terminal): void {
@@ -460,10 +478,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		} else {
 			this._inlineCompletionItem.isInvalid = false;
 			// Update properties
-			const suggestion = this._currentPromptInputState.value;
+			const spaceIndex = this._currentPromptInputState.value.lastIndexOf(' ', this._currentPromptInputState.ghostTextIndex - 1);
+			const replacementIndex = spaceIndex === -1 ? 0 : spaceIndex + 1;
+			const suggestion = this._currentPromptInputState.value.substring(replacementIndex);
 			this._inlineCompletion.label = suggestion;
-			this._inlineCompletion.replacementIndex = 0;
-			this._inlineCompletion.replacementLength = this._currentPromptInputState.ghostTextIndex;
+			this._inlineCompletion.replacementIndex = replacementIndex;
+			// Note that the cursor index delta must be taken into account here, otherwise filtering
+			// wont work correctly.
+			this._inlineCompletion.replacementLength = this._currentPromptInputState.cursorIndex - replacementIndex - this._cursorIndexDelta;
 			// Reset the completion item as the object reference must remain the same but its
 			// contents will differ across syncs. This is done so we don't need to reassign the
 			// model and the slowdown/flickering that could potentially cause.
