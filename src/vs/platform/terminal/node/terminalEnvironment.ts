@@ -87,7 +87,7 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
-	if (shellLaunchConfig.shellIntegrationEnvironmentReporting || isWindows && (
+	if ((!isWindows && shellLaunchConfig.shellIntegrationEnvironmentReporting) || isWindows && (
 		options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631
 	)) {
 		envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
