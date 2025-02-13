@@ -87,7 +87,9 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
-	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
+	if (shellLaunchConfig.shellIntegrationEnvironmentReporting || isWindows && (
+		options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631
+	)) {
 		envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
 	}
 	// Windows
@@ -122,9 +124,6 @@ export function getShellIntegrationInjection(
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			if (!options.windowsUseConptyDll) {
-				envMixin['VSCODE_SHELL_ENV_REPORTING'] = '0';
-			}
 			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
