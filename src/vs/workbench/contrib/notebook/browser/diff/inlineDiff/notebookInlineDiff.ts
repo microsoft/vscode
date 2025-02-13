@@ -20,7 +20,7 @@ import { NotebookInsertedCellDecorator } from './notebookInsertedCellDecorator.j
 export class NotebookInlineDiffDecorationContribution extends Disposable implements INotebookEditorContribution {
 	static ID: string = 'workbench.notebook.inlineDiffDecoration';
 
-	private original?: NotebookTextModel;
+	private previous?: NotebookTextModel;
 	private insertedCellDecorator: NotebookInsertedCellDecorator | undefined;
 	private deletedCellDecorator: NotebookDeletedCellDecorator | undefined;
 	private readonly cellDecorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
@@ -30,21 +30,24 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._register(autorun((reader) => {
-
-			const previous = this.notebookEditor.notebookOptions.previousModelToCompare.read(reader);
-			if (previous && this.notebookEditor.hasModel()) {
-				this.initialize(previous);
-				this.listeners.push(Event.once(this.notebookEditor.onDidAttachViewModel)(() => this.initialize(previous)));
+			this.previous = this.notebookEditor.notebookOptions.previousModelToCompare.read(reader);
+			if (this.previous) {
+				if (this.notebookEditor.hasModel()) {
+					this.initialize();
+				} else {
+					this.listeners.push(Event.once(this.notebookEditor.onDidAttachViewModel)(() => this.initialize()));
+				}
 			}
 		}));
 	}
 
 	private clear() {
+
 		this.listeners.forEach(l => l.dispose());
 		this.cellDecorators.forEach((v, cell) => {
 			v.dispose();
@@ -61,10 +64,13 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		super.dispose();
 	}
 
-	private initialize(previous: NotebookTextModel) {
+	private initialize() {
 		this.clear();
 
-		this.original = previous;
+		if (!this.previous) {
+			return;
+		}
+
 		this.insertedCellDecorator = this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor);
 		this.deletedCellDecorator = this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor);
 
@@ -74,30 +80,32 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		this.listeners.push(this.notebookEditor.onDidChangeModel(() => this._update()));
 		if (this.notebookEditor.textModel) {
 			const onContentChange = Event.debounce(this.notebookEditor.textModel!.onDidChangeContent, (_, event) => event, 100, undefined, undefined, undefined, this._store);
+			const onOriginalContentChange = Event.debounce(this.previous.onDidChangeContent, (_, event) => event, 100, undefined, undefined, undefined, this._store);
 			this.listeners.push(onContentChange(() => this._update()));
+			this.listeners.push(onOriginalContentChange(() => this._update()));
 		}
 	}
 
 	private async _update() {
 		const current = this.notebookEditor.getViewModel()?.notebookDocument;
-		if (!this.original || !current) {
+		if (!this.previous || !current) {
 			return;
 		}
 
 		if (!this.cachedNotebookDiff ||
-			this.cachedNotebookDiff.originalVersion !== this.original.versionId ||
+			this.cachedNotebookDiff.originalVersion !== this.previous.versionId ||
 			this.cachedNotebookDiff.version !== current.versionId) {
 
-			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.original.uri, current.uri);
-			const diffInfo = computeDiff(this.original, current, notebookDiff);
+			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.previous.uri, current.uri);
+			const diffInfo = computeDiff(this.previous, current, notebookDiff);
 
-			this.cachedNotebookDiff = { cellDiffInfo: diffInfo.cellDiffInfo, originalVersion: this.original.versionId, version: current.versionId };
+			this.cachedNotebookDiff = { cellDiffInfo: diffInfo.cellDiffInfo, originalVersion: this.previous.versionId, version: current.versionId };
 
 			this.insertedCellDecorator?.apply(diffInfo.cellDiffInfo);
-			this.deletedCellDecorator?.apply(diffInfo.cellDiffInfo, this.original);
+			this.deletedCellDecorator?.apply(diffInfo.cellDiffInfo, this.previous);
 		}
 
-		await this.updateCells(this.original, current, this.cachedNotebookDiff.cellDiffInfo);
+		await this.updateCells(this.previous, current, this.cachedNotebookDiff.cellDiffInfo);
 	}
 
 	private async updateCells(original: NotebookTextModel, modified: NotebookTextModel, cellDiffs: CellDiffInfo[]) {
