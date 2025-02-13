@@ -233,7 +233,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		return Boolean(target);
 	}
 
-	async $tryOpenDocument(uriData: UriComponents): Promise<URI> {
+	async $tryOpenDocument(uriData: UriComponents, options?: { encoding?: string }): Promise<URI> {
 		const inputUri = URI.revive(uriData);
 		if (!inputUri.scheme || !(inputUri.fsPath || inputUri.authority)) {
 			throw new ErrorNoTelemetry(`Invalid uri. Scheme and authority or path must be set.`);
@@ -244,11 +244,11 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		let promise: Promise<URI>;
 		switch (canonicalUri.scheme) {
 			case Schemas.untitled:
-				promise = this._handleUntitledScheme(canonicalUri);
+				promise = this._handleUntitledScheme(canonicalUri, options);
 				break;
 			case Schemas.file:
 			default:
-				promise = this._handleAsResourceInput(canonicalUri);
+				promise = this._handleAsResourceInput(canonicalUri, options);
 				break;
 		}
 
@@ -273,13 +273,17 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
 	}
 
-	private async _handleAsResourceInput(uri: URI): Promise<URI> {
+	private async _handleAsResourceInput(uri: URI, options: { encoding?: string } | undefined): Promise<URI> {
+		if (options?.encoding) {
+			await this._textFileService.files.resolve(uri, { encoding: options?.encoding });
+		}
+
 		const ref = await this._textModelResolverService.createModelReference(uri);
 		this._modelReferenceCollection.add(uri, ref, ref.object.textEditorModel.getValueLength());
 		return ref.object.textEditorModel.uri;
 	}
 
-	private async _handleUntitledScheme(uri: URI): Promise<URI> {
+	private async _handleUntitledScheme(uri: URI, options: { encoding?: string } | undefined): Promise<URI> {
 		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
 		const exists = await this._fileService.exists(asLocalUri);
 		if (exists) {

@@ -14,6 +14,8 @@ declare module 'vscode' {
 		save(options?: { encoding?: string }): Thenable<boolean>;
 	}
 
-	export function openTextDocument(uri: Uri, options?: { encoding?: string }): Thenable<TextDocument>;
-	export function openTextDocument(path: string, options?: { encoding?: string }): Thenable<TextDocument>;
+	export namespace workspace {
+		export function openTextDocument(uri: Uri, options?: { encoding?: string }): Thenable<TextDocument>;
+		export function openTextDocument(path: string, options?: { encoding?: string }): Thenable<TextDocument>;
+	}
 }
