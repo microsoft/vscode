@@ -574,12 +574,6 @@ export class ExtHostTextEditor {
 			hide() {
 				_proxy.$tryHideEditor(id);
 			},
-			getEncoding(): Promise<string | undefined> {
-				return _proxy.$tryGetEncoding(id);
-			},
-			setEncoding(encoding: string, mode: vscode.EncodingMode): Promise<void> {
-				return _proxy.$trySetEncoding(id, encoding, mode);
-			},
 			[Symbol.for('debug.description')]() {
 				return `TextEditor(${this.document.uri.toString()})`;
 			}

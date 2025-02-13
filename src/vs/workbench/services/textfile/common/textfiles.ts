@@ -116,6 +116,8 @@ export interface ITextFileService extends IDisposable {
 	 * Will throw an error if `acceptTextOnly: true` for resources that seem to be binary.
 	 */
 	getDecodedStream(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>>;
+
+	getEncoding(resource: URI): string;
 }
 
 export interface IReadTextFileEncodingOptions {
