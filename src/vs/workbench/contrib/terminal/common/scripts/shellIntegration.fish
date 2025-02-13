@@ -148,13 +148,13 @@ end
 
 function __vsc_update_env --on-event fish_prompt
 	echo "Hello I am inside __vsc_update_env\n"
-	__vsc_esc EnvSingleStart $VSCODE_NONCE
+	__vsc_esc EnvSingleStart
 	for line in (env)
 		set myVar (echo $line | awk -F= '{print $1}')
 		set myVal (echo $line | awk -F= '{print $2}')
-		__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal") $VSCODE_NONCE
+		__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
 	end
-	__vsc_esc EnvSingleEnd $VSCODE_NONCE
+	__vsc_esc EnvSingleEnd
 end
 
 # Sent at the start of the prompt.
