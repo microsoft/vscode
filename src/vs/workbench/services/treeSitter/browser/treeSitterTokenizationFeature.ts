@@ -9,7 +9,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../.
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSupport, QueryCapture, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, TreeUpdateEvent, RangeChange, ITreeSitterImporter } from '../../../../editor/common/services/treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, TreeUpdateEvent, RangeChange, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT } from '../../../../editor/common/services/treeSitterParserService.js';
 import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -28,7 +28,6 @@ import { setTimeout0 } from '../../../../base/common/platform.js';
 import { findLikelyRelevantLines } from '../../../../editor/common/model/textModelTokens.js';
 import { TreeSitterCodeEditors } from './treeSitterCodeEditors.js';
 
-const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;
 
 export const ITreeSitterTokenizationFeature = createDecorator<ITreeSitterTokenizationFeature>('treeSitterTokenizationFeature');
@@ -63,16 +62,15 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 		}));
 	}
 
-	private _getSetting(): string[] {
-		return this._configurationService.getValue<string[]>(EDITOR_EXPERIMENTAL_PREFER_TREESITTER) || [];
+	private _getSetting(languageId: string): boolean {
+		return this._configurationService.getValue<boolean>(`${EDITOR_EXPERIMENTAL_PREFER_TREESITTER}.${languageId}`);
 	}
 
 	private _handleGrammarsExtPoint(): void {
-		const setting = this._getSetting();
-
 		// Eventually, this should actually use an extension point to add tree sitter grammars, but for now they are hard coded in core
-		for (const languageId of setting) {
-			if (ALLOWED_SUPPORT.includes(languageId) && !this._tokenizersRegistrations.has(languageId)) {
+		for (const languageId of TREESITTER_ALLOWED_SUPPORT) {
+			const setting = this._getSetting(languageId);
+			if (setting && !this._tokenizersRegistrations.has(languageId)) {
 				const lazyTokenizationSupport = new LazyTokenizationSupport(() => this._createTokenizationSupport(languageId));
 				const disposableStore = new DisposableStore();
 				disposableStore.add(lazyTokenizationSupport);
@@ -81,7 +79,7 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 				TreeSitterTokenizationRegistry.getOrCreate(languageId);
 			}
 		}
-		const languagesToUnregister = [...this._tokenizersRegistrations.keys()].filter(languageId => !setting.includes(languageId));
+		const languagesToUnregister = [...this._tokenizersRegistrations.keys()].filter(languageId => !this._getSetting(languageId));
 		for (const languageId of languagesToUnregister) {
 			this._tokenizersRegistrations.deleteAndDispose(languageId);
 		}
@@ -126,6 +124,9 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			this._parseAndTokenizeViewPort(e.model, e.ranges);
 		}));
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
+			if (e.textModel.getLanguageId() !== this._languageId) {
+				return;
+			}
 			if (this._tokenizationStoreService.hasTokens(e.textModel)) {
 				// Mark the range for refresh immediately
 				for (const range of e.ranges) {
@@ -150,11 +151,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		this._tokenizationStoreService.setTokens(textModel, tokens, TokenQuality.None);
 	}
 
-	private async _parseAndTokenizeViewPortRange(model: ITextModel, range: Range, languageId: LanguageId, startOffsetOfRangeInDocument: number, endOffsetOfRangeInDocument: number) {
+	private _parseAndTokenizeViewPortRange(model: ITextModel, range: Range, languageId: LanguageId, startOffsetOfRangeInDocument: number, endOffsetOfRangeInDocument: number) {
 		const content = model.getValueInRange(range);
 		const likelyRelevantLines = findLikelyRelevantLines(model, range.startLineNumber).likelyRelevantLines;
 		const likelyRelevantPrefix = likelyRelevantLines.join(model.getEOL());
-		const tree = await this._treeSitterService.getTree(`${likelyRelevantPrefix}${content}`, this._languageId);
+		const tree = this._treeSitterService.getTreeSync(`${likelyRelevantPrefix}${content}`, this._languageId);
 		if (!tree) {
 			return;
 		}

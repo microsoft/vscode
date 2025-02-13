@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Schemas } from '../../../../../../base/common/network.js';
-import { basename } from '../../../../../../base/common/resources.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
-import { PromptFilesConfig } from '../../../common/promptSyntax/config.js';
-import { createURI } from '../../common/promptSyntax/testUtils/createUri.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { mockObject, mockService } from '../../common/promptSyntax/testUtils/mock.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IMockFolder, MockFilesystem } from '../../common/promptSyntax/testUtils/mockFilesystem.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatInstructionsFileLocator } from '../../../browser/chatAttachmentModel/chatInstructionsFileLocator.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { createURI } from '../testUtils/createUri.js';
+import { mockObject, mockService } from '../testUtils/mock.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
+import { basename } from '../../../../../../../base/common/resources.js';
+import { isWindows } from '../../../../../../../base/common/platform.js';
+import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { PromptFilesConfig } from '../../../../common/promptSyntax/config.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
 
 /**
- * Mocked mocked instance of {@link IConfigurationService}.
+ * Mocked instance of {@link IConfigurationService}.
  */
 const mockConfigService = <T>(value: T): IConfigurationService => {
 	return mockService<IConfigurationService>({
@@ -39,7 +39,7 @@ const mockConfigService = <T>(value: T): IConfigurationService => {
 };
 
 /**
- * Mocked mocked instance of {@link IWorkspaceContextService}.
+ * Mocked instance of {@link IWorkspaceContextService}.
  */
 const mockWorkspaceService = (folders: IWorkspaceFolder[]): IWorkspaceContextService => {
 	return mockService<IWorkspaceContextService>({
@@ -51,7 +51,7 @@ const mockWorkspaceService = (folders: IWorkspaceFolder[]): IWorkspaceContextSer
 	});
 };
 
-suite('ChatInstructionsFileLocator', () => {
+suite('PromptFilesLocator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	if (isWindows) {
@@ -71,14 +71,14 @@ suite('ChatInstructionsFileLocator', () => {
 	});
 
 	/**
-	 * Create a new instance of {@link ChatInstructionsFileLocator} with provided mocked
+	 * Create a new instance of {@link PromptFilesLocator} with provided mocked
 	 * values for configuration and workspace services.
 	 */
 	const createPromptsLocator = async (
 		configValue: unknown,
 		workspaceFolderPaths: string[],
 		filesystem: IMockFolder[],
-	): Promise<ChatInstructionsFileLocator> => {
+	): Promise<PromptFilesLocator> => {
 		await (initService.createInstance(MockFilesystem, filesystem)).mock();
 
 		initService.stub(IConfigurationService, mockConfigService(configValue));
@@ -94,7 +94,7 @@ suite('ChatInstructionsFileLocator', () => {
 		});
 		initService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
 
-		return initService.createInstance(ChatInstructionsFileLocator);
+		return initService.createInstance(PromptFilesLocator);
 	};
 
 	suite('• empty workspace', () => {

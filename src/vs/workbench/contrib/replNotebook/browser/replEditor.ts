@@ -163,7 +163,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false });
+		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false, disableRulers: true });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateInputHint, this));
@@ -289,7 +289,8 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				},
 				hover: {
 					enabled: true
-				}
+				},
+				rulers: []
 			}
 		});
 
@@ -387,6 +388,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			...{
 				isSimpleWidget: false,
 				contributions: getDefaultNotebookCreationOptions().cellEditorContributions
+					?.filter(c => c.id !== 'workbench.notebook.cellToolbar'),
 			}
 		});
 

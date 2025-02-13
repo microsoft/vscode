@@ -187,14 +187,14 @@ export const enum DerivedState {
 }
 
 export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> implements IReader, IObserver {
-	private state = DerivedState.initial;
+	public _state = DerivedState.initial;
 	private value: T | undefined = undefined;
-	private updateCount = 0;
-	private dependencies = new Set<IObservable<any>>();
+	public _updateCount = 0;
+	public _dependencies = new Set<IObservable<any>>();
 	private dependenciesToBeRemoved = new Set<IObservable<any>>();
 	private changeSummary: TChangeSummary | undefined = undefined;
 	private _isUpdating = false;
-	private _isComputing = false;
+	public _isComputing = false;
 
 	public override get debugName(): string {
 		return this._debugNameData.getDebugName(this) ?? '(anonymous)';
@@ -217,13 +217,13 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		 * We are not tracking changes anymore, thus we have to assume
 		 * that our cache is invalid.
 		 */
-		this.state = DerivedState.initial;
+		this._state = DerivedState.initial;
 		this.value = undefined;
 		getLogger()?.handleDerivedCleared(this);
-		for (const d of this.dependencies) {
+		for (const d of this._dependencies) {
 			d.removeObserver(this);
 		}
-		this.dependencies.clear();
+		this._dependencies.clear();
 
 		this._handleLastObserverRemoved?.();
 	}
@@ -235,7 +235,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			throw new BugIndicatingError('Cyclic deriveds are not supported yet!');
 		}
 
-		if (this.observers.size === 0) {
+		if (this._observers.size === 0) {
 			let result;
 			// Without observers, we don't know when to clean up stuff.
 			// Thus, we don't cache anything to prevent memory leaks.
@@ -253,12 +253,12 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			do {
 				// We might not get a notification for a dependency that changed while it is updating,
 				// thus we also have to ask all our depedencies if they changed in this case.
-				if (this.state === DerivedState.dependenciesMightHaveChanged) {
-					for (const d of this.dependencies) {
+				if (this._state === DerivedState.dependenciesMightHaveChanged) {
+					for (const d of this._dependencies) {
 						/** might call {@link handleChange} indirectly, which could make us stale */
 						d.reportChanges();
 
-						if (this.state as DerivedState === DerivedState.stale) {
+						if (this._state as DerivedState === DerivedState.stale) {
 							// The other dependencies will refresh on demand, so early break
 							break;
 						}
@@ -267,28 +267,28 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 				// We called report changes of all dependencies.
 				// If we are still not stale, we can assume to be up to date again.
-				if (this.state === DerivedState.dependenciesMightHaveChanged) {
-					this.state = DerivedState.upToDate;
+				if (this._state === DerivedState.dependenciesMightHaveChanged) {
+					this._state = DerivedState.upToDate;
 				}
 
 				this._recomputeIfNeeded();
 				// In case recomputation changed one of our dependencies, we need to recompute again.
-			} while (this.state !== DerivedState.upToDate);
+			} while (this._state !== DerivedState.upToDate);
 			return this.value!;
 		}
 	}
 
 	private _recomputeIfNeeded() {
-		if (this.state === DerivedState.upToDate) {
+		if (this._state === DerivedState.upToDate) {
 			return;
 		}
 		const emptySet = this.dependenciesToBeRemoved;
-		this.dependenciesToBeRemoved = this.dependencies;
-		this.dependencies = emptySet;
+		this.dependenciesToBeRemoved = this._dependencies;
+		this._dependencies = emptySet;
 
-		const hadValue = this.state !== DerivedState.initial;
+		const hadValue = this._state !== DerivedState.initial;
 		const oldValue = this.value;
-		this.state = DerivedState.upToDate;
+		this._state = DerivedState.upToDate;
 
 		let didChange = false;
 
@@ -327,7 +327,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		this._isComputing = false;
 
 		if (didChange) {
-			for (const r of this.observers) {
+			for (const r of this._observers) {
 				r.handleChange(this, undefined);
 			}
 		}
@@ -344,21 +344,21 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			throw new BugIndicatingError('Cyclic deriveds are not supported yet!');
 		}
 
-		this.updateCount++;
+		this._updateCount++;
 		this._isUpdating = true;
 		try {
-			const propagateBeginUpdate = this.updateCount === 1;
-			if (this.state === DerivedState.upToDate) {
-				this.state = DerivedState.dependenciesMightHaveChanged;
+			const propagateBeginUpdate = this._updateCount === 1;
+			if (this._state === DerivedState.upToDate) {
+				this._state = DerivedState.dependenciesMightHaveChanged;
 				// If we propagate begin update, that will already signal a possible change.
 				if (!propagateBeginUpdate) {
-					for (const r of this.observers) {
+					for (const r of this._observers) {
 						r.handlePossibleChange(this);
 					}
 				}
 			}
 			if (propagateBeginUpdate) {
-				for (const r of this.observers) {
+				for (const r of this._observers) {
 					r.beginUpdate(this); // This signals a possible change
 				}
 			}
@@ -370,10 +370,10 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	private _removedObserverToCallEndUpdateOn: Set<IObserver> | null = null;
 
 	public endUpdate<T>(_observable: IObservable<T>): void {
-		this.updateCount--;
-		if (this.updateCount === 0) {
+		this._updateCount--;
+		if (this._updateCount === 0) {
 			// End update could change the observer list.
-			const observers = [...this.observers];
+			const observers = [...this._observers];
 			for (const r of observers) {
 				r.endUpdate(this);
 			}
@@ -385,21 +385,21 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 				}
 			}
 		}
-		assertFn(() => this.updateCount >= 0);
+		assertFn(() => this._updateCount >= 0);
 	}
 
 	public handlePossibleChange<T>(observable: IObservable<T>): void {
 		// In all other states, observers already know that we might have changed.
-		if (this.state === DerivedState.upToDate && this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
-			this.state = DerivedState.dependenciesMightHaveChanged;
-			for (const r of this.observers) {
+		if (this._state === DerivedState.upToDate && this._dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
+			this._state = DerivedState.dependenciesMightHaveChanged;
+			for (const r of this._observers) {
 				r.handlePossibleChange(this);
 			}
 		}
 	}
 
 	public handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
-		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
+		if (this._dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			getLogger()?.handleDerivedDependencyChanged(this, observable, change);
 
 			let shouldReact = false;
@@ -413,11 +413,11 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 				onBugIndicatingError(e);
 			}
 
-			const wasUpToDate = this.state === DerivedState.upToDate;
-			if (shouldReact && (this.state === DerivedState.dependenciesMightHaveChanged || wasUpToDate)) {
-				this.state = DerivedState.stale;
+			const wasUpToDate = this._state === DerivedState.upToDate;
+			if (shouldReact && (this._state === DerivedState.dependenciesMightHaveChanged || wasUpToDate)) {
+				this._state = DerivedState.stale;
 				if (wasUpToDate) {
-					for (const r of this.observers) {
+					for (const r of this._observers) {
 						r.handlePossibleChange(this);
 					}
 				}
@@ -436,13 +436,13 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		/** This might call {@link handleChange} indirectly, which could invalidate us */
 		const value = observable.get();
 		// Which is why we only add the observable to the dependencies now.
-		this.dependencies.add(observable);
+		this._dependencies.add(observable);
 		this.dependenciesToBeRemoved.delete(observable);
 		return value;
 	}
 
 	public override addObserver(observer: IObserver): void {
-		const shouldCallBeginUpdate = !this.observers.has(observer) && this.updateCount > 0;
+		const shouldCallBeginUpdate = !this._observers.has(observer) && this._updateCount > 0;
 		super.addObserver(observer);
 
 		if (shouldCallBeginUpdate) {
@@ -455,7 +455,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	public override removeObserver(observer: IObserver): void {
-		if (this.observers.has(observer) && this.updateCount > 0) {
+		if (this._observers.has(observer) && this._updateCount > 0) {
 			if (!this._removedObserverToCallEndUpdateOn) {
 				this._removedObserverToCallEndUpdateOn = new Set();
 			}

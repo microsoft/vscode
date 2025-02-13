@@ -151,6 +151,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		let requestId: string | undefined;
 		let store: DisposableStore | undefined;
+		let toolResult: IToolResult | undefined;
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
@@ -214,7 +215,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			const result = await tool.impl.invoke(dto, countTokens, token);
+			toolResult = await tool.impl.invoke(dto, countTokens, token);
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
 				'languageModelToolInvoked',
 				{
@@ -223,7 +224,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.extensionId?.value,
 				});
-			return result;
+			return toolResult;
 		} catch (err) {
 			const result = isCancellationError(err) ? 'userCancelled' : 'error';
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
@@ -236,7 +237,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				});
 			throw err;
 		} finally {
-			toolInvocation?.isCompleteDeferred.complete();
+			toolInvocation?.complete(toolResult);
 
 			if (requestId && store) {
 				this.cleanupCallDisposables(requestId, store);

@@ -44,7 +44,7 @@ export interface ISuggestController {
 	selectNextSuggestion(): void;
 	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
-	hideSuggestWidget(): void;
+	hideSuggestWidget(cancelAnyRequests: boolean): void;
 }
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
@@ -159,19 +159,36 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					this._promptInputModel = commandDetection.promptInputModel;
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
-						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget()),
+						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget(true)),
 					);
 					if (this._shouldSyncWhenReady) {
 						this._sync(this._promptInputModel);
 						this._shouldSyncWhenReady = false;
 					}
 				}
-				this._register(commandDetection.onCommandExecuted(() => this.hideSuggestWidget()));
 			} else {
 				this._promptInputModel = undefined;
 			}
 		}));
 		this._register(this._terminalConfigurationService.onConfigChanged(() => this._cachedFontInfo = undefined));
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(TerminalSuggestSettingId.InlineSuggestion)) {
+				const value = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).inlineSuggestion;
+				this._inlineCompletionItem.isInvalid = value === 'off';
+				switch (value) {
+					case 'alwaysOnTopExceptExactMatch': {
+						this._inlineCompletion.kind = TerminalCompletionItemKind.InlineSuggestion;
+						break;
+					}
+					case 'alwaysOnTop':
+					default: {
+						this._inlineCompletion.kind = TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop;
+						break;
+					}
+				}
+				this._model?.forceRefilterAll();
+			}
+		}));
 	}
 
 	activate(xterm: Terminal): void {
@@ -222,7 +239,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
 
-		if (!providedCompletions?.length || token.isCancellationRequested) {
+		if (token.isCancellationRequested) {
 			return;
 		}
 		this._onDidReceiveCompletions.fire();
@@ -230,8 +247,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cursorIndexDelta = this._promptInputModel.cursorIndex - this._requestedCompletionsIndex;
 		this._leadingLineContent = this._promptInputModel.prefix.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
 
-		const completions = providedCompletions.flat();
-		if (!completions?.length) {
+		const completions = providedCompletions?.flat() || [];
+		if (!explicitlyInvoked && !completions.length) {
 			return;
 		}
 
@@ -411,7 +428,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Hide the widget if the latest character was a space
 		if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
-			this.hideSuggestWidget();
+			this.hideSuggestWidget(false);
 			return;
 		}
 
@@ -421,7 +438,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// only invalidated when whitespace is encountered.
 		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
 			if (this._currentPromptInputState.cursorIndex <= 0 || this._currentPromptInputState.value[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
-				this.hideSuggestWidget();
+				this.hideSuggestWidget(false);
 				return;
 			}
 		}
@@ -440,7 +457,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
-			this.hideSuggestWidget();
+			this.hideSuggestWidget(false);
 			return;
 		}
 
@@ -463,8 +480,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		} else {
 			this._inlineCompletionItem.isInvalid = false;
 			// Update properties
-			const suggestion = this._currentPromptInputState.value;
+			const spaceIndex = this._currentPromptInputState.value.lastIndexOf(' ', this._currentPromptInputState.ghostTextIndex - 1);
+			const replacementIndex = spaceIndex === -1 ? 0 : spaceIndex + 1;
+			const suggestion = this._currentPromptInputState.value.substring(replacementIndex);
 			this._inlineCompletion.label = suggestion;
+			this._inlineCompletion.replacementIndex = replacementIndex;
+			// Note that the cursor index delta must be taken into account here, otherwise filtering
+			// wont work correctly.
+			this._inlineCompletion.replacementLength = this._currentPromptInputState.cursorIndex - replacementIndex - this._cursorIndexDelta;
 			// Reset the completion item as the object reference must remain the same but its
 			// contents will differ across syncs. This is done so we don't need to reassign the
 			// model and the slowdown/flickering that could potentially cause.
@@ -711,10 +734,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
-		this.hideSuggestWidget();
+		this.hideSuggestWidget(true);
 	}
 
-	hideSuggestWidget(): void {
+	hideSuggestWidget(cancelAnyRequest: boolean): void {
+		if (cancelAnyRequest) {
+			this._cancellationTokenSource?.cancel();
+			this._cancellationTokenSource = undefined;
+		}
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();

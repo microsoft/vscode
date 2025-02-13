@@ -10,8 +10,8 @@ import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
+import { IPrompt, IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
-import { ChatInstructionsFileLocator } from '../../chatAttachmentModel/chatInstructionsFileLocator.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 
@@ -42,6 +42,7 @@ export interface ISelectPromptOptions {
 
 	labelService: ILabelService;
 	openerService: IOpenerService;
+	promptsService: IPromptsService;
 	initService: IInstantiationService;
 	quickInputService: IQuickInputService;
 }
@@ -66,18 +67,18 @@ interface IPromptSelectionResult {
  * Creates a quick pick item for a prompt.
  */
 const createPickItem = (
-	promptUri: URI,
+	{ uri }: IPrompt,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
-	const fileBasename = basename(promptUri);
+	const fileBasename = basename(uri);
 	const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
 
 	return {
 		type: 'item',
 		label: fileWithoutExtension,
-		description: labelService.getUriLabel(dirname(promptUri), { relative: true }),
-		tooltip: promptUri.fsPath,
-		value: promptUri,
+		description: labelService.getUriLabel(dirname(uri), { relative: true }),
+		tooltip: uri.fsPath,
+		value: uri,
 	};
 };
 
@@ -107,15 +108,14 @@ const createPlaceholderText = (widget?: IChatWidget): string => {
 export const showSelectPromptDialog = async (
 	options: ISelectPromptOptions,
 ): Promise<IPromptSelectionResult | null> => {
-	const { resource, initService, labelService } = options;
-	const promptsLocator = initService.createInstance(ChatInstructionsFileLocator);
+	const { resource, labelService, promptsService } = options;
 
 	// find all prompt instruction files in the user workspace
 	// and present them to the user so they can select one
-	const files = await promptsLocator.listFiles([])
-		.then((files) => {
-			return files.map((file) => {
-				return createPickItem(file, labelService);
+	const files = await promptsService.listPromptFiles()
+		.then((promptFiles) => {
+			return promptFiles.map((promptFile) => {
+				return createPickItem(promptFile, labelService);
 			});
 		});
 
@@ -181,7 +181,7 @@ export const showSelectPromptDialog = async (
 	// keep track of whether the `alt` (`option` on mac) key is
 	// pressed when a prompt item is selected in the dialog
 	let altOption = false;
-	if (!location) {
+	if (!widget) {
 		pickOptions.onKeyMods = (keyMods) => {
 			if (keyMods.alt) {
 				altOption = true;

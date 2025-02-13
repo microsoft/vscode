@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 /**
- * Mocked mocked instance of {@link IConfigurationService}.
+ * Mocked instance of {@link IConfigurationService}.
  */
 const createMock = <T>(value: T): IConfigurationService => {
 	return mockService<IConfigurationService>({

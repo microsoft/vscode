@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
-import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
-import { dirname, extUri } from '../../../../../base/common/resources.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { PromptFilesConfig } from '../config.js';
+import { PROMPT_FILE_EXTENSION } from '../constants.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
+import { dirname, extUri } from '../../../../../../base/common/resources.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Class to locate prompt files.
  */
-export class ChatInstructionsFileLocator {
+export class PromptFilesLocator {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
@@ -28,7 +28,26 @@ export class ChatInstructionsFileLocator {
 	 * @param exclude List of `URIs` to exclude from the result.
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(exclude: ReadonlyArray<URI>): Promise<readonly URI[]> {
+	public async listFiles(
+		exclude: readonly URI[],
+	): Promise<readonly URI[]> {
+		return await this.listFilesIn(
+			this.getSourceLocations(),
+			exclude,
+		);
+	}
+
+	/**
+	 * Lists all prompt files in the provided locations.
+	 *
+	 * @param locations List of `URIs` to search for prompt files in.
+	 * @param exclude List of `URIs` to exclude from the result.
+	 * @returns List of prompt files found in the provided locations.
+	 */
+	public async listFilesIn(
+		locations: readonly URI[],
+		exclude: readonly URI[],
+	): Promise<readonly URI[]> {
 		// create a set from the list of URIs for convenience
 		const excludeSet: Set<string> = new Set();
 		for (const excludeUri of exclude) {
@@ -36,12 +55,12 @@ export class ChatInstructionsFileLocator {
 		}
 
 		// filter out the excluded paths from the locations list
-		const locations = this.getSourceLocations()
+		const cleanLocations = locations
 			.filter((location) => {
 				return !excludeSet.has(location.path);
 			});
 
-		return await this.findInstructionFiles(locations, excludeSet);
+		return await this.findInstructionFiles(cleanLocations, excludeSet);
 	}
 
 	/**
