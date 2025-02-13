@@ -19,6 +19,7 @@ import { TerminalLinksCommandId } from '../../links/common/terminal.links.js';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { accessibleViewIsShown, accessibleViewCurrentProviderId, AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { TerminalHistoryCommandId } from '../../history/common/terminal.history.js';
+import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.js';
 
 export const enum ClassName {
 	Active = 'active',
@@ -59,7 +60,9 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 			localize('preserveCursor', 'Customize the behavior of the cursor when toggling between the terminal and accessible view with `terminal.integrated.accessibleViewPreserveCursorPosition.`'),
 			localize('openDetectedLink', 'The Open Detected Link command<keybinding:{0}> enables screen readers to easily open links found in the terminal.', TerminalLinksCommandId.OpenDetectedLink),
 			localize('newWithProfile', 'The Create New Terminal (With Profile) command<keybinding:{0}> allows for easy terminal creation using a specific profile.', TerminalCommandId.NewWithProfile),
-			localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun)
+			localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun),
+			localize('suggestCommands', 'When the terminal suggest widget is focused, accept the suggestion <keybinding:{0}> and configure suggest settings <keybinding:{1}>.', TerminalSuggestCommandId.AcceptSelectedSuggestion, TerminalSuggestCommandId.ConfigureSettings),
+			localize('suggestCommandsMore', 'Also, when the suggest widget is focused, toggle the documentation <keybinding:{0}> and focus it <keybinding:{1}> to learn more about the suggestion.', TerminalSuggestCommandId.ToggleDetails, TerminalSuggestCommandId.ToggleDetailsFocus),
 		];
 
 		if (!this._configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewFocusOnCommandExecution)) {
