@@ -67,12 +67,10 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 	}
 
 	private _handleGrammarsExtPoint(): void {
-		const configured: string[] = [];
 		// Eventually, this should actually use an extension point to add tree sitter grammars, but for now they are hard coded in core
 		for (const languageId of TREESITTER_ALLOWED_SUPPORT) {
 			const setting = this._getSetting(languageId);
 			if (setting && !this._tokenizersRegistrations.has(languageId)) {
-				configured.push(languageId);
 				const lazyTokenizationSupport = new LazyTokenizationSupport(() => this._createTokenizationSupport(languageId));
 				const disposableStore = new DisposableStore();
 				disposableStore.add(lazyTokenizationSupport);
@@ -81,7 +79,7 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 				TreeSitterTokenizationRegistry.getOrCreate(languageId);
 			}
 		}
-		const languagesToUnregister = [...this._tokenizersRegistrations.keys()].filter(languageId => !configured.includes(languageId));
+		const languagesToUnregister = [...this._tokenizersRegistrations.keys()].filter(languageId => !this._getSetting(languageId));
 		for (const languageId of languagesToUnregister) {
 			this._tokenizersRegistrations.deleteAndDispose(languageId);
 		}
