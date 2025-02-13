@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createStyleSheetFromObservable } from '../../../../../base/browser/domObservable.js';
-import { readHotReloadableExport } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { derived, mapObservableArrayCached, derivedDisposable, constObservable, derivedObservableWithCache, IObservable, ISettableObservable } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -22,13 +21,19 @@ export class InlineCompletionsView extends Disposable {
 		const model = this._model.read(reader);
 		return model?.ghostTexts.read(reader) ?? [];
 	});
+
 	private readonly _stablizedGhostTexts = convertItemsToStableObservables(this._ghostTexts, this._store);
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
-	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) => derivedDisposable((reader) => this._instantiationService.createInstance(readHotReloadableExport(GhostTextView, reader),
+	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) => derivedDisposable((reader) => this._instantiationService.createInstance(
+		GhostTextView.hot.read(reader),
 		this._editor,
 		{
 			ghostText: ghostText,
+			warning: this._model.map((m, reader) => {
+				const warning = m?.warning?.read(reader);
+				return warning ? { icon: warning.icon } : undefined;
+			}),
 			minReservedLineCount: constObservable(0),
 			targetTextModel: this._model.map(v => v?.textModel),
 		},

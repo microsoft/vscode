@@ -459,7 +459,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}));
 
-		} else if (this.rendererOptions.renderStyle !== 'minimal') {
+		} else if (this.rendererOptions.renderStyle !== 'minimal' && !element.isComplete) {
 			if (element.model.isPaused.get()) {
 				templateData.detail.textContent = localize('paused', "Paused");
 			} else {

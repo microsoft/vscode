@@ -6,7 +6,7 @@
 import { isWindows } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
 import { SimpleCompletionModel, type LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
-import type { TerminalCompletionItem } from './terminalCompletionItem.js';
+import { TerminalCompletionItemKind, type TerminalCompletionItem } from './terminalCompletionItem.js';
 
 export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompletionItem> {
 	constructor(
@@ -18,6 +18,14 @@ export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompl
 }
 
 const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionItem, b: TerminalCompletionItem) => {
+	// Boost inline completions first as matches should be first regardless of score
+	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return -1;
+	}
+	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return 1;
+	}
+
 	// Sort by the score
 	let score = b.score[0] - a.score[0];
 	if (score !== 0) {

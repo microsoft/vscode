@@ -794,6 +794,10 @@ declare namespace monaco {
 		 */
 		static areIntersecting(a: IRange, b: IRange): boolean;
 		/**
+		 * Test if the two ranges are intersecting, but not touching at all.
+		 */
+		static areOnlyIntersecting(a: IRange, b: IRange): boolean;
+		/**
 		 * A function that compares ranges, useful for sorting ranges
 		 * It will first compare ranges on the startPosition and then on the endPosition
 		 */
@@ -1526,6 +1530,11 @@ declare namespace monaco.editor {
 
 	export interface ThemeColor {
 		id: string;
+	}
+
+	export interface ThemeIcon {
+		readonly id: string;
+		readonly color?: ThemeColor;
 	}
 
 	/**
@@ -7283,7 +7292,18 @@ declare namespace monaco.languages {
 		readonly completeBracketPairs?: boolean;
 		readonly isInlineEdit?: boolean;
 		readonly showRange?: IRange;
+		readonly warning?: InlineCompletionWarning;
 	}
+
+	export interface InlineCompletionWarning {
+		message: IMarkdownString | string;
+		icon?: IconPath;
+	}
+
+	/**
+	 * TODO: add `| Uri | { light: Uri; dark: Uri }`.
+	*/
+	export type IconPath = editor.ThemeIcon;
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 		readonly items: readonly TItem[];
@@ -7328,6 +7348,7 @@ declare namespace monaco.languages {
 		 */
 		yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 		displayName?: string;
+		debounceDelayMs?: number;
 		toString?(): string;
 	}
 

@@ -7,6 +7,7 @@ import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
@@ -14,6 +15,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { BareFontInfo } from '../../../../editor/common/config/fontInfo.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { NotebookTextModel } from '../common/model/notebookTextModel.js';
 import { InteractiveWindowCollapseCodeCells, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from '../common/notebookCommon.js';
 import { INotebookExecutionStateService } from '../common/notebookExecutionStateService.js';
 
@@ -137,6 +139,8 @@ export class NotebookOptions extends Disposable {
 	protected readonly _onDidChangeOptions = this._register(new Emitter<NotebookOptionsChangeEvent>());
 	readonly onDidChangeOptions = this._onDidChangeOptions.event;
 	private _editorTopPadding: number = 12;
+
+	readonly previousModelToCompare = observableValue<NotebookTextModel | undefined>('previousModelToCompare', undefined);
 
 	constructor(
 		readonly targetWindow: CodeWindow,
