@@ -52,7 +52,7 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 				uri: uri,
 				isDirty: false,
 				versionId: 1,
-				encoding: 'utf8' // todo
+				encoding: 'utf8'
 			}]
 		});
 	}

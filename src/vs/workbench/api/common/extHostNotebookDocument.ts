@@ -41,7 +41,7 @@ export class ExtHostCell {
 			uri: cell.uri,
 			isDirty: false,
 			versionId: 1,
-			encoding: 'utf8' // todo
+			encoding: 'utf8'
 		};
 	}
 

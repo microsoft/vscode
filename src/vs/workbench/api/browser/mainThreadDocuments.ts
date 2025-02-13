@@ -13,6 +13,7 @@ import { ITextModelService } from '../../../editor/common/services/resolverServi
 import { IFileService, FileOperation } from '../../../platform/files/common/files.js';
 import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from '../common/extHost.protocol.js';
 import { EncodingMode, ITextFileEditorModel, ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { IUntitledTextEditorModel } from '../../services/untitled/common/untitledTextEditorModel.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { toLocalResource, extUri, IExtUri } from '../../../base/common/resources.js';
 import { IWorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
@@ -22,7 +23,6 @@ import { IPathService } from '../../services/path/common/pathService.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
-import { IUntitledTextEditorModel } from '../../services/untitled/common/untitledTextEditorModel.js';
 
 export class BoundModelReferenceCollection {
 
