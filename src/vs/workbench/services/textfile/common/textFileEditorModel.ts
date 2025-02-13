@@ -1116,7 +1116,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private hasEncodingSetExplicitly: boolean = false;
 
-	setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
+	setEncoding(encoding: string, mode: EncodingMode): Promise<boolean> {
 
 		// Remember that an explicit encoding was set
 		this.hasEncodingSetExplicitly = true;
@@ -1124,7 +1124,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.setEncodingInternal(encoding, mode);
 	}
 
-	private async setEncodingInternal(encoding: string, mode: EncodingMode): Promise<void> {
+	private async setEncodingInternal(encoding: string, mode: EncodingMode): Promise<boolean> {
 
 		// Encode: Save with encoding
 		if (mode === EncodingMode.Encode) {
@@ -1137,14 +1137,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictMode) {
-				await this.save({ source: TextFileEditorModel.TEXTFILE_SAVE_ENCODING_SOURCE });
+				return await this.save({ source: TextFileEditorModel.TEXTFILE_SAVE_ENCODING_SOURCE });
 			}
 		}
 
 		// Decode: Resolve with encoding
 		else {
 			if (!this.isNewEncoding(encoding)) {
-				return; // return early if the encoding is already the same
+				return true; // return early if the encoding is already the same
 			}
 
 			if (this.isDirty() && !this.inConflictMode) {
@@ -1154,7 +1154,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.updatePreferredEncoding(encoding);
 
 			await this.forceResolveFromFile();
+			return true;
 		}
+
+		return false;
 	}
 
 	updatePreferredEncoding(encoding: string | undefined): void {

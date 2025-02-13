@@ -1021,7 +1021,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			set textDocuments(value) {
 				throw new errors.ReadonlyError('textDocuments');
 			},
-			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string }) {
+			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string }, textDocumentOptions?: { encoding?: string }) {
 				let uriPromise: Thenable<URI>;
 
 				const options = uriOrFileNameOrOptions as { language?: string; content?: string };

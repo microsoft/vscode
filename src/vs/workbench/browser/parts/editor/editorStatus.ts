@@ -65,8 +65,9 @@ class SideBySideEditorEncodingSupport implements IEncodingSupport {
 		return this.primary.getEncoding(); // always report from modified (right hand) side
 	}
 
-	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
-		await Promises.settled([this.primary, this.secondary].map(editor => editor.setEncoding(encoding, mode)));
+	async setEncoding(encoding: string, mode: EncodingMode): Promise<boolean> {
+		const results = await Promises.settled([this.primary, this.secondary].map(editor => editor.setEncoding(encoding, mode)));
+		return results.every(result => !!result);
 	}
 }
 

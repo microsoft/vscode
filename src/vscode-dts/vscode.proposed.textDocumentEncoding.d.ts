@@ -9,25 +9,11 @@ declare module 'vscode' {
 
 	export interface TextDocument {
 
-		/**
-		 * The text document's encoding.
-		 */
 		readonly encoding: string;
 
-		/**
-		 * Encodes the text document's content using the specified encoding.
-		 *
-		 * @param encoding The encoding to be used for encoding the document.
-		 * @returns A promise that resolves when the encoding is complete.
-		 */
-		encode(encoding: string): Thenable<void>;
-
-		/**
-		 * Decodes the text document's content using the specified encoding.
-		 *
-		 * @param encoding The encoding to be used for decoding the document.
-		 * @returns A promise that resolves when the decoding is complete.
-		 */
-		decode(encoding: string): Thenable<void>;
+		save(options?: { encoding?: string }): Thenable<boolean>;
 	}
+
+	export function openTextDocument(uri: Uri, options?: { encoding?: string }): Thenable<TextDocument>;
+	export function openTextDocument(path: string, options?: { encoding?: string }): Thenable<TextDocument>;
 }

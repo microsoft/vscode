@@ -225,9 +225,7 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 export interface MainThreadDocumentsShape extends IDisposable {
 	$tryCreateDocument(options?: { language?: string; content?: string }): Promise<UriComponents>;
 	$tryOpenDocument(uri: UriComponents): Promise<UriComponents>;
-	$trySaveDocument(uri: UriComponents): Promise<boolean>;
-	$tryDecode(uri: UriComponents, encoding: string): Promise<void>;
-	$tryEncode(uri: UriComponents, encoding: string): Promise<void>;
+	$trySaveDocument(uri: UriComponents, options?: { encoding?: string }): Promise<boolean>;
 }
 
 export interface ITextEditorConfigurationUpdate {

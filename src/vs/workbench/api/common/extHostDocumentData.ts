@@ -71,7 +71,10 @@ export class ExtHostDocumentData extends MirrorTextModel {
 					// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
 					return that._encoding;
 				},
-				save() { return that._save(); },
+				save(options?: { encoding?: string }) {
+					// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
+					return that._save(options);
+				},
 				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
 				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
 				get lineCount() { return that._lines.length; },
@@ -81,14 +84,6 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				validateRange(ran) { return that._validateRange(ran); },
 				validatePosition(pos) { return that._validatePosition(pos); },
 				getWordRangeAtPosition(pos, regexp?) { return that._getWordRangeAtPosition(pos, regexp); },
-				encode(encoding) {
-					// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
-					return that._encode(encoding);
-				},
-				decode(encoding) {
-					// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
-					return that._decode(encoding);
-				},
 				[Symbol.for('debug.description')]() {
 					return `TextDocument(${that._uri.toString()})`;
 				}
@@ -107,11 +102,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		this._isDirty = isDirty;
 	}
 
-	private _save(): Promise<boolean> {
+	private _save(options?: { encoding?: string }): Promise<boolean> {
 		if (this._isDisposed) {
 			return Promise.reject(new Error('Document has been closed'));
 		}
-		return this._proxy.$trySaveDocument(this._uri);
+		return this._proxy.$trySaveDocument(this._uri, options);
 	}
 
 	private _getTextInRange(_range: vscode.Range): string {
@@ -260,20 +255,6 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	_acceptEncoding(encoding: string): void {
 		ok(!this._isDisposed);
 		this._encoding = encoding;
-	}
-
-	private _decode(encoding: string): Thenable<void> {
-		if (this._isDisposed) {
-			return Promise.reject(new Error('Document has been closed'));
-		}
-		return this._proxy.$tryDecode(this._uri, encoding);
-	}
-
-	private _encode(encoding: string): Thenable<void> {
-		if (this._isDisposed) {
-			return Promise.reject(new Error('Document has been closed'));
-		}
-		return this._proxy.$tryEncode(this._uri, encoding);
 	}
 }
 

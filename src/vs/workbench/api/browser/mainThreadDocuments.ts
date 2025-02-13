@@ -214,9 +214,35 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	// --- from extension host process
 
-	async $trySaveDocument(uri: UriComponents): Promise<boolean> {
-		const target = await this._textFileService.save(URI.revive(uri));
+	async $trySaveDocument(uri: UriComponents, options?: { encoding?: string }): Promise<boolean> {
+		const inputUri = URI.revive(uri);
+
+		if (options?.encoding) {
+			return this.doTrySaveDocumentWithEncoding(inputUri, options.encoding);
+		}
+
+		return this.doTrySaveDocument(inputUri);
+	}
+
+	private async doTrySaveDocument(uri: URI): Promise<boolean> {
+		const target = await this._textFileService.save(uri);
 		return Boolean(target);
+	}
+
+	private async doTrySaveDocumentWithEncoding(uri: URI, encoding: string): Promise<boolean> {
+		const target = uri.scheme === Schemas.untitled ? this._textFileService.untitled.get(uri) : this._textFileService.files.get(uri);
+
+		if (target) {
+			let success = await target.setEncoding(encoding, EncodingMode.Encode);
+
+			if (uri.scheme === Schemas.untitled) {
+				success = await this.doTrySaveDocument(uri);
+			}
+
+			return success;
+		}
+
+		return false;
 	}
 
 	async $tryOpenDocument(uriData: UriComponents): Promise<URI> {
@@ -291,20 +317,5 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		Event.once(model.onDidRevert)(() => this._modelReferenceCollection.remove(resource));
 		this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
 		return resource;
-	}
-
-	async $tryDecode(uri: UriComponents, encoding: string): Promise<void> {
-		await this.setEncoding(uri, encoding, EncodingMode.Decode);
-	}
-
-	async $tryEncode(uri: UriComponents, encoding: string): Promise<void> {
-		await this.setEncoding(uri, encoding, EncodingMode.Encode);
-	}
-
-	private async setEncoding(uri: UriComponents, encoding: string, mode: EncodingMode): Promise<void> {
-		const inputUri = URI.revive(uri);
-		const target = inputUri.scheme === Schemas.untitled ? this._textFileService.untitled.get(inputUri) : this._textFileService.files.get(inputUri);
-
-		return target?.setEncoding(encoding, mode);
 	}
 }
