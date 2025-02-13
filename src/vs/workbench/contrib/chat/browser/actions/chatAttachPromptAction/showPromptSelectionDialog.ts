@@ -7,10 +7,10 @@ import { IChatWidget } from '../../chat.js';
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
-import { IPrompt, IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
+import { IPrompt, IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -181,7 +181,7 @@ export const showSelectPromptDialog = async (
 	// keep track of whether the `alt` (`option` on mac) key is
 	// pressed when a prompt item is selected in the dialog
 	let altOption = false;
-	if (!location) {
+	if (!widget) {
 		pickOptions.onKeyMods = (keyMods) => {
 			if (keyMods.alt) {
 				altOption = true;
