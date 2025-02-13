@@ -44,7 +44,7 @@ export interface ISuggestController {
 	selectNextSuggestion(): void;
 	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion<TerminalCompletionItem>, 'item' | 'model'>): void;
-	hideSuggestWidget(): void;
+	hideSuggestWidget(cancelAnyRequests: boolean): void;
 }
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
@@ -156,14 +156,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					this._promptInputModel = commandDetection.promptInputModel;
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
-						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget()),
+						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget(true)),
 					);
 					if (this._shouldSyncWhenReady) {
 						this._sync(this._promptInputModel);
 						this._shouldSyncWhenReady = false;
 					}
 				}
-				this._register(commandDetection.onCommandExecuted(() => this.hideSuggestWidget()));
 			} else {
 				this._promptInputModel = undefined;
 			}
@@ -408,7 +407,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Hide the widget if the latest character was a space
 		if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
-			this.hideSuggestWidget();
+			this.hideSuggestWidget(false);
 			return;
 		}
 
@@ -418,7 +417,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// only invalidated when whitespace is encountered.
 		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
 			if (this._currentPromptInputState.cursorIndex <= 0 || this._currentPromptInputState.value[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
-				this.hideSuggestWidget();
+				this.hideSuggestWidget(false);
 				return;
 			}
 		}
@@ -437,7 +436,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Hide and clear model if there are no more items
 		if (!this._suggestWidget.hasCompletions()) {
-			this.hideSuggestWidget();
+			this.hideSuggestWidget(false);
 			return;
 		}
 
@@ -710,10 +709,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
-		this.hideSuggestWidget();
+		this.hideSuggestWidget(true);
 	}
 
-	hideSuggestWidget(): void {
+	hideSuggestWidget(cancelAnyRequest: boolean): void {
+		if (cancelAnyRequest) {
+			this._cancellationTokenSource?.cancel();
+			this._cancellationTokenSource = undefined;
+		}
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();
