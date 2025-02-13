@@ -16,6 +16,7 @@ import { registerNotebookContribution } from '../../notebookEditorExtensions.js'
 import { NotebookCellDiffDecorator } from './notebookCellDiffDecorator.js';
 import { NotebookDeletedCellDecorator } from './notebookDeletedCellDecorator.js';
 import { NotebookInsertedCellDecorator } from './notebookInsertedCellDecorator.js';
+import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 
 export class NotebookInlineDiffDecorationContribution extends Disposable implements INotebookEditorContribution {
 	static ID: string = 'workbench.notebook.inlineDiffDecoration';
@@ -31,15 +32,19 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		private readonly notebookEditor: INotebookEditor,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotebookLoggingService private readonly logService: INotebookLoggingService
 	) {
 		super();
+		this.logService.debug('inlineDiff', 'Watching for previous model');
 
 		this._register(autorun((reader) => {
 			this.previous = this.notebookEditor.notebookOptions.previousModelToCompare.read(reader);
 			if (this.previous) {
+				this.logService.debug('inlineDiff', 'Previous model set');
 				if (this.notebookEditor.hasModel()) {
 					this.initialize();
 				} else {
+					this.logService.debug('inlineDiff', 'Waiting for model to attach');
 					this.listeners.push(Event.once(this.notebookEditor.onDidAttachViewModel)(() => this.initialize()));
 				}
 			}
@@ -57,9 +62,11 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		this.deletedCellDecorator?.dispose();
 		this.cachedNotebookDiff = undefined;
 		this.listeners = [];
+		this.logService.debug('inlineDiff', 'Cleared decorations and listeners');
 	}
 
 	override dispose() {
+		this.logService.debug('inlineDiff', 'Disposing');
 		this.clear();
 		super.dispose();
 	}
@@ -84,11 +91,13 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 			this.listeners.push(onContentChange(() => this._update()));
 			this.listeners.push(onOriginalContentChange(() => this._update()));
 		}
+		this.logService.debug('inlineDiff', 'Initialized');
 	}
 
 	private async _update() {
 		const current = this.notebookEditor.getViewModel()?.notebookDocument;
 		if (!this.previous || !current) {
+			this.logService.debug('inlineDiff', 'Update skipped - no original or current document');
 			return;
 		}
 
@@ -96,8 +105,14 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 			this.cachedNotebookDiff.originalVersion !== this.previous.versionId ||
 			this.cachedNotebookDiff.version !== current.versionId) {
 
-			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.previous.uri, current.uri);
-			const diffInfo = computeDiff(this.previous, current, notebookDiff);
+			let diffInfo: { cellDiffInfo: CellDiffInfo[] } = { cellDiffInfo: [] };
+			try {
+				const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.previous.uri, current.uri);
+				diffInfo = computeDiff(this.previous, current, notebookDiff);
+			} catch (e) {
+				this.logService.error('inlineDiff', 'Error computing diff:\n' + e);
+				return;
+			}
 
 			this.cachedNotebookDiff = { cellDiffInfo: diffInfo.cellDiffInfo, originalVersion: this.previous.versionId, version: current.versionId };
 
