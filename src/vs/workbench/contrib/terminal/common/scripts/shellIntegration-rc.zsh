@@ -32,14 +32,13 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 	fi
 fi
 
-zsh_version=${ZSH_VERSION}
-use_associative_array=0
-vsc_env_keys=()
-vsc_env_values=()
+__vsc_use_aa=0
+__vsc_env_keys=()
+__vsc_env_values=()
 
 # Associative array are only available in zsh 4.3 or later
-if (( zsh_version >= 4.3 )); then
-	use_associative_array=1
+if (( $ZSH_VERSION >= 4.3 )); then
+	__vsc_use_aa=1
 	typeset -A vsc_aa_env
 fi
 
@@ -128,7 +127,7 @@ __vsc_update_cwd() {
 __update_env_cache_aa() {
 	local key="$1"
 	local value="$2"
-	if [ $use_associative_array -eq 1 ]; then
+	if [ $__vsc_use_aa -eq 1 ]; then
 		if [[ "${vsc_aa_env["$key"]}" != "$value" ]]; then
 			vsc_aa_env["$key"]="$value"
 			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
@@ -137,7 +136,7 @@ __update_env_cache_aa() {
 }
 
 __track_missing_env_vars_aa() {
-	if [ $use_associative_array -eq 1 ]; then
+	if [ $__vsc_use_aa -eq 1 ]; then
 		typeset -A currentEnvMap
 		while IFS='=' read -r key value; do
 			currentEnvMap["$key"]="$value"
@@ -157,10 +156,10 @@ __update_env_cache() {
 	local key="$1"
 	local value="$2"
 
-	for (( i=1; i <= $#vsc_env_keys; i++ )); do
-		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
-			if [[ "${vsc_env_values[$i]}" != "$value" ]]; then
-				vsc_env_values[$i]="$value"
+	for (( i=1; i <= $#__vsc_env_keys; i++ )); do
+		if [[ "${__vsc_env_keys[$i]}" == "$key" ]]; then
+			if [[ "${__vsc_env_values[$i]}" != "$value" ]]; then
+				__vsc_env_values[$i]="$value"
 				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 			fi
 			return
@@ -168,8 +167,8 @@ __update_env_cache() {
 	done
 
 		# Key does not exist so add key, value pair
-		vsc_env_keys+=("$key")
-		vsc_env_values+=("$value")
+		__vsc_env_keys+=("$key")
+		__vsc_env_values+=("$value")
 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 }
 
@@ -180,32 +179,32 @@ __track_missing_env_vars() {
 		currentEnvKeys+=("$key");
 	done < <(env);
 
-	# Compare vsc_env_keys with user's currentEnvKeys
-	for ((i = 1; i <= ${#vsc_env_keys[@]}; i++)); do
+	# Compare __vsc_env_keys with user's currentEnvKeys
+	for ((i = 1; i <= ${#__vsc_env_keys[@]}; i++)); do
 		local found=0;
 		for envKey in "${currentEnvKeys[@]}"; do
-			if [[ "${vsc_env_keys[$i]}" == "$envKey" ]]; then
+			if [[ "${__vsc_env_keys[$i]}" == "$envKey" ]]; then
 				found=1;
 				break;
 			fi;
 		done;
 		if [ "$found" = 0 ]; then
-			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${vsc_env_keys[$i]}" "$(__vsc_escape_value "${vsc_env_values[$i]}")" "$__vsc_nonce";
-			unset "vsc_env_keys[$i]";
-			unset "vsc_env_values[$i]";
+			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${__vsc_env_keys[$i]}" "$(__vsc_escape_value "${__vsc_env_values[$i]}")" "$__vsc_nonce";
+			unset "__vsc_env_keys[$i]";
+			unset "__vsc_env_values[$i]";
 		fi;
 	done;
 
 	# Remove gaps from unset
-	vsc_env_keys=("${(@)vsc_env_keys}");
-	vsc_env_values=("${(@)vsc_env_values}");
+	__vsc_env_keys=("${(@)__vsc_env_keys}");
+	__vsc_env_values=("${(@)__vsc_env_values}");
 }
 
 
 __vsc_update_env() {
-	if [ "$__vscode_shell_env_reporting" == "1" ]; then
+	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
-		if [ $use_associative_array -eq 1 ]; then
+		if [ $__vsc_use_aa -eq 1 ]; then
 			if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
 				# Associative array is empty, do not diff, just add
 				while IFS='=' read -r key value; do
@@ -222,11 +221,11 @@ __vsc_update_env() {
 			fi
 		else
 			# Two arrays approach
-			if [[ ${#vsc_env_keys[@]} -eq 0 ]] && [[ ${#vsc_env_values[@]} -eq 0 ]]; then
+			if [[ ${#__vsc_env_keys[@]} -eq 0 ]] && [[ ${#__vsc_env_values[@]} -eq 0 ]]; then
 				# Non-associative arrays are both empty, do not diff, just add
 				while IFS='=' read -r key value; do
-					vsc_env_keys+=("$key")
-					vsc_env_values+=("$value")
+					__vsc_env_keys+=("$key")
+					__vsc_env_values+=("$value")
 					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 				done < <(env)
 			else
