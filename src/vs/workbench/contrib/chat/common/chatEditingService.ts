@@ -91,7 +91,7 @@ export interface IChatEditingSession extends IDisposable {
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
 	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
 
-	restoreSnapshot(requestId: string): Promise<void>;
+	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
 
 	/**
