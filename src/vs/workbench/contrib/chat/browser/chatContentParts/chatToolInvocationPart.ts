@@ -125,7 +125,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		}
 
 		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
-			toolInvocation.isCompleteDeferred.p.then(() => this._onNeedsRerender.fire());
+			toolInvocation.isCompletePromise.then(() => this._onNeedsRerender.fire());
 		}
 	}
 }

@@ -566,7 +566,7 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-export const rerunTaskIcon = registerIcon('rerun-task', Codicon.rerunTask, nls.localize('rerunTaskIcon', 'View icon of the rerun task.'));
+export const rerunTaskIcon = registerIcon('rerun-task', Codicon.refresh, nls.localize('rerunTaskIcon', 'View icon of the rerun task.'));
 export const RerunForActiveTerminalCommandId = 'workbench.action.tasks.rerunForActiveTerminal';
 registerAction2(class extends Action2 {
 	constructor() {

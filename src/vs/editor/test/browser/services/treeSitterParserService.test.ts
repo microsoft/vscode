@@ -37,16 +37,16 @@ class MockParser implements Parser.Parser {
 
 class MockTreeSitterImporter implements ITreeSitterImporter {
 	_serviceBrand: undefined;
-	getParserClass(): Promise<typeof Parser.Parser> {
+	async getParserClass(): Promise<typeof Parser.Parser> {
 		return MockParser as any;
 	}
-	getLanguageClass(): Promise<typeof Parser.Language> {
+	async getLanguageClass(): Promise<typeof Parser.Language> {
 		return MockLanguage as any;
 	}
-	getQueryClass(): Promise<typeof Parser.Query> {
+	async getQueryClass(): Promise<typeof Parser.Query> {
 		throw new Error('Method not implemented.');
 	}
-
+	parserClass = MockParser as any;
 }
 
 class MockTree implements Parser.Tree {

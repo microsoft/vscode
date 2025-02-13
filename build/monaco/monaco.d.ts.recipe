@@ -109,7 +109,7 @@ export interface ICommandMetadata {
 #include(vs/platform/markers/common/markers): IMarker, IMarkerData, IRelatedInformation
 #include(vs/editor/standalone/browser/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
-#include(vs/base/common/themables): ThemeColor
+#include(vs/base/common/themables): ThemeColor, ThemeIcon
 #include(vs/editor/common/core/editOperation): ISingleEditOperation
 #include(vs/editor/common/core/wordHelper): IWordAtPosition
 #includeAll(vs/editor/common/model): IScrollEvent
@@ -136,7 +136,7 @@ declare namespace monaco.languages {
 #include(vs/editor/common/languageSelector): LanguageSelector, LanguageFilter
 #includeAll(vs/editor/standalone/browser/standaloneLanguages;languages.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/languages/languageConfiguration):
-#includeAll(vs/editor/common/languages;IMarkerData=>editor.IMarkerData;ISingleEditOperation=>editor.ISingleEditOperation;model.=>editor.): Token
+#includeAll(vs/editor/common/languages;IMarkerData=>editor.IMarkerData;ISingleEditOperation=>editor.ISingleEditOperation;model.=>editor.;ThemeIcon=>editor.ThemeIcon): Token
 #include(vs/editor/common/languages/language): ILanguageExtensionPoint
 #includeAll(vs/editor/standalone/common/monarch/monarchTypes):
 

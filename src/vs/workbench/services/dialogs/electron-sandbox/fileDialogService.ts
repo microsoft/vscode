@@ -148,7 +148,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		options.defaultUri = options.defaultUri ? URI.file(options.defaultUri.path) : undefined;
 		return {
 			defaultPath: options.defaultUri?.fsPath,
-			buttonLabel: options.saveLabel,
+			buttonLabel: typeof options.saveLabel === 'string' ? options.saveLabel : options.saveLabel?.withMnemonic,
 			filters: options.filters,
 			title: options.title,
 			targetWindowId: getActiveWindow().vscodeWindowId
@@ -178,7 +178,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const newOptions: OpenDialogOptions & { properties: string[] } & INativeHostOptions = {
 			title: options.title,
 			defaultPath: options.defaultUri?.fsPath,
-			buttonLabel: options.openLabel,
+			buttonLabel: typeof options.openLabel === 'string' ? options.openLabel : options.openLabel?.withMnemonic,
 			filters: options.filters,
 			properties: [],
 			targetWindowId: getActiveWindow().vscodeWindowId

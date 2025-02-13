@@ -48,6 +48,7 @@ import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { DiffEditorHeightCalculatorService, IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { NotebookInlineDiffWidget } from './inlineDiff/notebookInlineDiffWidget.js';
 
 const $ = DOM.$;
 
@@ -95,13 +96,15 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _overflowContainer!: HTMLElement;
 	private _overviewRulerContainer!: HTMLElement;
 	private _overviewRuler!: NotebookDiffOverviewRuler;
-	private _dimension: DOM.Dimension | null = null;
+	private _dimension: DOM.Dimension | undefined = undefined;
 	private notebookDiffViewModel?: INotebookDiffViewModel;
 	private _list!: NotebookTextDiffList;
 	private _modifiedWebview: BackLayerWebView<IDiffCellInfo> | null = null;
 	private _originalWebview: BackLayerWebView<IDiffCellInfo> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
 	private _fontInfo: FontInfo | undefined;
+	private _inlineView = false;
+	private _lastLayoutProperties: { dimension: DOM.Dimension; position: DOM.IDomPosition } | undefined;
 
 	private readonly _onMouseUp = this._register(new Emitter<{ readonly event: MouseEvent; readonly target: IDiffElementViewModelBase }>());
 	public readonly onMouseUp = this._onMouseUp.event;
@@ -113,9 +116,17 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _model: INotebookDiffEditorModel | null = null;
 	private readonly diffEditorCalcuator: IDiffEditorHeightCalculatorService;
 	private readonly _modifiedResourceDisposableStore = this._register(new DisposableStore());
+	private inlineDiffWidget: NotebookInlineDiffWidget | undefined;
 
 	get textModel() {
 		return this._model?.modified.notebook;
+	}
+
+	get inlineNotebookEditor() {
+		if (this._inlineView) {
+			return this.inlineDiffWidget?.editorWidget;
+		}
+		return undefined;
 	}
 
 	private _revealFirst: boolean;
@@ -124,7 +135,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	protected _onDidDynamicOutputRendered = this._register(new Emitter<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>());
 	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
 
-	private _notebookOptions: NotebookOptions;
+	private readonly _notebookOptions: NotebookOptions;
 
 	get notebookOptions() {
 		return this._notebookOptions;
@@ -153,7 +164,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
 		this.diffEditorCalcuator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo.lineHeight);
@@ -274,6 +285,22 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// throw new Error('Method not implemented.');
 	}
 
+	async toggleInlineView(): Promise<void> {
+		this._inlineView = !this._inlineView;
+
+		if (!this._lastLayoutProperties) {
+			return;
+		}
+
+		if (this._inlineView) {
+			this.layout(this._lastLayoutProperties?.dimension, this._lastLayoutProperties?.position);
+			this.inlineDiffWidget?.show(this.input as NotebookDiffEditorInput, this._model?.modified.notebook, this._model?.original.notebook, this._options as INotebookEditorOptions | undefined);
+		} else {
+			this.layout(this._lastLayoutProperties?.dimension, this._lastLayoutProperties?.position);
+			this.inlineDiffWidget?.hide();
+		}
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
 		this._overflowContainer = document.createElement('div');
@@ -337,6 +364,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				// }
 			}
 		);
+
+		this.inlineDiffWidget = this._register(this.instantiationService.createInstance(NotebookInlineDiffWidget, this._rootElement, this.group.id, this.window, this.notebookOptions, this._dimension));
 
 		this._register(this._list);
 		this._register(this._list.onMouseUp(e => {
@@ -430,6 +459,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	override async setInput(input: NotebookDiffEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		this.inlineDiffWidget?.hide();
+
 		await super.setInput(input, options, context, token);
 
 		const model = await input.resolve();
@@ -441,6 +472,14 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._model = model;
 		if (this._model === null) {
 			return;
+		}
+
+		if (this._inlineView) {
+			this._listViewContainer.style.display = 'none';
+			this.inlineDiffWidget?.show(input, model.modified.notebook, model.original.notebook, options);
+		} else {
+			this._listViewContainer.style.display = 'block';
+			this.inlineDiffWidget?.hide();
 		}
 
 		this._revealFirst = true;
@@ -470,6 +509,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		await this.updateLayout(this._layoutCancellationTokenSource.token, options?.cellSelections ? cellRangesToIndexes(options.cellSelections) : undefined);
+	}
+
+	override setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		if (!visible) {
+			this.inlineDiffWidget?.hide();
+		}
 	}
 
 	private _detachModel() {
@@ -821,6 +867,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	override clearInput(): void {
+		this.inlineDiffWidget?.hide();
+
 		super.clearInput();
 
 		this._modifiedResourceDisposableStore.clear();
@@ -852,7 +900,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		};
 	}
 
-	layout(dimension: DOM.Dimension, _position: DOM.IDomPosition): void {
+	layout(dimension: DOM.Dimension, position: DOM.IDomPosition): void {
 		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
 		const overviewRulerEnabled = this.isOverviewRulerEnabled();
@@ -861,26 +909,35 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._listViewContainer.style.height = `${dimension.height}px`;
 		this._listViewContainer.style.width = `${this._dimension.width}px`;
 
-		this._list?.layout(this._dimension.height, this._dimension.width);
+		if (this._inlineView) {
+			this._listViewContainer.style.display = 'none';
+			this.inlineDiffWidget?.setLayout(dimension, position);
+		} else {
+			this.inlineDiffWidget?.hide();
+			this._listViewContainer.style.display = 'block';
+			this._list?.layout(this._dimension.height, this._dimension.width);
 
-		if (this._modifiedWebview) {
-			this._modifiedWebview.element.style.width = `calc(50% - 16px)`;
-			this._modifiedWebview.element.style.left = `calc(50%)`;
+			if (this._modifiedWebview) {
+				this._modifiedWebview.element.style.width = `calc(50% - 16px)`;
+				this._modifiedWebview.element.style.left = `calc(50%)`;
+			}
+
+			if (this._originalWebview) {
+				this._originalWebview.element.style.width = `calc(50% - 16px)`;
+				this._originalWebview.element.style.left = `16px`;
+			}
+
+			if (this._webviewTransparentCover) {
+				this._webviewTransparentCover.style.height = `${this._dimension.height}px`;
+				this._webviewTransparentCover.style.width = `${this._dimension.width}px`;
+			}
+
+			if (overviewRulerEnabled) {
+				this._overviewRuler.layout();
+			}
 		}
 
-		if (this._originalWebview) {
-			this._originalWebview.element.style.width = `calc(50% - 16px)`;
-			this._originalWebview.element.style.left = `16px`;
-		}
-
-		if (this._webviewTransparentCover) {
-			this._webviewTransparentCover.style.height = `${this._dimension.height}px`;
-			this._webviewTransparentCover.style.width = `${this._dimension.width}px`;
-		}
-
-		if (overviewRulerEnabled) {
-			this._overviewRuler.layout();
-		}
+		this._lastLayoutProperties = { dimension, position };
 
 		this._eventDispatcher?.emit([new NotebookDiffLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}

@@ -503,9 +503,6 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 					this._terminalService.createTerminal({ location: { parentTerminal: e } });
 				});
 			})),
-			this._register(new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
-				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
-			}))
 		];
 		if (instance.shellLaunchConfig.tabActions) {
 			for (const action of instance.shellLaunchConfig.tabActions) {
@@ -514,6 +511,9 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 				})));
 			}
 		}
+		actions.push(this._register(new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+			this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
+		})));
 		// TODO: Cache these in a way that will use the correct instance
 		template.actionBar.clear();
 		for (const action of actions) {

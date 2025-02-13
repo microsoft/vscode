@@ -14,6 +14,7 @@ import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractSymbolDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
@@ -50,7 +51,8 @@ export class ChatDragAndDrop extends Themable {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IFileService protected readonly fileService: IFileService,
 		@IEditorService protected readonly editorService: IEditorService,
-		@IDialogService protected readonly dialogService: IDialogService
+		@IDialogService protected readonly dialogService: IDialogService,
+		@ITextModelService protected readonly textModelService: ITextModelService
 	) {
 		super(themeService);
 
@@ -266,13 +268,13 @@ export class ChatDragAndDrop extends Themable {
 			return undefined;
 		}
 
-		return getResourceAttachContext(editor.resource, stat.isDirectory);
+		return await getResourceAttachContext(editor.resource, stat.isDirectory, this.textModelService);
 	}
 
 	private async resolveUntitledAttachContext(editor: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
 		// If the resource is known, we can use it directly
 		if (editor.resource) {
-			return getResourceAttachContext(editor.resource, false);
+			return await getResourceAttachContext(editor.resource, false, this.textModelService);
 		}
 
 		// Otherwise, we need to check if the contents are already open in another editor
@@ -281,7 +283,7 @@ export class ChatDragAndDrop extends Themable {
 			const model = await canidate.resolve();
 			const contents = model.textEditorModel?.getValue();
 			if (contents === editor.contents) {
-				return getResourceAttachContext(canidate.resource, false);
+				return await getResourceAttachContext(canidate.resource, false, this.textModelService);
 			}
 		}
 
@@ -352,9 +354,10 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@IEditorService editorService: IEditorService,
-		@IDialogService dialogService: IDialogService
+		@IDialogService dialogService: IDialogService,
+		@ITextModelService textModelService: ITextModelService
 	) {
-		super(attachmentModel, styles, themeService, extensionService, fileService, editorService, dialogService);
+		super(attachmentModel, styles, themeService, extensionService, fileService, editorService, dialogService, textModelService);
 	}
 
 	protected override handleDrop(context: IChatRequestVariableEntry[]): void {
@@ -376,8 +379,8 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 			}
 
 			const resolvedFiles = await resolveFilesInDirectory(directory, fileSystemProvider, true);
-			const resolvedFileContext = resolvedFiles.map(file => getResourceAttachContext(file, false)).filter(context => !!context);
-			nonDirectoryContext.push(...resolvedFileContext);
+			const resolvedFileContext = await Promise.all(resolvedFiles.map(file => getResourceAttachContext(file, false, this.textModelService)));
+			nonDirectoryContext.push(...resolvedFileContext.filter(context => !!context));
 		}
 
 		super.handleDrop(nonDirectoryContext);
@@ -417,13 +420,22 @@ async function resolveFilesInDirectory(resource: URI, fileSystemProvider: IFileS
 	return [...files, ...subFiles.flat()];
 }
 
-function getResourceAttachContext(resource: URI, isDirectory: boolean): IChatRequestVariableEntry | undefined {
+async function getResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
+	let isOmitted = false;
+	try {
+		const createdModel = await textModelService.createModelReference(resource);
+		createdModel.dispose();
+	} catch {
+		isOmitted = true;
+	}
+
 	return {
 		value: resource,
 		id: resource.toString(),
 		name: basename(resource),
 		isFile: !isDirectory,
 		isDirectory,
+		isOmitted
 	};
 }
 

@@ -12,8 +12,8 @@ import {
 } from 'vscode';
 import { INpmScriptInfo, readScripts } from './readScripts';
 import {
-	createScriptRunnerTask,
-	startDebugging
+	createTask,
+	getPackageManager, startDebugging
 } from './tasks';
 
 
@@ -114,7 +114,7 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		const documentUri = args.documentUri;
 		const folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			const task = await createScriptRunnerTask(this.context, script, folder, documentUri);
+			const task = await createTask(await getPackageManager(this.context, folder.uri), script, ['run', script], folder, documentUri);
 			await tasks.executeTask(task);
 		}
 	}

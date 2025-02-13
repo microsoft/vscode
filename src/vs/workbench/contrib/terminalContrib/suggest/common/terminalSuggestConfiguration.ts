@@ -17,6 +17,7 @@ export const enum TerminalSuggestSettingId {
 	Providers = 'terminal.integrated.suggest.providers',
 	ShowStatusBar = 'terminal.integrated.suggest.showStatusBar',
 	CdPath = 'terminal.integrated.suggest.cdPath',
+	InlineSuggestion = 'terminal.integrated.suggest.inlineSuggestion',
 }
 
 export const windowsDefaultExecutableExtensions: string[] = [
@@ -45,10 +46,14 @@ export interface ITerminalSuggestConfiguration {
 	quickSuggestions: boolean;
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
+	windowsExecutableExtensions: { [key: string]: boolean };
 	providers: {
 		'terminal-suggest': boolean;
 		'pwsh-shell-integration': boolean;
 	};
+	showStatusBar: boolean;
+	cdPath: 'off' | 'relative' | 'absolute';
+	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -126,6 +131,19 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		default: 'absolute',
 		tags: ['preview']
 	},
+	[TerminalSuggestSettingId.InlineSuggestion]: {
+		restricted: true,
+		markdownDescription: localize('suggest.inlineSuggestion', "Controls whether the shell's inline suggestion should be detected and how it is scored."),
+		type: 'string',
+		enum: ['off', 'alwaysOnTopExceptExactMatch', 'alwaysOnTop'],
+		markdownEnumDescriptions: [
+			localize('suggest.inlineSuggestion.off', "Disable the feature."),
+			localize('suggest.inlineSuggestion.alwaysOnTopExceptExactMatch', "Enable the feature and sort the inline suggestion without forcing it to be on top. This means that exact matches will be will be above the inline suggestion."),
+			localize('suggest.inlineSuggestion.alwaysOnTop', "Enable the feature and always put the inline suggestion on top."),
+		],
+		default: 'alwaysOnTop',
+		tags: ['preview']
+	}
 };
 
 

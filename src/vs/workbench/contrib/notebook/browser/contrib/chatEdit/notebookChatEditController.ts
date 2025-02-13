@@ -11,7 +11,7 @@ import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrow
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { NotebookDeletedCellDecorator, NotebookInsertedCellDecorator, NotebookCellDiffDecorator } from './notebookCellDecorators.js';
+import { NotebookCellDiffDecorator } from './notebookCellDecorators.js';
 import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer, NotebookModelSynchronizerFactory } from './notebookSynchronizer.js';
 import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
 import { debouncedObservable2 } from '../../../../../../base/common/observableInternal/utils.js';
@@ -23,6 +23,8 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { ctxNotebookHasEditorModification } from './notebookChatEditContext.js';
+import { NotebookDeletedCellDecorator } from '../../diff/inlineDiff/notebookDeletedCellDecorator.js';
+import { NotebookInsertedCellDecorator } from '../../diff/inlineDiff/notebookInsertedCellDecorator.js';
 
 export class NotebookChatEditorControllerContrib extends Disposable implements INotebookEditorContribution {
 

@@ -44,6 +44,7 @@ export interface IBaseChatRequestVariableEntry {
 	isDirectory?: boolean;
 	isTool?: boolean;
 	isImage?: boolean;
+	isOmitted?: boolean;
 }
 
 export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {

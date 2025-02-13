@@ -146,7 +146,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 					(tx) => {
 						getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
 
-						for (const o of this.observers) {
+						for (const o of this._observers) {
 							tx.updateObserver(o, this);
 							o.handleChange(this, undefined);
 						}
@@ -233,7 +233,7 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	private readonly handleEvent = () => {
 		transaction(
 			(tx) => {
-				for (const o of this.observers) {
+				for (const o of this._observers) {
 					tx.updateObserver(o, this);
 					o.handleChange(this, undefined);
 				}
@@ -295,7 +295,7 @@ class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements
 			return;
 		}
 
-		for (const o of this.observers) {
+		for (const o of this._observers) {
 			tx.updateObserver(o, this);
 			o.handleChange(this, change);
 		}

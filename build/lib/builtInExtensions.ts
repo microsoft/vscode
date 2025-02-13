@@ -21,6 +21,7 @@ export interface IExtensionDefinition {
 	sha256: string;
 	repo: string;
 	platforms?: string[];
+	vsix?: string;
 	metadata: {
 		id: string;
 		publisherId: {
@@ -68,9 +69,17 @@ function isUpToDate(extension: IExtensionDefinition): boolean {
 }
 
 function getExtensionDownloadStream(extension: IExtensionDefinition) {
-	const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
-	return (galleryServiceUrl ? ext.fromMarketplace(galleryServiceUrl, extension) : ext.fromGithub(extension))
-		.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+	let input: Stream;
+
+	if (extension.vsix) {
+		input = ext.fromVsix(path.join(root, extension.vsix), extension);
+	} else if (productjson.extensionsGallery?.serviceUrl) {
+		input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
+	} else {
+		input = ext.fromGithub(extension);
+	}
+
+	return input.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
 }
 
 export function getExtensionStream(extension: IExtensionDefinition) {

@@ -24,6 +24,9 @@ $env:VSCODE_NONCE = $null
 $isStable = $env:VSCODE_STABLE
 $env:VSCODE_STABLE = $null
 
+$__vscode_shell_env_reporting = $env:VSCODE_SHELL_ENV_REPORTING
+$env:VSCODE_SHELL_ENV_REPORTING = $null
+
 $osVersion = [System.Environment]::OSVersion.Version
 $isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
 
@@ -91,7 +94,7 @@ function Global:Prompt() {
 
 	# Send current environment variables as JSON
 	# OSC 633 ; Env ; <Environment> ; <Nonce>
-	if ($isStable -eq "0") {
+	if ($__vscode_shell_env_reporting -eq "1") {
 		$envMap = @{}
 		Get-ChildItem Env: | ForEach-Object { $envMap[$_.Name] = $_.Value }
 		$envJson = $envMap | ConvertTo-Json -Compress

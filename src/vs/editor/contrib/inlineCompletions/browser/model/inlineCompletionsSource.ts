@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareUndefinedSmallest, numberComparator } from '../../../../../base/common/arrays.js';
+import { findLastMax } from '../../../../../base/common/arraysFind.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
@@ -97,11 +99,17 @@ export class InlineCompletionsSource extends Disposable {
 		const source = new CancellationTokenSource();
 
 		const promise = (async () => {
+			const recommendedDebounceValue = this._debounceValue.get(this._textModel);
+			const debounceValue = findLastMax(
+				this._languageFeaturesService.inlineCompletionsProvider.all(this._textModel).map(p => p.debounceDelayMs),
+				compareUndefinedSmallest(numberComparator)
+			) ?? recommendedDebounceValue;
+
 			// Debounce in any case if update is ongoing
 			const shouldDebounce = updateOngoing || (withDebounce && context.triggerKind === InlineCompletionTriggerKind.Automatic);
 			if (shouldDebounce) {
 				// This debounces the operation
-				await wait(this._debounceValue.get(this._textModel), source.token);
+				await wait(debounceValue, source.token);
 			}
 
 			if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {

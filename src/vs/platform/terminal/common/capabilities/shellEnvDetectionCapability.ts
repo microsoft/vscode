@@ -59,8 +59,45 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		if (!this._pendingEnv) {
 			return;
 		}
-		this._env = this._pendingEnv;
+		this.applyEnvironmentDiff(this._pendingEnv, isTrusted);
 		this._pendingEnv = undefined;
-		this._onDidChangeEnv.fire(this._env);
+	}
+
+	deleteEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
+		if (!isTrusted) {
+			return;
+		}
+		if (key !== undefined && value !== undefined) {
+			this._env.delete(key);
+			this._pendingEnv?.delete(key);
+			this._onDidChangeEnv.fire(this._env);
+		}
+		return;
+	}
+
+	// Make sure to update this.env to the latest, fire event if there is a diff
+	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void {
+		if (!isTrusted) {
+			return;
+		}
+
+		let envDiffers: boolean = false;
+
+		for (const [key, value] of env.entries()) {
+			if (this._env.has(key) && this._env.get(key) === value) {
+				// Do nothing
+			} else if (this.env.has(key) && value !== this.env.get(key)) {
+				this._env.set(key, value);
+				envDiffers = true;
+			} else if (!this.env.has(key)) {
+				this._env.set(key, value);
+				envDiffers = true;
+			}
+		}
+
+		if (envDiffers) {
+			this._onDidChangeEnv.fire(this._env);
+			return;
+		}
 	}
 }

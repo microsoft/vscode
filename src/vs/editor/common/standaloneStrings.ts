@@ -12,6 +12,7 @@ export namespace AccessibilityHelpNLS {
 	export const editableDiffEditor = nls.localize("editableDiffEditor", "You are in a pane of a diff editor.");
 	export const readonlyEditor = nls.localize("readonlyEditor", "You are in a read-only code editor.");
 	export const editableEditor = nls.localize("editableEditor", "You are in a code editor.");
+	export const activeEditorState = nls.localize("activeEditorState", "Get information about the active editor such as Modified, Problems, and more by setting activeEditorState as a part of the window.title setting.");
 	export const changeConfigToOnMac = nls.localize("changeConfigToOnMac", "Configure the application to be optimized for usage with a Screen Reader (Command+E).");
 	export const changeConfigToOnWinLinux = nls.localize("changeConfigToOnWinLinux", "Configure the application to be optimized for usage with a Screen Reader (Control+E).");
 	export const auto_on = nls.localize("auto_on", "The application is configured to be optimized for usage with a Screen Reader.");

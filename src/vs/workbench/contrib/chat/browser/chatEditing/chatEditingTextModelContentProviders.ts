@@ -38,11 +38,12 @@ export class ChatEditingTextModelContentProvider implements ITextModelContentPro
 
 		const session = this._chatEditingService.getEditingSession(data.chatSessionId);
 
-		if (!(session instanceof ChatEditingSession)) {
+		const entry = session?.entries.get().find(candidate => candidate.entryId === data.documentId);
+		if (!entry) {
 			return null;
 		}
 
-		return session.getVirtualModel(data.documentId);
+		return this._modelService.getModel(entry.originalURI);
 	}
 }
 

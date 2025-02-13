@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LANGUAGE_SELECTOR } from '../constants.js';
-import { IPromptSyntaxService } from '../service/types.js';
+import { IPromptsService } from '../service/types.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
@@ -23,7 +23,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
  */
 export class PromptLinkProvider extends Disposable implements LinkProvider {
 	constructor(
-		@IPromptSyntaxService private readonly promptSyntaxService: IPromptSyntaxService,
+		@IPromptsService private readonly promptSyntaxService: IPromptsService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 	) {
 		super();
@@ -43,7 +43,7 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 			new CancellationError(),
 		);
 
-		const parser = this.promptSyntaxService.getParserFor(model);
+		const parser = this.promptSyntaxService.getSyntaxParserFor(model);
 		assert(
 			!parser.disposed,
 			'Prompt parser must not be disposed.',

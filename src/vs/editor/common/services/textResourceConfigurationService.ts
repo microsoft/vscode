@@ -106,7 +106,14 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 			affectedKeys: configurationChangeEvent.affectedKeys,
 			affectsConfiguration: (resource: URI | undefined, configuration: string) => {
 				const overrideIdentifier = resource ? this.getLanguage(resource, null) : undefined;
-				return configurationChangeEvent.affectsConfiguration(configuration, { resource, overrideIdentifier });
+				if (configurationChangeEvent.affectsConfiguration(configuration, { resource, overrideIdentifier })) {
+					return true;
+				}
+				if (overrideIdentifier) {
+					//TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/240410
+					return configurationChangeEvent.affectedKeys.has(`[${overrideIdentifier}]`);
+				}
+				return false;
 			}
 		};
 	}

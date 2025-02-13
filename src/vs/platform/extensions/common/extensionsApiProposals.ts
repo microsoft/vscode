@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) 2025 EthicalCoder. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
@@ -300,9 +300,6 @@ const _allApiProposals = {
 	},
 	scmMultiDiffEditor: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.scmMultiDiffEditor.d.ts',
-	},
-	scmResourceGroupState: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.scmResourceGroupState.d.ts',
 	},
 	scmSelectedProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.scmSelectedProvider.d.ts',

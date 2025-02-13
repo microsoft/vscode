@@ -1392,7 +1392,7 @@ export class Repository {
 		}
 
 		const { mode, object, size } = elements[0];
-		return { mode, object, size: parseInt(size) };
+		return { mode, object, size: parseInt(size) || 0 };
 	}
 
 	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {

@@ -39,7 +39,6 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedFileEntry, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
@@ -167,7 +166,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	constructor(
 		readonly chatSessionId: string,
 		readonly isGlobalEditingSession: boolean,
-		private editingSessionFileLimitPromise: Promise<number>,
 		private _lookupExternalEntry: (uri: URI) => ChatEditingModifiedFileEntry | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
@@ -179,7 +177,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IChatService private readonly _chatService: IChatService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 	) {
 		super();
 	}
@@ -578,13 +575,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._onDidDispose.dispose();
 	}
 
-	getVirtualModel(documentId: string): ITextModel | null {
-		this._assertNotDisposed();
-
-		const entry = this._entriesObs.get().find(e => e.entryId === documentId);
-		return entry?.originalModel ?? null;
-	}
-
 	acceptStreamingEditsStart(): void {
 		if (this._state.get() === ChatEditingSessionState.Disposed) {
 			// we don't throw in this case because there could be a builder still connected to a disposed session
@@ -715,13 +705,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
-		if (!this._chatAgentService.toolsAgentModeEnabled && !this._entriesObs.get().find(e => isEqual(e.modifiedURI, resource)) && this._entriesObs.get().length >= (await this.editingSessionFileLimitPromise)) {
-			// Do not create files in a single editing session that would be in excess of our limit.
-			// TODO- The agent mode check is done weirdly here because we don't know whether agent mode is enabled or not at the moment the chat editing session is created when the window is loading.
-			// Expecting that the limit will be removed soon anyway...
-			return;
-		}
-
 		// Make these getters because the response result is not available when the file first starts to be edited
 		const telemetryInfo = new class {
 			get agentId() { return responseModel.agent?.id; }

@@ -13,10 +13,9 @@ import {
 } from 'vscode';
 import { readScripts } from './readScripts';
 import {
-	createInstallationTask, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
+	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
 	NpmTaskProvider,
 	startDebugging,
-	detectPackageManager,
 	ITaskWithLocation,
 	INSTALL_SCRIPT
 } from './tasks';
@@ -151,8 +150,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private async runScript(script: NpmScript) {
-		// Call detectPackageManager to trigger the multiple lock files warning.
-		await detectPackageManager(script.getFolder().uri, this.context, true);
+		// Call getPackageManager to trigger the multiple lock files warning.
+		await getPackageManager(this.context, script.getFolder().uri);
 		tasks.executeTask(script.task);
 	}
 
@@ -182,7 +181,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		const task = await createInstallationTask(this.context, selection.folder.workspaceFolder, uri);
+		const task = await createTask(await getPackageManager(this.context, selection.folder.workspaceFolder.uri, true), 'install', ['install'], selection.folder.workspaceFolder, uri, undefined, []);
 		tasks.executeTask(task);
 	}
 

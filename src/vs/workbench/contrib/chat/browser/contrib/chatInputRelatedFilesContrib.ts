@@ -60,12 +60,11 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 					return; // Might have disposed while we were calculating
 				}
 
-				// Pick up to 2 related files, or however many we can still fit in the working set
-				const maximumRelatedFiles = Math.min(2, this.chatEditingService.editingSessionFileLimit - widget.input.chatEditWorkingSetFiles.length);
+				// Pick up to 2 related files
 				const newSuggestions = new ResourceMap<{ description: string; group: string }>();
 				for (const group of files) {
 					for (const file of group.files) {
-						if (newSuggestions.size >= maximumRelatedFiles) {
+						if (newSuggestions.size >= 2) {
 							break;
 						}
 						newSuggestions.set(file.uri, { group: group.group, description: file.description });

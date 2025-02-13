@@ -338,11 +338,15 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		}
 	}
 
-	let guessed: { encoding: string };
+	let guessed: { encoding: string | undefined } | undefined;
 	try {
 		guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
 	} catch (error) {
 		return null; // jschardet throws for unknown encodings (https://github.com/microsoft/vscode/issues/239928)
+	}
+
+	if (!guessed || !guessed.encoding) {
+		return null;
 	}
 
 	const enc = guessed.encoding.toLowerCase();

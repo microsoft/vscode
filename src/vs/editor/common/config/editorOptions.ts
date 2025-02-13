@@ -6060,7 +6060,7 @@ export const EditorOptions = {
 	)),
 	occurrencesHighlightDelay: register(new EditorIntOption(
 		EditorOption.occurrencesHighlightDelay, 'occurrencesHighlightDelay',
-		250, 0, 2000,
+		0, 0, 2000,
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']

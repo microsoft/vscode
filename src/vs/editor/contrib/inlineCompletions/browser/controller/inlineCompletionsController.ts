@@ -121,7 +121,7 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly _hideInlineEditOnSelectionChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => true);
 
-	protected readonly _view = this._register(new InlineCompletionsView(this.editor, this.model, this._focusIsInMenu, this._instantiationService));
+	protected readonly _view = this._register(this._instantiationService.createInstance(InlineCompletionsView, this.editor, this.model, this._focusIsInMenu));
 
 	constructor(
 		public readonly editor: ICodeEditor,

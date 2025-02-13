@@ -29,7 +29,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, dispose, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isIOS } from '../../../../base/common/platform.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
@@ -908,19 +908,19 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected addSettingElementFocusHandler(template: ISettingItemTemplate): void {
 		const focusTracker = DOM.trackFocus(template.containerElement);
 		template.toDispose.add(focusTracker);
-		focusTracker.onDidBlur(() => {
+		template.toDispose.add(focusTracker.onDidBlur(() => {
 			if (template.containerElement.classList.contains('focused')) {
 				template.containerElement.classList.remove('focused');
 			}
-		});
+		}));
 
-		focusTracker.onDidFocus(() => {
+		template.toDispose.add(focusTracker.onDidFocus(() => {
 			template.containerElement.classList.add('focused');
 
 			if (template.context) {
 				this._onDidFocusSetting.fire(template.context);
 			}
-		});
+		}));
 	}
 
 	protected renderSettingToolbar(container: HTMLElement): ToolBar {
@@ -1090,6 +1090,7 @@ class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElement, ne
 	}
 
 	disposeTemplate(templateData: IGroupTitleTemplate): void {
+		templateData.toDispose.dispose();
 	}
 }
 
@@ -1129,7 +1130,7 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 	}
 
 	disposeTemplate(template: IDisposableTemplate): void {
-		dispose(template.toDispose);
+		template.toDispose.dispose();
 	}
 }
 

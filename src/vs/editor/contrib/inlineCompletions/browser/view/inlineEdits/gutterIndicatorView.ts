@@ -71,7 +71,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight)
 		: constObservable(0);
 
-	private readonly _layout = derived(reader => {
+	private readonly _layout = derived(this, reader => {
 		const s = this._state.read(reader);
 		if (!s) { return undefined; }
 

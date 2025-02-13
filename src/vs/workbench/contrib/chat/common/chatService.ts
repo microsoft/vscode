@@ -20,7 +20,7 @@ import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ICh
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolConfirmationMessages } from './languageModelToolsService.js';
+import { IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -200,8 +200,9 @@ export interface IChatToolInvocation {
 	pastTenseMessage: string | IMarkdownString | undefined;
 	tooltip: string | IMarkdownString | undefined;
 
+	isCompletePromise: Promise<void>;
 	isComplete: boolean;
-	isCompleteDeferred: DeferredPromise<void>;
+	complete(result: IToolResult): void;
 	kind: 'toolInvocation';
 }
 

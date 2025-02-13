@@ -404,6 +404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._hasHadInput = false;
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
+		this._shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting);
 
 		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
 
