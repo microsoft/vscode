@@ -55,30 +55,30 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		}));
 
 		// Convenient test code:
-		this.onDidChangeTerminalShellIntegration(e => {
-			console.log('*** onDidChangeTerminalShellIntegration', e.shellIntegration.env);
-		});
-		this.onDidStartTerminalShellExecution(async e => {
-			console.log('*** onDidStartTerminalShellExecution', e);
-			// new Promise<void>(r => {
-			// 	(async () => {
-			// 		for await (const d of e.execution.read()) {
-			// 			console.log('data2', d);
-			// 		}
-			// 	})();
-			// });
-			for await (const d of e.execution.read()) {
-				console.log('data', d);
-			}
-		});
-		this.onDidEndTerminalShellExecution(e => {
-			console.log('*** onDidEndTerminalShellExecution', e);
-		});
-		setTimeout(() => {
-			console.log('before executeCommand(\"echo hello\")');
-			Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
-			console.log('after executeCommand(\"echo hello\")');
-		}, 4000);
+		// this.onDidChangeTerminalShellIntegration(e => {
+		// 	console.log('*** onDidChangeTerminalShellIntegration', e);
+		// });
+		// this.onDidStartTerminalShellExecution(async e => {
+		// 	console.log('*** onDidStartTerminalShellExecution', e);
+		// 	// new Promise<void>(r => {
+		// 	// 	(async () => {
+		// 	// 		for await (const d of e.execution.read()) {
+		// 	// 			console.log('data2', d);
+		// 	// 		}
+		// 	// 	})();
+		// 	// });
+		// 	for await (const d of e.execution.read()) {
+		// 		console.log('data', d);
+		// 	}
+		// });
+		// this.onDidEndTerminalShellExecution(e => {
+		// 	console.log('*** onDidEndTerminalShellExecution', e);
+		// });
+		// setTimeout(() => {
+		// 	console.log('before executeCommand(\"echo hello\")');
+		// 	Array.from(this._activeShellIntegrations.values())[0].value.executeCommand('echo hello');
+		// 	console.log('after executeCommand(\"echo hello\")');
+		// }, 4000);
 	}
 
 	public $shellIntegrationChange(instanceId: number): void {
