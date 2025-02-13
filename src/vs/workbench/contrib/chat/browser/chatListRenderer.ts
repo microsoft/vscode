@@ -846,6 +846,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderCodeCitations(content, context, templateData);
 		} else if (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized') {
 			return this.renderToolInvocation(content, context, templateData);
+		} else if (content.kind === 'undoStop') {
+			const el = document.createElement('div'); // todo@connor4312 !!DEBUG!!
+			el.textContent = `Undo stop ${content.id}`;
+			return { domNode: el, hasSameContent: () => false, dispose: () => { } };
 		}
 
 		return undefined;

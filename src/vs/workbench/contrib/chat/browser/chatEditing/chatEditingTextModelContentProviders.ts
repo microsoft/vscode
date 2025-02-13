@@ -47,16 +47,16 @@ export class ChatEditingTextModelContentProvider implements ITextModelContentPro
 	}
 }
 
-type ChatEditingSnapshotTextModelContentQueryData = { sessionId: string; requestId: string | undefined };
+type ChatEditingSnapshotTextModelContentQueryData = { sessionId: string; requestId: string | undefined; undoStop: string | undefined };
 
 export class ChatEditingSnapshotTextModelContentProvider implements ITextModelContentProvider {
 	public static readonly scheme = 'chat-editing-snapshot-text-model';
 
-	public static getSnapshotFileURI(chatSessionId: string, requestId: string | undefined, path: string): URI {
+	public static getSnapshotFileURI(chatSessionId: string, requestId: string | undefined, undoStop: string | undefined, path: string): URI {
 		return URI.from({
 			scheme: ChatEditingSnapshotTextModelContentProvider.scheme,
 			path,
-			query: JSON.stringify({ sessionId: chatSessionId, requestId: requestId ?? '' } satisfies ChatEditingSnapshotTextModelContentQueryData),
+			query: JSON.stringify({ sessionId: chatSessionId, requestId: requestId ?? '', undoStop: undoStop ?? '' } satisfies ChatEditingSnapshotTextModelContentQueryData),
 		});
 	}
 
@@ -78,6 +78,6 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 			return null;
 		}
 
-		return session.getSnapshotModel(data.requestId, resource);
+		return session.getSnapshotModel(data.requestId, data.undoStop || undefined, resource);
 	}
 }
