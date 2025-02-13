@@ -421,7 +421,7 @@ async function getResourceAttachContext(resource: URI, isDirectory: boolean, tex
 	try {
 		const createdModel = await textModelService.createModelReference(resource);
 		createdModel.dispose();
-	} catch (e) {
+	} catch {
 		return {
 			value: resource,
 			id: resource.toString(),
