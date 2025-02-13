@@ -84,6 +84,7 @@ import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewMo
 import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
+import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
 
 const $ = dom.$;
 
@@ -1657,12 +1658,21 @@ export class SearchView extends ViewPane {
 			await this.refreshAndUpdateCount();
 		}
 
-		const hasResults = !this.viewModel.searchResult.isEmpty();
+		const allResults = !this.viewModel.searchResult.isEmpty();
+		const aiResults = this.searchResult.getCachedSearchComplete(true);
 		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
 			return;
 		}
 
-		if (!hasResults) {
+		// Special case for when we have an AI provider registered
+		if (this.shouldShowAIResults()) {
+			Constants.SearchContext.AIResultsRequested.bindTo(this.contextKeyService).set(!!aiResults);
+			if (!aiResults) {
+				return;
+			}
+		}
+
+		if (!allResults) {
 			const hasExcludes = !!excludePatternText;
 			const hasIncludes = !!includePatternText;
 			let message: string;
@@ -2363,7 +2373,10 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 
 	private createFolderIterator(folderMatch: ISearchTreeFolderMatch): Iterable<ISearchTreeFolderMatch | ISearchTreeFileMatch> {
 		const matchArray = this.searchView.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
-		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, this.searchConfig.sortOrder));
+		let matches = matchArray;
+		if (!(folderMatch instanceof AIFolderMatchWorkspaceRootImpl)) {
+			matches = matchArray.sort((a, b) => searchMatchComparer(a, b, this.searchConfig.sortOrder));
+		}
 
 		return matches;
 	}

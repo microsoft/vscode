@@ -48,6 +48,7 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { allTestActions, discoverAndRunTests } from './testExplorerActions.js';
 import './testingConfigurationUi.js';
+import { URI } from '../../../../base/common/uri.js';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
@@ -276,6 +277,14 @@ CommandsRegistry.registerCommand({
 		return [...testService.collection.rootItems]
 			.filter(r => r.children.size > 0)
 			.map(r => r.controllerId);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'vscode.testing.getTestsInFile',
+	handler: async (accessor: ServicesAccessor, uri: URI) => {
+		const testService = accessor.get(ITestService);
+		return [...testService.collection.getNodeByUrl(uri)].map(t => TestId.split(t.item.extId));
 	}
 });
 

@@ -454,6 +454,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		if (!matchRanges) { return; }
 
 		const matchRange = (reverse ? findPrevRange : findNextRange)(matchRanges, currentPosition);
+		if (!matchRange) { return; }
 
 		this.searchResultEditor.setSelection(matchRange);
 		this.searchResultEditor.revealLineInCenterIfOutsideViewport(matchRange.startLineNumber);

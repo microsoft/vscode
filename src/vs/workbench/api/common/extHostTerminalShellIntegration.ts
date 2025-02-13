@@ -131,6 +131,10 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.emitData(data);
 	}
 
+	public $shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[]): void {
+		this._activeShellIntegrations.get(instanceId)?.setEnv(shellEnvKeys, shellEnvValues);
+	}
+
 	public $cwdChange(instanceId: number, cwd: UriComponents | undefined): void {
 		this._activeShellIntegrations.get(instanceId)?.setCwd(URI.revive(cwd));
 	}
@@ -147,6 +151,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
+	private _env: { [key: string]: string | undefined } | undefined;
 	private _cwd: URI | undefined;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
@@ -170,6 +175,9 @@ class InternalTerminalShellIntegration extends Disposable {
 		this.value = {
 			get cwd(): URI | undefined {
 				return that._cwd;
+			},
+			get env(): { [key: string]: string | undefined } | undefined {
+				return that._env;
 			},
 			// executeCommand(commandLine: string): vscode.TerminalShellExecution;
 			// executeCommand(executable: string, args: string[]): vscode.TerminalShellExecution;
@@ -232,6 +240,15 @@ class InternalTerminalShellIntegration extends Disposable {
 		}
 	}
 
+	setEnv(keys: string[], values: string[]): void {
+		const env: { [key: string]: string | undefined } = {};
+		for (let i = 0; i < keys.length; i++) {
+			env[keys[i]] = values[i];
+		}
+		this._env = env;
+		this._fireChangeEvent();
+	}
+
 	setCwd(cwd: URI | undefined): void {
 		let wasChanged = false;
 		if (URI.isUri(this._cwd)) {
@@ -241,8 +258,12 @@ class InternalTerminalShellIntegration extends Disposable {
 		}
 		if (wasChanged) {
 			this._cwd = cwd;
-			this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
+			this._fireChangeEvent();
 		}
+	}
+
+	private _fireChangeEvent() {
+		this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
 	}
 }
 

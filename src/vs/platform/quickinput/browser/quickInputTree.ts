@@ -1206,7 +1206,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				const currentFocus = this._tree.getFocus();
-				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[this._itemElements.length - 1]) {
+				if (prevFocus.length && prevFocus[0] === currentFocus[0]) {
 					this._onLeave.fire();
 				}
 				break;
@@ -1227,7 +1227,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				const currentFocus = this._tree.getFocus();
-				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[0]) {
+				if (prevFocus.length && prevFocus[0] === currentFocus[0]) {
 					this._onLeave.fire();
 				}
 				break;

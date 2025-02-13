@@ -138,14 +138,18 @@ CommandsRegistry.registerCommand('_executePrepareTypeHierarchy', async (accessor
 			return [];
 		}
 
-		_models.set(model.id, model);
 		_models.forEach((value, key, map) => {
 			if (map.size > 10) {
 				value.dispose();
 				_models.delete(key);
 			}
 		});
-		return [model.root];
+
+		for (const root of model.roots) {
+			_models.set(root._sessionId, model);
+		}
+
+		return model.roots;
 
 	} finally {
 		textModelReference?.dispose();
@@ -169,7 +173,7 @@ CommandsRegistry.registerCommand('_executeProvideSupertypes', async (_accessor, 
 	// find model
 	const model = _models.get(item._sessionId);
 	if (!model) {
-		return undefined;
+		return [];
 	}
 
 	return model.provideSupertypes(item, CancellationToken.None);
@@ -182,7 +186,7 @@ CommandsRegistry.registerCommand('_executeProvideSubtypes', async (_accessor, ..
 	// find model
 	const model = _models.get(item._sessionId);
 	if (!model) {
-		return undefined;
+		return [];
 	}
 
 	return model.provideSubtypes(item, CancellationToken.None);

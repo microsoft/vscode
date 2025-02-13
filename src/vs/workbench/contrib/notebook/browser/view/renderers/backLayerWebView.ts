@@ -121,6 +121,7 @@ interface BacklayerWebviewOptions {
 	readonly outputLineLimit: number;
 	readonly outputLinkifyFilePaths: boolean;
 	readonly minimalError: boolean;
+	readonly markupFontFamily: string;
 }
 
 
@@ -281,6 +282,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				key: 'notebook.error.rendererFallbacksExhausted',
 				comment: ['$0 is a placeholder for the mime type']
 			}, "Could not render content for '$0'"),
+			'notebook-markup-font-family': this.options.markupFontFamily,
 		};
 	}
 
@@ -341,6 +343,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						width: 100%;
 					}
 
+					#container .cell_container.nb-insertHighlight div.output_container div.output {
+						background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
+					}
+
 					#container > div > div > div.output {
 						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
@@ -370,6 +376,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						font-size: var(--notebook-markup-font-size);
 						line-height: var(--notebook-markdown-line-height);
 						color: var(--theme-ui-foreground);
+						font-family: var(--notebook-markup-font-family);
 					}
 
 					#container div.preview.draggable {

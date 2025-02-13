@@ -282,6 +282,7 @@ export class BreadcrumbsWidget {
 			removed = this._items.splice(prefix, this._items.length - prefix, ...items.slice(prefix));
 			this._render(prefix);
 			dispose(removed);
+			dispose(items.slice(0, prefix));
 			this._focus(-1, undefined);
 		} catch (e) {
 			const newError = new Error(`BreadcrumbsItem#setItems: newItems: ${items.length}, prefix: ${prefix}, removed: ${removed.length}`);

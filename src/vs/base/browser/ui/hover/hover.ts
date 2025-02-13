@@ -101,7 +101,7 @@ export interface IHoverDelegate2 {
 	): IDisposable;
 
 	/**
-	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
+	 * Hides the hover if it was visible. This call will be ignored if the hover is currently
 	 * "locked" via the alt/option key.
 	 */
 	hideHover(): void;

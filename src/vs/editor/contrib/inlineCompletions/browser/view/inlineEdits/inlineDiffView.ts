@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, constObservable, derived, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { rangeIsSingleLine } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
@@ -12,26 +12,32 @@ import { LineSource, renderLines, RenderOptions } from '../../../../../browser/w
 import { diffAddDecoration } from '../../../../../browser/widget/diffEditor/registrations.contribution.js';
 import { applyViewZones, IObservableViewZone } from '../../../../../browser/widget/diffEditor/utils.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
+import { OffsetRange } from '../../../../../common/core/offsetRange.js';
 import { Range } from '../../../../../common/core/range.js';
 import { AbstractText } from '../../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
-import { IModelDeltaDecoration, ITextModel } from '../../../../../common/model.js';
+import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../../common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
+import { IInlineEditsView } from './sideBySideDiff.js';
 import { classNames } from './utils.js';
 
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
 	modifiedText: AbstractText;
-	mode: 'mixedLines' | 'interleavedLines' | 'sideBySide';
+	mode: 'mixedLines' | 'insertionInline' | 'interleavedLines' | 'sideBySide' | 'deletion';
 
 	modifiedCodeEditor: ICodeEditor;
 }
 
-export class OriginalEditorInlineDiffView extends Disposable {
+export class OriginalEditorInlineDiffView extends Disposable implements IInlineEditsView {
 	public static supportsInlineDiffRendering(mapping: DetailedLineRangeMapping): boolean {
 		return allowsTrueInlineDiffRendering(mapping);
 	}
+
+	readonly isHovered = constObservable(false);
+
+	private readonly _tokenizationFinished = modelTokenizationFinished(this._modifiedTextModel);
 
 	constructor(
 		private readonly _originalEditor: ICodeEditor,
@@ -52,8 +58,6 @@ export class OriginalEditorInlineDiffView extends Disposable {
 
 		const editor = observableCodeEditor(this._originalEditor);
 
-		const tokenizationFinished = modelTokenizationFinished(_modifiedTextModel);
-
 		const originalViewZones = derived(this, (reader) => {
 			const originalModel = editor.model.read(reader);
 			if (!originalModel) { return []; }
@@ -70,7 +74,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 					continue;
 				}
 
-				tokenizationFinished.read(reader); // Update view-zones once tokenization completes
+				this._tokenizationFinished.read(reader); // Update view-zones once tokenization completes
 
 				const source = new LineSource(diff.modified.mapToLineArray(l => this._modifiedTextModel.tokenization.getLineTokens(l)));
 
@@ -111,7 +115,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 		if (!diff) { return undefined; }
 
 		const modified = diff.modifiedText;
-		const showInline = diff.mode === 'mixedLines';
+		const showInline = diff.mode === 'mixedLines' || diff.mode === 'insertionInline';
 
 		const showEmptyDecorations = true;
 
@@ -156,7 +160,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 		});
 
 		for (const m of diff.diff) {
-			const showFullLineDecorations = true;
+			const showFullLineDecorations = diff.mode !== 'sideBySide';
 			if (showFullLineDecorations) {
 				if (!m.original.isEmpty) {
 					originalDecorations.push({
@@ -184,6 +188,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 				for (const i of m.innerChanges || []) {
 					// Don't show empty markers outside the line range
 					if (m.original.contains(i.originalRange.startLineNumber)) {
+						const replacedText = this._originalEditor.getModel()?.getValueInRange(i.originalRange, EndOfLinePreference.LF);
 						originalDecorations.push({
 							range: i.originalRange,
 							options: {
@@ -191,9 +196,11 @@ export class OriginalEditorInlineDiffView extends Disposable {
 								shouldFillLineOnLineBreak: false,
 								className: classNames(
 									'inlineCompletions-char-delete',
-									(i.originalRange.isEmpty() && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
+									i.originalRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
+									i.originalRange.isEmpty() && 'empty',
+									((i.originalRange.isEmpty() || diff.mode === 'deletion' && replacedText === '\n') && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
 								),
-								inlineClassName: useInlineDiff ? 'strike-through' : null,
+								inlineClassName: useInlineDiff ? classNames('strike-through', 'inlineCompletions') : null,
 								zIndex: 1
 							}
 						});
@@ -208,18 +215,41 @@ export class OriginalEditorInlineDiffView extends Disposable {
 					}
 					if (useInlineDiff) {
 						const insertedText = modified.getValueOfRange(i.modifiedRange);
-						originalDecorations.push({
-							range: Range.fromPositions(i.originalRange.getEndPosition()),
-							options: {
-								description: 'inserted-text',
-								before: {
-									content: insertedText,
-									inlineClassName: 'inlineCompletions-char-insert',
-								},
-								zIndex: 2,
-								showIfCollapsed: true,
-							}
-						});
+						// when the injected text becomes long, the editor will split it into multiple spans
+						// to be able to get the border around the start and end of the text, we need to split it into multiple segments
+						const textSegments = insertedText.length > 3 ?
+							[
+								{ text: insertedText.slice(0, 1), extraClasses: ['start'], offsetRange: new OffsetRange(i.modifiedRange.startColumn - 1, i.modifiedRange.startColumn) },
+								{ text: insertedText.slice(1, -1), extraClasses: [], offsetRange: new OffsetRange(i.modifiedRange.startColumn, i.modifiedRange.endColumn - 2) },
+								{ text: insertedText.slice(-1), extraClasses: ['end'], offsetRange: new OffsetRange(i.modifiedRange.endColumn - 2, i.modifiedRange.endColumn - 1) }
+							] :
+							[
+								{ text: insertedText, extraClasses: ['start', 'end'], offsetRange: new OffsetRange(i.modifiedRange.startColumn - 1, i.modifiedRange.endColumn) }
+							];
+
+						// Tokenization
+						this._tokenizationFinished.read(reader); // reconsider when tokenization is finished
+						const lineTokens = this._modifiedTextModel.tokenization.getLineTokens(i.modifiedRange.startLineNumber);
+
+						for (const { text, extraClasses, offsetRange } of textSegments) {
+							originalDecorations.push({
+								range: Range.fromPositions(i.originalRange.getEndPosition()),
+								options: {
+									description: 'inserted-text',
+									before: {
+										tokens: lineTokens.getTokensInRange(offsetRange),
+										content: text,
+										inlineClassName: classNames(
+											'inlineCompletions-char-insert',
+											i.modifiedRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
+											...extraClasses // include extraClasses for additional styling if provided
+										),
+									},
+									zIndex: 2,
+									showIfCollapsed: true,
+								}
+							});
+						}
 					}
 				}
 			}

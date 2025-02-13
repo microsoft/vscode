@@ -7,6 +7,7 @@ import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
@@ -14,6 +15,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { BareFontInfo } from '../../../../editor/common/config/fontInfo.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { NotebookTextModel } from '../common/model/notebookTextModel.js';
 import { InteractiveWindowCollapseCodeCells, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from '../common/notebookCommon.js';
 import { INotebookExecutionStateService } from '../common/notebookExecutionStateService.js';
 
@@ -53,6 +55,7 @@ export interface NotebookDisplayOptions { // TODO @Yoyokrazy rename to a more ge
 		'editor.tabSize': number;
 		'editor.insertSpaces': boolean;
 	}> | undefined;
+	markupFontFamily: string;
 }
 
 export interface NotebookLayoutConfiguration {
@@ -108,6 +111,7 @@ export interface NotebookOptionsChangeEvent {
 	readonly outputLinkifyFilePaths?: boolean;
 	readonly minimalError?: boolean;
 	readonly readonly?: boolean;
+	readonly markupFontFamily?: boolean;
 }
 
 const defaultConfigConstants = Object.freeze({
@@ -135,6 +139,8 @@ export class NotebookOptions extends Disposable {
 	protected readonly _onDidChangeOptions = this._register(new Emitter<NotebookOptionsChangeEvent>());
 	readonly onDidChangeOptions = this._onDidChangeOptions.event;
 	private _editorTopPadding: number = 12;
+
+	readonly previousModelToCompare = observableValue<NotebookTextModel | undefined>('previousModelToCompare', undefined);
 
 	constructor(
 		readonly targetWindow: CodeWindow,
@@ -213,6 +219,7 @@ export class NotebookOptions extends Disposable {
 		const outputLineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
 		const linkifyFilePaths = this.configurationService.getValue<boolean>(NotebookSetting.LinkifyOutputFilePaths) ?? true;
 		const minimalErrors = this.configurationService.getValue<boolean>(NotebookSetting.minimalErrorRendering);
+		const markupFontFamily = this.configurationService.getValue<string>(NotebookSetting.markupFontFamily);
 
 		const editorTopPadding = this._computeEditorTopPadding();
 
@@ -259,7 +266,8 @@ export class NotebookOptions extends Disposable {
 			outputWordWrap: outputWordWrap,
 			outputLineLimit: outputLineLimit,
 			outputLinkifyFilePaths: linkifyFilePaths,
-			outputMinimalError: minimalErrors
+			outputMinimalError: minimalErrors,
+			markupFontFamily
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -426,6 +434,7 @@ export class NotebookOptions extends Disposable {
 		const outputWordWrap = e.affectsConfiguration(NotebookSetting.outputWordWrap);
 		const outputLinkifyFilePaths = e.affectsConfiguration(NotebookSetting.LinkifyOutputFilePaths);
 		const minimalError = e.affectsConfiguration(NotebookSetting.minimalErrorRendering);
+		const markupFontFamily = e.affectsConfiguration(NotebookSetting.markupFontFamily);
 
 		if (
 			!cellStatusBarVisibility
@@ -454,7 +463,8 @@ export class NotebookOptions extends Disposable {
 			&& !outputScrolling
 			&& !outputWordWrap
 			&& !outputLinkifyFilePaths
-			&& !minimalError) {
+			&& !minimalError
+			&& !markupFontFamily) {
 			return;
 		}
 
@@ -569,6 +579,10 @@ export class NotebookOptions extends Disposable {
 			configuration.outputMinimalError = this.configurationService.getValue<boolean>(NotebookSetting.minimalErrorRendering);
 		}
 
+		if (markupFontFamily) {
+			configuration.markupFontFamily = this.configurationService.getValue<string>(NotebookSetting.markupFontFamily);
+		}
+
 		this._layoutConfiguration = Object.freeze(configuration);
 
 		// trigger event
@@ -599,7 +613,8 @@ export class NotebookOptions extends Disposable {
 			outputScrolling,
 			outputWordWrap,
 			outputLinkifyFilePaths,
-			minimalError
+			minimalError,
+			markupFontFamily
 		});
 	}
 
@@ -814,7 +829,8 @@ export class NotebookOptions extends Disposable {
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
 			outputLinkifyFilePaths: this._layoutConfiguration.outputLinkifyFilePaths,
-			minimalError: this._layoutConfiguration.outputMinimalError
+			minimalError: this._layoutConfiguration.outputMinimalError,
+			markupFontFamily: this._layoutConfiguration.markupFontFamily
 		};
 	}
 
@@ -838,7 +854,8 @@ export class NotebookOptions extends Disposable {
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
 			outputLinkifyFilePaths: false,
-			minimalError: false
+			minimalError: false,
+			markupFontFamily: this._layoutConfiguration.markupFontFamily
 		};
 	}
 

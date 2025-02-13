@@ -541,6 +541,13 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.diffLineModified',
 	});
 
+	public static readonly chatEditModifiedFile = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.chatEditModifiedFile', 'Chat Edit Modified File'),
+		sound: Sound.success,
+		announcementMessage: localize('accessibility.signals.chatEditModifiedFile', 'File Modified from Chat Edits'),
+		settingsKey: 'accessibility.signals.chatEditModifiedFile',
+	});
+
 	public static readonly chatRequestSent = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.chatRequestSent', 'Chat Request Sent'),
 		sound: Sound.requestSent,
@@ -631,4 +638,3 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.voiceRecordingStopped'
 	});
 }
-

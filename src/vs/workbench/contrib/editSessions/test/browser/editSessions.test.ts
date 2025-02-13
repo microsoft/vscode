@@ -50,11 +50,13 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkspaceIdentityService, WorkspaceIdentityService } from '../../../../services/workspaces/common/workspaceIdentityService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
 
 suite('Edit session sync', () => {
+
 	let instantiationService: TestInstantiationService;
 	let editSessionsContribution: EditSessionsContribution;
 	let fileService: FileService;
@@ -63,6 +65,7 @@ suite('Edit session sync', () => {
 	const disposables = new DisposableStore();
 
 	suiteSetup(() => {
+
 		sandbox = sinon.createSandbox();
 
 		instantiationService = new TestInstantiationService();
@@ -159,6 +162,7 @@ suite('Edit session sync', () => {
 				keybindingsResource: URI.file('keybindingsResource'),
 				tasksResource: URI.file('tasksResource'),
 				snippetsHome: URI.file('snippetsHome'),
+				promptsHome: URI.file('promptsHome'),
 				extensionsResource: URI.file('extensionsResource'),
 				cacheHome: URI.file('cacheHome'),
 			};
@@ -170,6 +174,10 @@ suite('Edit session sync', () => {
 	teardown(() => {
 		sinon.restore();
 		disposables.clear();
+	});
+
+	suiteTeardown(() => {
+		disposables.dispose();
 	});
 
 	test('Can apply edit session', async function () {
@@ -218,4 +226,6 @@ suite('Edit session sync', () => {
 		// Verify that we did not attempt to write the edit session
 		assert.equal(writeStub.called, false);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

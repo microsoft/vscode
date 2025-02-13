@@ -397,7 +397,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $acceptDAExit(handle: number, code: number, signal: string) {
-		this.getDebugAdapter(handle).fireExit(handle, code, signal);
+		// don't use getDebugAdapter since an error can be expected on a post-close
+		this._debugAdapters.get(handle)?.fireExit(handle, code, signal);
 	}
 
 	private getDebugAdapter(handle: number): ExtensionHostDebugAdapter {

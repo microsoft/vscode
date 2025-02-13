@@ -19,7 +19,7 @@ import { Action2, IAction2Options, MenuId } from '../../../../../platform/action
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -121,10 +121,10 @@ class VoiceChatSessionControllerFactory {
 				if (activeCodeEditor) {
 					const inlineChat = InlineChatController.get(activeCodeEditor);
 					if (inlineChat) {
-						if (!inlineChat.joinCurrentRun()) {
+						if (!inlineChat.isActive) {
 							inlineChat.run();
 						}
-						return VoiceChatSessionControllerFactory.doCreateForChatWidget('inline', inlineChat.chatWidget);
+						return VoiceChatSessionControllerFactory.doCreateForChatWidget('inline', inlineChat.widget.chatWidget);
 					}
 				}
 				break;
@@ -369,11 +369,11 @@ class VoiceChatSessions {
 		if (!response) {
 			return;
 		}
-		const autoSynthesize = this.configurationService.getValue<'on' | 'off' | 'auto'>(AccessibilityVoiceSettingId.AutoSynthesize);
-		if (autoSynthesize === 'on' || autoSynthesize === 'auto' && !this.accessibilityService.isScreenReaderOptimized()) {
+		const autoSynthesize = this.configurationService.getValue<'on' | 'off'>(AccessibilityVoiceSettingId.AutoSynthesize);
+		if (autoSynthesize === 'on' || (autoSynthesize !== 'off' && !this.accessibilityService.isScreenReaderOptimized())) {
 			let context: IVoiceChatSessionController | 'focused';
 			if (controller.context === 'inline') {
-				// TODO@bpasero this is ugly, but the lightweight inline chat turns into
+				// This is ugly, but the lightweight inline chat turns into
 				// a different widget as soon as a response comes in, so we fallback to
 				// picking up from the focused chat widget
 				context = 'focused';
@@ -533,17 +533,28 @@ export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 	}
 }
 
+const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
+	return [
+		{
+			id: MenuId.ChatInput,
+			when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), when),
+			group: 'navigation',
+			order: 3
+		},
+		{
+			id: MenuId.ChatExecute,
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession).negate(), when),
+			group: 'navigation',
+			order: 2
+		}
+	];
+};
+
 export class StartVoiceChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.startVoiceChat';
 
 	constructor() {
-		const menuCondition = ContextKeyExpr.and(
-			HasSpeechProvider,
-			ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
-			AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
-		);
-
 		super({
 			id: StartVoiceChatAction.ID,
 			title: localize2('workbench.action.chat.startVoiceChat.label', "Start Voice Chat"),
@@ -565,20 +576,11 @@ export class StartVoiceChatAction extends Action2 {
 				AnyChatRequestInProgress?.negate(),		// disable when any chat request is in progress
 				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), menuCondition),
-					group: 'navigation',
-					order: 3
-				},
-				{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession).negate(), menuCondition),
-					group: 'navigation',
-					order: 2
-				}
-			]
+			menu: primaryVoiceActionMenu(ContextKeyExpr.and(
+				HasSpeechProvider,
+				ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
+				AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
+			))
 		});
 	}
 
@@ -613,20 +615,7 @@ export class StopListeningAction extends Action2 {
 			},
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), AnyScopedVoiceChatInProgress),
-					group: 'navigation',
-					order: 3
-				},
-				{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), AnyScopedVoiceChatInProgress),
-					group: 'navigation',
-					order: 2
-				}
-			]
+			menu: primaryVoiceActionMenu(AnyScopedVoiceChatInProgress)
 		});
 	}
 
@@ -695,7 +684,7 @@ class ChatSynthesizerSessionController {
 		const contextKeyService = accessor.get(IContextKeyService);
 		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
 		if (chatWidget?.location === ChatAgentLocation.Editor) {
-			// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
+			// workaround for https://github.com/microsoft/vscode/issues/212785
 			chatWidget = chatWidgetService.lastFocusedWidget;
 		}
 
@@ -707,7 +696,7 @@ class ChatSynthesizerSessionController {
 	}
 }
 
-interface IChatSyntheSizerContext {
+interface IChatSynthesizerContext {
 	readonly ignoreCodeBlocks: boolean;
 	insideCodeBlock: boolean;
 }
@@ -774,7 +763,7 @@ class ChatSynthesizerSessions {
 	}
 
 	private async *nextChatResponseChunk(response: IChatResponseModel, token: CancellationToken): AsyncIterable<string> {
-		const context: IChatSyntheSizerContext = {
+		const context: IChatSynthesizerContext = {
 			ignoreCodeBlocks: this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks),
 			insideCodeBlock: false
 		};
@@ -801,7 +790,7 @@ class ChatSynthesizerSessions {
 		} while (!token.isCancellationRequested && !complete);
 	}
 
-	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number, context: IChatSyntheSizerContext): { readonly chunk: string | undefined; readonly offset: number } {
+	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number, context: IChatSynthesizerContext): { readonly chunk: string | undefined; readonly offset: number } {
 		let chunk: string | undefined = undefined;
 
 		const text = response.response.toString();
@@ -825,7 +814,7 @@ class ChatSynthesizerSessions {
 		};
 	}
 
-	private filterCodeBlocks(chunk: string, context: IChatSyntheSizerContext): string {
+	private filterCodeBlocks(chunk: string, context: IChatSynthesizerContext): string {
 		return chunk.split('\n')
 			.filter(line => {
 				if (line.trimStart().startsWith('```')) {
@@ -960,20 +949,7 @@ export class StopReadAloud extends Action2 {
 				primary: KeyCode.Escape,
 				when: ScopedChatSynthesisInProgress
 			},
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ScopedChatSynthesisInProgress),
-					group: 'navigation',
-					order: 3
-				},
-				{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ScopedChatSynthesisInProgress),
-					group: 'navigation',
-					order: 2
-				}
-			]
+			menu: primaryVoiceActionMenu(ScopedChatSynthesisInProgress)
 		});
 	}
 
@@ -1307,20 +1283,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 			title: localize2('workbench.action.chat.installProviderForVoiceChat.label', "Start Voice Chat"),
 			icon: Codicon.mic,
 			precondition: InstallingSpeechProvider.negate(),
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(HasSpeechProvider.negate(), ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))),
-					group: 'navigation',
-					order: 3
-				},
-				{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(HasSpeechProvider.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession).negate()),
-					group: 'navigation',
-					order: 2
-				}
-			]
+			menu: primaryVoiceActionMenu(HasSpeechProvider.negate())
 		});
 	}
 

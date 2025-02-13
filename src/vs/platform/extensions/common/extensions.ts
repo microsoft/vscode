@@ -111,9 +111,10 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string | undefined;
 	readonly media:
-	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never }
-	| { markdown: string; image?: never; svg?: never }
-	| { svg: string; altText: string; markdown?: never; image?: never };
+	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never; video?: never }
+	| { markdown: string; image?: never; svg?: never; video?: never }
+	| { svg: string; altText: string; markdown?: never; image?: never; video?: never }
+	| { video: string | { dark: string; light: string; hc: string }; poster: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; image?: never; svg?: never };
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
@@ -167,6 +168,22 @@ export interface ILocalizationContribution {
 	minimalTranslations?: { [key: string]: string };
 }
 
+export interface IChatParticipantContribution {
+	id: string;
+	name: string;
+	fullName: string;
+	description?: string;
+	isDefault?: boolean;
+	commands?: { name: string }[];
+}
+
+export interface IToolContribution {
+	name: string;
+	displayName: string;
+	modelDescription: string;
+	userDescription?: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: any;
@@ -192,7 +209,8 @@ export interface IExtensionContributions {
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
-	readonly chatParticipants?: ReadonlyArray<{ id: string }>;
+	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
+	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 }
 
 export interface IExtensionCapabilities {
@@ -444,6 +462,20 @@ export class ExtensionIdentifierMap<T> {
 
 	[Symbol.iterator](): IterableIterator<[string, T]> {
 		return this._map[Symbol.iterator]();
+	}
+}
+
+/**
+ * An error that is clearly from an extension, identified by the `ExtensionIdentifier`
+ */
+export class ExtensionError extends Error {
+
+	readonly extension: ExtensionIdentifier;
+
+	constructor(extensionIdentifier: ExtensionIdentifier, cause: Error, message?: string) {
+		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${message ?? cause.message}`, { cause });
+		this.name = 'ExtensionError';
+		this.extension = extensionIdentifier;
 	}
 }
 

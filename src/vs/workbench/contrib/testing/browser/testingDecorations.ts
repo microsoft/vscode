@@ -372,8 +372,8 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	public get currentUri() { return this._currentUri; }
 
 	private _currentUri?: URI;
-	private readonly expectedWidget = new MutableDisposable<ExpectedLensContentWidget>();
-	private readonly actualWidget = new MutableDisposable<ActualLensContentWidget>();
+	private readonly expectedWidget = this._register(new MutableDisposable<ExpectedLensContentWidget>());
+	private readonly actualWidget = this._register(new MutableDisposable<ActualLensContentWidget>());
 
 	private readonly errorContentWidgets = this._register(new DisposableMap<ITestMessage, TestErrorContentWidget>());
 	private readonly loggedMessageDecorations = new Map<ITestMessage, {

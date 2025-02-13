@@ -1162,7 +1162,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IThemeService private themeService: IThemeService,
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', false, {
+		this._hoverDelegate = this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, {
 			position: {
 				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
 			}
@@ -1232,6 +1232,10 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		if (isLoadMoreCommand(item)) {
 			setTimeout(() => this._onDidScrollToEnd.fire(item), 0);
 		}
+	}
+
+	disposeElement(element: ITreeNode<TreeElement, FuzzyScore>, index: number, templateData: TimelineElementTemplate, height: number | undefined): void {
+		templateData.actionBar.actionRunner.dispose();
 	}
 
 	disposeTemplate(template: TimelineElementTemplate): void {

@@ -318,6 +318,7 @@ export const codiconsLibrary = {
 	repoPush: register('repo-push', 0xeb41),
 	report: register('report', 0xeb42),
 	requestChanges: register('request-changes', 0xeb43),
+	rerunTask: register('rerun-task', 0xead2),
 	rocket: register('rocket', 0xeb44),
 	rootFolderOpened: register('root-folder-opened', 0xeb45),
 	rootFolder: register('root-folder', 0xeb46),
@@ -586,4 +587,5 @@ export const codiconsLibrary = {
 	python: register('python', 0xec39),
 	copilotLarge: register('copilot-large', 0xec3a),
 	copilotWarningLarge: register('copilot-warning-large', 0xec3b),
+	keyboardTab: register('keyboard-tab', 0xec3c),
 } as const;

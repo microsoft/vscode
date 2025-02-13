@@ -22,18 +22,25 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ISplice } from '../../../../base/common/sequence.js';
 import { DiffState } from '../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { toLineChanges } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { LineRangeMapping, lineRangeMappingFromChange } from '../../../../editor/common/diff/rangeMapping.js';
+import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { IDiffEditorModel } from '../../../../editor/common/editorCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
 
 export const IQuickDiffModelService = createDecorator<IQuickDiffModelService>('IQuickDiffModelService');
 
 export interface QuickDiffModelOptions {
 	readonly algorithm: DiffAlgorithmName;
+	readonly maxComputationTimeMs?: number;
 }
+
+const decoratorQuickDiffModelOptions: QuickDiffModelOptions = {
+	algorithm: 'legacy',
+	maxComputationTimeMs: 1000
+};
 
 export interface IQuickDiffModelService {
 	_serviceBrand: undefined;
@@ -52,7 +59,7 @@ class QuickDiffModelReferenceCollection extends ReferenceCollection<QuickDiffMod
 		super();
 	}
 
-	protected override createReferencedObject(_key: string, textFileModel: IResolvedTextFileEditorModel, options?: QuickDiffModelOptions): QuickDiffModel {
+	protected override createReferencedObject(_key: string, textFileModel: IResolvedTextFileEditorModel, options: QuickDiffModelOptions): QuickDiffModel {
 		return this._instantiationService.createInstance(QuickDiffModel, textFileModel, options);
 	}
 
@@ -74,16 +81,13 @@ export class QuickDiffModelService implements IQuickDiffModelService {
 		this._references = this.instantiationService.createInstance(QuickDiffModelReferenceCollection);
 	}
 
-	createQuickDiffModelReference(resource: URI, options?: QuickDiffModelOptions): IReference<QuickDiffModel> | undefined {
+	createQuickDiffModelReference(resource: URI, options: QuickDiffModelOptions = decoratorQuickDiffModelOptions): IReference<QuickDiffModel> | undefined {
 		const textFileModel = this.textFileService.files.get(resource);
 		if (!textFileModel?.isResolved()) {
 			return undefined;
 		}
 
-		resource = options === undefined
-			? this.uriIdentityService.asCanonicalUri(resource)
-			: this.uriIdentityService.asCanonicalUri(resource).with({ query: JSON.stringify(options) });
-
+		resource = this.uriIdentityService.asCanonicalUri(resource).with({ query: JSON.stringify(options) });
 		return this._references.acquire(resource.toString(), textFileModel, options);
 	}
 }
@@ -119,7 +123,7 @@ export class QuickDiffModel extends Disposable {
 
 	constructor(
 		textFileModel: IResolvedTextFileEditorModel,
-		private readonly options: QuickDiffModelOptions | undefined,
+		private readonly options: QuickDiffModelOptions,
 		@ISCMService private readonly scmService: ISCMService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
@@ -152,7 +156,18 @@ export class QuickDiffModel extends Disposable {
 		}));
 
 		this._register(this.quickDiffService.onDidChangeQuickDiffProviders(() => this.triggerDiff()));
-		this._register(this._chatEditingService.onDidChangeEditingSession(() => this.triggerDiff()));
+
+		this._register(autorunWithStore((r, store) => {
+			for (const session of this._chatEditingService.editingSessionsObs.read(r)) {
+				store.add(autorun(r => {
+					for (const entry of session.entries.read(r)) {
+						entry.state.read(r); // signal
+					}
+					this.triggerDiff();
+				}));
+			}
+		}));
+
 		this.triggerDiff();
 	}
 
@@ -209,10 +224,6 @@ export class QuickDiffModel extends Disposable {
 				const editorModels = Array.from(this._originalEditorModels.values());
 				if (!result || this._disposed || this._model.isDisposed() || editorModels.some(editorModel => editorModel.isDisposed())) {
 					return; // disposed
-				}
-
-				if (editorModels.every(editorModel => editorModel.textEditorModel.getValueLength() === 0)) {
-					result.changes = [];
 				}
 
 				this.setChanges(result.changes, result.mapChanges);
@@ -273,15 +284,10 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
-		if (this.options?.algorithm === undefined) {
-			const changes = await this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
-			return { changes, changes2: changes?.map(change => lineRangeMappingFromChange(change)) ?? null };
-		}
+		const maxComputationTimeMs = this.options.maxComputationTimeMs ?? Number.MAX_SAFE_INTEGER;
 
 		const result = await this.editorWorkerService.computeDiff(original, modified, {
-			computeMoves: false,
-			ignoreTrimWhitespace,
-			maxComputationTimeMs: Number.MAX_SAFE_INTEGER
+			computeMoves: false, ignoreTrimWhitespace, maxComputationTimeMs
 		}, this.options.algorithm);
 
 		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };
@@ -350,22 +356,15 @@ export class QuickDiffModel extends Disposable {
 		}
 		const uri = this._model.resource;
 
-		const session = this._chatEditingService.currentEditingSession;
-		if (session && session.getEntry(uri)?.state.get() === WorkingSetEntryState.Modified) {
-			// disable dirty diff when doing chat edits
+		// disable dirty diff when doing chat edits
+		const isBeingModifiedByChatEdits = this._chatEditingService.editingSessionsObs.get()
+			.some(session => session.getEntry(uri)?.state.get() === WorkingSetEntryState.Modified);
+		if (isBeingModifiedByChatEdits) {
 			return Promise.resolve([]);
 		}
 
 		const isSynchronized = this._model.textEditorModel ? shouldSynchronizeModel(this._model.textEditorModel) : undefined;
-		const quickDiffs = await this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), isSynchronized);
-
-		// TODO@lszomoru - find a long term solution for this
-		// When the QuickDiffModel is created for a diff editor, there is no
-		// need to compute the diff information for the `isSCM` quick diff
-		// provider as that information will be provided by the diff editor
-		return this.options?.algorithm !== undefined
-			? quickDiffs.filter(quickDiff => !quickDiff.isSCM)
-			: quickDiffs;
+		return this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), isSynchronized);
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
