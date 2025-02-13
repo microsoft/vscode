@@ -258,7 +258,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		try {
 			if (this.updateCount === 1) {
 				do {
-					if (this.state === AutorunState.dependenciesMightHaveChanged) {
+					while (this.state === AutorunState.dependenciesMightHaveChanged) {
 						this.state = AutorunState.upToDate;
 						for (const d of this.dependencies) {
 							d.reportChanges(); // Warning: external call!
