@@ -28,9 +28,8 @@ class NotebookSynchronizerSaveParticipant extends NotebookSaveParticipant {
 	}
 
 	override async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
-		console.log('notebook synchronizer participate');
-		const session = this._chatEditingService.currentEditingSessionObs.get();
-
+		const sessions = this._chatEditingService.editingSessionsObs.get();
+		const session = sessions.find(s => s.getEntry(workingCopy.resource));
 		if (!session) {
 			return;
 		}
@@ -75,14 +74,10 @@ export class NotebookSynchronizerService extends Disposable implements INotebook
 	async revert(workingCopy: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>) {
 		// check if we have mirror document
 		const resource = workingCopy.resource;
-
-		const session = this._chatEditingService.currentEditingSessionObs.get();
-
-		if (session) {
-			const entry = session.getEntry(resource);
-			if (entry instanceof ChatEditingModifiedNotebookEntry) {
-				await entry.revertMirrorDocument();
-			}
+		const sessions = this._chatEditingService.editingSessionsObs.get();
+		const entry = sessions.map(s => s.getEntry(resource)).find(r => !!r);
+		if (entry instanceof ChatEditingModifiedNotebookEntry) {
+			await entry.revertMirrorDocument();
 		}
 	}
 }

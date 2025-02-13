@@ -11,6 +11,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { SetMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
+import { SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -21,7 +22,6 @@ import { ILanguageConfigurationService } from '../../../../common/languages/lang
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
-import { LineEditWithAdditionalLines } from '../../../../common/tokenizationTextModelPart.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { getReadonlyEmptyArray } from '../utils.js';
 
@@ -330,11 +330,14 @@ export class InlineCompletionItem {
 			range,
 			insertText,
 			snippetInfo,
+			Range.lift(inlineCompletion.showRange) ?? undefined,
 			inlineCompletion.additionalTextEdits || getReadonlyEmptyArray(),
 			inlineCompletion,
 			source,
 		);
 	}
+
+	static ID = 1;
 
 	private _didCallShow = false;
 
@@ -345,6 +348,7 @@ export class InlineCompletionItem {
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
+		readonly cursorShowRange: Range | undefined,
 
 		readonly additionalTextEdits: readonly ISingleEditOperation[],
 
@@ -360,7 +364,10 @@ export class InlineCompletionItem {
 		 * Used for event data to ensure referential equality.
 		*/
 		readonly source: InlineCompletionList,
+
+		readonly id = `InlineCompletion:${InlineCompletionItem.ID++}`,
 	) {
+		// TODO: these statements are no-ops
 		filterText = filterText.replace(/\r\n|\r/g, '\n');
 		insertText = filterText.replace(/\r\n|\r/g, '\n');
 	}
@@ -380,9 +387,27 @@ export class InlineCompletionItem {
 			updatedRange,
 			this.insertText,
 			this.snippetInfo,
+			this.cursorShowRange,
 			this.additionalTextEdits,
 			this.sourceInlineCompletion,
 			this.source,
+			this.id,
+		);
+	}
+
+	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {
+		return new InlineCompletionItem(
+			updatedFilterText,
+			this.command,
+			this.shownCommand,
+			updatedRange,
+			updatedInsertText,
+			this.snippetInfo,
+			this.cursorShowRange,
+			this.additionalTextEdits,
+			this.sourceInlineCompletion,
+			this.source,
+			this.id,
 		);
 	}
 
@@ -412,17 +437,15 @@ function getDefaultRange(position: Position, model: ITextModel): Range {
 }
 
 function closeBrackets(text: string, position: Position, model: ITextModel, languageConfigurationService: ILanguageConfigurationService): string {
-	const lineStart = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
-	const newLine = lineStart + text;
+	const currentLine = model.getLineContent(position.lineNumber);
+	const edit = SingleOffsetEdit.replace(new OffsetRange(position.column - 1, currentLine.length), text);
 
-	const edit = LineEditWithAdditionalLines.replace(OffsetRange.ofStartAndLength(position.column - 1, newLine.length - (position.column - 1)), text);
-	const newTokens = model.tokenization.tokenizeLineWithEdit(position.lineNumber, edit);
-	const slicedTokens = newTokens?.mainLineTokens?.sliceAndInflate(position.column - 1, newLine.length, 0);
-	if (!slicedTokens) {
+	const proposedLineTokens = model.tokenization.tokenizeLinesAt(position.lineNumber, [edit.apply(currentLine)]);
+	const textTokens = proposedLineTokens?.[0].sliceZeroCopy(edit.getRangeAfterApply());
+	if (!textTokens) {
 		return text;
 	}
 
-	const newText = fixBracketsInLine(slicedTokens, languageConfigurationService);
-
-	return newText;
+	const fixedText = fixBracketsInLine(textTokens, languageConfigurationService);
+	return fixedText;
 }

@@ -173,7 +173,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		}
 
 
-		const sessionId = generateUuid();
+		const profilingSessionId = generateUuid();
 
 		// print message to log
 		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
@@ -182,20 +182,20 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
 		type UnresponsiveData = {
 			duration: number;
-			sessionId: string;
+			profilingSessionId: string;
 			data: string[];
 			id: string;
 		};
 		type UnresponsiveDataClassification = {
 			owner: 'jrieken';
 			comment: 'Profiling data that was collected while the extension host was unresponsive';
-			sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier of a profiling session' };
+			profilingSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier of a profiling session' };
 			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Duration for which the extension host was unresponsive' };
 			data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extensions ids and core parts that were active while the extension host was frozen' };
 			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Top extensions id that took most of the duration' };
 		};
 		this._telemetryService.publicLog2<UnresponsiveData, UnresponsiveDataClassification>('exthostunresponsive', {
-			sessionId,
+			profilingSessionId,
 			duration: overall,
 			data: data.map(tuple => tuple[0]).flat(),
 			id: ExtensionIdentifier.toKey(extension.identifier),

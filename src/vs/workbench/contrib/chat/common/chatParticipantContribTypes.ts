@@ -22,10 +22,10 @@ export interface IRawChatParticipantContribution {
 	when?: string;
 	description?: string;
 	isDefault?: boolean;
+	isAgent?: boolean;
 	isSticky?: boolean;
 	sampleRequest?: string;
 	commands?: IRawChatCommandContribution[];
-	defaultImplicitVariables?: string[];
 	locations?: RawChatParticipantLocation[];
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
 }

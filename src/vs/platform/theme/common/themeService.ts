@@ -230,8 +230,15 @@ export interface IPartsSplash {
 		titleBarHeight: number;
 		activityBarWidth: number;
 		sideBarWidth: number;
+		auxiliarySideBarWidth: number;
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;
 	} | undefined;
+}
+
+export interface IPartsSplashWorkspaceOverride {
+	layoutInfo: {
+		auxiliarySideBarWidth: [number, string[] /* workspace identifier the override applies to */];
+	};
 }

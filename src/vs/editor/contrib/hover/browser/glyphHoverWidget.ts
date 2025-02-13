@@ -180,6 +180,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 		const left = editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth + (laneOrLine === 'lineNo' ? editorLayout.lineNumbersWidth : 0);
 		this._hover.containerDomNode.style.left = `${left}px`;
 		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
+		this._hover.containerDomNode.style.zIndex = '11'; // 1 more than the zone widget at 10 (#233819)
 	}
 
 	private _onMouseLeave(e: MouseEvent): void {

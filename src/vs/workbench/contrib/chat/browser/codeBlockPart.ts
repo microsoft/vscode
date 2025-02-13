@@ -74,6 +74,7 @@ const $ = dom.$;
 
 export interface ICodeBlockData {
 	readonly codeBlockIndex: number;
+	readonly codeBlockPartIndex: number;
 	readonly element: unknown;
 
 	readonly textModel: Promise<ITextModel>;
@@ -382,7 +383,7 @@ export class CodeBlockPart extends Disposable {
 
 		this.layout(width);
 		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1) });
-
+		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Toolbar for code block {0}", data.codeBlockIndex + 1));
 		if (data.hideToolbar) {
 			dom.hide(this.toolbar.getElement());
 		} else {
@@ -406,7 +407,7 @@ export class CodeBlockPart extends Disposable {
 
 	private clearWidgets() {
 		ContentHoverController.get(this.editor)?.hideContentHover();
-		GlyphHoverController.get(this.editor)?.hideContentHover();
+		GlyphHoverController.get(this.editor)?.hideGlyphHover();
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
@@ -741,8 +742,8 @@ export class CodeCompareBlockPart extends Disposable {
 	private clearWidgets() {
 		ContentHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
 		ContentHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
-		GlyphHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
-		GlyphHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		GlyphHoverController.get(this.diffEditor.getOriginalEditor())?.hideGlyphHover();
+		GlyphHoverController.get(this.diffEditor.getModifiedEditor())?.hideGlyphHover();
 	}
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {

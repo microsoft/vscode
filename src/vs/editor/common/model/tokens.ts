@@ -13,7 +13,7 @@ import { ILanguageIdCodec } from '../languages.js';
 import { IAttachedView } from '../model.js';
 import { TextModel } from './textModel.js';
 import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../textModelEvents.js';
-import { BackgroundTokenizationState, ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
+import { BackgroundTokenizationState } from '../tokenizationTextModelPart.js';
 import { LineTokens } from '../tokens/lineTokens.js';
 
 /**
@@ -131,7 +131,7 @@ export abstract class AbstractTokens extends Disposable {
 
 	public abstract getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
 
-	public abstract tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult;
+	public abstract tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null;
 
 	public abstract get hasTokens(): boolean;
 }

@@ -17,13 +17,6 @@ declare module 'vscode' {
 		readonly description: string;
 	}
 
-	export class ChatResponseDetectedParticipantPart {
-		participant: string;
-		// TODO@API validate this against statically-declared slash commands?
-		command?: ChatCommand;
-		constructor(participant: string, command?: ChatCommand);
-	}
-
 	export interface ChatVulnerability {
 		title: string;
 		description: string;
@@ -77,7 +70,7 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -175,8 +168,7 @@ declare module 'vscode' {
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri): void;
-		detectedParticipant(participant: string, command?: ChatCommand): void;
-		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
+		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
 		/**
 		 * Show an inline message in the chat view asking the user to confirm an action.
@@ -240,6 +232,17 @@ declare module 'vscode' {
 		 * Provide a set of variables that can only be used with this participant.
 		 */
 		participantVariableProvider?: { provider: ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
+
+		/**
+		 * Event that fires when a request is paused or unpaused.
+		 * Chat requests are initialy unpaused in the {@link requestHandler}.
+		 */
+		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
+	}
+
+	export interface ChatParticipantPauseStateEvent {
+		request: ChatRequest;
+		isPaused: boolean;
 	}
 
 	export interface ChatParticipantCompletionItemProvider {
@@ -275,23 +278,6 @@ declare module 'vscode' {
 		 * Create a chat participant with the extended progress type
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
-
-		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
-	}
-
-	export interface ChatParticipantMetadata {
-		participant: string;
-		command?: string;
-		disambiguation: { category: string; description: string; examples: string[] }[];
-	}
-
-	export interface ChatParticipantDetectionResult {
-		participant: string;
-		command?: string;
-	}
-
-	export interface ChatParticipantDetectionProvider {
-		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
 	}
 
 	/*
@@ -393,5 +379,31 @@ declare module 'vscode' {
 
 	export namespace lm {
 		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
+	}
+
+	export interface ChatVariableValue {
+		/**
+		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
+		 */
+		level: ChatVariableLevel;
+
+		/**
+		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
+		 */
+		value: string | Uri;
+
+		/**
+		 * A description of this value, which could be provided to the LLM as a hint.
+		 */
+		description?: string;
+	}
+
+	/**
+	 * The detail level of this chat variable value.
+	 */
+	export enum ChatVariableLevel {
+		Short = 1,
+		Medium = 2,
+		Full = 3
 	}
 }

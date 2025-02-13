@@ -4,48 +4,57 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { TextModelTreeSitter, TreeSitterImporter, TreeSitterLanguages } from '../../../browser/services/treeSitter/treeSitterParserService.js';
-import type { Parser } from '@vscode/tree-sitter-wasm';
+import { TextModelTreeSitter, TreeSitterLanguages } from '../../../common/services/treeSitter/treeSitterParserService.js';
+import type * as Parser from '@vscode/tree-sitter-wasm';
 import { createTextModel } from '../../common/testTextModel.js';
 import { timeout } from '../../../../base/common/async.js';
 import { ConsoleMainLogger, ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { LogService } from '../../../../platform/log/common/logService.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { ITreeSitterImporter } from '../../../common/services/treeSitterParserService.js';
 
-class MockParser implements Parser {
-	static async init(): Promise<void> { }
+class MockParser implements Parser.Parser {
+	language: Parser.Language | null = null;
 	delete(): void { }
-	parse(input: string | Parser.Input, oldTree?: Parser.Tree, options?: Parser.Options): Parser.Tree {
+	setLanguage(language: Parser.Language | null) { return this; }
+	parse(callback: string | Parser.ParseCallback, oldTree?: Parser.Tree | null, options?: Parser.ParseOptions): Parser.Tree | null {
 		return new MockTree();
 	}
+	reset(): void { }
 	getIncludedRanges(): Parser.Range[] {
 		return [];
 	}
 	getTimeoutMicros(): number { return 0; }
 	setTimeoutMicros(timeout: number): void { }
-	reset(): void { }
-	getLanguage(): Parser.Language { return {} as any; }
-	setLanguage(): void { }
-	getLogger(): Parser.Logger {
+	setLogger(callback: Parser.LogCallback | boolean | null): this {
 		throw new Error('Method not implemented.');
 	}
-	setLogger(logFunc?: Parser.Logger | false | null): void {
+	getLogger(): Parser.LogCallback | null {
 		throw new Error('Method not implemented.');
 	}
 }
 
-class MockTreeSitterImporter extends TreeSitterImporter {
-	public override async getParserClass(): Promise<typeof Parser> {
+class MockTreeSitterImporter implements ITreeSitterImporter {
+	_serviceBrand: undefined;
+	async getParserClass(): Promise<typeof Parser.Parser> {
 		return MockParser as any;
 	}
+	async getLanguageClass(): Promise<typeof Parser.Language> {
+		return MockLanguage as any;
+	}
+	async getQueryClass(): Promise<typeof Parser.Query> {
+		throw new Error('Method not implemented.');
+	}
+	parserClass = MockParser as any;
 }
 
 class MockTree implements Parser.Tree {
+	language: Parser.Language = new MockLanguage();
 	editorLanguage: string = '';
 	editorContents: string = '';
-	rootNode: Parser.SyntaxNode = {} as any;
-	rootNodeWithOffset(offsetBytes: number, offsetExtent: Parser.Point): Parser.SyntaxNode {
+	rootNode: Parser.Node = {} as any;
+	rootNodeWithOffset(offsetBytes: number, offsetExtent: Parser.Point): Parser.Node {
 		throw new Error('Method not implemented.');
 	}
 	copy(): Parser.Tree {
@@ -73,6 +82,23 @@ class MockTree implements Parser.Tree {
 }
 
 class MockLanguage implements Parser.Language {
+	types: string[] = [];
+	fields: (string | null)[] = [];
+	get name(): string | null {
+		throw new Error('Method not implemented.');
+	}
+	get abiVersion(): number {
+		throw new Error('Method not implemented.');
+	}
+	get metadata(): Parser.LanguageMetadata | null {
+		throw new Error('Method not implemented.');
+	}
+	get supertypes(): number[] {
+		throw new Error('Method not implemented.');
+	}
+	subtypes(supertype: number): number[] {
+		throw new Error('Method not implemented.');
+	}
 	version: number = 0;
 	fieldCount: number = 0;
 	stateCount: number = 0;
@@ -101,14 +127,14 @@ class MockLanguage implements Parser.Language {
 	query(source: string): Parser.Query {
 		throw new Error('Method not implemented.');
 	}
-	lookaheadIterator(stateId: number): Parser.LookaheadIterable | null {
+	lookaheadIterator(stateId: number): Parser.LookaheadIterator | null {
 		throw new Error('Method not implemented.');
 	}
 	languageId: string = '';
 }
 
 suite('TreeSitterParserService', function () {
-	const treeSitterImporter: TreeSitterImporter = new MockTreeSitterImporter();
+	const treeSitterImporter: ITreeSitterImporter = new MockTreeSitterImporter();
 	let logService: ILogService;
 	let telemetryService: ITelemetryService;
 	setup(function () {

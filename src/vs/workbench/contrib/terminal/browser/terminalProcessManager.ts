@@ -94,6 +94,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _processListeners?: IDisposable[];
 	private _isDisconnected: boolean = false;
 
+	private _processTraits: IProcessReadyEvent | undefined;
 	private _shellLaunchConfig?: IShellLaunchConfig;
 	private _dimensions: ITerminalDimensions = { cols: 0, rows: 0 };
 
@@ -128,6 +129,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	get hasChildProcesses(): boolean { return this._hasChildProcesses; }
 	get reconnectionProperties(): IReconnectionProperties | undefined { return this._shellLaunchConfig?.attachPersistentProcess?.reconnectionProperties || this._shellLaunchConfig?.reconnectionProperties || undefined; }
 	get extEnvironmentVariableCollection(): IMergedEnvironmentVariableCollection | undefined { return this._extEnvironmentVariableCollection; }
+	get processTraits(): IProcessReadyEvent | undefined { return this._processTraits; }
 
 	constructor(
 		private readonly _instanceId: number,
@@ -357,6 +359,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		this._processListeners = [
 			newProcess.onProcessReady((e: IProcessReadyEvent) => {
+				this._processTraits = e;
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._initialCwd });

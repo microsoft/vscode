@@ -102,6 +102,8 @@ class LanguageStatus {
 	private _dedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
 	private readonly _renderDisposables = new DisposableStore();
 
+	private readonly _combinedEntryTooltip = document.createElement('div');
+
 	constructor(
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 		@IStatusbarService private readonly _statusBarService: IStatusbarService,
@@ -207,10 +209,9 @@ class LanguageStatus {
 
 			let isOneBusy = false;
 			const ariaLabels: string[] = [];
-			const element = document.createElement('div');
 			for (const status of model.combined) {
 				const isPinned = model.dedicated.includes(status);
-				element.appendChild(this._renderStatus(status, showSeverity, isPinned, this._renderDisposables));
+				this._renderStatus(this._combinedEntryTooltip, status, showSeverity, isPinned, this._renderDisposables);
 				ariaLabels.push(LanguageStatus._accessibilityInformation(status).label);
 				isOneBusy = isOneBusy || (!isPinned && status.busy); // unpinned items contribute to the busy-indicator of the composite status item
 			}
@@ -218,7 +219,7 @@ class LanguageStatus {
 			const props: IStatusbarEntry = {
 				name: localize('langStatus.name', "Editor Language Status"),
 				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
-				tooltip: element,
+				tooltip: this._combinedEntryTooltip,
 				command: ShowTooltipCommand,
 				text: isOneBusy ? '$(loading~spin)' : text,
 			};
@@ -256,7 +257,7 @@ class LanguageStatus {
 				const hoverTarget = targetWindow.document.querySelector('.monaco-workbench .context-view');
 				if (dom.isHTMLElement(hoverTarget)) {
 					const observer = new MutationObserver(() => {
-						if (targetWindow.document.contains(element)) {
+						if (targetWindow.document.contains(this._combinedEntryTooltip)) {
 							this._interactionCounter.increment();
 							observer.disconnect();
 						}
@@ -284,10 +285,13 @@ class LanguageStatus {
 		this._dedicatedEntries = newDedicatedEntries;
 	}
 
-	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, isPinned: boolean, store: DisposableStore): HTMLElement {
+	private _renderStatus(container: HTMLElement, status: ILanguageStatus, showSeverity: boolean, isPinned: boolean, store: DisposableStore): HTMLElement {
 
 		const parent = document.createElement('div');
 		parent.classList.add('hover-language-status');
+
+		container.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
 
 		const severity = document.createElement('div');
 		severity.classList.add('severity', `sev${status.severity}`);

@@ -398,7 +398,7 @@
 }
 
 .extension-editor > .body > .content {
-	height: calc(100% - 36px);
+	height: calc(100% - 37px); /* Correct height so that it is not on top of bottom panel #231439 */
 	position: relative;
 	overflow: hidden;
 	user-select: text;

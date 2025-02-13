@@ -8,7 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { createHotClass } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ITransaction, autorun, derived, derivedDisposable, derivedObservableWithCache, observableFromEvent, observableSignal, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { ITransaction, autorun, derived, derivedDisposable, derivedObservableWithCache, observableFromEvent, observableSignal, observableValue, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -16,7 +16,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { hotClassGetOriginalInstance } from '../../../../../platform/observable/common/wrapInHotClass.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
@@ -36,10 +36,24 @@ import { ObservableContextKeyService } from '../utils.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsView } from '../view/inlineCompletionsView.js';
+import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 
 export class InlineCompletionsController extends Disposable {
+	private static readonly _instances = new Set<InlineCompletionsController>();
+
 	public static hot = createHotClass(InlineCompletionsController);
 	public static ID = 'editor.contrib.inlineCompletionsController';
+
+	/**
+	 * Find the controller in the focused editor or in the outer editor (if applicable)
+	 */
+	public static getInFocusedEditorOrParent(accessor: ServicesAccessor): InlineCompletionsController | null {
+		const outerEditor = getOuterEditor(accessor);
+		if (!outerEditor) {
+			return null;
+		}
+		return InlineCompletionsController.get(outerEditor);
+	}
 
 	public static get(editor: ICodeEditor): InlineCompletionsController | null {
 		return hotClassGetOriginalInstance(editor.getContribution<InlineCompletionsController>(InlineCompletionsController.ID));
@@ -67,6 +81,13 @@ export class InlineCompletionsController extends Disposable {
 		'InlineCompletionsDebounce',
 		{ min: 50, max: 50 }
 	);
+
+	private readonly _focusIsInMenu = observableValue<boolean>(this, false);
+	private readonly _focusIsInEditorOrMenu = derived(this, reader => {
+		const editorHasFocus = this._editorObs.isFocused.read(reader);
+		const menuHasFocus = this._focusIsInMenu.read(reader);
+		return editorHasFocus || menuHasFocus;
+	});
 
 	private readonly _cursorIsInIndentation = derived(this, reader => {
 		const cursorPos = this._editorObs.cursorPosition.read(reader);
@@ -100,7 +121,7 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly _hideInlineEditOnSelectionChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => true);
 
-	protected readonly _view = this._register(new InlineCompletionsView(this.editor, this.model, this._instantiationService));
+	protected readonly _view = this._register(this._instantiationService.createInstance(InlineCompletionsView, this.editor, this.model, this._focusIsInMenu));
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -116,7 +137,29 @@ export class InlineCompletionsController extends Disposable {
 	) {
 		super();
 
+		InlineCompletionsController._instances.add(this);
+		this._register(toDisposable(() => InlineCompletionsController._instances.delete(this)));
+
+		this._register(autorun(reader => {
+			// Cancel all other inline completions when a new one starts
+			const model = this.model.read(reader);
+			if (!model) { return; }
+			if (model.state.read(reader) !== undefined) {
+				for (const ctrl of InlineCompletionsController._instances) {
+					if (ctrl !== this) {
+						ctrl.reject();
+					}
+				}
+			}
+		}));
+
 		this._register(runOnChange(this._editorObs.onDidType, (_value, _changes) => {
+			if (this._enabled.get()) {
+				this.model.get()?.trigger();
+			}
+		}));
+
+		this._register(runOnChange(this._editorObs.onDidPaste, (_value, _changes) => {
 			if (this._enabled.get()) {
 				this.model.get()?.trigger();
 			}
@@ -132,9 +175,13 @@ export class InlineCompletionsController extends Disposable {
 				'acceptSelectedSuggestion',
 			]);
 			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
+				let noDelay = false;
+				if (e.commandId === inlineSuggestCommitId) {
+					noDelay = true;
+				}
 				this._editorObs.forceUpdate(tx => {
 					/** @description onDidExecuteCommand */
-					this.model.get()?.trigger(tx);
+					this.model.get()?.trigger(tx, { noDelay });
 				});
 			}
 		}));
@@ -148,13 +195,16 @@ export class InlineCompletionsController extends Disposable {
 				if (!m) { return; }
 				if (m.state.get()?.kind === 'ghostText') {
 					this.model.get()?.stop();
-				} else if (m.state.get()?.inlineCompletion) {
-					this.model.get()?.collapseInlineEdit();
 				}
 			}
 		}));
 
-		this._register(this.editor.onDidBlurEditorWidget(() => {
+		this._register(autorun(reader => {
+			const isFocused = this._focusIsInEditorOrMenu.read(reader);
+			if (isFocused) {
+				return;
+			}
+
 			// This is a hidden setting very useful for debugging
 			if (this._contextKeyService.getContextKeyValue<boolean>('accessibleViewIsShown')
 				|| this._configurationService.getValue('editor.inlineSuggest.keepOnBlur')
@@ -163,14 +213,16 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
-			if (this.model.get()?.inlineEditAvailable.get()) {
-				// dont hide inline edits on blur
+			const model = this.model.get();
+			if (!model) { return; }
+			if (model.state.get()?.inlineCompletion?.request.isExplicitRequest && model.inlineEditAvailable.get()) {
+				// dont hide inline edits on blur when requested explicitly
 				return;
 			}
 
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidBlurEditorWidget */
-				this.model.get()?.stop('automatic', tx);
+				model.stop('automatic', tx);
 			});
 		}));
 
@@ -242,7 +294,7 @@ export class InlineCompletionsController extends Disposable {
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.suppressSuggestions, reader => {
 			const model = this.model.read(reader);
 			const state = model?.inlineCompletionState.read(reader);
-			return state?.primaryGhostText && state?.inlineCompletion ? state.inlineCompletion.inlineCompletion.source.inlineCompletions.suppressSuggestions : undefined;
+			return state?.primaryGhostText && state?.inlineCompletion ? state.inlineCompletion.source.inlineCompletions.suppressSuggestions : undefined;
 		}));
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.inlineSuggestionVisible, reader => {
 			const model = this.model.read(reader);

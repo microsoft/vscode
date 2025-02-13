@@ -13,7 +13,6 @@ import { IWorkbenchEnvironmentService } from '../../services/environment/common/
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IsDevelopmentContext } from '../../../platform/contextkey/common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
-import { IFileService } from '../../../platform/files/common/files.js';
 import { INativeWorkbenchEnvironmentService } from '../../services/environment/electron-sandbox/environmentService.js';
 import { URI } from '../../../base/common/uri.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
@@ -89,8 +88,8 @@ export class OpenUserDataFolderAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.openUserDataFolder',
-			title: localize2('openUserDataFolder', 'Open User Data Folder'),
+			id: 'workbench.action.revealUserDataFolder',
+			title: localize2('revealUserDataFolder', 'Reveal User Data Folder'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -98,20 +97,9 @@ export class OpenUserDataFolderAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
-		const fileService = accessor.get(IFileService);
 		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
 
-		const userDataHome = URI.file(environmentService.userDataPath);
-		const file = await fileService.resolve(userDataHome);
-
-		let itemToShow: URI;
-		if (file.children && file.children.length > 0) {
-			itemToShow = file.children[0].resource;
-		} else {
-			itemToShow = userDataHome;
-		}
-
-		return nativeHostService.showItemInFolder(itemToShow.fsPath);
+		return nativeHostService.showItemInFolder(URI.file(environmentService.userDataPath).fsPath);
 	}
 }
 

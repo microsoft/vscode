@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Range, LineChange, Selection, Uri } from 'vscode';
+import { TextDocument, Range, LineChange, Selection, Uri, TextEditor, TextEditorDiffInformation } from 'vscode';
+import { fromGitUri, isGitUri } from './uri';
 
 export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
 	const result: string[] = [];
@@ -141,6 +142,60 @@ export function invertLineChange(diff: LineChange): LineChange {
 		originalStartLineNumber: diff.modifiedStartLineNumber,
 		originalEndLineNumber: diff.modifiedEndLineNumber
 	};
+}
+
+export function toLineChanges(diffInformation: TextEditorDiffInformation): LineChange[] {
+	return diffInformation.changes.map(x => {
+		let originalStartLineNumber: number;
+		let originalEndLineNumber: number;
+		let modifiedStartLineNumber: number;
+		let modifiedEndLineNumber: number;
+
+		if (x.original.startLineNumber === x.original.endLineNumberExclusive) {
+			// Insertion
+			originalStartLineNumber = x.original.startLineNumber - 1;
+			originalEndLineNumber = 0;
+		} else {
+			originalStartLineNumber = x.original.startLineNumber;
+			originalEndLineNumber = x.original.endLineNumberExclusive - 1;
+		}
+
+		if (x.modified.startLineNumber === x.modified.endLineNumberExclusive) {
+			// Deletion
+			modifiedStartLineNumber = x.modified.startLineNumber - 1;
+			modifiedEndLineNumber = 0;
+		} else {
+			modifiedStartLineNumber = x.modified.startLineNumber;
+			modifiedEndLineNumber = x.modified.endLineNumberExclusive - 1;
+		}
+
+		return {
+			originalStartLineNumber,
+			originalEndLineNumber,
+			modifiedStartLineNumber,
+			modifiedEndLineNumber
+		};
+	});
+}
+
+export function getIndexDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {
+	// Diff Editor (Index)
+	return textEditor.diffInformation?.find(diff =>
+		diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === 'HEAD' &&
+		diff.modified && isGitUri(diff.modified) && fromGitUri(diff.modified).ref === '');
+}
+
+export function getWorkingTreeDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {
+	// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
+	return getDiffInformation(textEditor, '~') ?? getDiffInformation(textEditor, '');
+}
+
+export function getWorkingTreeAndIndexDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {
+	return getDiffInformation(textEditor, 'HEAD');
+}
+
+function getDiffInformation(textEditor: TextEditor, ref: string): TextEditorDiffInformation | undefined {
+	return textEditor.diffInformation?.find(diff => diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === ref);
 }
 
 export interface DiffEditorSelectionHunkToolbarContext {

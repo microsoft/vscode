@@ -11,7 +11,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IConfigurationRegistry, Extensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions, ConfigurationScope, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { IExternalTerminalService } from '../../../../platform/externalTerminal/electron-sandbox/externalTerminalService.js';
@@ -91,6 +91,20 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 	private async _updateConfiguration(): Promise<void> {
 		const terminals = await this._externalTerminalService.getDefaultTerminalForPlatforms();
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const terminalKindProperties: Partial<IConfigurationPropertySchema> = {
+			type: 'string',
+			enum: [
+				'integrated',
+				'external',
+				'both'
+			],
+			enumDescriptions: [
+				nls.localize('terminal.kind.integrated', "Show the integrated terminal action."),
+				nls.localize('terminal.kind.external', "Show the external terminal action."),
+				nls.localize('terminal.kind.both', "Show both integrated and external terminal actions.")
+			],
+			default: 'integrated'
+		};
 		configurationRegistry.registerConfiguration({
 			id: 'externalTerminal',
 			order: 100,
@@ -98,34 +112,12 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 			type: 'object',
 			properties: {
 				'terminal.explorerKind': {
-					type: 'string',
-					enum: [
-						'integrated',
-						'external',
-						'both'
-					],
-					enumDescriptions: [
-						nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
-						nls.localize('terminal.explorerKind.external', "Use the configured external terminal."),
-						nls.localize('terminal.explorerKind.both', "Use the other two together.")
-					],
+					...terminalKindProperties,
 					description: nls.localize('explorer.openInTerminalKind', "When opening a file from the Explorer in a terminal, determines what kind of terminal will be launched"),
-					default: 'integrated'
 				},
 				'terminal.sourceControlRepositoriesKind': {
-					type: 'string',
-					enum: [
-						'integrated',
-						'external',
-						'both'
-					],
-					enumDescriptions: [
-						nls.localize('terminal.sourceControlRepositoriesKind.integrated', "Use VS Code's integrated terminal."),
-						nls.localize('terminal.sourceControlRepositoriesKind.external', "Use the configured external terminal."),
-						nls.localize('terminal.sourceControlRepositoriesKind.both', "Use the other two together.")
-					],
+					...terminalKindProperties,
 					description: nls.localize('sourceControlRepositories.openInTerminalKind', "When opening a repository from the Source Control Repositories view in a terminal, determines what kind of terminal will be launched"),
-					default: 'integrated'
 				},
 				'terminal.external.windowsExec': {
 					type: 'string',

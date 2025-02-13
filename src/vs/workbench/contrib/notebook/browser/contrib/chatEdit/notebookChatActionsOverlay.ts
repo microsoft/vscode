@@ -17,14 +17,13 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { autorun, autorunWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
-import { INotebookDeletedCellDecorator } from './notebookCellDecorators.js';
-import { AcceptAction, RejectAction } from '../../../../chat/browser/chatEditorActions.js';
-import { navigationBearingFakeActionId } from '../../../../chat/browser/chatEditorOverlay.js';
+import { AcceptAction, navigationBearingFakeActionId, RejectAction } from '../../../../chat/browser/chatEditing/chatEditingEditorActions.js';
+import { INotebookDeletedCellDecorator } from '../../diff/inlineDiff/notebookDeletedCellDecorator.js';
 
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
-		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		cellDiffInfo: IObservable<CellDiffInfo[] | undefined>,
 		deletedCellDecorator: INotebookDeletedCellDecorator,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -34,9 +33,13 @@ export class NotebookChatActionsOverlayController extends Disposable {
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 
 		this._register(autorunWithStore((r, store) => {
-			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const model = notebookModel.read(r);
-			if (!model || !session) {
+			if (!model) {
+				return;
+			}
+			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+			const session = sessions.find(s => s.readEntry(model.uri, r));
+			if (!session) {
 				return;
 			}
 
@@ -60,7 +63,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		entry: IModifiedFileEntry,
-		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		cellDiffInfo: IObservable<CellDiffInfo[] | undefined>,
 		nextEntry: IModifiedFileEntry,
 		previousEntry: IModifiedFileEntry,
 		deletedCellDecorator: INotebookDeletedCellDecorator,
@@ -196,7 +199,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 class NextPreviousChangeActionRunner extends ActionRunner {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
-		private readonly cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		private readonly cellDiffInfo: IObservable<CellDiffInfo[] | undefined>,
 		private readonly entry: IModifiedFileEntry,
 		private readonly next: IModifiedFileEntry,
 		private readonly direction: 'next' | 'previous',

@@ -484,9 +484,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
 		for (const editor of this.historyService.getHistory()) {
 			const resource = editor.resource;
-			// allow untitled and terminal editors to go through
-			if (!resource || (!this.fileService.hasProvider(resource) && resource.scheme !== Schemas.untitled && resource.scheme !== Schemas.vscodeTerminal)) {
-				continue; // exclude editors without file resource if we are searching by pattern
+			if (!resource) {
+				continue;
 			}
 
 			const editorHistoryPick = this.createAnythingPick(editor, configuration);

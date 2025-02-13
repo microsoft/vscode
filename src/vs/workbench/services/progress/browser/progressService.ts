@@ -356,7 +356,10 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 
 			// Clear upon dispose
-			Event.once(notification.onDidClose)(() => notificationDisposables.dispose());
+			Event.once(notification.onDidClose)(() => {
+				notificationDisposables.dispose();
+				dispose(windowProgressDisposable);
+			});
 
 			return notification;
 		};

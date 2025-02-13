@@ -557,7 +557,7 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 	}, timeout);
 	const disposable = toDisposable(() => {
 		clearTimeout(timer);
-		store?.deleteAndLeak(disposable);
+		store?.delete(disposable);
 	});
 	store?.add(disposable);
 	return disposable;

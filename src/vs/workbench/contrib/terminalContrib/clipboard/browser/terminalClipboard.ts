@@ -95,7 +95,7 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 	}
 
 	if (result.confirmed && checkboxChecked) {
-		await configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
+		await configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, 'never');
 	}
 
 	if (result.singleLine) {

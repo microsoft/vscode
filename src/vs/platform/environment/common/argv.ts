@@ -36,6 +36,7 @@ export interface NativeParsedArgs {
 	diff?: boolean;
 	merge?: boolean;
 	add?: boolean;
+	remove?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
 	'reuse-window'?: boolean;
@@ -146,4 +147,5 @@ export interface NativeParsedArgs {
 	'trace-startup-format'?: string;
 	'trace-startup-file'?: string;
 	'trace-startup-duration'?: string;
+	'xdg-portal-required-version'?: string;
 }
