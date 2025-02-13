@@ -22,7 +22,7 @@ import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOpt
 import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent } from '../../notebook/browser/notebookBrowser.js';
 import { NotebookEditorExtensionsRegistry } from '../../notebook/browser/notebookEditorExtensions.js';
 import { IBorrowValue, INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
+import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from '../../notebook/browser/contrib/cellStatusBar/executionStatusBarItemController.js';
 import { INotebookKernelService } from '../../notebook/common/notebookKernelService.js';
