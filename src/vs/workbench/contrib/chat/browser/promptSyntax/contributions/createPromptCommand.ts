@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
+// import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -20,33 +20,49 @@ import { ServicesAccessor } from '../../../../../../platform/instantiation/commo
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 
-/**
- * Keybinding of the command.
- */
-const COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyC; // TODO: @legomushroom - validate the keybinding more
+// /**
+//  * Keybinding of the command.
+//  */
+// const COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyC; // TODO: @legomushroom - validate the keybinding more
 
 /**
- * ID of the command.
+ * Base command ID prefix.
  */
-const COMMAND_ID = 'create-prompt';
+const BASE_COMMAND_ID = 'workbench.command.prompts.create';
 
 /**
- * Title of the command.
+ * Command ID for creating a 'local' prompt.
  */
-const COMMAND_TITLE = localize('commands.prompts.create.name', "Create Prompt");
+const LOCAL_COMMAND_ID = `${BASE_COMMAND_ID}.local`;
+
+/**
+ * Command ID for creating a 'global' prompt.
+ */
+const GLOBAL_COMMAND_ID = `${BASE_COMMAND_ID}.global`;
+
+/**
+ * Title of the 'create local prompt' command.
+ */
+const LOCAL_COMMAND_TITLE = localize('commands.prompts.create.title.local', "Create prompt (local)");
+
+/**
+ * Title of the 'create global prompt' command.
+ */
+const GLOBAL_COMMAND_TITLE = localize('commands.prompts.create.title.global', "Create prompt (global)");
 
 /**
  * Asks the user for a prompt name.
  */
 const askForPromptName = async (
+	_source: IPrompt['source'],
 	quickInputService: IQuickInputService,
 ): Promise<string | undefined> => {
 	const result = await quickInputService.input(
 		{
 			placeHolder: localize(
 				'commands.prompts.create.ask-name.placeholder',
-				"{0}: Provide a prompt name",
-				COMMAND_TITLE,
+				"Provide a prompt name",
+				PROMPT_FILE_EXTENSION,
 			),
 		});
 
@@ -56,11 +72,10 @@ const askForPromptName = async (
 
 	const trimmedName = result.trim();
 	if (!trimmedName) {
-		// TODO: @legomushroom - show warning message?
 		return undefined;
 	}
 
-	// TODO: @legomushroom - handle other file extensions too
+	// TODO: @legomushroom - handle other file extensions too?
 	const cleanName = (trimmedName.endsWith(PROMPT_FILE_EXTENSION))
 		? trimmedName
 		: `${trimmedName}${PROMPT_FILE_EXTENSION}`;
@@ -69,27 +84,41 @@ const askForPromptName = async (
 };
 
 /**
- * TODO: @legomushroom - reuse a common one
+ * TODO: @legomushroom - reuse a common type
  * Type for an {@link IQuickPickItem} with its `value` property being a `URI`.
  */
 type WithUriValue<T extends IQuickPickItem> = T & { value: URI };
 
 /**
- * Creates a {@link IQuickPickItem} for a prompt location.
+ * Utility to create {@link IQuickPickItem}s for a provided prompt locations.
  */
-const createLocationPickItem = (
-	{ uri }: IPrompt,
+const asPickItem = (
 	labelService: ILabelService,
-): WithUriValue<IQuickPickItem> => {
-	const fileBasename = basename(uri);
-	const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
+): (({ uri }: IPrompt) => WithUriValue<IQuickPickItem>) => {
+	return ({ uri }) => {
+		// TODO: @legomushroom - fix multi-root workspace labels
+		let label = basename(uri);
+		let description = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
 
-	return {
-		type: 'item',
-		label: fileWithoutExtension,
-		description: labelService.getUriLabel(uri, { relative: true }),
-		tooltip: uri.fsPath,
-		value: uri,
+		// if the resulting `fullPath` is empty, the location points to the root
+		// of the current workspace, so use the appropriate label and description
+		if (!description) {
+			label = localize(
+				'commands.prompts.create.location.current-workspace',
+				"Current Workspace",
+			);
+
+			// use absolute path as the description
+			description = labelService.getUriLabel(uri, { relative: false });
+		}
+
+		return {
+			type: 'item',
+			label,
+			description,
+			tooltip: uri.fsPath,
+			value: uri,
+		};
 	};
 };
 
@@ -99,36 +128,40 @@ const createLocationPickItem = (
  *
  * @throws if no prompt locations are provided.
  */
+// TODO: @legomushroom - add "select different location" option for the "local" source; ask to "add to settings" after prompt was created in this location?
+// TODO: @legomushroom - add "create location" option; ask to "add to settings" after prompt was created in this location?
 const askForPromptLocation = async (
-	promptLocations: readonly IPrompt[],
+	source: IPrompt['source'],
+	promptsService: IPromptsService,
 	quickInputService: IQuickInputService,
 	labelService: ILabelService,
 ): Promise<URI | undefined> => {
+	const locations = promptsService.getPromptsLocation(source);
+
+	// TODO: @legomushroom - add create/select location option instead
 	assert(
-		promptLocations.length > 0,
+		locations.length > 0,
 		'No prompt locations found.',
 	);
 
 	// if there is only one location, return it
-	if (promptLocations.length === 1) {
-		return promptLocations[0].uri;
+	if (locations.length === 1) {
+		return locations[0].uri;
 	}
 
 	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
 		placeHolder: localize(
 			'commands.prompts.create.ask-location.placeholder',
-			"{0}: Select a prompt location",
-			COMMAND_TITLE,
+			"Select a prompt location",
 		), // TODO: @legomushroom - should include the selected "source" name in the placeholder?
 		canPickMany: false,
 		matchOnDescription: true,
 	};
 
-	const locations = promptLocations.map((location) => {
-		return createLocationPickItem(location, labelService);
-	});
+	// TODO: @legomushroom - sort so the more relevant locations appear first
+	const locationsList = locations.map(asPickItem(labelService));
 
-	const answer = await quickInputService.pick(locations, pickOptions);
+	const answer = await quickInputService.pick(locationsList, pickOptions);
 	if (!answer) {
 		return undefined;
 	}
@@ -137,10 +170,11 @@ const askForPromptLocation = async (
 };
 
 /**
- * TODO: @legomushroom
+ * The command implementation.
  */
-const createPromptCommand = async (
+const command = async (
 	accessor: ServicesAccessor,
+	source: IPrompt['source'],
 ): Promise<null> => {
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
@@ -148,35 +182,35 @@ const createPromptCommand = async (
 	const promptsService = accessor.get(IPromptsService);
 	const quickInputService = accessor.get(IQuickInputService);
 
-	const promptName = await askForPromptName(quickInputService);
-	if (!promptName) {
+	const name = await askForPromptName(source, quickInputService);
+	if (!name) {
 		return null;
 	}
 
-	// TODO: @legomushroom - receive locations as this function parameter instead
-	let promptLocations: readonly IPrompt[] | undefined;
-	if (!promptLocations) {
-		promptLocations = promptsService.getPromptsLocation('global');
-	}
-
-	const promptLocation = await askForPromptLocation(promptLocations, quickInputService, labelService);
-	if (!promptLocation) {
+	const location = await askForPromptLocation(source, promptsService, quickInputService, labelService);
+	if (!location) {
 		return null;
 	}
 
 	// TODO: @legomushroom - get real initial content
 	// TODO: @legomushroom - localize the initial content
-	const promptContent = 'Add prompt contents..';
+	const content = 'Add prompt contents..';
 	const promptUri = await createPromptFile(
-		promptName,
-		promptLocation,
-		promptContent,
+		name,
+		location,
+		content,
 		fileService,
 	);
 
 	await openerService.open(promptUri);
 
 	return null;
+};
+
+const commandFactory = (source: IPrompt['source']) => {
+	return async (accessor: ServicesAccessor): Promise<null> => {
+		return command(accessor, source);
+	};
 };
 
 /**
@@ -213,22 +247,41 @@ const createPromptFile = async (
 };
 
 /**
- * Register the "Create Prompt" command with its keybinding.
+ * Register the "Create Local Prompt" command.
  */
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: COMMAND_ID,
+	id: LOCAL_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: COMMAND_KEY_BINDING,
-	handler: createPromptCommand,
+	handler: commandFactory('local'),
 });
 
 /**
- * Register the "Create Prompt" command in the `command palette`.
+ * Register the "Create Global Prompt" command.
+ */
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: GLOBAL_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: commandFactory('global'),
+});
+
+/**
+ * Register the "Create Local Prompt" command in the `command palette`.
  */
 appendToCommandPalette(
 	{
-		id: COMMAND_ID,
-		title: COMMAND_TITLE,
+		id: LOCAL_COMMAND_ID,
+		title: LOCAL_COMMAND_TITLE,
+		category: CHAT_CATEGORY,
+	},
+);
+
+/**
+ * Register the "Create Global Prompt" command in the `command palette`.
+ */
+appendToCommandPalette(
+	{
+		id: GLOBAL_COMMAND_ID,
+		title: GLOBAL_COMMAND_TITLE,
 		category: CHAT_CATEGORY,
 	},
 );
