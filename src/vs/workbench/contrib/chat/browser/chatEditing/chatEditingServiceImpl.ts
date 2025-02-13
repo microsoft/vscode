@@ -300,12 +300,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					}
 				}
 
-				if (newEdits.length > 0 || entry.seen === 0) {
-					// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
-					editsSource ??= new AsyncIterableSource();
-					editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
-				}
-
 				if (first) {
 
 					await editsPromise;
