@@ -23,7 +23,7 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile $VSCODE_ARCH > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -52,10 +52,6 @@ steps:
       workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
-
-  - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
-    displayName: Install build tools
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e

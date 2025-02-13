@@ -209,10 +209,10 @@ extends:
           - job: Compile
             timeoutInMinutes: 90
             pool:
-              name: 1es-ubuntu-22.04-x64
-              os: linux
+              name: AcesShared
+              os: macOS
             variables:
-              VSCODE_ARCH: x64
+              VSCODE_ARCH: arm64
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
