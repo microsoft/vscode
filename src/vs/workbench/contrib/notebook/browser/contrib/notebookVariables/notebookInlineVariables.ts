@@ -56,7 +56,8 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		super();
 
 		this._register(this.notebookExecutionStateService.onDidChangeExecution(async e => {
-			if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineValues)) {
+			const inlineValuesSetting = this.configurationService.getValue<'on' | 'auto' | 'off'>(NotebookSetting.notebookInlineValues);
+			if (inlineValuesSetting === 'off') {
 				return;
 			}
 
@@ -67,7 +68,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 		this._register(Event.runAndSubscribe(this.configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(NotebookSetting.notebookInlineValues)) {
-				if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineValues)) {
+				if (this.configurationService.getValue<'on' | 'auto' | 'off'>(NotebookSetting.notebookInlineValues) === 'off') {
 					this.clearNotebookInlineDecorations();
 				}
 			}
@@ -108,11 +109,19 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			return;
 		}
 
+		const inlineValuesSetting = this.configurationService.getValue<'on' | 'auto' | 'off'>(NotebookSetting.notebookInlineValues);
+		const hasInlineValueProvider = this.languageFeaturesService.inlineValuesProvider.has(model);
+
+		// Skip if setting is off or if auto and no provider is registered
+		if (inlineValuesSetting === 'off' || (inlineValuesSetting === 'auto' && !hasInlineValueProvider)) {
+			return;
+		}
+
 		this.clearCellInlineDecorations(cell);
 
 		const inlineDecorations: IModelDeltaDecoration[] = [];
 
-		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
+		if (hasInlineValueProvider) {
 			// use extension based provider, borrowed from https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/debug/browser/debugEditorContribution.ts#L679
 			const lastLine = model.getLineCount();
 			const lastColumn = model.getLineMaxColumn(lastLine);
@@ -197,7 +206,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 				}
 			});
 
-		} else { // fallback approach
+		} else if (inlineValuesSetting === 'on') { // fallback approach only when setting is 'on'
 			if (!this.notebookEditor.hasModel()) {
 				return; // should not happen, a cell will be executed
 			}
