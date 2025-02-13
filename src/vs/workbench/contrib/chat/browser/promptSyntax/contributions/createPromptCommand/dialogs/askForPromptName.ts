@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../../nls.js';
-import { IPrompt } from '../../../../../common/promptSyntax/service/types.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../../common/promptSyntax/constants.js';
 import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
@@ -12,7 +11,7 @@ import { IQuickInputService } from '../../../../../../../../platform/quickinput/
  * Asks the user for a prompt name.
  */
 export const askForPromptName = async (
-	_source: IPrompt['source'],
+	_type: 'local' | 'global',
 	quickInputService: IQuickInputService,
 ): Promise<string | undefined> => {
 	const result = await quickInputService.input(

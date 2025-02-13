@@ -13,24 +13,46 @@ import { PROMPT_FILE_EXTENSION } from '../../../../../common/promptSyntax/consta
 import { BasePromptParser } from '../../../../../common/promptSyntax/parsers/basePromptParser.js';
 
 /**
- * Create a prompt file at the provided location and with
+ * Options for the {@link createPromptFile} utility.
+ */
+interface ICreatePromptFileOptions {
+	/**
+	 * Name of the prompt file including file extension.
+	 * The file extension must be {@link PROMPT_FILE_EXTENSION}.
+	 */
+	readonly fileName: string;
+
+	/**
+	 * Destination folder of the prompt file.
+	 */
+	readonly folder: URI;
+
+	/**
+	 * Initial contents of the prompt file.
+	 */
+	readonly content: string;
+
+	fileService: IFileService;
+}
+
+/**
+ * Create a prompt file at the provided folder and with
  * the provided file content.
  *
  * @throws in the following cases:
  *  - if the prompt filename does not end with {@link PROMPT_FILE_EXTENSION}
- *  - if a folder or file with the same already name exists in the provided location
+ *  - if a folder or file with the same already name exists in the destination folder
  */
 export const createPromptFile = async (
-	promptName: string,
-	location: URI,
-	content: string,
-	fileService: IFileService,
+	options: ICreatePromptFileOptions,
 ): Promise<URI> => {
-	const promptUri = URI.joinPath(location, promptName);
+	const { fileName, folder, content, fileService } = options;
+
+	const promptUri = URI.joinPath(folder, fileName);
 
 	assert(
 		BasePromptParser.isPromptSnippet(promptUri),
-		new InvalidPromptName(promptName),
+		new InvalidPromptName(fileName),
 	);
 
 	// if a folder or file with the same name exists, throw an error
