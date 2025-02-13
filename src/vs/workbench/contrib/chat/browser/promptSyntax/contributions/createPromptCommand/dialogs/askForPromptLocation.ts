@@ -11,39 +11,79 @@ import { DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
 import { IPromptPath, IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
+import { IWorkspaceContextService } from '../../../../../../../../platform/workspace/common/workspace.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
- * Utility to create {@link IQuickPickItem}s for a provided prompt source folders.
+ * Options for {@link askForPromptFolder} dialog.
  */
-const asFolderListItem = (
-	labelService: ILabelService,
-): (({ uri }: IPromptPath) => WithUriValue<IQuickPickItem>) => {
-	return ({ uri }) => {
-		// TODO: @legomushroom - fix multi-root workspace labels
-		let label = basename(uri);
-		let description = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
+interface IAskForPromptFolderOptions {
+	/**
+	 * Prompt type.
+	 */
+	readonly type: 'local' | 'global';
 
-		// if the resulting `fullPath` is empty, the folder points to the root
-		// of the current workspace, so use the appropriate label and description
-		if (!description) {
-			label = localize(
-				'commands.prompts.create.source-folder.current-workspace',
-				"Current Workspace",
-			);
+	readonly labelService: ILabelService;
+	readonly openerService: IOpenerService;
+	readonly promptsService: IPromptsService;
+	readonly quickInputService: IQuickInputService;
+	readonly workspaceService: IWorkspaceContextService;
+}
 
-			// use absolute path as the description
-			description = labelService.getUriLabel(uri, { relative: false });
-		}
+/**
+ * Asks the user for a specific prompt folder, if multiple folders provided.
+ * Returns immediately if only one folder available.
+ */
+export const askForPromptFolder = async (
+	options: IAskForPromptFolderOptions,
+): Promise<URI | undefined> => {
+	const { type, promptsService, quickInputService, labelService, openerService, workspaceService } = options;
+
+	// get prompts source folders based on the prompt type
+	const folders = promptsService.getSourceFolders(type);
+
+	// if no source folders found, show 'learn more' dialog
+	// note! this is a temporary solution and must be replaced with a dialog to select
+	//       a custom folder path, or switch to a different prompt type
+	if (folders.length === 0) {
+		return await showNoFoldersDialog(quickInputService, openerService);
+	}
+
+	// if there is only one folder, no need to ask
+	if (folders.length === 1) {
+		return folders[0].uri;
+	}
+
+	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
+		placeHolder: localize(
+			'commands.prompts.create.ask-folder.placeholder',
+			"Select a prompt source folder",
+		),
+		canPickMany: false,
+		matchOnDescription: true,
+	};
+
+	const foldersList = folders.map((promptPath): WithUriValue<IQuickPickItem> => {
+		const isMultirootWorkspace = (workspaceService.getWorkspace().folders.length > 1);
+
+		const labels = isMultirootWorkspace
+			? createMultiRootWorkspaceLabels(promptPath, labelService)
+			: createSingleRootWorkspaceLabels(promptPath, labelService);
 
 		return {
 			type: 'item',
-			label,
-			description,
-			tooltip: uri.fsPath,
-			value: uri,
+			...labels,
+			tooltip: promptPath.uri.fsPath,
+			value: promptPath.uri,
 		};
-	};
+	});
+
+	const answer = await quickInputService.pick(foldersList, pickOptions);
+	if (!answer) {
+		return;
+	}
+
+	return answer.value;
 };
 
 /**
@@ -87,59 +127,60 @@ const showNoFoldersDialog = async (
 };
 
 /**
- * Options for {@link askForPromptFolder} dialog.
+ * Result of the `create labels` utilities below.
  */
-interface IAskForPromptFolderOptions {
+interface ILabels {
 	/**
-	 * Prompt type.
+	 * Label of a pick item.
 	 */
-	readonly type: 'local' | 'global';
+	readonly label: string;
 
-	readonly labelService: ILabelService;
-	readonly openerService: IOpenerService;
-	readonly promptsService: IPromptsService;
-	readonly quickInputService: IQuickInputService;
+	/**
+	 * Description of a pick item.
+	 */
+	readonly description: string;
 }
 
 /**
- * Asks the user for a specific prompt folder, if multiple folders provided.
- * Returns immediately if only one folder available.
+ * Creates picker item labels for a prompt source folder
+ * when in a single-root workspace.
  */
-export const askForPromptFolder = async (
-	options: IAskForPromptFolderOptions,
-): Promise<URI | undefined> => {
-	const { type, promptsService, quickInputService, labelService, openerService } = options;
-
-	// get prompts source folders based on the prompt type
-	const folders = promptsService.getSourceFolders(type);
-
-	// if no source folders found, show 'learn more' dialog
-	// note! this is a temporary solution and must be replaced with a dialog to select
-	//       a custom folder path, or switch to a different prompt type
-	if (folders.length === 0) {
-		return await showNoFoldersDialog(quickInputService, openerService);
-	}
-
-	// if there is only one folder, no need to ask
-	if (folders.length === 1) {
-		return folders[0].uri;
-	}
-
-	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
-		placeHolder: localize(
-			'commands.prompts.create.ask-folder.placeholder',
-			"Select a prompt source folder",
-		),
-		canPickMany: false,
-		matchOnDescription: true,
+const createSingleRootWorkspaceLabels = (
+	{ uri }: IPromptPath,
+	labelService: ILabelService,
+): ILabels => {
+	return {
+		label: basename(uri),
+		description: labelService.getUriLabel(uri, { relative: true }),
 	};
+};
 
-	const foldersList = folders.map(asFolderListItem(labelService));
+/**
+ * Creates picker item labels for a prompt source folder
+ * when in a multi-root workspace.
+ */
+const createMultiRootWorkspaceLabels = (
+	{ uri }: IPromptPath,
+	labelService: ILabelService,
+): ILabels => {
+	// TODO: @legomushroom - fix multi-root workspace labels
+	let label = basename(uri);
+	let description = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
 
-	const answer = await quickInputService.pick(foldersList, pickOptions);
-	if (!answer) {
-		return;
+	// if the resulting `fullPath` is empty, the folder points to the root
+	// of the current workspace, so use the appropriate label and description
+	if (!description) {
+		label = localize(
+			'commands.prompts.create.source-folder.current-workspace',
+			"Current Workspace",
+		);
+
+		// use absolute path as the description
+		description = labelService.getUriLabel(uri, { relative: false });
 	}
 
-	return answer.value;
+	return {
+		label,
+		description,
+	};
 };

@@ -15,23 +15,8 @@ import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/se
 import { appendToCommandPalette } from '../../../../../files/browser/fileActions.contribution.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-
-/**
- * ### What's next:
- *
- * - improve "local" source location selection dialog:
- *   - better the case when no locations are found
- *     - add "select different location" option
- *     - if selected location is not in the enabled, ask to "add to settings"
- *      - if adding new location to settings, ask what setting to add to
- *      - add option for changing prompt source type to "global"
- *   - sort location options in the location selection picker so the more relevant locations appear first
- * - when a prompt file is created
- *   - get real initial prompt text
- *   - change the initial prompt contents to be a ghost text
- * - do we need a keybinding for this command(s)?
- */
 
 /**
  * Base command ID prefix.
@@ -64,28 +49,30 @@ const GLOBAL_COMMAND_TITLE = localize('commands.prompts.create.title.global', "C
 const command = async (
 	accessor: ServicesAccessor,
 	type: IPromptPath['type'],
-): Promise<null> => {
+): Promise<void> => {
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
 	const openerService = accessor.get(IOpenerService);
 	const promptsService = accessor.get(IPromptsService);
 	const quickInputService = accessor.get(IQuickInputService);
+	const workspaceService = accessor.get(IWorkspaceContextService);
 
 	const fileName = await askForPromptName(type, quickInputService);
 	if (!fileName) {
-		return null;
+		return;
 	}
 
-	const folder = await askForPromptFolder({
+	const selectedFolder = await askForPromptFolder({
 		type: type,
-		promptsService,
-		quickInputService,
 		labelService,
 		openerService,
+		promptsService,
+		workspaceService,
+		quickInputService,
 	});
 
-	if (!folder) {
-		return null;
+	if (!selectedFolder) {
+		return;
 	}
 
 	const content = localize(
@@ -94,21 +81,19 @@ const command = async (
 	);
 	const promptUri = await createPromptFile({
 		fileName,
-		folder,
+		folder: selectedFolder,
 		content,
 		fileService,
 	});
 
 	await openerService.open(promptUri);
-
-	return null;
 };
 
 /**
  * Factory for creating the command handler with specific prompt `type`.
  */
 const commandFactory = (type: 'local' | 'global') => {
-	return async (accessor: ServicesAccessor): Promise<null> => {
+	return async (accessor: ServicesAccessor): Promise<void> => {
 		return command(accessor, type);
 	};
 };
