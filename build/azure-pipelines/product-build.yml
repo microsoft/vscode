@@ -8,6 +8,7 @@ schedules:
         - main
 
 trigger:
+  batch: true
   branches:
     include: ["main", "release/*"]
 
