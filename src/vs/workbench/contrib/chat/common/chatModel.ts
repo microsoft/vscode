@@ -7,7 +7,7 @@ import { asArray } from '../../../../base/common/arrays.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -200,7 +200,10 @@ export interface IChatResponseModel {
 	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly agentOrSlashCommandDetected: boolean;
+	/** View of the response shown to the user, may have parts omitted from undo stops. */
 	readonly response: IResponse;
+	/** Entire response from the model. */
+	readonly entireResponse: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isPaused: IObservable<boolean>;
@@ -217,6 +220,13 @@ export interface IChatResponseModel {
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 	setPaused(isPause: boolean, tx?: ITransaction): void;
+	/**
+	 * Adopts any partially-undo {@link response} as the {@link entireResponse}.
+	 * Only valid when {@link isComplete}. This is needed because otherwise an
+	 * undone and then diverged state would start showing old data because the
+	 * undo stops would no longer exist in the model.
+	 */
+	finalizeUndoState(): void;
 }
 
 export type ChatResponseModelChangeReason =
@@ -295,40 +305,29 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 }
 
-export class Response extends Disposable implements IResponse {
-	private _onDidChangeValue = this._register(new Emitter<void>());
-	public get onDidChangeValue() {
-		return this._onDidChangeValue.event;
-	}
-
-	private _responseParts: IChatProgressResponseContent[];
+class AbstractResponse implements IResponse {
+	protected _responseParts: IChatProgressResponseContent[];
 
 	/**
 	 * A stringified representation of response data which might be presented to a screenreader or used when copying a response.
 	 */
-	private _responseRepr = '';
+	protected _responseRepr = '';
 
 	/**
 	 * Just the markdown content of the response, used for determining the rendering rate of markdown
 	 */
-	private _markdownContent = '';
-
-	private _citations: IChatCodeCitation[] = [];
+	protected _markdownContent = '';
 
 	get value(): IChatProgressResponseContent[] {
 		return this._responseParts;
 	}
 
-	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>) {
-		super();
-		this._responseParts = asArray(value).map((v) => (isMarkdownString(v) ?
-			{ content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
-			'kind' in v ? v : { kind: 'treeData', treeData: v }));
-
-		this._updateRepr(true);
+	constructor(value: IChatProgressResponseContent[]) {
+		this._responseParts = value;
+		this._updateRepr();
 	}
 
-	override toString(): string {
+	toString(): string {
 		return this._responseRepr;
 	}
 
@@ -338,6 +337,122 @@ export class Response extends Disposable implements IResponse {
 	getMarkdown(): string {
 		return this._markdownContent;
 	}
+
+	protected _updateRepr() {
+		this._responseRepr = this.partsToRepr(this._responseParts);
+
+		this._markdownContent = this._responseParts.map(part => {
+			if (part.kind === 'inlineReference') {
+				return this.inlineRefToRepr(part);
+			} else if (part.kind === 'markdownContent' || part.kind === 'markdownVuln') {
+				return part.content.value;
+			} else {
+				return '';
+			}
+		})
+			.filter(s => s.length > 0)
+			.join('');
+	}
+
+	private partsToRepr(parts: readonly IChatProgressResponseContent[]): string {
+		const blocks: string[] = [];
+		let currentBlockSegments: string[] = [];
+
+		for (const part of parts) {
+			let segment: { text: string; isBlock?: boolean } | undefined;
+			switch (part.kind) {
+				case 'treeData':
+				case 'progressMessage':
+				case 'codeblockUri':
+				case 'toolInvocation':
+				case 'toolInvocationSerialized':
+				case 'undoStop':
+					// Ignore
+					continue;
+				case 'inlineReference':
+					segment = { text: this.inlineRefToRepr(part) };
+					break;
+				case 'command':
+					segment = { text: part.command.title, isBlock: true };
+					break;
+				case 'textEditGroup':
+					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
+					break;
+				case 'confirmation':
+					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
+					break;
+				default:
+					segment = { text: part.content.value };
+					break;
+			}
+
+			if (segment.isBlock) {
+				if (currentBlockSegments.length) {
+					blocks.push(currentBlockSegments.join(''));
+					currentBlockSegments = [];
+				}
+				blocks.push(segment.text);
+			} else {
+				currentBlockSegments.push(segment.text);
+			}
+		}
+
+		if (currentBlockSegments.length) {
+			blocks.push(currentBlockSegments.join(''));
+		}
+
+		return blocks.join('\n\n');
+	}
+
+	private inlineRefToRepr(part: IChatContentInlineReference) {
+		if ('uri' in part.inlineReference) {
+			return this.uriToRepr(part.inlineReference.uri);
+		}
+
+		return 'name' in part.inlineReference
+			? '`' + part.inlineReference.name + '`'
+			: this.uriToRepr(part.inlineReference);
+	}
+
+	private uriToRepr(uri: URI): string {
+		if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
+			return uri.toString(false);
+		}
+
+		return basename(uri);
+	}
+}
+
+/** A view of a subset of a response */
+class ResponseView extends AbstractResponse {
+	constructor(
+		_response: IResponse,
+		public readonly undoStop: string,
+	) {
+		const idx = _response.value.findIndex(v => v.kind === 'undoStop' && v.id === undoStop);
+		super(idx === -1 ? _response.value.slice() : _response.value.slice(0, idx));
+	}
+}
+
+export class Response extends AbstractResponse implements IDisposable {
+	private _onDidChangeValue = new Emitter<void>();
+	public get onDidChangeValue() {
+		return this._onDidChangeValue.event;
+	}
+
+	private _citations: IChatCodeCitation[] = [];
+
+
+	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>) {
+		super(asArray(value).map((v) => (isMarkdownString(v) ?
+			{ content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
+			'kind' in v ? v : { kind: 'treeData', treeData: v })));
+	}
+
+	dispose(): void {
+		this._onDidChangeValue.dispose();
+	}
+
 
 	clear(): void {
 		this._responseParts = [];
@@ -422,93 +537,17 @@ export class Response extends Disposable implements IResponse {
 		this._updateRepr();
 	}
 
-	private _updateRepr(quiet?: boolean) {
-		this._responseRepr = this.partsToRepr(this._responseParts);
-		this._responseRepr += this._citations.length ? '\n\n' + getCodeCitationsMessage(this._citations) : '';
+	protected override _updateRepr(quiet?: boolean) {
+		super._updateRepr();
+		if (!this._onDidChangeValue) {
+			return; // called from parent constructor
+		}
 
-		this._markdownContent = this._responseParts.map(part => {
-			if (part.kind === 'inlineReference') {
-				return this.inlineRefToRepr(part);
-			} else if (part.kind === 'markdownContent' || part.kind === 'markdownVuln') {
-				return part.content.value;
-			} else {
-				return '';
-			}
-		})
-			.filter(s => s.length > 0)
-			.join('');
+		this._responseRepr += this._citations.length ? '\n\n' + getCodeCitationsMessage(this._citations) : '';
 
 		if (!quiet) {
 			this._onDidChangeValue.fire();
 		}
-	}
-
-	private partsToRepr(parts: readonly IChatProgressResponseContent[]): string {
-		const blocks: string[] = [];
-		let currentBlockSegments: string[] = [];
-
-		for (const part of parts) {
-			let segment: { text: string; isBlock?: boolean } | undefined;
-			switch (part.kind) {
-				case 'treeData':
-				case 'progressMessage':
-				case 'codeblockUri':
-				case 'toolInvocation':
-				case 'toolInvocationSerialized':
-				case 'undoStop':
-					// Ignore
-					continue;
-				case 'inlineReference':
-					segment = { text: this.inlineRefToRepr(part) };
-					break;
-				case 'command':
-					segment = { text: part.command.title, isBlock: true };
-					break;
-				case 'textEditGroup':
-					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
-					break;
-				case 'confirmation':
-					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
-					break;
-				default:
-					segment = { text: part.content.value };
-					break;
-			}
-
-			if (segment.isBlock) {
-				if (currentBlockSegments.length) {
-					blocks.push(currentBlockSegments.join(''));
-					currentBlockSegments = [];
-				}
-				blocks.push(segment.text);
-			} else {
-				currentBlockSegments.push(segment.text);
-			}
-		}
-
-		if (currentBlockSegments.length) {
-			blocks.push(currentBlockSegments.join(''));
-		}
-
-		return blocks.join('\n\n');
-	}
-
-	private inlineRefToRepr(part: IChatContentInlineReference) {
-		if ('uri' in part.inlineReference) {
-			return this.uriToRepr(part.inlineReference.uri);
-		}
-
-		return 'name' in part.inlineReference
-			? '`' + part.inlineReference.name + '`'
-			: this.uriToRepr(part.inlineReference);
-	}
-
-	private uriToRepr(uri: URI): string {
-		if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
-			return uri.toString(false);
-		}
-
-		return basename(uri);
 	}
 }
 
@@ -553,8 +592,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	private _response: Response;
-	public get response(): IResponse {
-		return this._response;
+	private _finalizedResponse?: IResponse;
+	public get entireResponse(): IResponse {
+		return this._finalizedResponse || this._response;
 	}
 
 	public get result(): IChatAgentResult | undefined {
@@ -618,6 +658,20 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._response.value.some(part =>
 			part.kind === 'toolInvocation' && part.isConfirmed === undefined
 			|| part.kind === 'confirmation' && part.isUsed === false);
+	}
+
+	private _responseView?: ResponseView;
+	public get response(): IResponse {
+		const undoStop = this._shouldBeRemovedOnSend?.afterUndoStop;
+		if (!undoStop) {
+			return this._finalizedResponse || this._response;
+		}
+
+		if (this._responseView?.undoStop !== undoStop) {
+			this._responseView = new ResponseView(this._response, undoStop);
+		}
+
+		return this._responseView;
 	}
 
 	/** Functions run once the chat response is unpaused. */
@@ -752,6 +806,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this.bufferedPauseContent = undefined;
 	}
 
+	finalizeUndoState(): void {
+		this._finalizedResponse = this.response;
+		this._responseView = undefined;
+		this._shouldBeRemovedOnSend = undefined;
+	}
+
 	private bufferWhenPaused(apply: () => void) {
 		if (!this._isPaused.get()) {
 			apply();
@@ -811,7 +871,8 @@ export interface ISerializableChatRequestData {
 	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability> | undefined;
 
 	/**Old, persisted name for shouldBeRemovedOnSend */
-	isHidden: boolean;
+	isHidden?: boolean;
+	shouldBeRemovedOnSend?: IChatRequestDisablement;
 	responseId?: string;
 	agent?: ISerializableChatAgentData;
 	workingSet?: UriComponents[];
@@ -1179,7 +1240,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				// Old messages don't have variableData, or have it in the wrong (non-array) shape
 				const variableData: IChatRequestVariableData = this.reviveVariableData(raw.variableData);
 				const request = new ChatRequestModel(this, parsedRequest, variableData, raw.timestamp ?? -1, undefined, undefined, undefined, undefined, raw.workingSet?.map((uri) => URI.revive(uri)), undefined, raw.requestId);
-				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : undefined;
+				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						reviveSerializedAgent(raw.agent) : undefined;
@@ -1189,7 +1250,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
 					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.voteDownReason, result, raw.followups, undefined, undefined, raw.responseId);
-					request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : undefined;
+					request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.applyReference(revive(raw.usedContext));
 					}
@@ -1297,8 +1358,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	setDisabledRequests(requestIds: IChatRequestDisablement[]) {
-
-
 		this._requests.forEach((request) => {
 			const shouldBeRemovedOnSend = requestIds.find(r => r.requestId === request.id);
 			request.shouldBeRemovedOnSend = shouldBeRemovedOnSend;
@@ -1454,7 +1513,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					message,
 					variableData: r.variableData,
 					response: r.response ?
-						r.response.response.value.map(item => {
+						r.response.entireResponse.value.map(item => {
 							// Keeping the shape of the persisted data the same for back compat
 							if (item.kind === 'treeData') {
 								return item.treeData;
@@ -1466,7 +1525,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						})
 						: undefined,
 					responseId: r.response?.id,
-					isHidden: !!r.shouldBeRemovedOnSend,
+					shouldBeRemovedOnSend: r.shouldBeRemovedOnSend,
 					result: r.response?.result,
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,

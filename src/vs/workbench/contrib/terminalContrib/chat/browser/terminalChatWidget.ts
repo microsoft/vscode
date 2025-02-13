@@ -382,7 +382,6 @@ export class TerminalChatWidget extends Disposable {
 		this._activeRequestCts = new CancellationTokenSource();
 		const store = new DisposableStore();
 		this._requestActiveContextKey.set(true);
-		let responseContent = '';
 		const response = await this._inlineChatWidget.chatWidget.acceptInput(lastInput, { isVoiceInput: options?.isVoiceInput });
 		this._currentRequestId = response?.requestId;
 		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
@@ -390,7 +389,6 @@ export class TerminalChatWidget extends Disposable {
 			this._requestActiveContextKey.set(true);
 			if (response) {
 				store.add(response.onDidChange(async () => {
-					responseContent += response.response.value;
 					if (response.isCanceled) {
 						this._requestActiveContextKey.set(false);
 						responsePromise.complete(undefined);

@@ -306,7 +306,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
-		return this._items.filter((item) => !item.shouldBeRemovedOnSend);
+		return this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
 	}
 
 	override dispose() {
@@ -586,7 +586,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			// This should be true, if the model is changing
 			if (this._contentUpdateTimings) {
 				const now = Date.now();
-				const wordCount = countWords(_model.response.getMarkdown());
+				const wordCount = countWords(_model.entireResponse.getMarkdown());
 
 				if (wordCount > 0 && wordCount === this._contentUpdateTimings.lastWordCount) {
 					this.trace('onDidChange', `Update- no new words`);

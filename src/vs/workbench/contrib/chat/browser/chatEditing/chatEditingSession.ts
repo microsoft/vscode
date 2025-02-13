@@ -327,40 +327,40 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._findSnapshot(requestId)?.stops.find(s => s.stopId === undoStop);
 	}
 
-	public createSnapshot(requestId: string | undefined, undoStop: string | undefined): void {
+	private _ensurePendingSnapshot() {
+		this._pendingSnapshot ??= this._createSnapshot(undefined, undefined);
+	}
+
+	public createSnapshot(requestId: string, undoStop: string | undefined): void {
 		const snapshot = this._createSnapshot(requestId, undoStop);
-		if (requestId) {
-			for (const [uri, data] of this._workingSet) {
-				if (data.state !== WorkingSetEntryState.Suggested) {
-					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent, isMarkedReadonly: data.isMarkedReadonly });
-				}
+		for (const [uri, data] of this._workingSet) {
+			if (data.state !== WorkingSetEntryState.Suggested) {
+				this._workingSet.set(uri, { state: WorkingSetEntryState.Sent, isMarkedReadonly: data.isMarkedReadonly });
 			}
-			const linearHistoryPtr = this._linearHistoryIndex.get();
-
-			const newLinearHistory: IChatEditingSessionSnapshot[] = [];
-			for (const entry of this._linearHistory.get()) {
-				if (linearHistoryPtr - entry.startIndex < entry.stops.length) {
-					newLinearHistory.push({ requestId: entry.requestId, stops: entry.stops.slice(0, linearHistoryPtr - entry.startIndex), startIndex: entry.startIndex });
-				} else {
-					newLinearHistory.push(entry);
-				}
-			}
-
-			const lastEntry = newLinearHistory.at(-1);
-			if (requestId && lastEntry?.requestId === requestId) {
-				newLinearHistory[newLinearHistory.length - 1] = { ...lastEntry, stops: [...lastEntry.stops, snapshot] };
-			} else {
-				newLinearHistory.push({ requestId, startIndex: lastEntry ? lastEntry.startIndex + lastEntry.stops.length : 0, stops: [snapshot] });
-			}
-
-			transaction((tx) => {
-				const last = newLinearHistory[newLinearHistory.length - 1];
-				this._linearHistory.set(newLinearHistory, tx);
-				this._linearHistoryIndex.set(last.startIndex + last.stops.length, tx);
-			});
-		} else {
-			this._pendingSnapshot = snapshot;
 		}
+
+		const linearHistoryPtr = this._linearHistoryIndex.get();
+		const newLinearHistory: IChatEditingSessionSnapshot[] = [];
+		for (const entry of this._linearHistory.get()) {
+			if (linearHistoryPtr - entry.startIndex < entry.stops.length) {
+				newLinearHistory.push({ requestId: entry.requestId, stops: entry.stops.slice(0, linearHistoryPtr - entry.startIndex), startIndex: entry.startIndex });
+			} else {
+				newLinearHistory.push(entry);
+			}
+		}
+
+		const lastEntry = newLinearHistory.at(-1);
+		if (requestId && lastEntry?.requestId === requestId) {
+			newLinearHistory[newLinearHistory.length - 1] = { ...lastEntry, stops: [...lastEntry.stops, snapshot] };
+		} else {
+			newLinearHistory.push({ requestId, startIndex: lastEntry ? lastEntry.startIndex + lastEntry.stops.length : 0, stops: [snapshot] });
+		}
+
+		transaction((tx) => {
+			const last = newLinearHistory[newLinearHistory.length - 1];
+			this._linearHistory.set(newLinearHistory, tx);
+			this._linearHistoryIndex.set(last.startIndex + last.stops.length, tx);
+		});
 	}
 
 	private _createSnapshot(requestId: string | undefined, undoStop: string | undefined): IChatEditingSessionStop {
@@ -420,10 +420,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (requestId !== undefined) {
 			const snapshot = this._findEditStop(requestId, stopId);
 			if (snapshot) {
-				if (!this._pendingSnapshot) {
-					// Create and save a pending snapshot
-					this.createSnapshot(undefined, undefined);
-				}
+				this._ensurePendingSnapshot();
 				await this._restoreSnapshot(snapshot);
 			}
 		} else {
@@ -435,7 +432,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			await this._restoreSnapshot(snapshot);
 		}
 	}
-
 
 	private async _restoreSnapshot({ workingSet, entries }: IChatEditingSessionStop): Promise<void> {
 		this._workingSet = new ResourceMap();
@@ -715,6 +711,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (!previousSnapshot) {
 			return;
 		}
+		this._ensurePendingSnapshot();
 		await this._restoreSnapshot(previousSnapshot.stop);
 		this._linearHistoryIndex.set(newIndex, undefined);
 		this._updateRequestHiddenState();
