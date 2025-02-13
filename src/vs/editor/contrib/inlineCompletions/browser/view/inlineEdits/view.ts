@@ -23,7 +23,7 @@ import { IInlineEditsIndicatorState, InlineEditsIndicator } from './indicatorVie
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
 import { InlineEditsInsertionView } from './insertionView.js';
 import { InlineEditsSideBySideDiff } from './sideBySideDiff.js';
-import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils.js';
+import { applyEditToModifiedRangeMappings, createReindentEdit, InlineEditTabAction } from './utils.js';
 import './view.css';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
 import { LineReplacementView, WordReplacementView } from './replacementViews.js';
@@ -43,6 +43,15 @@ export class InlineEditsView extends Disposable {
 		userJumpedToIt: boolean;
 		editorWidth: number;
 	} | undefined;
+
+	private readonly _tabAction = derived<InlineEditTabAction>(this, reader => {
+		const m = this._model.read(reader);
+		if (this._editorObs.isFocused.read(reader)) {
+			if (m && m.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
+			if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
+		}
+		return InlineEditTabAction.Inactive;
+	});
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -128,6 +137,7 @@ export class InlineEditsView extends Disposable {
 			newTextLineCount: s.newTextLineCount,
 			originalDisplayRange: s.originalDisplayRange,
 		}) : undefined),
+		this._tabAction,
 	));
 
 	protected readonly _deletion = this._register(this._instantiationService.createInstance(InlineEditsDeletionView,
@@ -137,6 +147,7 @@ export class InlineEditsView extends Disposable {
 			originalRange: s.state.originalRange,
 			deletions: s.state.deletions,
 		}) : undefined),
+		this._tabAction,
 	));
 
 	protected readonly _insertion = this._register(this._instantiationService.createInstance(InlineEditsInsertionView,
@@ -146,6 +157,7 @@ export class InlineEditsView extends Disposable {
 			startColumn: s.state.column,
 			text: s.state.text,
 		}) : undefined),
+		this._tabAction,
 	));
 
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
@@ -165,7 +177,7 @@ export class InlineEditsView extends Disposable {
 	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
 
 	protected readonly _wordReplacementViews = mapObservableArrayCached(this, this._uiState.map(s => s?.state?.kind === 'wordReplacements' ? s.state.replacements : []), (e, store) => {
-		return store.add(this._instantiationService.createInstance(WordReplacementView, this._editorObs, e, [e]));
+		return store.add(this._instantiationService.createInstance(WordReplacementView, this._editorObs, e, [e], this._tabAction));
 	}).recomputeInitiallyAndOnChange(this._store);
 
 	protected readonly _lineReplacementView = this._register(this._instantiationService.createInstance(LineReplacementView,
@@ -176,6 +188,7 @@ export class InlineEditsView extends Disposable {
 			modifiedLines: s.state.modifiedLines,
 			replacements: s.state.replacements,
 		}) : undefined),
+		this._tabAction
 	));
 
 	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useGutterIndicator);
@@ -213,6 +226,7 @@ export class InlineEditsView extends Disposable {
 				indicatorDisplayRange,
 				this._gutterIndicatorOffset,
 				this._model,
+				this._tabAction,
 				this._inlineEditsIsHovered,
 				this._focusIsInMenu,
 			));

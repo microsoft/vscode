@@ -807,10 +807,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.chat-modelPicker-item {
 		min-width: 0px;
 
-		.chat-model-label {
+		.action-label {
 			min-width: 0px;
-			overflow: hidden;
-			text-overflow: ellipsis;
+
+			.chat-model-label {
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 		}
 
 		.codicon {
@@ -1464,6 +1467,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			color: var(--vscode-descriptionForeground);
 			font-size: 12px;
 			margin: 0;
+
+			code {
+				font-size: 11px;
+			}
 		}
 	}
 }
@@ -1547,6 +1554,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	user-select: none;
 	outline: none;
 	border: none;
+}
+
+.chat-attached-context-attachment.show-file-icons.warning .chat-attached-context-custom-text {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	text-decoration: line-through;
 }
 
 .interactive-session .chat-scroll-down {

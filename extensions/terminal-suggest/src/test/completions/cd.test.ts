@@ -7,6 +7,8 @@ import 'mocha';
 import cdSpec from '../../completions/cd';
 import { testPaths, type ISuiteSpec } from '../helpers';
 
+const expectedCompletions = ['-'];
+
 export const cdTestSuiteSpec: ISuiteSpec = {
 	name: 'cd',
 	completionSpecs: cdSpec,
@@ -22,21 +24,20 @@ export const cdTestSuiteSpec: ISuiteSpec = {
 		{ input: 'cd|', expectedCompletions: ['cd'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Basic arguments
-		{ input: 'cd |', expectedCompletions: ['~', '-'], expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'cd -|', expectedCompletions: ['-'], expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'cd ~|', expectedCompletions: ['~'], expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		{ input: 'cd |', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		{ input: 'cd -|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
 
 		// Relative paths
-		{ input: 'cd c|', expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'cd child|', expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'cd .|', expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'cd ./|', expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'cd ./child|', expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
-		{ input: 'cd ..|', expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		{ input: 'cd c|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		{ input: 'cd child|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		{ input: 'cd .|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		{ input: 'cd ./|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		{ input: 'cd ./child|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		{ input: 'cd ..|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
 
 		// Relative directories (changes cwd due to /)
-		{ input: 'cd child/|', expectedResourceRequests: { type: 'folders', cwd: testPaths.cwdChild } },
-		{ input: 'cd ../|', expectedResourceRequests: { type: 'folders', cwd: testPaths.cwdParent } },
-		{ input: 'cd ../sibling|', expectedResourceRequests: { type: 'folders', cwd: testPaths.cwdParent } },
+		{ input: 'cd child/|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwdChild } },
+		{ input: 'cd ../|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwdParent } },
+		{ input: 'cd ../sibling|', expectedCompletions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwdParent } },
 	]
 };

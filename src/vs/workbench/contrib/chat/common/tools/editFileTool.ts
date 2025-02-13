@@ -55,7 +55,7 @@ export const EditToolData: IToolData = {
 			},
 			filePath: {
 				type: 'string',
-				description: 'An absolute path to the file to edit',
+				description: 'An absolute path to the file to edit, or the URI of a untitled, not yet named, file, such as `untitled:Untitled-1.',
 			},
 			code: {
 				type: 'string',
@@ -140,7 +140,7 @@ export class EditTool implements IToolImpl {
 				const entries = editSession.entries.read(r);
 				const currentFile = entries?.find((e) => e.modifiedURI.toString() === uri.toString());
 				if (currentFile) {
-					if (currentFile.isCurrentlyBeingModified.read(r)) {
+					if (currentFile.isCurrentlyBeingModifiedBy.read(r)) {
 						wasFileBeingModified = true;
 					} else if (wasFileBeingModified) {
 						resolve(true);
@@ -180,10 +180,10 @@ export class EditToolInputProcessor implements IToolInputProcessor {
 			// Tool name collision, or input wasn't properly validated upstream
 			return input as any;
 		}
-
+		const filePath = input.filePath;
 		// Runs in EH, will be mapped
 		return {
-			file: URI.file(input.filePath),
+			file: filePath.startsWith('untitled:') ? URI.parse(filePath) : URI.file(filePath),
 			explanation: input.explanation,
 			code: input.code,
 		};

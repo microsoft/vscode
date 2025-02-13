@@ -39,8 +39,6 @@ export interface IChatEditingService {
 	 */
 	createEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 
-	readonly editingSessionFileLimit: number;
-
 	//#region related files
 
 	hasRelatedFilesProviders(): boolean;
@@ -132,8 +130,9 @@ export interface IModifiedFileEntry {
 	readonly originalURI: URI;
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
+
 	readonly state: IObservable<WorkingSetEntryState>;
-	readonly isCurrentlyBeingModified: IObservable<boolean>;
+	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 	readonly maxLineNumber: IObservable<number>;
 	readonly diffInfo: IObservable<IDocumentDiff>;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, constObservable, derived, derivedObservableWithCache } from '../../../../../../base/common/observable.js';
+import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../browser/point.js';
@@ -11,7 +12,8 @@ import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { IInlineEditsView } from './sideBySideDiff.js';
-import { createRectangle, getPrefixTrim, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
+import { getOriginalBorderColor, originalBackgroundColor } from './theme.js';
+import { createRectangle, getPrefixTrim, InlineEditTabAction, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
@@ -24,6 +26,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			originalRange: LineRange;
 			deletions: Range[];
 		} | undefined>,
+		private readonly _tabAction: IObservable<InlineEditTabAction>
 	) {
 		super();
 
@@ -142,13 +145,15 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
 		);
 
+		const originalBorderColor = getOriginalBorderColor(this._tabAction).read(reader);
+
 		return [
 			n.svgElem('path', {
 				class: 'originalOverlay',
 				d: rectangleOverlay,
 				style: {
-					fill: 'var(--vscode-inlineEdit-originalBackground, transparent)',
-					stroke: 'var(--vscode-inlineEdit-originalBorder)',
+					fill: asCssVariable(originalBackgroundColor),
+					stroke: originalBorderColor,
 					strokeWidth: '1px',
 				}
 			}),

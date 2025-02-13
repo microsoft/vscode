@@ -3297,6 +3297,43 @@
           "maximum": 40,
           "markdownDescription": "%config.commitShortHashLength%",
           "scope": "resource"
+        },
+        "git.diagnosticsCommitHook.Enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.diagnosticsCommitHook.Enabled%",
+          "scope": "resource"
+        },
+        "git.diagnosticsCommitHook.Sources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ]
+          },
+          "default": {
+            "*": "error"
+          },
+          "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
+          "scope": "resource"
+        },
+      "git.diagnosticsCommitHook.IgnoredSources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "%config.diagnosticsCommitHook.IgnoredSources%",
+          "scope": "resource"
+        },
+        "git.untrackedChangesSoftDelete": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.untrackedChangesSoftDelete%"
         }
       }
     },

@@ -27,6 +27,12 @@ import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js
 import { RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { indentOfLine } from '../../../../../common/model/textModel.js';
 
+export enum InlineEditTabAction {
+	Jump = 'jump',
+	Accept = 'accept',
+	Inactive = 'inactive'
+}
+
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
 	editor.layoutInfo.read(reader);
 	editor.value.read(reader);
@@ -646,10 +652,10 @@ export function observeElementPosition(element: HTMLElement, store: DisposableSt
 
 export function rectToProps(fn: (reader: IReader) => Rect) {
 	return {
-		left: derived(reader => fn(reader).left),
-		top: derived(reader => fn(reader).top),
-		width: derived(reader => fn(reader).right - fn(reader).left),
-		height: derived(reader => fn(reader).bottom - fn(reader).top),
+		left: derived(reader => /** @description left */ fn(reader).left),
+		top: derived(reader => /** @description top */ fn(reader).top),
+		width: derived(reader => /** @description width */ fn(reader).right - fn(reader).left),
+		height: derived(reader => /** @description height */ fn(reader).bottom - fn(reader).top),
 	};
 }
 
