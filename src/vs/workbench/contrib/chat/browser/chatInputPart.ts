@@ -956,7 +956,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const friendlyName = `${fileBasename} ${fileDirname}`;
 				ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 
-				if (resource && (resource.path.endsWith('.mp4') || resource.path.endsWith('.mov') || resource.path.endsWith('.pdf'))) {
+				if (attachment.isOmitted) {
 					this.customAttachment(widget, friendlyName, hoverDelegate, ariaLabel, store);
 				} else {
 					const fileOptions: IFileLabelOptions = { hidePath: true };
@@ -969,15 +969,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						fileKind: FileKind.FOLDER,
 						icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 					});
-
-					this.instantiationService.invokeFunction(accessor => {
-						if (resource) {
-							store.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
-						}
-					});
 				}
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+				this.instantiationService.invokeFunction(accessor => {
+					if (resource) {
+						store.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
+					}
+				});
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 				const supportsVision = this.supportsVision();

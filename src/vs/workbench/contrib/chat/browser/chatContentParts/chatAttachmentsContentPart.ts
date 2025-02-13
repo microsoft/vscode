@@ -40,7 +40,6 @@ import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/co
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
 import { IChatRequestVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../../common/chatModel.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
@@ -67,7 +66,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super();
 
@@ -113,13 +111,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 					ariaLabel = range ? localize('chat.fileAttachmentWithRange3', "Attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment3', "Attached: {0}.", friendlyName);
 				}
 
-				// try {
-				// 	await this.textFileService.read(resource);
-				// } catch (error) {
-				// 	console.log('Error reading file:', error);
-				// }
-
-				if (resource.path.endsWith('.mov') || resource.path.endsWith('.mp4') || resource.path.endsWith('.pdf')) {
+				if (attachment.isOmitted) {
 					this.customAttachment(widget, friendlyName, hoverDelegate, ariaLabel, isAttachmentOmitted);
 				} else {
 					const fileOptions = {
@@ -135,13 +127,13 @@ export class ChatAttachmentsContentPart extends Disposable {
 						fileKind: FileKind.FOLDER,
 						icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 					});
-
-					this.instantiationService.invokeFunction(accessor => {
-						if (resource) {
-							this.attachedContextDisposables.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
-						}
-					});
 				}
+
+				this.instantiationService.invokeFunction(accessor => {
+					if (resource) {
+						this.attachedContextDisposables.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
+					}
+				});
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
