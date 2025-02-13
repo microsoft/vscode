@@ -28,6 +28,7 @@
 		"tab.lastPinnedBorder": "#505050",
 		"peekView.border": "#3655b5",
 		"panelTitle.activeForeground": "#ffffff",
+		"panelTitleBadge.background": "#3655b5",
 		"statusBar.background": "#505050",
 		"statusBar.debuggingBackground": "#505050",
 		"statusBar.noFolderBackground": "#505050",

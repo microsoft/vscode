@@ -67,6 +67,8 @@
 		"panelTitle.activeBorder": "#0078D4",
 		"panelTitle.activeForeground": "#CCCCCC",
 		"panelTitle.inactiveForeground": "#9D9D9D",
+		"panelTitleBadge.background": "#0078D4",
+		"panelTitleBadge.foreground": "#FFFFFF",
 		"peekViewEditor.background": "#1F1F1F",
 		"peekViewEditor.matchHighlightBackground": "#BB800966",
 		"peekViewResult.background": "#1F1F1F",

@@ -296,6 +296,15 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder'
 	hcLight: '#B5200D'
 }, localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_TITLE_BADGE_BACKGROUND = registerColor('panelTitleBadge.background', {
+	dark: '#007ACC',
+	light: '#007ACC',
+	hcDark: '#000000',
+	hcLight: '#0F4A85'
+}, localize('panelTitleBadgeBackground', "Panel title badge background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_TITLE_BADGE_FOREGROUND = registerColor('panelTitleBadge.foreground', Color.white, localize('panelTitleBadgeForeground', "Panel title badge foreground color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
 export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
 	dark: inputBorder,
 	light: Color.fromHex('#ddd'),
@@ -506,12 +515,7 @@ export const ACTIVITY_BAR_DRAG_AND_DROP_BORDER = registerColor('activityBar.drop
 	hcLight: null,
 }, localize('activityBarDragAndDropBorder', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
-	dark: '#007ACC',
-	light: '#007ACC',
-	hcDark: '#000000',
-	hcLight: '#0F4A85'
-}, localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', PANEL_TITLE_BADGE_BACKGROUND, localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', Color.white, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
