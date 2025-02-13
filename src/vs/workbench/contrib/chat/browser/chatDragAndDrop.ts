@@ -51,8 +51,8 @@ export class ChatDragAndDrop extends Themable {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IFileService protected readonly fileService: IFileService,
 		@IEditorService protected readonly editorService: IEditorService,
+		@IDialogService protected readonly dialogService: IDialogService,
 		@ITextModelService protected readonly textModelService: ITextModelService
-		@IDialogService protected readonly dialogService: IDialogService
 	) {
 		super(themeService);
 
@@ -354,7 +354,7 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@IEditorService editorService: IEditorService,
-     	@IDialogService dialogService: IDialogService,
+		@IDialogService dialogService: IDialogService,
 		@ITextModelService textModelService: ITextModelService
 	) {
 		super(attachmentModel, styles, themeService, extensionService, fileService, editorService, dialogService, textModelService);
