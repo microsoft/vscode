@@ -340,7 +340,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		let accessibleViewHint = '';
 		if (forAriaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.Comments)) {
 			const kbLabel = this.keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
-			accessibleViewHint = kbLabel ? nls.localize('acessibleViewHint', "Inspect this in the accessible view ({0}).\n", kbLabel) : nls.localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.\n");
+			accessibleViewHint = kbLabel ? nls.localize('acessibleViewHint', "\nInspect this in the accessible view ({0}).", kbLabel) : nls.localize('acessibleViewHintNoKbOpen', "\nInspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.");
 		}
 		const replyCount = this.getReplyCountAsString(element, forAriaLabel);
 		const replies = this.getRepliesAsString(element, forAriaLabel);
@@ -358,7 +358,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}
 		if (element.range) {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',
+				return nls.localize('resourceWithCommentLabelOutdated',
 					"Outdated from {0} at line {1} column {2} in {3}{4}\nComment: {5}{6}",
 					element.comment.userName,
 					element.range.startLineNumber,
@@ -367,9 +367,9 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 					replyCount,
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
 					content,
-				) + replies;
+				) + replies + accessibleViewHint;
 			} else {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
+				return nls.localize('resourceWithCommentLabel',
 					"{0} at line {1} column {2} in {3} {4}\nComment: {5}{6}",
 					element.comment.userName,
 					element.range.startLineNumber,
@@ -378,26 +378,27 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 					replyCount,
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
 					content,
-				) + replies;
+				) + replies + accessibleViewHint;
 			}
 		} else {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabelFileOutdated',
-					"Outdated from {0} in {1} {2}\nComment: {3}{4}{5}",
+				return nls.localize('resourceWithCommentLabelFileOutdated',
+					"Outdated from {0} in {1} {2}\nComment: {3}{4}",
 					element.comment.userName,
 					basename(element.resource),
 					replyCount,
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				) + replies;
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+					content
+				) + replies + accessibleViewHint;
 			} else {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabelFile',
+				return nls.localize('resourceWithCommentLabelFile',
 					"{0} in {1} {2}\nComment: {3}{4}",
 					element.comment.userName,
 					basename(element.resource),
 					replyCount,
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
 					content
-				) + replies;
+				) + replies + accessibleViewHint;
 			}
 		}
 	}
