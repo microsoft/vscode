@@ -684,7 +684,7 @@ extends:
                 - job: macOSTest
                   timeoutInMinutes: 90
                   variables:
-                    VSCODE_ARCH: x64
+                    VSCODE_ARCH: arm64
                   steps:
                     - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                       parameters:
