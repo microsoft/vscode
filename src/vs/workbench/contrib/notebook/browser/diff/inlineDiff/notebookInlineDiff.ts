@@ -112,7 +112,7 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 					const currentDecorator = this.cellDecorators.get(modifiedCell);
 					if ((currentDecorator?.modifiedCell !== modifiedCell || currentDecorator?.originalCell !== originalCell)) {
 						currentDecorator?.dispose();
-						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, this.notebookEditor, modifiedCell, originalCell);
+						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, this.notebookEditor, modifiedCell, originalCell, editor);
 						this.cellDecorators.set(modifiedCell, decorator);
 						validDiffDecorators.add(decorator);
 						this._register(editor.onDidDispose(() => {
