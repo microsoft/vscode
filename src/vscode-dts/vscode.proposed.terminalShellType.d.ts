@@ -27,7 +27,6 @@ declare module 'vscode' {
 	}
 
 
-	// Part of TerminalState since the shellType can change multiple times and this comes with an event.
 	export interface TerminalState {
 		/**
 		 * The current detected shell type of the terminal. New shell types may be added in the
@@ -36,8 +35,5 @@ declare module 'vscode' {
 		 * Includes number type to prevent the breaking change when new enum members are added?
 		 */
 		readonly shellType?: TerminalShellType | number | undefined;
-		// readonly shellType?: string | undefined; better for future ask, not as messy to maintenance (we already have huge list of enum shell types)
-		// if change, update terminal suggest, python env ext.
 	}
-	// state: things about terminal that could change, like isinteracted with
 }
