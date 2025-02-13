@@ -245,7 +245,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._leadingLineContent = this._promptInputModel.prefix.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
 
 		const completions = providedCompletions?.flat() || [];
-		if (!explicitlyInvoked && !completions?.length) {
+		if (!explicitlyInvoked && !completions.length) {
 			return;
 		}
 
