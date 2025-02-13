@@ -5,12 +5,12 @@
 
 import { IPrompt, IPromptsService } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
+import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 
@@ -94,7 +94,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return prompts.flat();
 	}
 
-	// TODO: @legomushroom - support "all" source too?
 	public getPromptsLocation(
 		source: 'local' | 'global',
 	): readonly IPrompt[] {
@@ -125,10 +124,7 @@ const addSource = (
 	source: IPrompt['source'],
 ): (uri: URI) => IPrompt => {
 	return (uri) => {
-		return {
-			uri,
-			source,
-		};
+		return { uri, source };
 	};
 };
 
