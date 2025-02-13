@@ -59,6 +59,7 @@ import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostType
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { isWindows } from '../../../base/common/platform.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export namespace Command {
 
@@ -2987,7 +2988,11 @@ export namespace LanguageModelToolResult {
 		}));
 	}
 
-	export function from(result: vscode.LanguageModelToolResult): IToolResult {
+	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): IToolResult {
+		if (result.toolResultMessage) {
+			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+		}
+
 		return {
 			content: result.content.map(item => {
 				if (item instanceof types.LanguageModelTextPart) {
@@ -3003,7 +3008,8 @@ export namespace LanguageModelToolResult {
 				} else {
 					throw new Error('Unknown LanguageModelToolResult part type');
 				}
-			})
+			}),
+			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage)
 		};
 	}
 }

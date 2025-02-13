@@ -44,8 +44,8 @@ import { ILanguageModelToolsService } from '../common/languageModelToolsService.
 import { PromptFilesConfig } from '../common/promptSyntax/config.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
 import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
-import { PromptSyntaxService } from '../common/promptSyntax/service/promptSyntaxService.js';
-import { IPromptSyntaxService } from '../common/promptSyntax/service/types.js';
+import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import './promptSyntax/contributions/usePromptCommand.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
@@ -163,11 +163,27 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		[PromptFilesConfig.CONFIG_KEY]: {
-			type: ['boolean', 'object', 'array', 'string', 'null'],
+			type: 'object',
 			title: PromptFilesConfig.CONFIG_TITLE,
 			markdownDescription: PromptFilesConfig.CONFIG_DESCRIPTION,
-			default: null,
+			default: {
+				[PromptFilesConfig.DEFAULT_LOCATION]: false,
+			},
+			required: [PromptFilesConfig.DEFAULT_LOCATION],
+			additionalProperties: { type: 'boolean' },
+			unevaluatedProperties: { type: 'boolean' },
+			restricted: true,
+			disallowConfigurationDefault: true,
 			tags: ['experimental'],
+			examples: [
+				{
+					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+				},
+				{
+					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+					'/Users/vscode/repos/prompts': true,
+				},
+			],
 		},
 	}
 });
@@ -435,4 +451,4 @@ registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, Instant
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);
 
-registerSingleton(IPromptSyntaxService, PromptSyntaxService, InstantiationType.Delayed);
+registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);

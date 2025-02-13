@@ -352,6 +352,8 @@ export class ObservableCodeEditor extends Disposable {
 		}));
 		return result;
 	}
+
+	public readonly openedPeekWidgets = observableValue(this, 0);
 }
 
 interface IObservableOverlayWidget {

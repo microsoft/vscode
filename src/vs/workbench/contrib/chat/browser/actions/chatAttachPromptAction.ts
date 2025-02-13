@@ -15,6 +15,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISelectPromptOptions, showSelectPromptDialog } from './chatAttachPromptAction/showPromptSelectionDialog.js';
+import { IPromptsService } from '../../common/promptSyntax/service/types.js';
 
 /**
  * Action ID for the `Attach Prompt` action.
@@ -48,6 +49,7 @@ export class AttachPromptAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const viewsService = accessor.get(IViewsService);
 		const openerService = accessor.get(IOpenerService);
+		const promptsService = accessor.get(IPromptsService);
 		const initService = accessor.get(IInstantiationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
@@ -55,8 +57,9 @@ export class AttachPromptAction extends Action2 {
 			...options,
 			initService,
 			labelService,
-			quickInputService,
 			openerService,
+			promptsService,
+			quickInputService,
 		});
 
 		// no prompt selected, nothing to do

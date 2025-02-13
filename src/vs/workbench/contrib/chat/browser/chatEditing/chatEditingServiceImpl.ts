@@ -227,7 +227,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		let editsSource: AsyncIterableSource<IChatTextEditGroup> | undefined;
 		let editsPromise: Promise<void> | undefined;
 		const editsSeen = new ResourceMap<{ seen: number }>();
-		const editedFilesExist = new ResourceMap<Promise<boolean>>();
+		const editedFilesExist = new ResourceMap<Promise<void>>();
 
 		const onResponseComplete = (responseModel: IChatResponseModel) => {
 			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
@@ -255,11 +255,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				// ensure editor is open asap
 				if (!editedFilesExist.get(part.uri)) {
 					const uri = part.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(part.uri)?.notebook ?? part.uri : part.uri;
+
 					editedFilesExist.set(part.uri, this._fileService.exists(uri).then((e) => {
-						if (e) {
-							this._editorService.openEditor({ resource: uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+						if (!e) {
+							return;
 						}
-						return e;
+						const activeUri = this._editorService.activeEditorPane?.input.resource;
+						const inactive = activeUri && session.workingSet.has(activeUri);
+						this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
 					}));
 				}
 
