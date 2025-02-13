@@ -47,6 +47,7 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
+	toolResultMessage?: string | IMarkdownString;
 }
 
 export interface IToolResultPromptTsxPart {

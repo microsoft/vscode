@@ -599,6 +599,17 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		return undefined;
 	}
 
+	getTreeSync(content: string, languageId: string): Parser.Tree | undefined {
+		const language = this.getOrInitLanguage(languageId);
+		const Parser = this._treeSitterImporter.parserClass;
+		if (language && Parser) {
+			const parser = new Parser();
+			parser.setLanguage(language);
+			return parser.parse(content) ?? undefined;
+		}
+		return undefined;
+	}
+
 	/**
 	 * For testing
 	 */
@@ -649,12 +660,18 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		if (setting.length === 0) {
 			hasLanguages = false;
 		}
+
+		const handleLanguage = (languageId: string) => {
+			if (setting.includes(languageId)) {
+				this._addGrammar(languageId, `tree-sitter-${languageId}`);
+			} else {
+				this._removeGrammar(languageId);
+			}
+		};
+
 		// Eventually, this should actually use an extension point to add tree sitter grammars, but for now they are hard coded in core
-		if (setting.includes('typescript')) {
-			this._addGrammar('typescript', 'tree-sitter-typescript');
-		} else {
-			this._removeGrammar('typescript');
-		}
+		handleLanguage('typescript');
+		handleLanguage('ini');
 
 		return this._initParser(hasLanguages);
 	}

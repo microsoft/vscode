@@ -42,6 +42,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 
 export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chat.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
@@ -318,7 +319,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				editorObs.layoutInfo.map((v, r) => v.width),
 				editorObs.layoutInfo.map((v, r) => v.height),
 				entry.diffInfo.map(diff => diff.changes.slice()),
-				new AccessibleDiffViewerModel(entry, _editor),
+				_instantiationService.createInstance(AccessibleDiffViewerModel, entry, _editor),
 			));
 		}));
 	}
@@ -883,10 +884,14 @@ class AccessibleDiffViewContainer implements IOverlayWidget {
 }
 
 class AccessibleDiffViewerModel implements IAccessibleDiffViewerModel {
-	constructor(private readonly entry: IModifiedFileEntry, private readonly _editor: ICodeEditor) { }
+	constructor(
+		private readonly entry: IModifiedFileEntry,
+		private readonly _editor: ICodeEditor,
+		@IModelService private readonly _modelService: IModelService,
+	) { }
 
 	getOriginalModel() {
-		return this.entry?.originalModel;
+		return this._modelService.getModel(this.entry.originalURI)!;
 	}
 
 	getOriginalOptions() {

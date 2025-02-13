@@ -38,6 +38,8 @@ export interface IGhostTextWidgetModel {
 	readonly minReservedLineCount: IObservable<number>;
 }
 
+const USE_SQUIGGLES_FOR_WARNING = true;
+
 export class GhostTextView extends Disposable {
 	private readonly _isDisposed = observableValue(this, false);
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -67,6 +69,10 @@ export class GhostTextView extends Disposable {
 		this._register(this._editorObs.setDecorations(this.decorations));
 
 		this._register(autorunWithStore((reader, store) => {
+			if (USE_SQUIGGLES_FOR_WARNING) {
+				return;
+			}
+
 			const state = this._warningState.read(reader);
 			if (!state) {
 				return;
@@ -125,6 +131,9 @@ export class GhostTextView extends Disposable {
 		const extraClasses = [...this._options.read(reader).extraClasses ?? []];
 		if (this._useSyntaxHighlighting.read(reader)) {
 			extraClasses.push('syntax-highlighted');
+		}
+		if (USE_SQUIGGLES_FOR_WARNING && this._warningState.read(reader)) {
+			extraClasses.push('warning');
 		}
 		const extraClassNames = extraClasses.map(c => ` ${c}`).join('');
 		return extraClassNames;

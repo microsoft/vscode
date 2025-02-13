@@ -1373,7 +1373,7 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const config = workspace.getConfiguration('git');
 		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) === true;
 
 		await this.run(
