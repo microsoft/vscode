@@ -949,19 +949,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const fileBasename = basename(resource.path);
 				const fileDirname = dirname(resource.path);
 				const friendlyName = `${fileBasename} ${fileDirname}`;
-
 				ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 
-				const fileOptions: IFileLabelOptions = { hidePath: true };
-				label.setFile(resource, attachment.isFile ? {
-					...fileOptions,
-					fileKind: FileKind.FILE,
-					range,
-				} : {
-					...fileOptions,
-					fileKind: FileKind.FOLDER,
-					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
-				});
+				if (attachment.isOmitted) {
+					this.customAttachment(widget, friendlyName, hoverDelegate, ariaLabel, store);
+				} else {
+					const fileOptions: IFileLabelOptions = { hidePath: true };
+					label.setFile(resource, attachment.isFile ? {
+						...fileOptions,
+						fileKind: FileKind.FILE,
+						range,
+					} : {
+						...fileOptions,
+						fileKind: FileKind.FOLDER,
+						icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
+					});
+				}
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 				this.instantiationService.invokeFunction(accessor => {
@@ -969,17 +972,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						store.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
 					}
 				});
-
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
-				const hoverElement = dom.$('div.chat-attached-context-hover');
-				hoverElement.setAttribute('aria-label', ariaLabel);
-
 				const supportsVision = this.supportsVision();
-				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
-				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
-				widget.appendChild(pillIcon);
-				widget.appendChild(textLabel);
+				const hoverElement = this.customAttachment(widget, attachment.name, hoverDelegate, ariaLabel, store, attachment.isImage, supportsVision);
 
 				if (attachment.references) {
 					widget.style.cursor = 'pointer';
@@ -991,17 +987,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					store.add(addDisposableListener(widget, 'click', clickHandler));
 				}
 
-				if (!supportsVision) {
-					widget.classList.add('warning');
-					hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel)?.name : this.currentLanguageModel);
-					textLabel.style.textDecoration = 'line-through';
-					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
-					this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
-				} else {
+				if (supportsVision) {
 					attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
 						let buffer: Uint8Array;
 						try {
-							this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 							if (attachment.value instanceof URI) {
 								const readFile = await this.fileService.readFile(attachment.value);
 								if (store.isDisposed) {
@@ -1019,6 +1008,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						resolve();
 					}));
 				}
+
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 				widget.style.position = 'relative';
 			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
@@ -1101,6 +1092,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (oldHeight !== container.offsetHeight) {
 			this._onDidChangeHeight.fire();
 		}
+	}
+
+	private customAttachment(widget: HTMLElement, friendlyName: string, hoverDelegate: IHoverDelegate, ariaLabel: string, store: DisposableStore, isImage?: boolean, supportsVision?: boolean): HTMLElement {
+		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
+		const textLabel = dom.$('span.chat-attached-context-custom-text', {}, friendlyName);
+		widget.appendChild(pillIcon);
+		widget.appendChild(textLabel);
+
+		const hoverElement = dom.$('div.chat-attached-context-hover');
+		hoverElement.setAttribute('aria-label', ariaLabel);
+
+		if (!supportsVision) {
+			widget.classList.add('warning');
+			hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel)?.name : this.currentLanguageModel, isImage ? 'image' : 'file');
+			store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
+		}
+
+		return hoverElement;
 	}
 
 	private openResource(resource: URI, isDirectory: true): void;
