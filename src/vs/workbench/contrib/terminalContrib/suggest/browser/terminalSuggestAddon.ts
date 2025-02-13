@@ -236,7 +236,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
 
-		if (!providedCompletions?.length || token.isCancellationRequested) {
+		if (token.isCancellationRequested) {
 			return;
 		}
 		this._onDidReceiveCompletions.fire();
@@ -244,8 +244,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._cursorIndexDelta = this._promptInputModel.cursorIndex - this._requestedCompletionsIndex;
 		this._leadingLineContent = this._promptInputModel.prefix.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
 
-		const completions = providedCompletions.flat();
-		if (!completions?.length) {
+		const completions = providedCompletions?.flat() || [];
+		if (!explicitlyInvoked && !completions.length) {
 			return;
 		}
 
