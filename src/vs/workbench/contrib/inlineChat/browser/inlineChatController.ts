@@ -47,7 +47,7 @@ import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/cha
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { CTX_HAS_SESSION, CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
 import { HunkInformation, Session, StashedSession } from './inlineChatSession.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatError } from './inlineChatSessionServiceImpl.js';
@@ -1199,7 +1199,6 @@ export class InlineChatController2 implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 
-		const ctxHasSession = CTX_HAS_SESSION.bindTo(contextKeyService);
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
@@ -1266,12 +1265,7 @@ export class InlineChatController2 implements IEditorContribution {
 			const session = this._currentSession.read(r);
 
 			if (!session) {
-				ctxHasSession.set(undefined);
 				this._isActiveController.set(false, undefined);
-			} else {
-				const checkRequests = () => ctxHasSession.set(session.chatModel.getRequests().length === 0 ? 'empty' : 'active');
-				store.add(session.chatModel.onDidChange(checkRequests));
-				checkRequests();
 			}
 		}));
 

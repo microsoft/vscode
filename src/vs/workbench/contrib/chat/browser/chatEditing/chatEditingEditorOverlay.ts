@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -33,10 +33,11 @@ import { Event } from '../../../../../base/common/event.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 
 class ChatEditorOverlayWidget2 {
-
 
 	private readonly _domNode: HTMLElement;
 	private readonly _progressNode: HTMLElement;
@@ -387,12 +388,13 @@ export class ChatEditorOverlayController implements IEditorContribution {
 
 export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.edits.overlay';
+	static readonly ID = 'chat.edits.editorOverlay';
 
 	private readonly _store = new DisposableStore();
 
 	constructor(
 		@IChatEditingService chatEditingService: IChatEditingService,
+		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -419,58 +421,90 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 					continue;
 				}
 
-				let tuple: [IChatEditingSession, IModifiedFileEntry] | undefined;
-				for (const session of chatEditingService.editingSessionsObs.read(r)) {
-					const entry = session.readEntry(uri, r);
-					if (entry) {
-						tuple = [session, entry];
-						break;
-					}
-				}
+				// find the effective session (prefer inline chat)
+				const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
+				const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => value.find(s => s.readEntry(uri, r)));
+				const session = inlineSessionObs.read(r)?.editingSession ?? sessionObs.read(r);
 
-				if (!tuple) {
+				if (!session) {
 					continue;
 				}
 
-				const [session, entry] = tuple;
-
-				if (entry.state.read(r) !== WorkingSetEntryState.Modified) {
-					continue;
-				}
-
-				toDelete.delete(group);
+				toDelete.delete(group); // we keep the widget for this group!
 
 				if (!overlayWidgets.has(group)) {
 
-					const store = new DisposableStore();
-
-					const container = document.createElement('div');
-					container.classList.add('chat-editing-editor-overlay');
-					container.style.position = 'absolute';
-					container.style.bottom = `24px`;
-					container.style.left = `20px`;
-
 					const scopedInstaService = instantiationService.createChild(
-						new ServiceCollection([IContextKeyService, group.scopedContextKeyService]),
-						store
+						new ServiceCollection([IContextKeyService, group.scopedContextKeyService])
 					);
 
-					const widget = scopedInstaService.createInstance(ChatEditorOverlayWidget2, { focus: () => group.focus() });
-					container.appendChild(widget.getDomNode());
-					widget.showEntry(session, entry, { entryIndex: constObservable(-1), changeIndex: constObservable(-1) });
-
-					store.add(widget);
-					store.add(toDisposable(() => container.remove()));
+					const ctrl = scopedInstaService.createInstance(ChatEditingOverlayController, session, group, uri);
+					overlayWidgets.set(group, combinedDisposable(ctrl, scopedInstaService));
 
 					// TODO@jrieken UGLY, fix in https://github.com/microsoft/vscode/tree/ben/layout-group-container
-					(group as EditorGroupView).element.appendChild(container);
-
-					overlayWidgets.set(group, store);
+					(group as EditorGroupView).element.appendChild(ctrl.domNode);
 				}
 			}
 
 			for (const group of toDelete) {
 				overlayWidgets.deleteAndDispose(group);
+			}
+		}));
+	}
+
+	dispose(): void {
+		this._store.dispose();
+	}
+}
+
+class ChatEditingOverlayController {
+
+	private readonly _store = new DisposableStore();
+
+	readonly domNode = document.createElement('div');
+
+	constructor(
+		session: IChatEditingSession,
+		group: IEditorGroup,
+		uri: URI,
+		@IInstantiationService instaService: IInstantiationService,
+		@IChatService chatService: IChatService,
+	) {
+
+		this.domNode.classList.add('chat-editing-editor-overlay');
+		this.domNode.style.position = 'absolute';
+		this.domNode.style.bottom = `24px`;
+		this.domNode.style.left = `20px`;
+
+		const widget = instaService.createInstance(ChatEditorOverlayWidget2, group);
+		this.domNode.appendChild(widget.getDomNode());
+		this._store.add(toDisposable(() => this.domNode.remove()));
+		this._store.add(widget);
+
+		const chatModel = chatService.getSession(session.chatSessionId)!;
+		const lastResponse = observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1)?.response);
+
+		this._store.add(autorun(r => {
+
+			const response = lastResponse.read(r);
+
+			const isInProgress = response
+				? observableFromEvent(this, response.onDidChange, () => !response.isComplete)
+				: constObservable(false);
+
+			const entry = session.readEntry(uri, r);
+
+			if (entry?.state.read(r) === WorkingSetEntryState.Modified) {
+				widget.showEntry(session, entry, { entryIndex: constObservable(-1), changeIndex: constObservable(-1) });
+				this.domNode.style.display = '';
+
+			} else if (!session.isGlobalEditingSession && isInProgress.read(r)) {
+				widget.showRequest(session);
+				this.domNode.style.display = '';
+
+			} else {
+				this.domNode.style.display = 'none';
+				widget.hide();
 			}
 		}));
 	}

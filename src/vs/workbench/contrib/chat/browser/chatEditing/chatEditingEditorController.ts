@@ -19,7 +19,7 @@ import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRange
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../editor/common/viewModel.js';
 import { localize } from '../../../../../nls.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -43,7 +43,6 @@ import { TextEditorSelectionRevealType } from '../../../../../platform/editor/co
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-import { ctxIsGlobalEditingSession, ctxHasEditorModification, ctxHasRequestInProgress, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 export class ChatEditorController extends Disposable implements IEditorContribution {
 
@@ -60,10 +59,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private readonly _overlayCtrl: ChatEditorOverlayController;
 
-	private readonly _ctxIsGlobalEditsSession: IContextKey<boolean>;
-	private readonly _ctxHasEditorModification: IContextKey<boolean>;
-	private readonly _ctxRequestInProgress: IContextKey<boolean>;
-	private readonly _ctxReviewModelEnabled: IContextKey<boolean>;
 
 	static get(editor: ICodeEditor): ChatEditorController | null {
 		return editor.getContribution<ChatEditorController>(ChatEditorController.ID);
@@ -93,23 +88,12 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		super();
 
 		this._overlayCtrl = ChatEditorOverlayController.get(_editor)!;
-		this._ctxIsGlobalEditsSession = ctxIsGlobalEditingSession.bindTo(contextKeyService);
-		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
-		this._ctxRequestInProgress = ctxHasRequestInProgress.bindTo(contextKeyService);
-		this._ctxReviewModelEnabled = ctxReviewModeEnabled.bindTo(contextKeyService);
 
 		const editorObs = observableCodeEditor(this._editor);
 		const fontInfoObs = editorObs.getOption(EditorOption.fontInfo);
 		const lineHeightObs = editorObs.getOption(EditorOption.lineHeight);
 		const modelObs = editorObs.model;
 
-		this._store.add(autorun(r => {
-			let isStreamingEdits = false;
-			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
-				isStreamingEdits ||= session.state.read(r) === ChatEditingSessionState.StreamingEdits;
-			}
-			this._ctxRequestInProgress.set(isStreamingEdits);
-		}));
 
 		const entryForEditor = derived(r => {
 			const model = modelObs.read(r);
@@ -155,7 +139,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			const currentEditorEntry = entryForEditor.read(r);
 
 			if (!currentEditorEntry) {
-				this._ctxIsGlobalEditsSession.reset();
 				this._clear();
 				return;
 			}
@@ -166,9 +149,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			}
 
 			const { session, idx, entry } = currentEditorEntry;
-
-			this._ctxIsGlobalEditsSession.set(session.isGlobalEditingSession);
-			this._ctxReviewModelEnabled.set(entry.reviewMode.read(r));
 
 			// context
 			this._currentEntryIndex.set(idx, undefined);
@@ -331,8 +311,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._diffLineDecorations.clear();
 		this._currentChangeIndex.set(undefined, undefined);
 		this._currentEntryIndex.set(undefined, undefined);
-		this._ctxHasEditorModification.reset();
-		this._ctxReviewModelEnabled.reset();
 	}
 
 	private _clearDiffRendering() {
@@ -554,7 +532,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	}
 
 	private _updateDiffLineDecorations(diff: IDocumentDiff): void {
-		this._ctxHasEditorModification.set(!diff.identical);
 
 		const modifiedLineDecorations: IModelDeltaDecoration[] = [];
 
