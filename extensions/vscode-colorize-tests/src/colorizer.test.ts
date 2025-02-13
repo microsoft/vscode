@@ -69,7 +69,7 @@ suite('colorization', () => {
 
 	suiteSetup(async function () {
 		originalSettingValue = workspace.getConfiguration('editor').get('experimental.preferTreeSitter');
-		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', ["typescript"], ConfigurationTarget.Global);
+		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', ["typescript", "ini"], ConfigurationTarget.Global);
 	});
 	suiteTeardown(async function () {
 		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', originalSettingValue, ConfigurationTarget.Global);
