@@ -1136,9 +1136,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.setDirty(true);
 			}
 
-			if (!this.inConflictMode) {
-				return await this.save({ source: TextFileEditorModel.TEXTFILE_SAVE_ENCODING_SOURCE });
+			if (this.inConflictMode) {
+				return false;
 			}
+
+			return await this.save({ source: TextFileEditorModel.TEXTFILE_SAVE_ENCODING_SOURCE });
 		}
 
 		// Decode: Resolve with encoding
@@ -1154,10 +1156,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.updatePreferredEncoding(encoding);
 
 			await this.forceResolveFromFile();
+
 			return true;
 		}
-
-		return false;
 	}
 
 	updatePreferredEncoding(encoding: string | undefined): void {

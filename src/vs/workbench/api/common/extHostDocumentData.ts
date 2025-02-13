@@ -102,6 +102,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		this._isDirty = isDirty;
 	}
 
+	_acceptEncoding(encoding: string): void {
+		ok(!this._isDisposed);
+		this._encoding = encoding;
+	}
+
 	private _save(options?: { encoding?: string }): Promise<boolean> {
 		if (this._isDisposed) {
 			return Promise.reject(new Error('Document has been closed'));
@@ -248,13 +253,6 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			return new Range(position.line, wordAtText.startColumn - 1, position.line, wordAtText.endColumn - 1);
 		}
 		return undefined;
-	}
-
-	// --- encodings
-
-	_acceptEncoding(encoding: string): void {
-		ok(!this._isDisposed);
-		this._encoding = encoding;
 	}
 }
 
