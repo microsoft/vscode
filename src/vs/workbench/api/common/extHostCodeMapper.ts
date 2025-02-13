@@ -11,6 +11,7 @@ import * as extHostProtocol from './extHost.protocol.js';
 import { NotebookEdit, TextEdit } from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
 import { isDefined } from '../../../base/common/types.js';
+import { asArray } from '../../../base/common/arrays.js';
 
 export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape {
 
@@ -34,14 +35,14 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 		// Construct a response object to pass to the provider
 		const stream: vscode.MappedEditsResponseStream = {
 			textEdit: (target: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) => {
-				edits = (Array.isArray(edits) ? edits : [edits]);
+				edits = asArray(edits);
 				this._proxy.$handleProgress(internalRequest.requestId, {
 					uri: target,
 					edits: edits.map(TextEdit.from)
 				});
 			},
 			notebookEdit: (target: vscode.Uri, edits: vscode.NotebookEdit | vscode.NotebookEdit[]) => {
-				edits = (Array.isArray(edits) ? edits : [edits]);
+				edits = asArray(edits);
 				this._proxy.$handleProgress(internalRequest.requestId, {
 					uri: target,
 					edits: edits.map(NotebookEdit.toEditReplaceOperation).filter(isDefined)

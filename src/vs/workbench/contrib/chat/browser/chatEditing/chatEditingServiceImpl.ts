@@ -252,7 +252,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					continue;
 				}
 				// ensure editor is open asap
-				const uri = CellUri.parse(part.uri)?.notebook || part.uri;
+				const uri = CellUri.parse(part.uri)?.notebook ?? part.uri;
 				if (!editedFilesExist.get(uri)) {
 					editedFilesExist.set(uri, this._fileService.exists(uri).then((e) => {
 						if (!e) {

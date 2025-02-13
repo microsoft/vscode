@@ -1313,12 +1313,12 @@ export interface ICodeMapperTextEdit {
 	edits: languages.TextEdit[];
 }
 
-export type ICodeMapperProgressDto = Dto<ICodeMapperTextEdit> | ICodeMapperNotebookEditDto;
-
 export interface ICodeMapperNotebookEditDto {
 	uri: URI;
 	edits: ICellEditOperationDto[];
 }
+
+export type ICodeMapperProgressDto = Dto<ICodeMapperTextEdit> | ICodeMapperNotebookEditDto;
 
 export interface MainThreadCodeMapperShape extends IDisposable {
 	$registerCodeMapperProvider(handle: number, displayName: string): void;
