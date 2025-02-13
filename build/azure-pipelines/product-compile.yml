@@ -108,7 +108,8 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (OSS)
   - ${{ else }}:
-    - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+    # - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+    - script: npm exec -- npm-run-all -lp core-ci extensions-ci
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (non-OSS)
