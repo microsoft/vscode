@@ -17481,7 +17481,7 @@ declare module 'vscode' {
 	/**
 	 * Optional options to be used when calling {@link authentication.getSession} with interactive options `forceNewSession` & `createIfNone`.
 	 */
-	export interface AuthenticationGetSessionInteractiveOptions {
+	export interface AuthenticationGetSessionPresentationOptions {
 		/**
 		 * An optional message that will be displayed to the user when we ask to re-authenticate. Providing additional context
 		 * as to why you are asking a user to re-authenticate can help increase the odds that they will accept.
@@ -17491,9 +17491,9 @@ declare module 'vscode' {
 
 	/**
 	 * Optional options to be used when calling {@link authentication.getSession} with the flag `forceNewSession`.
-	 * @deprecated Use {@link AuthenticationGetSessionInteractiveOptions} instead.
+	 * @deprecated Use {@link AuthenticationGetSessionPresentationOptions} instead.
 	 */
-	export type AuthenticationForceNewSessionOptions = AuthenticationGetSessionInteractiveOptions;
+	export type AuthenticationForceNewSessionOptions = AuthenticationGetSessionPresentationOptions;
 
 	/**
 	 * Options to be used when getting an {@link AuthenticationSession} from an {@link AuthenticationProvider}.
@@ -17533,7 +17533,7 @@ declare module 'vscode' {
 		 *
 		 * Note: you cannot use this option with {@link AuthenticationGetSessionOptions.silent silent}.
 		 */
-		createIfNone?: boolean | AuthenticationGetSessionInteractiveOptions;
+		createIfNone?: boolean | AuthenticationGetSessionPresentationOptions;
 
 		/**
 		 * Whether we should attempt to reauthenticate even if there is already a session available.
@@ -17548,7 +17548,7 @@ declare module 'vscode' {
 		 *
 		 * This defaults to false.
 		 */
-		forceNewSession?: boolean | AuthenticationGetSessionInteractiveOptions | AuthenticationForceNewSessionOptions;
+		forceNewSession?: boolean | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions;
 
 		/**
 		 * Whether we should show the indication to sign in in the Accounts menu.
@@ -17702,7 +17702,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionInteractiveOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -17717,7 +17717,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionInteractiveOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
