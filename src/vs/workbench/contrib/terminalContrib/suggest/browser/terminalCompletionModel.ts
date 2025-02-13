@@ -64,7 +64,7 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 			return score;
 		}
 	}
-	if (!isArg) {
+	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method) {
 		score = (b.completion.detail ? 1 : 0) + (b.completion.documentation ? 1 : 0) - (a.completion.detail ? 1 : 0) - (a.completion.documentation ? 1 : 0);
 		if (score !== 0) {
 			return score;
