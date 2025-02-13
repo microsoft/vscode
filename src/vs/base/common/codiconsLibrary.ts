@@ -318,7 +318,7 @@ export const codiconsLibrary = {
 	repoPush: register('repo-push', 0xeb41),
 	report: register('report', 0xeb42),
 	requestChanges: register('request-changes', 0xeb43),
-	rerunTask: register('rerun-task', 0xead2),
+	rerunTask: register('rerun-task', 0xeb37),
 	rocket: register('rocket', 0xeb44),
 	rootFolderOpened: register('root-folder-opened', 0xeb45),
 	rootFolder: register('root-folder', 0xeb46),
