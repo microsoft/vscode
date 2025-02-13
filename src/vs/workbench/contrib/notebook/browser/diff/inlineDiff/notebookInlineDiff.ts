@@ -16,11 +16,12 @@ import { registerNotebookContribution } from '../../notebookEditorExtensions.js'
 import { NotebookCellDiffDecorator } from './notebookCellDiffDecorator.js';
 import { NotebookDeletedCellDecorator } from './notebookDeletedCellDecorator.js';
 import { NotebookInsertedCellDecorator } from './notebookInsertedCellDecorator.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 export class NotebookInlineDiffDecorationContribution extends Disposable implements INotebookEditorContribution {
 	static ID: string = 'workbench.notebook.inlineDiffDecoration';
 
-	private original?: NotebookTextModel;
+	private previous?: NotebookTextModel;
 	private insertedCellDecorator: NotebookInsertedCellDecorator | undefined;
 	private deletedCellDecorator: NotebookDeletedCellDecorator | undefined;
 	private readonly cellDecorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
@@ -30,21 +31,28 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this.logService.trace('[NotebookInlineDiff] Watching for previous model');
 
 		this._register(autorun((reader) => {
-
-			const previous = this.notebookEditor.notebookOptions.previousModelToCompare.read(reader);
-			if (previous && this.notebookEditor.hasModel()) {
-				this.initialize(previous);
-				this.listeners.push(Event.once(this.notebookEditor.onDidAttachViewModel)(() => this.initialize(previous)));
+			this.previous = this.notebookEditor.notebookOptions.previousModelToCompare.read(reader);
+			if (this.previous) {
+				this.logService.debug('[NotebookInlineDiff] Previous model set');
+				if (this.notebookEditor.hasModel()) {
+					this.initialize();
+				} else {
+					this.logService.debug('[NotebookInlineDiff] Waiting for model to attach');
+					this.listeners.push(Event.once(this.notebookEditor.onDidAttachViewModel)(() => this.initialize()));
+				}
 			}
 		}));
 	}
 
 	private clear() {
+
 		this.listeners.forEach(l => l.dispose());
 		this.cellDecorators.forEach((v, cell) => {
 			v.dispose();
@@ -54,17 +62,22 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		this.deletedCellDecorator?.dispose();
 		this.cachedNotebookDiff = undefined;
 		this.listeners = [];
+		this.logService.trace('[NotebookInlineDiff] Cleared decorations and listeners');
 	}
 
 	override dispose() {
+		this.logService.trace('[NotebookInlineDiff] Disposing');
 		this.clear();
 		super.dispose();
 	}
 
-	private initialize(previous: NotebookTextModel) {
+	private initialize() {
 		this.clear();
 
-		this.original = previous;
+		if (!this.previous) {
+			return;
+		}
+
 		this.insertedCellDecorator = this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor);
 		this.deletedCellDecorator = this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor);
 
@@ -74,30 +87,35 @@ export class NotebookInlineDiffDecorationContribution extends Disposable impleme
 		this.listeners.push(this.notebookEditor.onDidChangeModel(() => this._update()));
 		if (this.notebookEditor.textModel) {
 			const onContentChange = Event.debounce(this.notebookEditor.textModel!.onDidChangeContent, (_, event) => event, 100, undefined, undefined, undefined, this._store);
+			const onOriginalContentChange = Event.debounce(this.previous.onDidChangeContent, (_, event) => event, 100, undefined, undefined, undefined, this._store);
 			this.listeners.push(onContentChange(() => this._update()));
+			this.listeners.push(onOriginalContentChange(() => this._update()));
 		}
+		this.logService.trace('[NotebookInlineDiff] Initialized');
 	}
 
 	private async _update() {
 		const current = this.notebookEditor.getViewModel()?.notebookDocument;
-		if (!this.original || !current) {
+		if (!this.previous || !current) {
+			this.logService.trace('[NotebookInlineDiff] Update skipped - no original or current document');
 			return;
 		}
 
 		if (!this.cachedNotebookDiff ||
-			this.cachedNotebookDiff.originalVersion !== this.original.versionId ||
+			this.cachedNotebookDiff.originalVersion !== this.previous.versionId ||
 			this.cachedNotebookDiff.version !== current.versionId) {
 
-			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.original.uri, current.uri);
-			const diffInfo = computeDiff(this.original, current, notebookDiff);
+			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.previous.uri, current.uri);
+			const diffInfo = computeDiff(this.previous, current, notebookDiff);
+			this.logService.trace(`[NotebookInlineDiff] Update - computed diff with ${diffInfo.cellDiffInfo.length} changes`);
 
-			this.cachedNotebookDiff = { cellDiffInfo: diffInfo.cellDiffInfo, originalVersion: this.original.versionId, version: current.versionId };
+			this.cachedNotebookDiff = { cellDiffInfo: diffInfo.cellDiffInfo, originalVersion: this.previous.versionId, version: current.versionId };
 
 			this.insertedCellDecorator?.apply(diffInfo.cellDiffInfo);
-			this.deletedCellDecorator?.apply(diffInfo.cellDiffInfo, this.original);
+			this.deletedCellDecorator?.apply(diffInfo.cellDiffInfo, this.previous);
 		}
 
-		await this.updateCells(this.original, current, this.cachedNotebookDiff.cellDiffInfo);
+		await this.updateCells(this.previous, current, this.cachedNotebookDiff.cellDiffInfo);
 	}
 
 	private async updateCells(original: NotebookTextModel, modified: NotebookTextModel, cellDiffs: CellDiffInfo[]) {
