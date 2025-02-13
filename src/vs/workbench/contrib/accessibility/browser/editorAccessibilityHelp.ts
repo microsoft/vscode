@@ -93,6 +93,10 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 			content.push(commentCommandInfo);
 		}
 
+		content.push(AccessibilityHelpNLS.suggestActions);
+		content.push(AccessibilityHelpNLS.acceptSuggestAction);
+		content.push(AccessibilityHelpNLS.toggleSuggestionFocus);
+
 		if (options.get(EditorOption.stickyScroll).enabled) {
 			content.push(AccessibilityHelpNLS.stickScroll);
 		}
