@@ -489,19 +489,12 @@ export class AttachContextAction extends Action2 {
 					if (chatEditingService) {
 						getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(pick.resource);
 					} else {
-
+						let isOmitted = false;
 						try {
 							const createdModel = await textModelService.createModelReference(pick.resource);
 							createdModel.dispose();
 						} catch {
-							toAttach.push({
-								id: this._getFileContextId({ resource: pick.resource }),
-								value: pick.resource,
-								name: pick.label,
-								isFile: true,
-								isOmitted: true,
-							});
-							continue;
+							isOmitted = true;
 						}
 
 						toAttach.push({
@@ -509,6 +502,7 @@ export class AttachContextAction extends Action2 {
 							value: pick.resource,
 							name: pick.label,
 							isFile: true,
+							isOmitted
 						});
 					}
 				}
