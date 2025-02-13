@@ -54,6 +54,7 @@ export interface NotebookDisplayOptions { // TODO @Yoyokrazy rename to a more ge
 		'editor.insertSpaces': boolean;
 	}> | undefined;
 	markupFontFamily: string;
+	disableRulers: boolean | undefined;
 }
 
 export interface NotebookLayoutConfiguration {
@@ -141,7 +142,7 @@ export class NotebookOptions extends Disposable {
 	constructor(
 		readonly targetWindow: CodeWindow,
 		private isReadonly: boolean,
-		private readonly overrides: { cellToolbarInteraction: string; globalToolbar: boolean; stickyScrollEnabled: boolean; dragAndDropEnabled: boolean } | undefined,
+		private readonly overrides: { cellToolbarInteraction: string; globalToolbar: boolean; stickyScrollEnabled: boolean; dragAndDropEnabled: boolean; disableRulers: boolean } | undefined,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -263,7 +264,8 @@ export class NotebookOptions extends Disposable {
 			outputLineLimit: outputLineLimit,
 			outputLinkifyFilePaths: linkifyFilePaths,
 			outputMinimalError: minimalErrors,
-			markupFontFamily
+			markupFontFamily,
+			disableRulers: overrides?.disableRulers,
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
