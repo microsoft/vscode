@@ -487,7 +487,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		}
 
 		// If there's no valid last non-whitespace cell OR the first and last styles match (indicating no ghost text)
-		if (!lastNonWhitespaceCell ||
+		if (!lastNonWhitespaceCell?.getChars().trim().length ||
 			this._cellStylesMatch(line.getCell(this._commandStartX), lastNonWhitespaceCell)) {
 			return -1;
 		}
@@ -509,17 +509,17 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		// Ensure no earlier cells in the line match `lastNonWhitespaceCell`'s style,
 		// which would indicate the text is not ghost text.
 		if (ghostTextIndex !== -1) {
-			for (let checkPos = cursorIndex; checkPos >= this._commandStartX; checkPos--) {
+			for (let checkPos = buffer.cursorX; checkPos >= this._commandStartX; checkPos--) {
 				const checkCell = line.getCell(checkPos);
+				if (!checkCell?.getChars.length) {
+					continue;
+				}
 				if (checkCell && checkCell.getCode() !== 0 && this._cellStylesMatch(lastNonWhitespaceCell, checkCell)) {
 					return -1;
 				}
 			}
 		}
 
-		if (this.value.trim().length !== 1 && ghostTextIndex === this.value.trim().length) {
-			return -1;
-		}
 		return ghostTextIndex >= cursorIndex ? ghostTextIndex : -1;
 	}
 
