@@ -148,7 +148,7 @@ steps:
     - script: ./build/azure-pipelines/common/extract-telemetry.sh
       displayName: Generate lists of telemetry events
 
-    - script: tar -cz --ignore-failed-read --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
+    - script: tar -cz --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
       displayName: Compress compilation artifact
 
     - task: 1ES.PublishPipelineArtifact@1
