@@ -146,7 +146,7 @@ export interface ISettingMatch {
 	setting: ISetting;
 	matches: IRange[] | null;
 	matchType: SettingMatchType;
-	keyMatchSize: number;
+	keyMatchScore: number;
 	score: number;
 }
 
@@ -186,7 +186,7 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean | null;
-export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[]; matchType: SettingMatchType; keyMatchSize: number; score: number } | null;
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[]; matchType: SettingMatchType; keyMatchScore: number; score: number } | null;
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;

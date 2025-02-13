@@ -188,7 +188,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	const isEditableElement = (element: Element) => {
-		return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea' || 'editContext' in element;
+		return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea'
+			|| ('editContext' in element && !!element.editContext);
 	};
 
 	// check if an input element is focused within the output element

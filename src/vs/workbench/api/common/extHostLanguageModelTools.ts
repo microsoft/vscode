@@ -12,11 +12,11 @@ import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-
-
+import { IToolInputProcessor } from '../../contrib/chat/common/tools/tools.js';
+import { EditToolData, EditToolId, EditToolInputProcessor } from '../../contrib/chat/common/tools/editFileTool.js';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -27,6 +27,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	/** A map of all known tools, from other EHs or registered in vscode core */
 	private readonly _allTools = new Map<string, IToolDataDto>();
 
+	private readonly _toolInputProcessors = new Map<string, IToolInputProcessor>();
+
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageModelTools);
 
@@ -35,6 +37,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				this._allTools.set(tool.id, revive(tool));
 			}
 		});
+
+		this._toolInputProcessors.set(EditToolData.id, new EditToolInputProcessor());
 	}
 
 	async $countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
@@ -57,18 +61,19 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				throw new Error(`Invalid tool invocation token`);
 			}
 
-			if (toolId === 'vscode_editFile' && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
+			if (toolId === EditToolId && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
 				throw new Error(`Invalid tool: ${toolId}`);
 			}
 
 			// Making the round trip here because not all tools were necessarily registered in this EH
+			const processedInput = this._toolInputProcessors.get(toolId)?.processInput(options.input) ?? options.input;
 			const result = await this._proxy.$invokeTool({
 				toolId,
 				callId,
-				parameters: options.input,
+				parameters: processedInput,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
-				chatRequestId: options.chatRequestId,
+				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
 			}, token);
 			return typeConvert.LanguageModelToolResult.to(result);
 		} finally {
@@ -87,7 +92,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return Array.from(this._allTools.values())
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool))
 			.filter(tool => {
-				if (tool.name === 'vscode_editFile') {
+				if (tool.name === EditToolId) {
 					return isProposedApiEnabled(extension, 'chatParticipantPrivate');
 				}
 
@@ -119,7 +124,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new CancellationError();
 		}
 
-		return typeConvert.LanguageModelToolResult.from(extensionResult);
+		return typeConvert.LanguageModelToolResult.from(extensionResult, item.extension);
 	}
 
 	async $prepareToolInvocation(toolId: string, input: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -138,16 +143,18 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			return undefined;
 		}
 
+		if (result.pastTenseMessage || result.tooltip) {
+			checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
+		}
+
 		return {
 			confirmationMessages: result.confirmationMessages ? {
 				title: result.confirmationMessages.title,
 				message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
 			} : undefined,
-			invocationMessage: typeof result.invocationMessage === 'string' ?
-				result.invocationMessage :
-				(result.invocationMessage ?
-					typeConvert.MarkdownString.from(result.invocationMessage) :
-					undefined),
+			invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
+			pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
+			tooltip: result.tooltip ? typeConvert.MarkdownString.fromStrict(result.tooltip) : undefined,
 		};
 	}
 

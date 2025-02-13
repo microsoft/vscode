@@ -1671,6 +1671,11 @@ export interface IEditorFindOptions {
 	 * Controls how the find widget search history should be stored
 	 */
 	history?: 'never' | 'workspace';
+	/**
+	 * @internal
+	 * Controls how the replace widget search history should be stored
+	 */
+	replaceHistory?: 'never' | 'workspace';
 }
 
 /**
@@ -1689,6 +1694,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			addExtraSpaceOnTop: true,
 			loop: true,
 			history: 'workspace',
+			replaceHistory: 'workspace',
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1745,6 +1751,16 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 						nls.localize('editor.find.history.workspace', 'Store search history across the active workspace'),
 					],
 					description: nls.localize('find.history', "Controls how the find widget history should be stored")
+				},
+				'editor.find.replaceHistory': {
+					type: 'string',
+					enum: ['never', 'workspace'],
+					default: 'workspace',
+					enumDescriptions: [
+						nls.localize('editor.find.replaceHistory.never', 'Do not store history from the replace widget.'),
+						nls.localize('editor.find.replaceHistory.workspace', 'Store replace history across the active workspace'),
+					],
+					description: nls.localize('find.replaceHistory', "Controls how the replace widget history should be stored")
 				}
 			}
 		);
@@ -1767,6 +1783,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
 			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
+			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
 		};
 	}
 }
@@ -4194,13 +4211,30 @@ export interface IInlineSuggestOptions {
 	fontFamily?: string | 'default';
 
 	edits?: {
-		experimental?: {
-			enabled?: boolean;
-			useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
-			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+		codeShifting?: boolean;
 
-			useGutterIndicator?: boolean;
-		};
+		renderSideBySide?: 'never' | 'auto';
+
+		/**
+		* @internal
+		*/
+		enabled?: boolean;
+		/**
+		* @internal
+		*/
+		useMixedLinesDiff?: 'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible';
+		/**
+		* @internal
+		*/
+		useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+		/**
+		* @internal
+		*/
+		useMultiLineGhostText?: boolean;
+		/**
+		* @internal
+		*/
+		useGutterIndicator?: boolean;
 	};
 }
 
@@ -4227,12 +4261,13 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			fontFamily: 'default',
 			syntaxHighlightingEnabled: false,
 			edits: {
-				experimental: {
-					enabled: true,
-					useMixedLinesDiff: 'forStableInsertions',
-					useInterleavedLinesDiff: 'never',
-					useGutterIndicator: true,
-				},
+				enabled: true,
+				useMixedLinesDiff: 'forStableInsertions',
+				useInterleavedLinesDiff: 'never',
+				renderSideBySide: 'auto',
+				useGutterIndicator: true,
+				codeShifting: true,
+				useMultiLineGhostText: true
 			},
 		};
 
@@ -4270,28 +4305,45 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.fontFamily,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
-				'editor.inlineSuggest.edits.experimental.enabled': {
-					type: 'boolean',
-					default: defaults.edits.experimental.enabled,
-					description: nls.localize('inlineSuggest.edits.experimental.enabled', "Controls whether to enable experimental edits in inline suggestions.")
-				},
-				'editor.inlineSuggest.edits.experimental.useMixedLinesDiff': {
+				/* 'editor.inlineSuggest.edits.useMixedLinesDiff': {
 					type: 'string',
-					default: defaults.edits.experimental.useMixedLinesDiff,
-					description: nls.localize('inlineSuggest.edits.experimental.useMixedLinesDiff', "Controls whether to enable experimental edits in inline suggestions."),
+					default: defaults.edits.useMixedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.useMixedLinesDiff', "Controls whether to enable mixed lines diff in inline suggestions."),
 					enum: ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible'],
-				},
-				'editor.inlineSuggest.edits.experimental.useInterleavedLinesDiff': {
-					type: 'string',
-					default: defaults.edits.experimental.useInterleavedLinesDiff,
-					description: nls.localize('inlineSuggest.edits.experimental.useInterleavedLinesDiff', "Controls whether to enable experimental interleaved lines diff in inline suggestions."),
-					enum: ['never', 'always', 'afterJump'],
-				},
-				'editor.inlineSuggest.edits.experimental.useGutterIndicator': {
+				}, */
+				'editor.inlineSuggest.edits.codeShifting': {
 					type: 'boolean',
-					default: defaults.edits.experimental.useGutterIndicator,
-					description: nls.localize('inlineSuggest.edits.experimental.useGutterIndicator', "Controls whether to show a gutter indicator for inline suggestions.")
+					default: defaults.edits.codeShifting,
+					description: nls.localize('inlineSuggest.edits.codeShifting', "Controls whether showing a suggestion will shift the code to make space for the suggestion inline."),
+					tags: ['nextEditSuggestions']
 				},
+				'editor.inlineSuggest.edits.renderSideBySide': {
+					type: 'string',
+					default: defaults.edits.renderSideBySide,
+					description: nls.localize('inlineSuggest.edits.renderSideBySide', "Controls whether larger suggestions can be shown side by side."),
+					enum: ['auto', 'never'],
+					enumDescriptions: [
+						nls.localize('editor.inlineSuggest.edits.renderSideBySide.auto', "Larger suggestions will show side by side if there is enough space, otherwise they will be shown bellow."),
+						nls.localize('editor.inlineSuggest.edits.renderSideBySide.never', "Larger suggestions are never shown side by side and will always be shown bellow."),
+					],
+					tags: ['nextEditSuggestions']
+				},
+				/* 'editor.inlineSuggest.edits.useMultiLineGhostText': {
+					type: 'boolean',
+					default: defaults.edits.useMultiLineGhostText,
+					description: nls.localize('inlineSuggest.edits.useMultiLineGhostText', "Controls whether multi line insertions can be shown with Ghost text."),
+				}, */
+				/* 'editor.inlineSuggest.edits.useInterleavedLinesDiff': {
+					type: 'string',
+					default: defaults.edits.useInterleavedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.useInterleavedLinesDiff', "Controls whether to enable interleaved lines diff in inline suggestions."),
+					enum: ['never', 'always', 'afterJump'],
+				}, */
+				/* 'editor.inlineSuggest.edits.useGutterIndicator': {
+					type: 'boolean',
+					default: defaults.edits.useGutterIndicator,
+					description: nls.localize('inlineSuggest.edits.useGutterIndicator', "Controls whether to show a gutter indicator for inline suggestions.")
+				}, */
 			}
 		);
 	}
@@ -4310,12 +4362,13 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 			edits: {
-				experimental: {
-					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
-					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
-					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
-					useGutterIndicator: boolean(input.edits?.experimental?.useGutterIndicator, this.defaultValue.edits.experimental.useGutterIndicator),
-				},
+				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
+				useMixedLinesDiff: stringSet(input.edits?.useMixedLinesDiff, this.defaultValue.edits.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
+				codeShifting: boolean(input.edits?.codeShifting, this.defaultValue.edits.codeShifting),
+				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
+				useInterleavedLinesDiff: stringSet(input.edits?.useInterleavedLinesDiff, this.defaultValue.edits.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
+				useGutterIndicator: boolean(input.edits?.useGutterIndicator, this.defaultValue.edits.useGutterIndicator),
+				useMultiLineGhostText: boolean(input.edits?.useMultiLineGhostText, this.defaultValue.edits.useMultiLineGhostText),
 			},
 		};
 	}
@@ -6007,7 +6060,7 @@ export const EditorOptions = {
 	)),
 	occurrencesHighlightDelay: register(new EditorIntOption(
 		EditorOption.occurrencesHighlightDelay, 'occurrencesHighlightDelay',
-		250, 0, 2000,
+		0, 0, 2000,
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']

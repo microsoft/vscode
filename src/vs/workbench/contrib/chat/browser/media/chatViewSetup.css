@@ -48,12 +48,4 @@
 	.monaco-button-dropdown .monaco-text-button {
 		width: 100%;
 	}
-
-	/** Single Button */
-	p > .monaco-button {
-		text-align: center;
-		display: inline-block;
-		width: 100%;
-		padding: 4px 7px;
-	}
 }

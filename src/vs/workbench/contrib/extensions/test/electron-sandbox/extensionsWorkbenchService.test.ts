@@ -102,6 +102,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidUninstallExtension: didUninstallEvent.event as any,
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
+			onProfileAwareDidInstallExtensions: Event.None,
 			async getInstalled() { return []; },
 			async getInstalledWorkspaceExtensions() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
@@ -1706,6 +1707,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidUninstallExtension: Event.None,
 			onDidChangeProfile: Event.None,
 			onDidUpdateExtensionMetadata: Event.None,
+			onProfileAwareDidInstallExtensions: Event.None,
 			getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 			installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
 			updateMetadata: async (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>, profileLocation: URI) => {

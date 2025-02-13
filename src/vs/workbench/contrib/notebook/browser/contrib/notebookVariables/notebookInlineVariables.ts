@@ -5,6 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -47,6 +48,8 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 	private cellDecorationIds = new Map<ICellViewModel, string[]>();
 	private cellContentListeners = new ResourceMap<IDisposable>();
 
+	private currentCancellationTokenSources = new ResourceMap<CancellationTokenSource>();
+
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
@@ -66,19 +69,18 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 				await this.updateInlineVariables(e);
 			}
 		}));
+
+		this._register(Event.runAndSubscribe(this.configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(NotebookSetting.notebookInlineValues)) {
+				if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineValues)) {
+					this.clearNotebookInlineDecorations();
+				}
+			}
+		}));
 	}
 
 	private async updateInlineVariables(event: ICellExecutionStateChangedEvent): Promise<void> {
-		if (this.debugService.state !== State.Inactive) {
-			this._clearNotebookInlineDecorations();
-			return;
-		}
-
-		if (this.notebookEditor.textModel?.uri && isEqual(this.notebookEditor.textModel.uri, event.notebook)) {
-			return;
-		}
-
-		if (event.changed) { // undefined -> execution was completed, so return on all else
+		if (event.changed) { // undefined -> execution was completed, so return on all else. no code should execute until we know it's an execution completion
 			return;
 		}
 
@@ -86,6 +88,26 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		if (!cell) {
 			return;
 		}
+
+		// Cancel any ongoing request in this cell
+		const existingSource = this.currentCancellationTokenSources.get(cell.uri);
+		if (existingSource) {
+			existingSource.cancel();
+		}
+
+		// Create a new CancellationTokenSource for the new request per cell
+		this.currentCancellationTokenSources.set(cell.uri, new CancellationTokenSource());
+		const token = this.currentCancellationTokenSources.get(cell.uri)!.token;
+
+		if (this.debugService.state !== State.Inactive) {
+			this._clearNotebookInlineDecorations();
+			return;
+		}
+
+		if (!this.notebookEditor.textModel?.uri || !isEqual(this.notebookEditor.textModel.uri, event.notebook)) {
+			return;
+		}
+
 		const model = await cell.resolveTextModel();
 		if (!model) {
 			return;
@@ -93,7 +115,6 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 		this.clearCellInlineDecorations(cell);
 
-		const cts = new CancellationTokenSource();
 		const inlineDecorations: IModelDeltaDecoration[] = [];
 
 		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
@@ -102,7 +123,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			const lastColumn = model.getLineMaxColumn(lastLine);
 			const ctx: InlineValueContext = {
 				frameId: 0, // ignored, we won't have a stack from since not in a debug session
-				stoppedLocation: new Range(lastLine + 1, 0, lastLine + 1, 0) // executing cell by cell, so "stopped" location would just be the end of document
+				stoppedLocation: new Range(lastLine, lastColumn, lastLine, lastColumn) // executing cell by cell, so "stopped" location would just be the end of document
 			};
 
 			const providers = this.languageFeaturesService.inlineValuesProvider.ordered(model).reverse();
@@ -110,7 +131,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 			const fullCellRange = new Range(1, 1, lastLine, lastColumn);
 
-			const promises = providers.flatMap(provider => Promise.resolve(provider.provideInlineValues(model, fullCellRange, ctx, cts.token)).then(async (result) => {
+			const promises = providers.flatMap(provider => Promise.resolve(provider.provideInlineValues(model, fullCellRange, ctx, token)).then(async (result) => {
 				if (result) {
 
 					let kernel: INotebookKernelMatchResult;
@@ -120,7 +141,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 							return; // should not happen, a cell will be executed
 						}
 						kernel = this.notebookKernelService.getMatchingKernel(this.notebookEditor.textModel);
-						const variables = kernel.selected?.provideVariables(event.notebook, undefined, 'named', 0, cts.token);
+						const variables = kernel.selected?.provideVariables(event.notebook, undefined, 'named', 0, token);
 						if (!variables) {
 							return;
 						}
@@ -145,6 +166,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 									continue;
 								}
 								text = format('{0} = {1}', name, value);
+								break;
 							}
 							case 'expression': {
 								continue; // no active debug session, so evaluate would break
@@ -318,6 +340,8 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 	override dispose(): void {
 		super.dispose();
 		this._clearNotebookInlineDecorations();
+		this.currentCancellationTokenSources.forEach(source => source.cancel());
+		this.currentCancellationTokenSources.clear();
 	}
 }
 

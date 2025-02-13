@@ -15,18 +15,18 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { AnythingQuickAccessProviderRunOptions, IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
+import { IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
+import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
+import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
-import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
-import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
 import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { BasePromptParser } from '../../common/promptSyntax/parsers/basePromptParser.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -130,7 +130,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	addReference(ref: IDynamicVariable): void {
 		// use `ChatFileReference` for file references and `IDynamicVariable` for other variables
-		const promptSnippetsEnabled = BasePromptParser.promptSnippetsEnabled(this.configService);
+		const promptSnippetsEnabled = PromptFilesConfig.enabled(this.configService);
 		const variable = (ref.id === 'vscode.file' && promptSnippetsEnabled)
 			? this.instantiationService.createInstance(ChatFileReference, ref)
 			: ref;
@@ -228,7 +228,6 @@ export class SelectAndInsertFileAction extends Action2 {
 		const textModelService = accessor.get(ITextModelService);
 		const logService = accessor.get(ILogService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const chatVariablesService = accessor.get(IChatVariablesService);
 
 		const context = args[0];
 		if (!isSelectAndInsertActionContext(context)) {
@@ -241,15 +240,6 @@ export class SelectAndInsertFileAction extends Action2 {
 		};
 
 		let options: IQuickAccessOptions | undefined;
-		// If we have a `files` variable, add an option to select all files in the picker.
-		// This of course assumes that the `files` variable has the behavior that it searches
-		// through files in the workspace.
-		if (chatVariablesService.hasVariable(SelectAndInsertFileAction.Name)) {
-			const providerOptions: AnythingQuickAccessProviderRunOptions = {
-				additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
-			};
-			options = { providerOptions };
-		}
 		// TODO: have dedicated UX for this instead of using the quick access picker
 		const picks = await quickInputService.quickAccess.pick('', options);
 		if (!picks?.length) {

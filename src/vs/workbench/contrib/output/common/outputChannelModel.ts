@@ -26,9 +26,9 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { TextModel } from '../../../../editor/common/model/textModel.js';
 import { binarySearch, sortedDiff } from '../../../../base/common/arrays.js';
 
-const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(\[(info|trace|debug|error|warning)\])\s(\[(.*?)\]\s)?/;
+const LOG_ENTRY_REGEX = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s(\[(info|trace|debug|error|warning)\])\s(\[(.*?)\])?/;
 
-function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | null {
+export function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | null {
 	const lineContent = model.getLineContent(lineNumber);
 	const match = LOG_ENTRY_REGEX.exec(lineContent);
 	if (match) {
@@ -36,19 +36,21 @@ function parseLogEntryAt(model: ITextModel, lineNumber: number): ILogEntry | nul
 		const timestampRange = new Range(lineNumber, 1, lineNumber, match[1].length);
 		const logLevel = parseLogLevel(match[3]);
 		const logLevelRange = new Range(lineNumber, timestampRange.endColumn + 1, lineNumber, timestampRange.endColumn + 1 + match[2].length);
-		const source = match[5];
+		const category = match[5];
 		const startLine = lineNumber;
 		let endLine = lineNumber;
 
-		while (endLine < model.getLineCount()) {
+		const lineCount = model.getLineCount();
+		while (endLine < lineCount) {
 			const nextLineContent = model.getLineContent(endLine + 1);
-			if (model.getLineFirstNonWhitespaceColumn(endLine + 1) === 0 || LOG_ENTRY_REGEX.test(nextLineContent)) {
+			const isLastLine = endLine + 1 === lineCount && nextLineContent === ''; // Last line will be always empty
+			if (LOG_ENTRY_REGEX.test(nextLineContent) || isLastLine) {
 				break;
 			}
 			endLine++;
 		}
 		const range = new Range(startLine, 1, endLine, model.getLineMaxColumn(endLine));
-		return { range, timestamp, timestampRange, logLevel, logLevelRange, source };
+		return { range, timestamp, timestampRange, logLevel, logLevelRange, category };
 	}
 	return null;
 }
@@ -244,10 +246,10 @@ class FileContentProvider extends Disposable implements IContentProvider {
 
 	private parseLogEntries(content: string, lastLogEntry: ILogEntry | undefined): ILogEntry[] {
 		const model = this.instantiationService.createInstance(TextModel, content, LOG_MIME, TextModel.DEFAULT_CREATION_OPTIONS, null);
-		if (!parseLogEntryAt(model, 1)) {
-			return [];
-		}
 		try {
+			if (!parseLogEntryAt(model, 1)) {
+				return [];
+			}
 			const logEntries: ILogEntry[] = [];
 			let logEntryStartLineNumber = lastLogEntry ? lastLogEntry.range.endLineNumber + 1 : 1;
 			for (const entry of logEntryIterator(model, (e) => changeStartLineNumber(e, logEntryStartLineNumber))) {
@@ -383,7 +385,7 @@ class MultiFileContentProvider extends Disposable implements IContentProvider {
 			const content = name ? `${lineContent.substring(0, logEntry.logLevelRange.endColumn)} [${name}]${lineContent.substring(logEntry.logLevelRange.endColumn)}` : lineContent;
 			return [{
 				...logEntry,
-				source: name,
+				category: name,
 				range: new Range(logEntry.range.startLineNumber, logEntry.logLevelRange.startColumn, logEntry.range.endLineNumber, name ? logEntry.range.endColumn + name.length + 3 : logEntry.range.endColumn),
 			}, content];
 		};

@@ -49,29 +49,44 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 
 		// provide the changed lines to the stream incrementaly and asynchronously
 		// to avoid blocking the main thread and save system resources used
-		let i = 0;
+		let i = 1;
 		const interval = setInterval(() => {
-			if (this.model.isDisposed() || cancellationToken?.isCancellationRequested) {
-				clearInterval(interval);
-				stream.error(new CancellationError());
-				stream.end();
-				return;
-			}
-
-			// write the current line to the stream
-			stream.write(
-				VSBuffer.fromString(this.model.getLineContent(i)),
-			);
-
-			// use the next line in the next iteration
-			i++;
-
-			// if we have written all lines, end the stream and stop
-			// the interval timer
+			// if we have written all lines or lines count is zero,
+			// end the stream and stop the interval timer
 			if (i >= linesCount) {
 				clearInterval(interval);
 				stream.end();
+				stream.destroy();
 			}
+
+			// if model was disposed or cancellation was requested,
+			// end the stream with an error and stop the interval timer
+			if (this.model.isDisposed() || cancellationToken?.isCancellationRequested) {
+				clearInterval(interval);
+				stream.error(new CancellationError());
+				stream.destroy();
+				return;
+			}
+
+			try {
+				// write the current line to the stream
+				stream.write(
+					VSBuffer.fromString(this.model.getLineContent(i)),
+				);
+
+				// for all lines exept the last one, write the EOL character
+				// to separate the lines in the stream
+				if (i !== linesCount) {
+					stream.write(
+						VSBuffer.fromString(this.model.getEOL()),
+					);
+				}
+			} catch (error) {
+				console.log(this.uri, i, error);
+			}
+
+			// use the next line in the next iteration
+			i++;
 		}, 1);
 
 		return stream;

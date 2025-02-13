@@ -6,7 +6,7 @@
 import { BaseObservable, IChangeContext, IObservable, IObservableWithChange, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
 import { DebugNameData, DebugOwner, IDebugNameData } from './debugName.js';
 import { BugIndicatingError, DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
-import { getLogger } from './logging.js';
+import { getLogger } from './logging/logging.js';
 
 /**
  * Creates an observable that is derived from other observables.
@@ -164,7 +164,7 @@ export function derivedDisposable<T extends IDisposable | undefined>(computeFnOr
 	);
 }
 
-const enum DerivedState {
+export const enum DerivedState {
 	/** Initial state, no previous value, recomputation needed */
 	initial = 0,
 
@@ -210,7 +210,6 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	) {
 		super();
 		this.changeSummary = this.createChangeSummary?.();
-		getLogger()?.handleDerivedCreated(this);
 	}
 
 	protected override onLastObserverRemoved(): void {
@@ -230,7 +229,9 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	public override get(): T {
-		if (this._isComputing) {
+		const checkEnabled = false; // TODO set to true
+		if (this._isComputing && checkEnabled) {
+			// investigate why this fails in the diff editor!
 			throw new BugIndicatingError('Cyclic deriveds are not supported yet!');
 		}
 
@@ -291,7 +292,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 		let didChange = false;
 
-		this._isComputing = false; // TODO@hediet: Set to true and investigate diff editor scrolling issues! (also see test.skip('catches cyclic dependencies')
+		this._isComputing = true;
 
 		try {
 			const changeSummary = this.changeSummary!;
@@ -312,7 +313,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 			didChange = hadValue && !(this._equalityComparator(oldValue!, this.value));
 
-			getLogger()?.handleDerivedRecomputed(this, {
+			getLogger()?.handleObservableUpdated(this, {
 				oldValue,
 				newValue: this.value,
 				change: undefined,
@@ -399,6 +400,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 	public handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
 		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
+			getLogger()?.handleDerivedDependencyChanged(this, observable, change);
+
 			let shouldReact = false;
 			try {
 				shouldReact = this._handleChange ? this._handleChange({
@@ -459,16 +462,6 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			this._removedObserverToCallEndUpdateOn.add(observer);
 		}
 		super.removeObserver(observer);
-	}
-
-	public override log(): IObservableWithChange<T, void> {
-		if (!getLogger()) {
-			super.log();
-			getLogger()?.handleDerivedCreated(this);
-		} else {
-			super.log();
-		}
-		return this;
 	}
 }
 

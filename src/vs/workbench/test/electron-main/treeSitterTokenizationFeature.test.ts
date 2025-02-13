@@ -18,9 +18,10 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { ModelService } from '../../../editor/common/services/modelService.js';
-import { TreeSitterTokenizationFeature, TreeSitterTokenizationSupport } from '../../services/treeSitter/common/treeSitterTokenizationFeature.js';
-import { ITreeSitterParserService, TreeUpdateEvent } from '../../../editor/common/services/treeSitterParserService.js';
-import { TreeSitterTokenizationRegistry } from '../../../editor/common/languages.js';
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { TreeSitterTokenizationFeature } from '../../services/treeSitter/browser/treeSitterTokenizationFeature.js';
+import { ITreeSitterImporter, ITreeSitterParserService, TreeSitterImporter, TreeUpdateEvent } from '../../../editor/common/services/treeSitterParserService.js';
+import { ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../editor/common/languages.js';
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../platform/files/node/diskFileSystemProvider.js';
@@ -43,7 +44,11 @@ import { Color } from '../../../base/common/color.js';
 import { ITreeSitterTokenizationStoreService } from '../../../editor/common/model/treeSitterTokenStoreService.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { ITextModel } from '../../../editor/common/model.js';
-import { TokenUpdate } from '../../../editor/common/model/tokenStore.js';
+import { TokenQuality, TokenUpdate } from '../../../editor/common/model/tokenStore.js';
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { TestCodeEditorService } from '../../../editor/test/browser/editorTestServices.js';
 
 class MockTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -67,6 +72,16 @@ class MockTelemetryService implements ITelemetryService {
 }
 
 class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
+	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {
+		return true;
+	}
+	rangHasAnyTokens(model: ITextModel): boolean {
+		return true;
+	}
+	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
+		throw new Error('Method not implemented.');
+	}
+
 	_serviceBrand: undefined;
 	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
 	}
@@ -107,7 +122,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 	const environmentService: IEnvironmentService = {} as IEnvironmentService;
 	const tokenStoreService: ITreeSitterTokenizationStoreService = new MockTokenStoreService();
 	let treeSitterParserService: TreeSitterTextModelService;
-	let treeSitterTokenizationSupport: TreeSitterTokenizationSupport;
+	let treeSitterTokenizationSupport: ITreeSitterTokenizationSupport;
 
 	let disposables: DisposableStore;
 
@@ -126,6 +141,8 @@ suite('Tree Sitter TokenizationFeature', function () {
 		instantiationService.set(ITextResourcePropertiesService, textResourcePropertiesService);
 		languageConfigurationService = disposables.add(instantiationService.createInstance(TestLanguageConfigurationService));
 		instantiationService.set(ILanguageConfigurationService, languageConfigurationService);
+		instantiationService.set(ITreeSitterImporter, instantiationService.createInstance(TreeSitterImporter));
+		instantiationService.set(ICodeEditorService, instantiationService.createInstance(TestCodeEditorService));
 
 		fileService = disposables.add(instantiationService.createInstance(FileService));
 		const diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(logService));
@@ -148,7 +165,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 		treeSitterParserService.isTest = true;
 		instantiationService.set(ITreeSitterParserService, treeSitterParserService);
 		disposables.add(instantiationService.createInstance(TreeSitterTokenizationFeature));
-		treeSitterTokenizationSupport = disposables.add(await TreeSitterTokenizationRegistry.getOrCreate('typescript') as TreeSitterTokenizationSupport);
+		treeSitterTokenizationSupport = disposables.add(await TreeSitterTokenizationRegistry.getOrCreate('typescript') as (ITreeSitterTokenizationSupport & IDisposable));
 	});
 
 	teardown(() => {
@@ -161,8 +178,9 @@ suite('Tree Sitter TokenizationFeature', function () {
 		return tokens[tokens.length - 1].startOffsetInclusive + tokens[tokens.length - 1].length;
 	}
 
+	let nameNumber = 1;
 	async function getModelAndPrepTree(content: string) {
-		const model = disposables.add(modelService.createModel(content, { languageId: 'typescript', onDidChange: Event.None }, URI.file('file.ts')));
+		const model = disposables.add(modelService.createModel(content, { languageId: 'typescript', onDidChange: Event.None }, URI.file(`file${nameNumber++}.ts`)));
 		const tree = disposables.add(await treeSitterParserService.getTextModelTreeSitter(model));
 		const treeParseResult = new Promise<void>(resolve => {
 			const disposable = treeSitterParserService.onDidUpdateTree(e => {
@@ -360,10 +378,10 @@ class y {
 
 		assert.strictEqual(change.versionId, 4);
 		assert.strictEqual(change.ranges[0].newRangeStartOffset, 7);
-		assert.strictEqual(change.ranges[0].newRangeEndOffset, 26);
+		assert.strictEqual(change.ranges[0].newRangeEndOffset, 32);
 		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
-		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 6);
-		assert.strictEqual(change.ranges[0].oldRangeLength, 22);
+		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 7);
+		assert.strictEqual(change.ranges[0].oldRangeLength, 28);
 
 		updateListener?.dispose();
 		modelService.destroyModel(model.uri);

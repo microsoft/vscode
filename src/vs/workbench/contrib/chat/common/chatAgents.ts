@@ -95,6 +95,7 @@ export function isChatWelcomeMessageContent(obj: any): obj is IChatWelcomeMessag
 
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
+	setRequestPaused?(requestId: string, isPaused: boolean): void;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<IChatWelcomeMessageContent | undefined>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
@@ -144,7 +145,6 @@ export interface IChatAgentMetadata {
 	followupPlaceholder?: string;
 	isSticky?: boolean;
 	requester?: IChatRequesterInformation;
-	supportsSlowVariables?: boolean;
 }
 
 
@@ -206,8 +206,9 @@ export interface IChatAgentService {
 	 * undefined when an agent was removed
 	 */
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
+	readonly onDidChangeToolsAgentModeEnabled: Event<void>;
 	readonly toolsAgentModeEnabled: boolean;
-	toggleToolsAgentMode(): void;
+	toggleToolsAgentMode(enabled?: boolean): void;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
@@ -217,6 +218,7 @@ export interface IChatAgentService {
 	detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined>;
 	hasChatParticipantDetectionProviders(): boolean;
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
+	setRequestPaused(agent: string, requestId: string, isPaused: boolean): void;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
 	getAgent(id: string, includeDisabled?: boolean): IChatAgentData | undefined;
@@ -251,6 +253,9 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private readonly _onDidChangeAgents = new Emitter<IChatAgent | undefined>();
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
+
+	private readonly _onDidChangeToolsAgentModeEnabled = new Emitter<void>();
+	readonly onDidChangeToolsAgentModeEnabled: Event<void> = this._onDidChangeToolsAgentModeEnabled.event;
 
 	private readonly _agentsContextKeys = new Set<string>();
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
@@ -421,8 +426,9 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return !!this._hasToolsAgentContextKey.get() && !!this._agentModeContextKey.get();
 	}
 
-	toggleToolsAgentMode(): void {
-		this._agentModeContextKey.set(!this._agentModeContextKey.get());
+	toggleToolsAgentMode(enabled?: boolean): void {
+		this._agentModeContextKey.set(enabled ?? !this._agentModeContextKey.get());
+		this._onDidChangeToolsAgentModeEnabled.fire();
 		this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.EditingSession));
 	}
 
@@ -494,6 +500,15 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		}
 
 		return await data.impl.invoke(request, progress, history, token);
+	}
+
+	setRequestPaused(id: string, requestId: string, isPaused: boolean) {
+		const data = this._agents.get(id);
+		if (!data?.impl) {
+			throw new Error(`No activated agent with id "${id}"`);
+		}
+
+		data.impl.setRequestPaused?.(requestId, isPaused);
 	}
 
 	async getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
@@ -601,6 +616,12 @@ export class MergedChatAgent implements IChatAgent {
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 		return this.impl.invoke(request, progress, history, token);
+	}
+
+	setRequestPaused(requestId: string, isPaused: boolean): void {
+		if (this.impl.setRequestPaused) {
+			this.impl.setRequestPaused(requestId, isPaused);
+		}
 	}
 
 	async provideFollowups(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {

@@ -1312,6 +1312,10 @@ declare module 'vscode' {
 			 * Add undo stop after making the edits.
 			 */
 			readonly undoStopAfter: boolean;
+			/**
+			 * Keep whitespace of the {@link SnippetString.value} as is.
+			 */
+			readonly keepWhitespace?: boolean;
 		}): Thenable<boolean>;
 
 		/**
@@ -3775,6 +3779,11 @@ declare module 'vscode' {
 		 * The {@link SnippetString snippet} this edit will perform.
 		 */
 		snippet: SnippetString;
+
+		/**
+		 * Whether the snippet edit should be applied with existing whitespace preserved.
+		 */
+		keepWhitespace?: boolean;
 
 		/**
 		 * Create a new snippet edit.
@@ -6315,7 +6324,7 @@ declare module 'vscode' {
 		 * Optional method which fills in the {@linkcode DocumentPasteEdit.additionalEdit} before the edit is applied.
 		 *
 		 * This is called once per edit and should be used if generating the complete edit may take a long time.
-		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.additionalEdit}.
+		 * Resolve can only be used to change {@linkcode DocumentPasteEdit.insertText} or {@linkcode DocumentPasteEdit.additionalEdit}.
 		 *
 		 * @param pasteEdit The {@linkcode DocumentPasteEdit} to resolve.
 		 * @param token A cancellation token.
@@ -11897,7 +11906,7 @@ declare module 'vscode' {
 	 * A map containing a mapping of the mime type of the corresponding transferred data.
 	 *
 	 * Drag and drop controllers that implement {@link TreeDragAndDropController.handleDrag `handleDrag`} can add additional mime types to the
-	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
+	 * data transfer. These additional mime types will only be included in the `handleDrop` when the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
 	export class DataTransfer implements Iterable<[mimeType: string, item: DataTransferItem]> {
@@ -14869,22 +14878,41 @@ declare module 'vscode' {
 		/**
 		 * Registers a new {@link DocumentDropEditProvider}.
 		 *
+		 * Multiple drop providers can be registered for a language. When dropping content into an editor, all
+		 * registered providers for the editor's language will be invoked based on the mimetypes they handle
+		 * as specified by their {@linkcode DocumentDropEditProviderMetadata}.
+		 *
+		 * Each provider can return one or more {@linkcode DocumentDropEdit DocumentDropEdits}. The edits are sorted
+		 * using the {@linkcode DocumentDropEdit.yieldTo} property. By default the first edit will be applied. If there
+		 * are any additional edits, these will be shown to the user as selectable drop options in the drop widget.
+		 *
 		 * @param selector A selector that defines the documents this provider applies to.
 		 * @param provider A drop provider.
 		 * @param metadata Additional metadata about the provider.
 		 *
-		 * @returns A {@link Disposable} that unregisters this provider when disposed of.
+		 * @returns A {@linkcode Disposable} that unregisters this provider when disposed of.
 		 */
 		export function registerDocumentDropEditProvider(selector: DocumentSelector, provider: DocumentDropEditProvider, metadata?: DocumentDropEditProviderMetadata): Disposable;
 
 		/**
 		 * Registers a new {@linkcode DocumentPasteEditProvider}.
 		 *
+		 * Multiple providers can be registered for a language. All registered providers for a language will be invoked
+		 * for copy and paste operations based on their handled mimetypes as specified by the {@linkcode DocumentPasteProviderMetadata}.
+		 *
+		 * For {@link DocumentPasteEditProvider.prepareDocumentPaste copy operations}, changes to the {@linkcode DataTransfer}
+		 * made by each provider will be merged into a single {@linkcode DataTransfer} that is used to populate the clipboard.
+		 *
+		 * For {@link DocumentPasteEditProvider.providerDocumentPasteEdits paste operations}, each provider will be invoked
+		 * and can return one or more {@linkcode DocumentPasteEdit DocumentPasteEdits}. The edits are sorted using
+		 * the {@linkcode DocumentPasteEdit.yieldTo} property. By default the first edit will be applied
+		 * and the rest of the edits will be shown to the user as selectable paste options in the paste widget.
+		 *
 		 * @param selector A selector that defines the documents this provider applies to.
 		 * @param provider A paste editor provider.
 		 * @param metadata Additional metadata about the provider.
 		 *
-		 * @returns A {@link Disposable} that unregisters this provider when disposed of.
+		 * @returns A {@linkcode Disposable} that unregisters this provider when disposed of.
 		 */
 		export function registerDocumentPasteEditProvider(selector: DocumentSelector, provider: DocumentPasteEditProvider, metadata: DocumentPasteProviderMetadata): Disposable;
 
@@ -16141,6 +16169,26 @@ declare module 'vscode' {
 		 * no {@link SourceControlResourceState source control resource states}.
 		 */
 		hideWhenEmpty?: boolean;
+
+		/**
+		 * Context value of the resource group. This can be used to contribute resource group specific actions.
+		 * For example, if a resource group is given a context value of `exportable`, when contributing actions to `scm/resourceGroup/context`
+		 * using `menus` extension point, you can specify context value for key `scmResourceGroupState` in `when` expressions, like `scmResourceGroupState == exportable`.
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "scm/resourceGroup/context": [
+		 *       {
+		 *         "command": "extension.export",
+		 *         "when": "scmResourceGroupState == exportable"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
+		 * ```
+		 * This will show action `extension.export` only for resource groups with `contextValue` equal to `exportable`.
+		 */
+		contextValue?: string;
 
 		/**
 		 * This group's collection of

@@ -55,20 +55,26 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 	}
 
 	public async computeFullSymbols(cancelToken: CancellationToken) {
-		const notebookEditorWidget = this._editor;
+		try {
+			const notebookEditorWidget = this._editor;
 
-		const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
+			const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
 
-		if (notebookCells) {
-			const promises: Promise<void>[] = [];
-			// limit the number of cells so that we don't resolve an excessive amount of text models
-			for (const cell of notebookCells.slice(0, 50)) {
-				// gather all symbols asynchronously
-				promises.push(this._outlineEntryFactory.cacheSymbols(cell, cancelToken));
+			if (notebookCells) {
+				const promises: Promise<void>[] = [];
+				// limit the number of cells so that we don't resolve an excessive amount of text models
+				for (const cell of notebookCells.slice(0, 50)) {
+					// gather all symbols asynchronously
+					promises.push(this._outlineEntryFactory.cacheSymbols(cell, cancelToken));
+				}
+				await Promise.allSettled(promises);
 			}
-			await Promise.allSettled(promises);
+			this.recomputeState();
+		} catch (err) {
+			console.error('Failed to compute notebook outline symbols:', err);
+			// Still recompute state with whatever symbols we have
+			this.recomputeState();
 		}
-		this.recomputeState();
 	}
 
 	public recomputeState(): void {

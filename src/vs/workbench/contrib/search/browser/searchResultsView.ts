@@ -47,6 +47,8 @@ interface IFolderMatchTemplate {
 interface ITextSearchResultTemplate {
 	label: IResourceLabel;
 	disposables: DisposableStore;
+	actions: MenuWorkbenchToolBar;
+	contextKeyService: IContextKeyService;
 }
 
 interface IFileMatchTemplate {
@@ -102,7 +104,9 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 
 	constructor(
 		private labels: ResourceLabels,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
@@ -114,12 +118,31 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 		const textSearchResultElement = DOM.append(container, DOM.$('.textsearchresult'));
 		const label = this.labels.create(textSearchResultElement, { supportDescriptionHighlights: true, supportHighlights: true, supportIcons: true });
 		disposables.add(label);
-		return { label, disposables };
+
+		const actionBarContainer = DOM.append(textSearchResultElement, DOM.$('.actionBarContainer'));
+		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
+
+		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
+		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
+			menuOptions: {
+				shouldForwardArgs: true
+			},
+			highlightToggledItems: true,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			toolbarOptions: {
+				primaryGroup: (g: string) => /^inline/.test(g),
+			},
+		}));
+		return { label, disposables, actions, contextKeyService: contextKeyServiceMain };
 	}
 
 	async renderElement(node: ITreeNode<ITextSearchHeading, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): Promise<void> {
 		if (isPlainTextSearchHeading(node.element)) {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
+			SearchContext.AIResultsTitle.bindTo(templateData.contextKeyService).set(false);
+			SearchContext.MatchFocusKey.bindTo(templateData.contextKeyService).set(false);
+			SearchContext.FileFocusKey.bindTo(templateData.contextKeyService).set(false);
+			SearchContext.FolderFocusKey.bindTo(templateData.contextKeyService).set(false);
 		} else {
 			const aiName = await node.element.parent().searchModel.getAITextResultProviderName();
 			const localizedLabel = nls.localize({
@@ -129,6 +152,11 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 
 			// todo: make icon extension-contributed.
 			templateData.label.setLabel(`$(${Codicon.copilot.id}) ${localizedLabel}`);
+
+			SearchContext.AIResultsTitle.bindTo(templateData.contextKeyService).set(true);
+			SearchContext.MatchFocusKey.bindTo(templateData.contextKeyService).set(false);
+			SearchContext.FileFocusKey.bindTo(templateData.contextKeyService).set(false);
+			SearchContext.FolderFocusKey.bindTo(templateData.contextKeyService).set(false);
 		}
 	}
 
@@ -188,6 +216,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		disposables.add(elementDisposables);
 
 		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
+		SearchContext.AIResultsTitle.bindTo(contextKeyServiceMain).set(false);
 		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
 		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(false);
 		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(true);
@@ -288,6 +317,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 
 		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
+		SearchContext.AIResultsTitle.bindTo(contextKeyServiceMain).set(false);
 		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
 		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(true);
 		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
@@ -380,6 +410,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const disposables = new DisposableStore();
 
 		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
+		SearchContext.AIResultsTitle.bindTo(contextKeyServiceMain).set(false);
 		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(true);
 		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(false);
 		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(false);

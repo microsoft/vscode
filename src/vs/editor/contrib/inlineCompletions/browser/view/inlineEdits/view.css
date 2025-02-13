@@ -132,6 +132,10 @@
 						border: none;
 					}
 				}
+
+				.monaco-editor-background {
+					background-color: var(--vscode-inlineEdit-modifiedChangedLineBackground)
+				}
 			}
 
 			.inline-edits-view-zone.diagonal-fill {
@@ -169,11 +173,26 @@
 		border-left: solid var(--vscode-inlineEdit-modifiedChangedTextBackground) 3px;
 	}
 
-	.inlineCompletions-char-delete.single-line-inline,
-	.inlineCompletions-char-insert.single-line-inline {
+	.inlineCompletions-char-delete.single-line-inline { /* Editor Decoration */
 		border-radius: 4px;
 		border: 1px solid var(--vscode-editorHoverWidget-border);
-		padding: 2px;
+		margin: -2px 0 0 -2px;
+	}
+
+	.inlineCompletions-char-insert.single-line-inline { /* Inline Decoration */
+		padding: 1px 0;
+		border-top: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+		border-bottom: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+	}
+	.inlineCompletions-char-insert.single-line-inline.start {
+		border-top-left-radius: 4px;
+		border-bottom-left-radius: 4px;
+		border-left: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
+	}
+	.inlineCompletions-char-insert.single-line-inline.end {
+		border-top-right-radius: 4px;
+		border-bottom-right-radius: 4px;
+		border-right: 1px solid var(--vscode-editorHoverWidget-border); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 
 	.inlineCompletions-char-delete.single-line-inline.empty,
@@ -181,13 +200,47 @@
 		display: none;
 	}
 
-	/* Adjustments due to being a decoration */
-	.inlineCompletions-char-delete.single-line-inline {
-		margin: -2px 0 0 -2px;
-	}
-
 	.inlineCompletions.strike-through {
 		text-decoration-thickness: 1px;
+	}
+
+	/* line replacement bubbles */
+
+	.inlineCompletions-modified-bubble{
+		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+	}
+
+	.inlineCompletions-original-bubble{
+		background: var(--vscode-inlineEdit-originalChangedTextBackground);
+		border-radius: 4px;
+	}
+
+	.inlineCompletions-modified-bubble,
+	.inlineCompletions-original-bubble {
+		pointer-events: none;
+		display: inline-block;
+	}
+
+	.inlineCompletions-modified-bubble.start {
+		border-top-left-radius: 4px;
+		border-bottom-left-radius: 4px;
+	}
+
+	.inlineCompletions-modified-bubble.end {
+		border-top-right-radius: 4px;
+		border-bottom-right-radius: 4px;
+	}
+
+	.inline-edit.ghost-text,
+	.inline-edit.ghost-text-decoration,
+	.inline-edit.ghost-text-decoration-preview,
+	.inline-edit.suggest-preview-text .ghost-text {
+		&.syntax-highlighted {
+			opacity: 1 !important;
+		}
+		background: var(--vscode-inlineEdit-modifiedChangedTextBackground) !important;
+		font-style: normal !important;
+		display: inline-block !important;
 	}
 }
 
@@ -210,10 +263,28 @@
 	}
 }
 
-.monaco-editor .inline-completion-accepted {
-	background-color: var(--vscode-inlineEdit-acceptedBackground);
+@keyframes wiggle {
+	0% {
+		transform: rotate(0) scale(1);
+	}
+
+	15%,
+	45% {
+		transform: rotate(.04turn) scale(1.1);
+	}
+
+	30%,
+	60% {
+		transform: rotate(-.04turn) scale(1.2);
+	}
+
+	100% {
+		transform: rotate(0) scale(1);
+	}
 }
 
-.inline-edits-view-gutter-indicator .codicon{
-	margin-top: 1px; /* TODO: Move into gutter DOM initialization */
+.inline-edits-view-gutter-indicator.wiggle .icon {
+	animation-duration: .8s;
+	animation-iteration-count: 1;
+	animation-name: wiggle;
 }

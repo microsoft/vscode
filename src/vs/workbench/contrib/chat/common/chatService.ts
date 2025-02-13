@@ -20,7 +20,7 @@ import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ICh
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolConfirmationMessages } from './languageModelToolsService.js';
+import { IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -103,12 +103,6 @@ export interface IChatContentInlineReference {
 	inlineReference: URI | Location | IWorkspaceSymbol;
 	name?: string;
 	kind: 'inlineReference';
-}
-
-export interface IChatAgentDetection {
-	agentId: string;
-	command?: IChatAgentCommand;
-	kind: 'agentDetection';
 }
 
 export interface IChatMarkdownContent {
@@ -203,9 +197,12 @@ export interface IChatToolInvocation {
 	/** A 3-way: undefined=don't know yet. */
 	isConfirmed: boolean | undefined;
 	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
 
+	isCompletePromise: Promise<void>;
 	isComplete: boolean;
-	isCompleteDeferred: DeferredPromise<void>;
+	complete(result: IToolResult): void;
 	kind: 'toolInvocation';
 }
 
@@ -214,6 +211,8 @@ export interface IChatToolInvocation {
  */
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string | IMarkdownString;
+	pastTenseMessage: string | IMarkdownString | undefined;
+	tooltip: string | IMarkdownString | undefined;
 	isConfirmed: boolean;
 	isComplete: boolean;
 	kind: 'toolInvocationSerialized';
@@ -227,7 +226,6 @@ export type IChatProgress =
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatCodeCitation
-	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatTask
 	| IChatTaskResult
@@ -446,7 +444,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined;
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;

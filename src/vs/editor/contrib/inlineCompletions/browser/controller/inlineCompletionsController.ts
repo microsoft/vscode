@@ -121,7 +121,7 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly _hideInlineEditOnSelectionChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => true);
 
-	protected readonly _view = this._register(new InlineCompletionsView(this.editor, this.model, this._focusIsInMenu, this._instantiationService));
+	protected readonly _view = this._register(this._instantiationService.createInstance(InlineCompletionsView, this.editor, this.model, this._focusIsInMenu));
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -175,9 +175,13 @@ export class InlineCompletionsController extends Disposable {
 				'acceptSelectedSuggestion',
 			]);
 			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
+				let noDelay = false;
+				if (e.commandId === inlineSuggestCommitId) {
+					noDelay = true;
+				}
 				this._editorObs.forceUpdate(tx => {
 					/** @description onDidExecuteCommand */
-					this.model.get()?.trigger(tx);
+					this.model.get()?.trigger(tx, { noDelay });
 				});
 			}
 		}));
@@ -191,8 +195,6 @@ export class InlineCompletionsController extends Disposable {
 				if (!m) { return; }
 				if (m.state.get()?.kind === 'ghostText') {
 					this.model.get()?.stop();
-				} else if (m.state.get()?.inlineCompletion) {
-					this.model.get()?.collapseInlineEdit();
 				}
 			}
 		}));

@@ -873,7 +873,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 
 		if (hint instanceof ApiRepository) {
-			return this.openRepositories.filter(r => r.repository === hint.repository)[0];
+			hint = hint.rootUri;
 		}
 
 		if (typeof hint === 'string') {

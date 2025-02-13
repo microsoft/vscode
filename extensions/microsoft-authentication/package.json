@@ -115,6 +115,23 @@
             "tags": [
               "onExP"
             ]
+          },
+          "microsoft-authentication.clientIdVersion": {
+            "type": "string",
+            "default": "v1",
+            "enum": [
+              "v2",
+              "v1"
+            ],
+            "enumDescriptions": [
+              "%microsoft-authentication.clientIdVersion.enumDescriptions.v2%",
+              "%microsoft-authentication.clientIdVersion.enumDescriptions.v1%"
+            ],
+            "markdownDescription": "%microsoft-authentication.clientIdVersion.description%",
+            "tags": [
+              "onExP",
+              "experimental"
+            ]
           }
         }
       }

@@ -335,6 +335,27 @@
 	}
 }
 
+.interactive-item-container .value.inline-progress {
+
+	.rendered-markdown {
+		display: inline-flex;
+	}
+
+	/* not ideal but I cannot query the last div with this class... */
+	.rendered-markdown:last-of-type>P>SPAN:empty {
+		display: inline-block;
+		width: 11px;
+	}
+
+	.rendered-markdown:last-of-type>P>SPAN:empty::after {
+		content: '';
+		white-space: nowrap;
+		overflow: hidden;
+		width: 3em;
+		animation: ellipsis steps(4, end) 1s infinite;
+	}
+}
+
 .interactive-item-container .value .rendered-markdown {
 	line-height: 1.5em;
 }
@@ -392,14 +413,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	max-width: 100%;
 }
 
-.interactive-item-container .monaco-tokenized-source,
-.interactive-item-container code {
-	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
-	color: var(--vscode-textPreformat-foreground);
-	background-color: var(--vscode-textPreformat-background);
-	padding: 1px 3px;
-	border-radius: 4px;
+.chat-tool-hover, .interactive-item-container {
+	.monaco-tokenized-source, code {
+		font-family: var(--monaco-monospace-font);
+		font-size: 12px;
+		color: var(--vscode-textPreformat-foreground);
+		background-color: var(--vscode-textPreformat-background);
+		padding: 1px 3px;
+		border-radius: 4px;
+	}
 }
 
 .interactive-item-container.interactive-item-compact {
@@ -561,12 +583,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .monaco-list-row.focused .chat-collapsible-list-action-bar,
 .interactive-session .chat-editing-session .monaco-list-row.selected .chat-collapsible-list-action-bar {
 	display: inherit;
-}
-
-.interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar .action-label.checked {
-	color: var(--vscode-inputOption-activeForeground);
-	background-color: var(--vscode-inputOption-activeBackground);
-	box-shadow: inset 0 0 0 1px var(--vscode-inputOption-activeBorder);
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
@@ -791,16 +807,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.chat-modelPicker-item {
 		min-width: 0px;
 
-		.chat-model-label {
+		.action-label {
 			min-width: 0px;
-			overflow: hidden;
-			text-overflow: ellipsis;
+
+			.chat-model-label {
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 		}
 
 		.codicon {
 			flex-shrink: 0;
 		}
 	}
+}
+
+.chat-execute-toolbar .codicon.codicon-debug-pause {
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
@@ -948,6 +971,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context .chat-prompt-instructions-attachment .chat-implicit-hint {
 	opacity: 0.7;
 	font-size: .9em;
+	margin-top: -0.5px;
 }
 .chat-attached-context .chat-prompt-instructions-attachment.warning {
 	color: var(--vscode-notificationsWarningIcon-foreground);
@@ -959,13 +983,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-style: dashed;
 	opacity: 0.75;
 }
+.chat-attached-context .chat-prompt-instructions-attachment .monaco-button {
+	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	margin-left: 3px;
+}
+.chat-attached-context .chat-prompt-instructions-attachment.error .monaco-button,
+.chat-attached-context .chat-prompt-instructions-attachment.warning .monaco-button {
+	border-left-color: currentColor;
+}
+.chat-attached-context .chat-prompt-instructions-attachment:focus .monaco-button {
+	border-color: var(--vscode-focusBorder);
+}
+.chat-attached-context .chat-prompt-instructions-attachment .monaco-icon-label-container {
+	margin-top: -0.1em;
+}
 /*
- * This overly specific CSS selector is needed to beat priority of some
- * styles applied on the the `.chat-attached-context-attachment` element.
+ * This overly-specific CSS selector is needed to beat priority of some
+ * styles applied on the `.chat-attached-context-attachment` element.
  */
 .chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.error.implicit,
 .chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.warning.implicit {
 	border: 1px solid currentColor;
+}
+.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.implicit .monaco-button {
+	padding-left: 2px;
+	padding-right: 2px;
 }
 /*
  * If in one of the non-normal states, make sure the `main icon` of
@@ -1396,7 +1438,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: 1px solid var(--vscode-focusBorder);
 }
 
-.interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
+.interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: 12px;
 }
 
@@ -1425,6 +1467,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			color: var(--vscode-descriptionForeground);
 			font-size: 12px;
 			margin: 0;
+
+			code {
+				font-size: 11px;
+			}
 		}
 	}
 }
@@ -1445,6 +1491,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;
+}
+
+.interactive-item-container .chat-confirmation-widget .rendered-markdown [data-code] {
+	margin-bottom: 8px;
 }
 
 .interactive-item-container .chat-command-button .monaco-button .codicon {
@@ -1513,6 +1563,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	right: 12px;
 	border-radius: 100%;
 	width: initial;
+	width: 27px;
+	height: 27px;
 	width: 27px;
 	height: 27px;
 

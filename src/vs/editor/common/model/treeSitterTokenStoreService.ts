@@ -5,18 +5,20 @@
 
 import { Range } from '../core/range.js';
 import { ITextModel } from '../model.js';
-import { TokenStore, TokenUpdate } from './tokenStore.js';
+import { TokenQuality, TokenStore, TokenUpdate } from './tokenStore.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 
 export interface ITreeSitterTokenizationStoreService {
 	readonly _serviceBrand: undefined;
-	setTokens(model: ITextModel, tokens: TokenUpdate[]): void;
+	setTokens(model: ITextModel, tokens: TokenUpdate[], tokenQuality: TokenQuality): void;
 	getTokens(model: ITextModel, line: number): Uint32Array | undefined;
-	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void;
+	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[], tokenQuality: TokenQuality): void;
 	markForRefresh(model: ITextModel, range: Range): void;
+	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[];
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
+	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean;
 }
 
 export const ITreeSitterTokenizationStoreService = createDecorator<ITreeSitterTokenizationStoreService>('treeSitterTokenizationStoreService');
@@ -33,12 +35,12 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 
 	constructor() { }
 
-	setTokens(model: ITextModel, tokens: TokenUpdate[]): void {
+	setTokens(model: ITextModel, tokens: TokenUpdate[], tokenQuality: TokenQuality): void {
 		const disposables = new DisposableStore();
 		const store = disposables.add(new TokenStore(model));
-		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: 0 });
+		this.tokens.set(model, { store: store, accurateVersion: model.getVersionId(), disposables, guessVersion: model.getVersionId() });
 
-		store.buildStore(tokens);
+		store.buildStore(tokens, tokenQuality);
 		disposables.add(model.onDidChangeContent(e => {
 			const storeInfo = this.tokens.get(model);
 			if (!storeInfo) {
@@ -47,17 +49,24 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 
 			storeInfo.guessVersion = e.versionId;
 			for (const change of e.changes) {
-				storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + change.rangeLength);
 				if (change.text.length > change.rangeLength) {
-					const oldToken = storeInfo.store.getTokenAt(change.rangeOffset)!;
-					// Insert. Just grow the token at this position to include the insert.
-					const newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
-					storeInfo.store.update(oldToken.length, [newToken]);
+					const oldToken = storeInfo.store.getTokenAt(change.rangeOffset);
+					let newToken: TokenUpdate;
+					if (oldToken) {
+						// Insert. Just grow the token at this position to include the insert.
+						newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
+					} else {
+						// The document got larger and the change is at the end of the document.
+						newToken = { startOffsetInclusive: change.rangeOffset, length: change.text.length, token: 0 };
+					}
+					storeInfo.store.update(oldToken?.length ?? 0, [newToken], TokenQuality.EditGuess);
 				} else if (change.text.length < change.rangeLength) {
 					// Delete. Delete the tokens at the corresponding range.
 					const deletedCharCount = change.rangeLength - change.text.length;
 					storeInfo.store.delete(deletedCharCount, change.rangeOffset);
 				}
+				const refreshLength = change.rangeLength > change.text.length ? change.rangeLength : change.text.length;
+				storeInfo.store.markForRefresh(change.rangeOffset, change.rangeOffset + refreshLength);
 			}
 		}));
 		disposables.add(model.onWillDispose(() => {
@@ -67,6 +76,14 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 				this.tokens.delete(model);
 			}
 		}));
+	}
+
+	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {
+		const tokens = this.tokens.get(model);
+		if (!tokens) {
+			return false;
+		}
+		return tokens.store.rangeHasTokens(model.getOffsetAt(range.getStartPosition()), model.getOffsetAt(range.getEndPosition()), minimumTokenQuality);
 	}
 
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean {
@@ -87,7 +104,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 			return undefined;
 		}
 		const lineStartOffset = model.getOffsetAt({ lineNumber: line, column: 1 });
-		const lineTokens = tokens.getTokensInRange(lineStartOffset, model.getOffsetAt({ lineNumber: line, column: model.getLineMaxColumn(line) }) + 1);
+		const lineTokens = tokens.getTokensInRange(lineStartOffset, model.getOffsetAt({ lineNumber: line, column: model.getLineLength(line) }) + 1);
 		const result = new Uint32Array(lineTokens.length * 2);
 		for (let i = 0; i < lineTokens.length; i++) {
 			result[i * 2] = lineTokens[i].startOffsetInclusive - lineStartOffset + lineTokens[i].length;
@@ -96,7 +113,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		return result;
 	}
 
-	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[]): void {
+	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[], tokenQuality: TokenQuality): void {
 		const existingTokens = this.tokens.get(model);
 		if (!existingTokens) {
 			return;
@@ -104,9 +121,9 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 
 		existingTokens.accurateVersion = version;
 		for (const update of updates) {
-			const lastToken = update.newTokens[update.newTokens.length - 1];
-			const oldRangeLength = (existingTokens.guessVersion >= version) ? (lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive) : update.oldRangeLength;
-			existingTokens.store.update(oldRangeLength, update.newTokens);
+			const lastToken = update.newTokens.length > 0 ? update.newTokens[update.newTokens.length - 1] : undefined;
+			const oldRangeLength = ((existingTokens.guessVersion >= version) && lastToken) ? (lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive) : update.oldRangeLength;
+			existingTokens.store.update(oldRangeLength, update.newTokens, tokenQuality);
 		}
 	}
 
@@ -117,6 +134,18 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		}
 
 		tree.markForRefresh(model.getOffsetAt(range.getStartPosition()), model.getOffsetAt(range.getEndPosition()));
+	}
+
+	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
+		const needsRefreshOffsetRanges = this.tokens.get(model)?.store.getNeedsRefresh();
+		if (!needsRefreshOffsetRanges) {
+			return [];
+		}
+		return needsRefreshOffsetRanges.map(range => ({
+			range: Range.fromPositions(model.getPositionAt(range.startOffset), model.getPositionAt(range.endOffset)),
+			startOffset: range.startOffset,
+			endOffset: range.endOffset
+		}));
 	}
 
 	dispose(): void {

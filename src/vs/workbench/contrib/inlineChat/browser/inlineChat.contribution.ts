@@ -5,7 +5,7 @@
 
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { InlineChatController } from './inlineChatController.js';
+import { InlineChatController, InlineChatController1, InlineChatController2 } from './inlineChatController.js';
 import * as InlineChatActions from './inlineChatActions.js';
 import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -24,12 +24,17 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 import { InlineChatExpandLineAction, InlineChatHintsController, HideInlineChatHintAction, ShowInlineChatHintAction } from './inlineChatCurrentLine.js';
 
+registerEditorContribution(InlineChatController2.ID, InlineChatController2, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
+registerEditorContribution(INLINE_CHAT_ID, InlineChatController1, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
+registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
+
+registerAction2(InlineChatActions.StopSessionAction2);
+registerAction2(InlineChatActions.RevealWidget);
 
 // --- browser
 
 registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
 
-registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
 registerAction2(InlineChatExpandLineAction);
 registerAction2(ShowInlineChatHintAction);

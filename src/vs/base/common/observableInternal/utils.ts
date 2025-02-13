@@ -8,7 +8,7 @@ import { BaseObservable, ConvenientObservable, IObservable, IObservableWithChang
 import { DebugNameData, DebugOwner, IDebugNameData, getDebugName, } from './debugName.js';
 import { BugIndicatingError, DisposableStore, EqualityComparer, Event, IDisposable, IValueWithChangeEvent, strictEquals, toDisposable } from './commonFacade/deps.js';
 import { derived, derivedOpts } from './derived.js';
-import { getLogger } from './logging.js';
+import { getLogger } from './logging/logging.js';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -34,6 +34,10 @@ class ConstObservable<T> extends ConvenientObservable<T, void> {
 	}
 	public removeObserver(observer: IObserver): void {
 		// NO OP
+	}
+
+	override log(): IObservableWithChange<T, void> {
+		return this;
 	}
 
 	override toString(): string {
@@ -140,7 +144,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 				subtransaction(
 					this._getTransaction(),
 					(tx) => {
-						getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
+						getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
 
 						for (const o of this.observers) {
 							tx.updateObserver(o, this);
@@ -157,7 +161,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 		}
 
 		if (!didRunTransaction) {
-			getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
+			getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
 		}
 	};
 
@@ -202,20 +206,24 @@ export namespace observableFromEvent {
 }
 
 export function observableSignalFromEvent(
-	debugName: string,
+	owner: DebugOwner | string,
 	event: Event<any>
 ): IObservable<void> {
-	return new FromEventObservableSignal(debugName, event);
+	return new FromEventObservableSignal(typeof owner === 'string' ? owner : new DebugNameData(owner, undefined, undefined), event);
 }
 
 class FromEventObservableSignal extends BaseObservable<void> {
 	private subscription: IDisposable | undefined;
 
+	public readonly debugName: string;
 	constructor(
-		public readonly debugName: string,
+		debugNameDataOrName: DebugNameData | string,
 		private readonly event: Event<any>,
 	) {
 		super();
+		this.debugName = typeof debugNameDataOrName === 'string'
+			? debugNameDataOrName
+			: debugNameDataOrName.getDebugName(this) ?? 'Observable Signal From Event';
 	}
 
 	protected override onFirstObserverAdded(): void {

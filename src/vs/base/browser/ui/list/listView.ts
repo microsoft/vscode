@@ -1228,9 +1228,11 @@ export class ListView<T> implements IListView<T> {
 		// Selection events also don't tell us where the input doing the selection is. So, make a poor
 		// assumption that a user is using the mouse, and base our events on that.
 		movementStore.add(addDisposableListener(this.domNode, 'selectstart', () => {
-			this.setupDragAndDropScrollTopAnimation(e);
-
-			movementStore.add(addDisposableListener(doc, 'mousemove', e => this.setupDragAndDropScrollTopAnimation(e)));
+			movementStore.add(addDisposableListener(doc, 'mousemove', e => {
+				if (doc.getSelection()?.isCollapsed === false) {
+					this.setupDragAndDropScrollTopAnimation(e);
+				}
+			}));
 
 			// The selection is cleared either on mouseup if there's no selection, or on next mousedown
 			// when `this.currentSelectionDisposable` is reset.
@@ -1258,6 +1260,7 @@ export class ListView<T> implements IListView<T> {
 
 		movementStore.add(addDisposableListener(doc, 'mouseup', () => {
 			movementStore.dispose();
+			this.teardownDragAndDropScrollTopAnimation();
 
 			if (doc.getSelection()?.isCollapsed !== false) {
 				selectionStore.dispose();

@@ -365,7 +365,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	syncNow(): Promise<void> {
-		return this.userDataAutoSyncService.triggerSync(['Sync Now'], false, true);
+		return this.userDataAutoSyncService.triggerSync(['Sync Now'], { immediately: true, disableCache: true });
 	}
 
 	private async doTurnOnSync(token: CancellationToken): Promise<void> {

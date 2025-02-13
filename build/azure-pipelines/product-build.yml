@@ -406,6 +406,7 @@ extends:
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
                     parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                       VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
@@ -706,6 +707,7 @@ extends:
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-cli-sign.yml@self
                     parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
                       VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 

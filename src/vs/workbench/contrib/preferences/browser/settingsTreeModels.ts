@@ -963,7 +963,7 @@ export class SearchResultModel extends SettingsTreeModel {
 			} else if (a.matchType === SettingMatchType.KeyMatch) {
 				// The match types are the same and are KeyMatch.
 				// Sort by the number of words matched in the key.
-				return b.keyMatchSize - a.keyMatchSize;
+				return b.keyMatchScore - a.keyMatchScore;
 			} else if (a.matchType === SettingMatchType.RemoteMatch) {
 				// The match types are the same and are RemoteMatch.
 				// Sort by score.

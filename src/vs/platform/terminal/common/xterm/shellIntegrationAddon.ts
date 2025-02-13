@@ -246,7 +246,6 @@ const enum VSCodeOscPt {
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
-
 	EnvSingleDelete = 'EnvSingleDelete',
 
 	/**
@@ -680,7 +679,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._terminal) {
 			throw new Error('Cannot restore commands before addon is activated');
 		}
-		this._createOrGetCommandDetection(this._terminal).deserialize(serialized);
+		const commandDetection = this._createOrGetCommandDetection(this._terminal);
+		commandDetection.deserialize(serialized);
+		if (commandDetection.cwd) {
+			// Cwd gets set when the command is deserialized, so we need to update it here
+			this._updateCwd(commandDetection.cwd);
+		}
 	}
 
 	protected _createOrGetCwdDetection(): ICwdDetectionCapability {

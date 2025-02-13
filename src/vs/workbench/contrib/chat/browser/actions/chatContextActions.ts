@@ -48,7 +48,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
-import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
@@ -56,6 +56,7 @@ import { isQuickChat } from '../chatWidget.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { ATTACH_PROMPT_ACTION_ID, AttachPromptAction, IChatAttachPromptActionOptions } from './chatAttachPromptAction.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -69,7 +70,7 @@ export function registerChatContextActions() {
  * We fill the quickpick with these types, and enable some quick access providers
  */
 type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem |
-	IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
+	IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
 	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IPromptInstructionsQuickPickItem;
 
 /**
@@ -152,7 +153,6 @@ interface ICommandVariableQuickPickItem extends IQuickPickItem {
 	command: Command;
 	name?: string;
 	value: unknown;
-	isDynamic: true;
 
 	icon?: ThemeIcon;
 }
@@ -162,11 +162,6 @@ interface IToolQuickPickItem extends IQuickPickItem {
 	id: string;
 	name?: string;
 	icon?: ThemeIcon;
-}
-
-interface IVariableQuickPickItem extends IQuickPickItem {
-	kind: 'variable';
-	variable: IChatVariableData;
 }
 
 interface IQuickAccessQuickPickItem extends IQuickPickItem {
@@ -329,7 +324,8 @@ class AttachSelectionToChatAction extends Action2 {
 				const selection = activeEditor?.getSelection();
 				if (selection) {
 					(await showChatView(accessor.get(IViewsService)))?.focusInput();
-					variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.Panel);
+					const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
+					variablesService.attachContext('file', { uri: activeUri, range }, ChatAgentLocation.Panel);
 				}
 			}
 		}
@@ -401,7 +397,8 @@ class AttachSelectionToEditingSessionAction extends Action2 {
 			const selection = activeEditor?.getSelection();
 			if (selection) {
 				(await showEditsView(accessor.get(IViewsService)))?.focusInput();
-				variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.EditingSession);
+				const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
+				variablesService.attachContext('file', { uri: activeUri, range }, ChatAgentLocation.EditingSession);
 			}
 		}
 	}
@@ -470,7 +467,6 @@ export class AttachContextAction extends Action2 {
 					symbolKind: pick.symbol.kind,
 					fullName: pick.label,
 					name: pick.symbol.name,
-					isDynamic: true
 				});
 			} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
 				if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
@@ -484,21 +480,19 @@ export class AttachContextAction extends Action2 {
 							name: pick.label,
 							fullName: pick.label,
 							value: resizedImage,
-							isDynamic: true,
 							isImage: true
 						});
 					}
 				} else {
 					// file attachment
 					if (chatEditingService) {
-						chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(pick.resource);
+						getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(pick.resource);
 					} else {
 						toAttach.push({
 							id: this._getFileContextId({ resource: pick.resource }),
 							value: pick.resource,
 							name: pick.label,
 							isFile: true,
-							isDynamic: true,
 						});
 					}
 				}
@@ -509,21 +503,19 @@ export class AttachContextAction extends Action2 {
 					value: { uri: pick.uri, range: pick.range.decoration },
 					fullName: pick.label,
 					name: pick.symbolName!,
-					isDynamic: true
 				});
 			} else if (isIOpenEditorsQuickPickItem(pick)) {
 				for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput || e instanceof NotebookEditorInput)) {
 					const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
 					if (uri) {
 						if (chatEditingService) {
-							chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(uri);
+							getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(uri);
 						} else {
 							toAttach.push({
 								id: this._getFileContextId({ resource: uri }),
 								value: uri,
 								name: labelService.getUriBasenameLabel(uri),
 								isFile: true,
-								isDynamic: true
 							});
 						}
 					}
@@ -532,14 +524,13 @@ export class AttachContextAction extends Action2 {
 				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
 				for (const result of searchView.model.searchResult.matches()) {
 					if (chatEditingService) {
-						chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(result.resource);
+						getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(result.resource);
 					} else {
 						toAttach.push({
 							id: this._getFileContextId({ resource: result.resource }),
 							value: result.resource,
 							name: labelService.getUriBasenameLabel(result.resource),
 							isFile: true,
-							isDynamic: true
 						});
 					}
 				}
@@ -571,7 +562,7 @@ export class AttachContextAction extends Action2 {
 					}, []));
 				const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
 				for (const file of selectedFiles ?? []) {
-					chatEditingService?.currentEditingSessionObs.get()?.addFileToWorkingSet(file.value);
+					chatEditingService.getEditingSession(chatSessionId)?.addFileToWorkingSet(file.value);
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
 				const blob = await hostService.getScreenshot();
@@ -579,39 +570,8 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				const { promptInstructions } = widget.attachmentModel;
-
-				// find all prompt instruction files in the user project
-				// and present them to the user so they can select one
-				const filesPromise = promptInstructions.listNonAttachedFiles()
-					.then((files) => {
-						return files.map((file) => {
-							const result: IQuickPickItem & { value: URI } = {
-								type: 'item',
-								label: labelService.getUriBasenameLabel(file),
-								description: labelService.getUriLabel(dirname(file), { relative: true }),
-								tooltip: file.fsPath,
-								value: file,
-							};
-
-							return result;
-						});
-					});
-
-				const selectedFile = await quickInputService.pick(
-					filesPromise,
-					{
-						placeHolder: localize('promptInstructions', 'Add prompt instructions file'),
-						canPickMany: false,
-					});
-
-				// if the quick pick dialog was dismissed, nothing to do
-				if (!selectedFile) {
-					return;
-				}
-
-				// add selected prompt instructions reference to the chat attachments model
-				promptInstructions.add(selectedFile.value);
+				const options: IChatAttachPromptActionOptions = { widget };
+				await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -624,7 +584,6 @@ export class AttachContextAction extends Action2 {
 					}
 					toAttach.push({
 						...attachmentPick,
-						isDynamic: attachmentPick.isDynamic,
 						value: attachmentPick.value,
 						name: `${typeof attachmentPick.value === 'string' && attachmentPick.value.startsWith('#') ? attachmentPick.value.slice(1) : ''}${selection}`,
 						// Apply the original icon with the new name
@@ -646,18 +605,7 @@ export class AttachContextAction extends Action2 {
 						name: localize('pastedImage', 'Pasted Image'),
 						fullName: localize('pastedImage', 'Pasted Image'),
 						value: fileBuffer,
-						isDynamic: true,
 						isImage: true
-					});
-				} else if (attachmentPick.kind === 'variable') {
-					// All other dynamic variables and static variables
-					toAttach.push({
-						range: undefined,
-						id: pick.id ?? '',
-						value: undefined,
-						fullName: pick.label,
-						name: attachmentPick.variable.name,
-						icon: attachmentPick.variable.icon
 					});
 				}
 			}
@@ -674,7 +622,6 @@ export class AttachContextAction extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatAgentService = accessor.get(IChatAgentService);
-		const chatVariablesService = accessor.get(IChatVariablesService);
 		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
@@ -695,22 +642,8 @@ export class AttachContextAction extends Action2 {
 		}
 		const chatEditingService = widget.location === ChatAgentLocation.EditingSession ? accessor.get(IChatEditingService) : undefined;
 
-		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
-		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
 		if (!context || !context.showFilesOnly) {
-			for (const variable of chatVariablesService.getVariables(widget.location)) {
-				if (variable.fullName && (!variable.isSlow || slowSupported)) {
-					quickPickItems.push({
-						kind: 'variable',
-						variable,
-						label: variable.fullName,
-						id: variable.id,
-						iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
-					});
-				}
-			}
-
 			if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
 				const imageData = await clipboardService.readImage();
 				if (isImage(imageData)) {
@@ -747,7 +680,6 @@ export class AttachContextAction extends Action2 {
 								icon: variable.icon,
 								iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
 								value: variable.value,
-								isDynamic: true,
 								name: variable.name
 							});
 						} else {
@@ -787,7 +719,6 @@ export class AttachContextAction extends Action2 {
 				quickPickItems.push({
 					kind: 'command',
 					id: 'chatContext.notebook.kernelVariable',
-					isDynamic: true,
 					icon: ThemeIcon.fromId(Codicon.serverEnvironment.id),
 					iconClass: ThemeIcon.asClassName(Codicon.serverEnvironment),
 					value: 'kernelVariable',
@@ -800,7 +731,7 @@ export class AttachContextAction extends Action2 {
 				});
 			}
 		} else if (context.showFilesOnly) {
-			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || chatEditingService.currentEditingSessionObs.get()?.workingSet.size)) {
+			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || (getEditingSession(chatEditingService, widget)?.workingSet.size))) {
 				quickPickItems.push({
 					kind: 'related-files',
 					id: 'related-files',
@@ -832,8 +763,8 @@ export class AttachContextAction extends Action2 {
 			quickPickItems.push({
 				kind: 'prompt-instructions',
 				id: 'prompt-instructions',
-				label: localize('chatContext.promptInstructions', 'Instructions'),
-				iconClass: ThemeIcon.asClassName(Codicon.lightbulbSparkle),
+				label: localize('promptWithEllipsis', 'Prompt...'),
+				iconClass: ThemeIcon.asClassName(Codicon.bookmark),
 			});
 		}
 
@@ -874,7 +805,7 @@ export class AttachContextAction extends Action2 {
 				// Avoid attaching the same context twice
 				const attachedContext = widget.attachmentModel.getAttachmentIDs();
 				if (chatEditingService) {
-					for (const [file, state] of chatEditingService.currentEditingSessionObs.get()?.workingSet.entries() ?? []) {
+					for (const [file, state] of getEditingSession(chatEditingService, widget)?.workingSet.entries() ?? []) {
 						if (state.state !== WorkingSetEntryState.Suggested) {
 							attachedContext.add(this._getFileContextId({ resource: file }));
 						}
@@ -945,3 +876,12 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 		return super.run(accessor, attachFilesContext);
 	}
 });
+
+function getEditingSession(chatEditingService: IChatEditingService, chatWidget: IChatWidget) {
+	if (!chatWidget.viewModel?.sessionId) {
+		return;
+	}
+	return chatEditingService.getEditingSession(chatWidget.viewModel.sessionId);
+}
+
+registerAction2(AttachPromptAction);

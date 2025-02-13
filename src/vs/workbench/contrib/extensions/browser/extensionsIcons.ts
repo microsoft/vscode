@@ -24,7 +24,6 @@ export const syncIgnoredIcon = registerIcon('extensions-sync-ignored', Codicon.s
 export const remoteIcon = registerIcon('extensions-remote', Codicon.remote, localize('remoteIcon', 'Icon to indicate that an extension is remote in the extensions view and editor.'));
 export const installCountIcon = registerIcon('extensions-install-count', Codicon.cloudDownload, localize('installCountIcon', 'Icon shown along with the install count in the extensions view and editor.'));
 export const ratingIcon = registerIcon('extensions-rating', Codicon.star, localize('ratingIcon', 'Icon shown along with the rating in the extensions view and editor.'));
-export const verifiedPublisherIcon = registerIcon('extensions-verified-publisher', Codicon.verifiedFilled, localize('verifiedPublisher', 'Icon used for the verified extension publisher in the extensions view and editor.'));
 export const preReleaseIcon = registerIcon('extensions-pre-release', Codicon.versions, localize('preReleaseIcon', 'Icon shown for extensions having pre-release versions in extensions view and editor.'));
 export const sponsorIcon = registerIcon('extensions-sponsor', Codicon.heartFilled, localize('sponsorIcon', 'Icon used for sponsoring extensions in the extensions view and editor.'));
 
