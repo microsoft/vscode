@@ -12,7 +12,7 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { IFileService, FileOperation } from '../../../platform/files/common/files.js';
 import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from '../common/extHost.protocol.js';
-import { ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { EncodingMode, ITextFileService } from '../../services/textfile/common/textfiles.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { toLocalResource, extUri, IExtUri } from '../../../base/common/resources.js';
 import { IWorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
@@ -143,6 +143,23 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._store.add(_textFileService.files.onDidChangeDirty(m => {
 			if (this._shouldHandleFileEvent(m.resource)) {
 				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
+			}
+		}));
+
+		this._store.add(_textFileService.files.onDidChangeEncoding(m => {
+			if (this._shouldHandleFileEvent(m.resource)) {
+				const encoding = m.getEncoding();
+				if (encoding) {
+					this._proxy.$acceptEncodingChanged(m.resource, encoding);
+				}
+			}
+		}));
+		this._store.add(_textFileService.untitled.onDidChangeEncoding(m => {
+			if (this._shouldHandleFileEvent(m.resource)) {
+				const encoding = m.getEncoding();
+				if (encoding) {
+					this._proxy.$acceptEncodingChanged(m.resource, encoding);
+				}
 			}
 		}));
 
@@ -282,5 +299,20 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		Event.once(model.onDidRevert)(() => this._modelReferenceCollection.remove(resource));
 		this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
 		return resource;
+	}
+
+	async $tryDecode(uri: UriComponents, encoding: string): Promise<void> {
+		await this.setEncoding(uri, encoding, EncodingMode.Decode);
+	}
+
+	async $tryEncode(uri: UriComponents, encoding: string): Promise<void> {
+		await this.setEncoding(uri, encoding, EncodingMode.Encode);
+	}
+
+	private async setEncoding(uri: UriComponents, encoding: string, mode: EncodingMode): Promise<void> {
+		const inputUri = URI.revive(uri);
+		const target = inputUri.scheme === Schemas.untitled ? this._textFileService.untitled.get(inputUri) : this._textFileService.files.get(inputUri);
+
+		return target?.setEncoding(encoding, mode);
 	}
 }

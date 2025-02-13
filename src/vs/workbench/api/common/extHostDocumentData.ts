@@ -67,7 +67,10 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				get version() { return that._versionId; },
 				get isClosed() { return that._isDisposed; },
 				get isDirty() { return that._isDirty; },
-				get encoding() { return that._encoding; },
+				get encoding() {
+					// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
+					return that._encoding;
+				},
 				save() { return that._save(); },
 				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
 				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
@@ -78,8 +81,14 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				validateRange(ran) { return that._validateRange(ran); },
 				validatePosition(pos) { return that._validatePosition(pos); },
 				getWordRangeAtPosition(pos, regexp?) { return that._getWordRangeAtPosition(pos, regexp); },
-				encode(encoding) { return that._encode(encoding); },
-				decode(encoding) { return that._decode(encoding); },
+				encode(encoding) {
+					// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
+					return that._encode(encoding);
+				},
+				decode(encoding) {
+					// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
+					return that._decode(encoding);
+				},
 				[Symbol.for('debug.description')]() {
 					return `TextDocument(${that._uri.toString()})`;
 				}
@@ -96,6 +105,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	_acceptIsDirty(isDirty: boolean): void {
 		ok(!this._isDisposed);
 		this._isDirty = isDirty;
+	}
+
+	_acceptEncoding(encoding: string): void {
+		ok(!this._isDisposed);
+		this._encoding = encoding;
 	}
 
 	private _save(): Promise<boolean> {
@@ -249,11 +263,17 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	// --- encodings
 
 	private _decode(encoding: string): Thenable<void> {
-		throw new Error('Method not implemented.');
+		if (this._isDisposed) {
+			return Promise.reject(new Error('Document has been closed'));
+		}
+		return this._proxy.$tryDecode(this._uri, encoding);
 	}
 
 	private _encode(encoding: string): Thenable<void> {
-		throw new Error('Method not implemented.');
+		if (this._isDisposed) {
+			return Promise.reject(new Error('Document has been closed'));
+		}
+		return this._proxy.$tryEncode(this._uri, encoding);
 	}
 }
 
