@@ -14,6 +14,7 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 	private _pendingEnv: Map<string, string> | undefined;
 	private _env: Map<string, string> = new Map();
 	get env(): Map<string, string> { return this._env; }
+
 	private readonly _onDidChangeEnv = this._register(new Emitter<Map<string, string>>());
 	readonly onDidChangeEnv = this._onDidChangeEnv.event;
 
