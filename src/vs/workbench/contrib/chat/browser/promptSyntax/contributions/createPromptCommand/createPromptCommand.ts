@@ -7,11 +7,11 @@ import { localize } from '../../../../../../../nls.js';
 import { createPromptFile } from './utils/createPromptFile.js';
 import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
 import { askForPromptName } from './dialogs/askForPromptName.js';
-import { askForPromptLocation } from './dialogs/askForPromptLocation.js';
+import { askForPromptFolder } from './dialogs/askForPromptLocation.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { IPrompt, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
+import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
 import { appendToCommandPalette } from '../../../../../files/browser/fileActions.contribution.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -63,7 +63,7 @@ const GLOBAL_COMMAND_TITLE = localize('commands.prompts.create.title.global', "C
  */
 const command = async (
 	accessor: ServicesAccessor,
-	source: IPrompt['source'],
+	type: IPromptPath['type'],
 ): Promise<null> => {
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
@@ -71,20 +71,20 @@ const command = async (
 	const promptsService = accessor.get(IPromptsService);
 	const quickInputService = accessor.get(IQuickInputService);
 
-	const name = await askForPromptName(source, quickInputService);
-	if (!name) {
+	const fileName = await askForPromptName(type, quickInputService);
+	if (!fileName) {
 		return null;
 	}
 
-	const location = await askForPromptLocation(
-		source,
+	const folder = await askForPromptFolder({
+		type: type,
 		promptsService,
 		quickInputService,
 		labelService,
 		openerService,
-	);
+	});
 
-	if (!location) {
+	if (!folder) {
 		return null;
 	}
 
@@ -92,12 +92,12 @@ const command = async (
 		'workbench.command.prompts.create.initial-content',
 		"Add prompt contents..",
 	);
-	const promptUri = await createPromptFile(
-		name,
-		location,
+	const promptUri = await createPromptFile({
+		fileName,
+		folder,
 		content,
 		fileService,
-	);
+	});
 
 	await openerService.open(promptUri);
 
@@ -105,11 +105,11 @@ const command = async (
 };
 
 /**
- * Factory for creating the command handler with specific prompt `source` type.
+ * Factory for creating the command handler with specific prompt `type`.
  */
-const commandFactory = (source: IPrompt['source']) => {
+const commandFactory = (type: 'local' | 'global') => {
 	return async (accessor: ServicesAccessor): Promise<null> => {
-		return command(accessor, source);
+		return command(accessor, type);
 	};
 };
 

@@ -5,30 +5,30 @@
 
 import { localize } from '../../../../../../../../nls.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
-import { WithUriValue } from '../../../../../../../../base/common/types.js';
 import { basename } from '../../../../../../../../base/common/resources.js';
+import { WithUriValue } from '../../../../../../../../base/common/types.js';
 import { DOCUMENTATION_URL } from '../../../../../common/promptSyntax/constants.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
-import { IPrompt, IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
+import { IPromptPath, IPromptsService } from '../../../../../common/promptSyntax/service/types.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
- * Utility to create {@link IQuickPickItem}s for a provided prompt locations.
+ * Utility to create {@link IQuickPickItem}s for a provided prompt source folders.
  */
-const asLocationPickItem = (
+const asFolderListItem = (
 	labelService: ILabelService,
-): (({ uri }: IPrompt) => WithUriValue<IQuickPickItem>) => {
+): (({ uri }: IPromptPath) => WithUriValue<IQuickPickItem>) => {
 	return ({ uri }) => {
 		// TODO: @legomushroom - fix multi-root workspace labels
 		let label = basename(uri);
 		let description = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
 
-		// if the resulting `fullPath` is empty, the location points to the root
+		// if the resulting `fullPath` is empty, the folder points to the root
 		// of the current workspace, so use the appropriate label and description
 		if (!description) {
 			label = localize(
-				'commands.prompts.create.location.current-workspace',
+				'commands.prompts.create.source-folder.current-workspace',
 				"Current Workspace",
 			);
 
@@ -47,19 +47,19 @@ const asLocationPickItem = (
 };
 
 /**
- * Shows a dialog to the user when no prompt locations are found.
+ * Shows a dialog to the user when no prompt source folders are found.
  *
  * Note! this is a temporary solution and must be replaced with a dialog to select
- *       a custom folder location, or switch to a different prompts "source" type
+ *       a custom folder path, or switch to a different prompt type
  */
-const showNoLocationsDialog = async (
+const showNoFoldersDialog = async (
 	quickInputService: IQuickInputService,
 	openerService: IOpenerService,
 ): Promise<undefined> => {
 	const docsQuickPick: WithUriValue<IQuickPickItem> = {
 		type: 'item',
 		label: localize(
-			'commands.prompts.create.ask-location.no-locations-found.learn-more',
+			'commands.prompts.create.ask-folder.no-folders-found.learn-more',
 			'Learn how to configure reusable prompts',
 		),
 		description: DOCUMENTATION_URL,
@@ -71,8 +71,8 @@ const showNoLocationsDialog = async (
 		[docsQuickPick],
 		{
 			placeHolder: localize(
-				'commands.prompts.create.ask-location.no-locations-found.placeholder',
-				'No prompt locations found.',
+				'commands.prompts.create.ask-folder.no-folders-found.placeholder',
+				'No prompt source folders found.',
 			),
 			canPickMany: false,
 		});
@@ -87,44 +87,56 @@ const showNoLocationsDialog = async (
 };
 
 /**
- * Asks the user for a prompt location, if multiple locations provided.
- * Returns immediately if only one location is provided.
- *
- * @throws if no prompt locations are provided.
+ * Options for {@link askForPromptFolder} dialog.
  */
-export const askForPromptLocation = async (
-	source: IPrompt['source'],
-	promptsService: IPromptsService,
-	quickInputService: IQuickInputService,
-	labelService: ILabelService,
-	openerService: IOpenerService,
-): Promise<URI | undefined> => {
-	const locations = promptsService.getPromptsLocation(source);
+interface IAskForPromptFolderOptions {
+	/**
+	 * Prompt type.
+	 */
+	readonly type: 'local' | 'global';
 
-	// if no locations found, show 'learn more' dialog
+	readonly labelService: ILabelService;
+	readonly openerService: IOpenerService;
+	readonly promptsService: IPromptsService;
+	readonly quickInputService: IQuickInputService;
+}
+
+/**
+ * Asks the user for a specific prompt folder, if multiple folders provided.
+ * Returns immediately if only one folder available.
+ */
+export const askForPromptFolder = async (
+	options: IAskForPromptFolderOptions,
+): Promise<URI | undefined> => {
+	const { type, promptsService, quickInputService, labelService, openerService } = options;
+
+	// get prompts source folders based on the prompt type
+	const folders = promptsService.getSourceFolders(type);
+
+	// if no source folders found, show 'learn more' dialog
 	// note! this is a temporary solution and must be replaced with a dialog to select
-	//       a custom folder location, or switch to a different prompts "source" type
-	if (locations.length === 0) {
-		return await showNoLocationsDialog(quickInputService, openerService);
+	//       a custom folder path, or switch to a different prompt type
+	if (folders.length === 0) {
+		return await showNoFoldersDialog(quickInputService, openerService);
 	}
 
-	// if there is only one location, return it
-	if (locations.length === 1) {
-		return locations[0].uri;
+	// if there is only one folder, no need to ask
+	if (folders.length === 1) {
+		return folders[0].uri;
 	}
 
 	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
 		placeHolder: localize(
-			'commands.prompts.create.ask-location.placeholder',
-			"Select a prompt location",
+			'commands.prompts.create.ask-folder.placeholder',
+			"Select a prompt source folder",
 		),
 		canPickMany: false,
 		matchOnDescription: true,
 	};
 
-	const locationsList = locations.map(asLocationPickItem(labelService));
+	const foldersList = folders.map(asFolderListItem(labelService));
 
-	const answer = await quickInputService.pick(locationsList, pickOptions);
+	const answer = await quickInputService.pick(foldersList, pickOptions);
 	if (!answer) {
 		return;
 	}
