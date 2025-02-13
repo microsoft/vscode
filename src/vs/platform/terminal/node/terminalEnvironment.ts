@@ -326,3 +326,48 @@ function areZshBashFishLoginArgs(originalArgs: string | string[]): boolean {
 	return originalArgs === 'string' && shLoginArgs.includes(originalArgs.toLowerCase())
 		|| typeof originalArgs !== 'string' && originalArgs.length === 1 && shLoginArgs.includes(originalArgs[0].toLowerCase());
 }
+
+/**
+ * Creates the terminal environment by merging the parent process environment with the provided
+ * environment. This also applies the environment variable collection to the environment.
+ * @param parentEnv The parent process environment.
+ * @param shellLaunchConfig The shell launch config.
+ * @param variableCollection The environment variable collection.
+ * @param logService The log service.
+ */
+export function createTerminalEnvironment(
+	parentEnv: IProcessEnvironment,
+	shellLaunchConfig: IShellLaunchConfig,
+	variableCollection: MergedEnvironmentVariableCollection,
+	logService: ILogService
+): IProcessEnvironment {
+	const env: IProcessEnvironment = { ...parentEnv };
+
+	// Apply the environment variable collection
+	variableCollection.applyToProcessEnvironment(env, undefined);
+
+	// Apply the shell launch config environment
+	if (shellLaunchConfig.env) {
+		for (const key in shellLaunchConfig.env) {
+			const value = shellLaunchConfig.env[key];
+			if (value === null) {
+				delete env[key];
+			} else if (value !== undefined) {
+				env[key] = value;
+			}
+		}
+	}
+
+	// Restore NODE_OPTIONS for --max-old-space-size
+	if (parentEnv.NODE_OPTIONS && !env.NODE_OPTIONS) {
+		const nodeOptions = parentEnv.NODE_OPTIONS.split(' ');
+		const maxOldSpaceSizeOption = nodeOptions.find(option => option.startsWith('--max-old-space-size='));
+		if (maxOldSpaceSizeOption) {
+			env.NODE_OPTIONS = maxOldSpaceSizeOption;
+		}
+	}
+
+	logService.trace('createTerminalEnvironment', shellLaunchConfig, env);
+
+	return env;
+}
