@@ -99,6 +99,12 @@ export interface ITextFileService extends IDisposable {
 	create(operations: { resource: URI; value?: string | ITextSnapshot; options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
+	 * Get the encoding for the provided `resource`. Will try to determine the encoding
+	 * from any existing model for that `resource` and fallback to the configured defaults.
+	 */
+	getEncoding(resource: URI): string;
+
+	/**
 	 * Returns the readable that uses the appropriate encoding. This method should
 	 * be used whenever a `string` or `ITextSnapshot` is being persisted to the
 	 * file system.
