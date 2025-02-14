@@ -42,6 +42,7 @@ import { TextEditorSelectionRevealType } from '../../../../../platform/editor/co
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
 
 export class ChatEditorController extends Disposable implements IEditorContribution {
 
@@ -123,6 +124,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			).read(r);
 		});
 
+		let lastRevealedResponse: IChatResponseModel | undefined;
 
 		this._register(autorun(r => {
 
@@ -178,7 +180,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					this._clearDiffRendering();
 				}
 
-				if (lastRequest.read(r)?.response?.isComplete && !diff.identical) {
+				const response = lastRequest.read(r)?.response;
+				if (response?.isComplete && response !== lastRevealedResponse && !diff.identical) {
+					lastRevealedResponse = response;
 					this._reveal(true, false, ScrollType.Immediate);
 				}
 			}

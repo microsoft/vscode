@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -34,7 +34,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 
 class ChatEditorOverlayWidget2 {
@@ -244,17 +244,17 @@ class ChatEditorOverlayWidget2 {
 				? changeIndex
 				: -1;
 
-			let changes = 0;
+			let totalChangesCount = 0;
 			for (let i = 0; i < entries.length; i++) {
-				const diffInfo = entries[i].diffInfo.read(r);
-				changes += diffInfo.changes.length;
+				const changesCount = entries[i].changesCount.read(r);
+				totalChangesCount += changesCount;
 
 				if (entryIndex !== undefined && i < entryIndex) {
-					activeIdx += diffInfo.changes.length;
+					activeIdx += changesCount;
 				}
 			}
 
-			this._navigationBearings.set({ changeCount: changes, activeIdx, entriesCount: entries.length }, undefined);
+			this._navigationBearings.set({ changeCount: totalChangesCount, activeIdx, entriesCount: entries.length }, undefined);
 		}));
 
 	}
@@ -389,8 +389,6 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 	private readonly _store = new DisposableStore();
 
 	constructor(
-		@IChatEditingService chatEditingService: IChatEditingService,
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -398,7 +396,7 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 		const editorGroups = observableFromEvent(
 			this,
 			Event.any(editorGroupsService.onDidAddGroup, editorGroupsService.onDidRemoveGroup),
-			() => editorGroupsService.groups.filter(g => g instanceof EditorGroupView)
+			() => editorGroupsService.groups
 		);
 
 		const overlayWidgets = new DisposableMap<IEditorGroup>();
@@ -408,23 +406,8 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 			const toDelete = new Set(overlayWidgets.keys());
 			const groups = editorGroups.read(r);
 
+
 			for (const group of groups) {
-
-				// find editor
-				const editor = observableFromEvent(this, group.onDidModelChange, () => group.activeEditor).read(r);
-				const uri = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-				if (!uri) {
-					continue;
-				}
-
-				// find the effective session (prefer inline chat)
-				const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
-				const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => value.find(s => s.readEntry(uri, r)));
-				const session = inlineSessionObs.read(r)?.editingSession ?? sessionObs.read(r);
-
-				if (!session) {
-					continue;
-				}
 
 				toDelete.delete(group); // we keep the widget for this group!
 
@@ -434,11 +417,12 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 						new ServiceCollection([IContextKeyService, group.scopedContextKeyService])
 					);
 
-					const ctrl = scopedInstaService.createInstance(ChatEditingOverlayController, session, group, uri);
+					// TODO@jrieken UGLY, fix in https://github.com/microsoft/vscode/tree/ben/layout-group-container
+					const container = (group as EditorGroupView).element;
+
+					const ctrl = scopedInstaService.createInstance(ChatEditingOverlayController, container, group);
 					overlayWidgets.set(group, combinedDisposable(ctrl, scopedInstaService));
 
-					// TODO@jrieken UGLY, fix in https://github.com/microsoft/vscode/tree/ben/layout-group-container
-					(group as EditorGroupView).element.appendChild(ctrl.domNode);
 				}
 			}
 
@@ -457,50 +441,136 @@ class ChatEditingOverlayController {
 
 	private readonly _store = new DisposableStore();
 
-	readonly domNode = document.createElement('div');
+	private readonly _domNode = document.createElement('div');
 
 	constructor(
-		session: IChatEditingSession,
+		container: HTMLElement,
 		group: IEditorGroup,
-		uri: URI,
 		@IInstantiationService instaService: IInstantiationService,
 		@IChatService chatService: IChatService,
+		@IChatEditingService chatEditingService: IChatEditingService,
+		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
 	) {
 
-		this.domNode.classList.add('chat-editing-editor-overlay');
-		this.domNode.style.position = 'absolute';
-		this.domNode.style.bottom = `24px`;
-		this.domNode.style.left = `20px`;
+		this._domNode.classList.add('chat-editing-editor-overlay');
+		this._domNode.style.position = 'absolute';
+		this._domNode.style.bottom = `24px`;
+		this._domNode.style.left = `20px`;
 
 		const widget = instaService.createInstance(ChatEditorOverlayWidget2, group);
-		this.domNode.appendChild(widget.getDomNode());
-		this._store.add(toDisposable(() => this.domNode.remove()));
+		this._domNode.appendChild(widget.getDomNode());
+		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
 
-		const chatModel = chatService.getSession(session.chatSessionId)!;
-		const lastResponse = observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1)?.response);
+		const show = () => {
+			if (!container.contains(this._domNode)) {
+				container.appendChild(this._domNode);
+			}
+		};
+
+		const hide = () => {
+			if (container.contains(this._domNode)) {
+				widget.hide();
+				this._domNode.remove();
+			}
+		};
+
+		const activeEditorSignal = observableSignalFromEvent(this, Event.any(group.onDidActiveEditorChange, group.onDidModelChange));
+
+		const activeUriObs = derivedOpts({ equalsFn: isEqual }, r => {
+
+			activeEditorSignal.read(r); // signal
+
+			const editor = group.activeEditorPane;
+			const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
+
+			return uri;
+		});
+
+		const sessionAndEntry = derived(r => {
+
+			activeEditorSignal.read(r); // signal to ensure activeEditor and activeEditorPane don't go out of sync
+
+			const uri = activeUriObs.read(r);
+			if (!uri) {
+				return undefined;
+			}
+
+			const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => {
+				for (const session of value) {
+					const entry = session.readEntry(uri, r);
+					if (entry) {
+						return { session, entry };
+					}
+				}
+				return undefined;
+			});
+
+			const result = sessionObs.read(r);
+			if (result) {
+				return result;
+			}
+
+			const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
+			const inlineSession = inlineSessionObs.read(r);
+			return inlineSession
+				? { session: inlineSession.editingSession, entry: inlineSession.editingSession.readEntry(uri, r) }
+				: undefined;
+
+		});
+
+		const isInProgress = derived(r => {
+
+			const session = sessionAndEntry.read(r)?.session;
+			if (!session) {
+				return false;
+			}
+
+			const chatModel = chatService.getSession(session.chatSessionId)!;
+			const lastResponse = observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1)?.response);
+
+			const response = lastResponse.read(r);
+			if (!response) {
+				return false;
+			}
+			return observableFromEvent(this, response.onDidChange, () => !response.isComplete).read(r);
+		});
 
 		this._store.add(autorun(r => {
 
-			const response = lastResponse.read(r);
+			const data = sessionAndEntry.read(r);
 
-			const isInProgress = response
-				? observableFromEvent(this, response.onDidChange, () => !response.isComplete)
-				: constObservable(false);
+			if (!data) {
+				hide();
+				return;
+			}
 
-			const entry = session.readEntry(uri, r);
+			const { session, entry } = data;
 
-			if (entry?.state.read(r) === WorkingSetEntryState.Modified) {
-				widget.showEntry(session, entry, { entryIndex: constObservable(-1), changeIndex: constObservable(-1) });
-				this.domNode.style.display = '';
-
-			} else if (!session.isGlobalEditingSession && isInProgress.read(r)) {
+			if (!session.isGlobalEditingSession && isInProgress.read(r) && !entry?.isCurrentlyBeingModifiedBy.read(r)) {
+				// inline chat request
 				widget.showRequest(session);
-				this.domNode.style.display = '';
+				show();
+
+			} else if (entry?.state.read(r) === WorkingSetEntryState.Modified) {
+				// any session with changes
+				const editorPane = group.activeEditorPane;
+				assertType(editorPane);
+
+				const changeIndex = derived(r => {
+					const idx = entry.getChangeNavigator(editorPane).currentIndex.read(r);
+					return idx < 0 ? undefined : idx;
+				});
+
+				widget.showEntry(session, entry, {
+					entryIndex: derived(r => session.entries.read(r).indexOf(entry)),
+					changeIndex
+				});
+				show();
 
 			} else {
-				this.domNode.style.display = 'none';
-				widget.hide();
+				// nothing
+				hide();
 			}
 		}));
 	}

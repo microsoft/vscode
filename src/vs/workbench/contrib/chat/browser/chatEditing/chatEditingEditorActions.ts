@@ -26,7 +26,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
+import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -66,41 +66,37 @@ abstract class NavigateAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		let editor = editorService.activeTextEditorControl;
-		if (isDiffEditor(editor)) {
-			editor = editor.getModifiedEditor();
-		}
-		if (!isCodeEditor(editor) || !editor.hasModel()) {
-			return;
-		}
-		const ctrl = ChatEditorController.get(editor);
-		if (!ctrl) {
+		const uri = EditorResourceAccessor.getOriginalUri(editorService.activeEditorPane?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
+
+		if (!uri || !editorService.activeEditorPane) {
 			return;
 		}
 
 		const session = chatEditingService.editingSessionsObs.get()
-			.find(candidate => candidate.getEntry(editor.getModel().uri));
+			.find(candidate => candidate.getEntry(uri));
 
 		if (!session) {
 			return;
 		}
 
+		const entry = session.getEntry(uri)!;
+
+		const navigation = entry.getChangeNavigator(editorService.activeEditorPane);
+
 		const done = this.next
-			? ctrl.revealNext(true)
-			: ctrl.revealPrevious(true);
+			? navigation.next(false)
+			: navigation.previous(false);
 
 		if (done) {
 			return;
 		}
 
-		const didOpenNext = await instaService.invokeFunction(openNextOrPreviousChange, session, session.getEntry(editor.getModel().uri)!, this.next);
+		const didOpenNext = await instaService.invokeFunction(openNextOrPreviousChange, session, entry, this.next);
 		if (!didOpenNext) {
 			// wrap inside the same file
-			if (this.next) {
-				ctrl.revealNext(false);
-			} else {
-				ctrl.revealPrevious(false);
-			}
+			this.next
+				? navigation.next(true)
+				: navigation.previous(true);
 		}
 	}
 }

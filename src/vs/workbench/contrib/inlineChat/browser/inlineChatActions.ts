@@ -612,7 +612,7 @@ export class RevealWidget extends AbstractInline2ChatAction {
 			title: localize2('reveal', "Toggle Inline Chat"),
 			f1: true,
 			icon: Codicon.copilot,
-			precondition: ContextKeyExpr.greaterEquals(ctxRequestCount.key, 1),
+			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ContextKeyExpr.greaterEquals(ctxRequestCount.key, 1)),
 			toggled: CTX_INLINE_CHAT_VISIBLE,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
