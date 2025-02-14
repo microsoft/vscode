@@ -2,44 +2,41 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, getWindow } from '../../../../../../base/browser/dom.js';
-import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../../../base/common/actions.js';
-import { Color } from '../../../../../../base/common/color.js';
-import { structuralEquals } from '../../../../../../base/common/equals.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent } from '../../../../../../base/common/observable.js';
-import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
-import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
-import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../browser/point.js';
-import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
-import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../common/core/offsetRange.js';
-import { Position } from '../../../../../common/core/position.js';
-import { Range } from '../../../../../common/core/range.js';
-import { Command } from '../../../../../common/languages.js';
-import { ITextModel } from '../../../../../common/model.js';
-import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
-import { InlineCompletionContextKeys } from '../../controller/inlineCompletionContextKeys.js';
-import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
-import { getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from './theme.js';
-import { InlineEditTabAction, PathBuilder, StatusBarViewItem, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
-import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-
-export interface IInlineEditsView {
-	isHovered: IObservable<boolean>;
-}
+import { $, getWindow, n } from '../../../../../../../base/browser/dom.js';
+import { ActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../../../../../base/common/actions.js';
+import { Color } from '../../../../../../../base/common/color.js';
+import { structuralEquals } from '../../../../../../../base/common/equals.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { IObservable, IReader, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent } from '../../../../../../../base/common/observable.js';
+import { MenuId, MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { Point } from '../../../../../../browser/point.js';
+import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../../../common/core/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { Position } from '../../../../../../common/core/position.js';
+import { Range } from '../../../../../../common/core/range.js';
+import { Command } from '../../../../../../common/languages.js';
+import { ITextModel } from '../../../../../../common/model.js';
+import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
+import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
+import { CustomizedMenuWorkbenchToolBar } from '../../../hintsWidget/inlineCompletionsHintsWidget.js';
+import { IInlineEditsView } from '../inlineEditsViewInterface.js';
+import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
+import { getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
+import { InlineEditTabAction, PathBuilder, StatusBarViewItem, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
 
 const PADDING = 4;
 const ENABLE_OVERFLOW = false;
 
-export class InlineEditsSideBySideDiff extends Disposable implements IInlineEditsView {
+export class InlineEditsSideBySideView extends Disposable implements IInlineEditsView {
 
 	// This is an approximation and should be improved by using the real parameters used bellow
 	static fitsInsideViewport(editor: ICodeEditor, edit: InlineEditWithChanges, originalDisplayRange: LineRange, reader: IReader): boolean {
