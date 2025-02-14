@@ -488,42 +488,23 @@ export class Response extends AbstractResponse implements IDisposable {
 				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
 			}
 			this._updateRepr(quiet);
-		} else if (progress.kind === 'textEdit') {
-			// merge text edits for the same file no matter when they come in
+		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
+			// merge edits for the same file no matter when they come in
+			const groupKind = progress.kind === 'textEdit' ? 'textEditGroup' : 'notebookEditGroup';
 			let found = false;
 			for (let i = 0; !found && i < this._responseParts.length; i++) {
 				const candidate = this._responseParts[i];
-				if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
-					candidate.edits.push(progress.edits);
+				if (candidate.kind === groupKind && isEqual(candidate.uri, progress.uri)) {
+					candidate.edits.push(progress.edits as any);
 					candidate.done = progress.done;
 					found = true;
 				}
 			}
 			if (!found) {
 				this._responseParts.push({
-					kind: 'textEditGroup',
+					kind: groupKind,
 					uri: progress.uri,
-					edits: [progress.edits],
-					done: progress.done
-				});
-			}
-			this._updateRepr(quiet);
-		} else if (progress.kind === 'notebookEdit') {
-			// merge text edits for the same file no matter when they come in
-			let found = false;
-			for (let i = 0; !found && i < this._responseParts.length; i++) {
-				const candidate = this._responseParts[i];
-				if (candidate.kind === 'notebookEditGroup' && isEqual(candidate.uri, progress.uri)) {
-					candidate.edits.push(progress.edits);
-					candidate.done = progress.done;
-					found = true;
-				}
-			}
-			if (!found) {
-				this._responseParts.push({
-					kind: 'notebookEditGroup',
-					uri: progress.uri,
-					edits: [progress.edits],
+					edits: [progress.edits as any],
 					done: progress.done
 				});
 			}
