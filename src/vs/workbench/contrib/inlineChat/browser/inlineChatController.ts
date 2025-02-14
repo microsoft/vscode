@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -39,7 +39,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from '../../chat/browser/chat.js';
-import { ChatEditorOverlayController } from '../../chat/browser/chatEditing/chatEditingEditorOverlay.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
@@ -1342,30 +1341,6 @@ export class InlineChatController2 implements IEditorContribution {
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
 				session.editingSession.getEntry(session.uri)?.autoAcceptController.get()?.cancel();
-			}
-		}));
-
-		this._store.add(autorun(r => {
-
-			const overlay = ChatEditorOverlayController.get(_editor)!;
-			const session = this._currentSession.read(r);
-			const model = editorObs.model.read(r);
-			if (!session || !model) {
-				overlay.hide();
-				return;
-			}
-
-			const lastResponse = observableFromEvent(this, session.chatModel.onDidChange, () => session.chatModel.getRequests().at(-1)?.response);
-			const response = lastResponse.read(r);
-
-			const isInProgress = response
-				? observableFromEvent(this, response.onDidChange, () => !response.isComplete)
-				: constObservable(false);
-
-			if (isInProgress.read(r)) {
-				overlay.showRequest(session.editingSession);
-			} else if (session.editingSession.getEntry(session.uri)?.state.get() !== WorkingSetEntryState.Modified) {
-				overlay.hide();
 			}
 		}));
 	}

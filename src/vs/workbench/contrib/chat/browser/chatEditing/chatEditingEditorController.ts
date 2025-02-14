@@ -35,7 +35,6 @@ import { isDiffEditorForEntry } from './chatEditing.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
-import { ChatEditorOverlayController } from './chatEditingEditorOverlay.js';
 import { IChatService } from '../../common/chatService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
@@ -57,7 +56,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _viewZones: string[] = [];
 
-	private readonly _overlayCtrl: ChatEditorOverlayController;
 
 
 	static get(editor: ICodeEditor): ChatEditorController | null {
@@ -85,7 +83,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	) {
 		super();
 
-		this._overlayCtrl = ChatEditorOverlayController.get(_editor)!;
 
 		const editorObs = observableCodeEditor(this._editor);
 		const fontInfoObs = editorObs.getOption(EditorOption.fontInfo);
@@ -140,24 +137,11 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				return;
 			}
 
-			const { session, idx, entry } = currentEditorEntry;
+			const { idx, entry } = currentEditorEntry;
 
 			// context
 			this._currentEntryIndex.set(idx, undefined);
 
-			// overlay widget
-			if (entry.state.read(r) !== WorkingSetEntryState.Modified) {
-				this._overlayCtrl.hide();
-			} else {
-				this._overlayCtrl.showEntry(
-					session,
-					entry,
-					{
-						entryIndex: this._currentEntryIndex,
-						changeIndex: this._currentChangeIndex
-					}
-				);
-			}
 
 			// scrolling logic
 			if (!entry.isCurrentlyBeingModifiedBy.read(r)) {
@@ -284,7 +268,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _clear() {
 		this._clearDiffRendering();
-		this._overlayCtrl.hide();
 		this._diffLineDecorations.clear();
 		this._currentChangeIndex.set(undefined, undefined);
 		this._currentEntryIndex.set(undefined, undefined);

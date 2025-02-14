@@ -73,7 +73,7 @@ import { ChatInputBoxContentProvider } from './chatEdinputInputContentProvider.j
 import { ChatEditingEditorAccessibility } from './chatEditing/chatEditingEditorAccessibility.js';
 import { registerChatEditorActions } from './chatEditing/chatEditingEditorActions.js';
 import { ChatEditorController } from './chatEditing/chatEditingEditorController.js';
-import { ChatEditingEditorOverlay, ChatEditorOverlayController } from './chatEditing/chatEditingEditorOverlay.js';
+import { ChatEditingEditorOverlay } from './chatEditing/chatEditingEditorOverlay.js';
 import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
@@ -432,7 +432,6 @@ registerChatDeveloperActions();
 registerChatEditorActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
-registerEditorContribution(ChatEditorOverlayController.ID, ChatEditorOverlayController, EditorContributionInstantiation.Lazy);
 registerEditorContribution(ChatEditorController.ID, ChatEditorController, EditorContributionInstantiation.Eventually);
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);

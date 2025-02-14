@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
@@ -20,12 +19,9 @@ import { assertType } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditingEditorActions.js';
 import '../media/chatEditorOverlay.css';
-import { findDiffEditorContainingCodeEditor } from '../../../../../editor/browser/widget/diffEditor/commands.js';
 import { IChatService } from '../../common/chatService.js';
-import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
 import { rcut } from '../../../../../base/common/strings.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { Lazy } from '../../../../../base/common/lazy.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
@@ -36,8 +32,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
-
-class ChatEditorOverlayWidget2 {
+class ChatEditorOverlayWidget {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _progressNode: HTMLElement;
@@ -180,10 +175,10 @@ class ChatEditorOverlayWidget2 {
 		this._toolbar.dispose();
 	}
 
-
 	getDomNode(): HTMLElement {
 		return this._domNode;
 	}
+
 	showRequest(session: IChatEditingSession) {
 
 		this._showStore.clear();
@@ -268,175 +263,6 @@ class ChatEditorOverlayWidget2 {
 	}
 }
 
-
-class ChatEditorOverlayWidget implements IOverlayWidget {
-
-	readonly allowEditorOverflow = true;
-
-	private readonly _widget: ChatEditorOverlayWidget2;
-
-
-	private _isAdded: IDisposable | undefined;
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-	) {
-		this._widget = _instaService.createInstance(ChatEditorOverlayWidget2, _editor);
-	}
-
-	dispose() {
-		this._widget.dispose();
-		this.hide();
-	}
-
-	getId(): string {
-		return 'chatEditorOverlayWidget';
-	}
-
-	getDomNode(): HTMLElement {
-		return this._widget.getDomNode();
-	}
-
-	getPosition(): IOverlayWidgetPosition | null {
-		return { preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER };
-	}
-
-	showRequest(session: IChatEditingSession) {
-
-		this._widget.showRequest(session);
-		this._show();
-	}
-
-	showEntry(session: IChatEditingSession, activeEntry: IModifiedFileEntry, indicies: { entryIndex: IObservable<number | undefined>; changeIndex: IObservable<number | undefined> }) {
-		this._widget.showEntry(session, activeEntry, indicies);
-		this._show();
-	}
-
-	private _show(): void {
-
-		const editorWidthObs = observableFromEvent(this._editor.onDidLayoutChange, () => {
-			const diffEditor = this._instaService.invokeFunction(findDiffEditorContainingCodeEditor, this._editor);
-			return diffEditor
-				? diffEditor.getOriginalEditor().getLayoutInfo().contentWidth + diffEditor.getModifiedEditor().getLayoutInfo().contentWidth
-				: this._editor.getLayoutInfo().contentWidth;
-		});
-
-
-		if (!this._isAdded) {
-			this._editor.addOverlayWidget(this);
-			this._isAdded = autorun(r => {
-				const width = editorWidthObs.read(r);
-				this.getDomNode().style.maxWidth = `${width - 20}px`;
-			});
-		}
-	}
-
-	hide() {
-
-		this._widget.hide();
-
-		if (this._isAdded) {
-			this._editor.removeOverlayWidget(this);
-			this._isAdded.dispose();
-			this._isAdded = undefined;
-		}
-	}
-}
-
-
-export class ChatEditorOverlayController implements IEditorContribution {
-
-	static readonly ID = 'editor.contrib.chatEditorOverlayController';
-
-	static get(editor: ICodeEditor): ChatEditorOverlayController | undefined {
-		return editor.getContribution<ChatEditorOverlayController>(ChatEditorOverlayController.ID) ?? undefined;
-	}
-
-	private readonly _overlayWidget = new Lazy(() => this._instaService.createInstance(ChatEditorOverlayWidget, this._editor));
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-	) { }
-
-	dispose(): void {
-		this.hide();
-		this._overlayWidget.rawValue?.dispose();
-	}
-
-	showRequest(session: IChatEditingSession) {
-		this._overlayWidget.value.showRequest(session);
-	}
-
-	showEntry(session: IChatEditingSession,
-		activeEntry: IModifiedFileEntry,
-		indicies: { entryIndex: IObservable<number | undefined>; changeIndex: IObservable<number | undefined> }
-	) {
-		this._overlayWidget.value.showEntry(session, activeEntry, indicies);
-	}
-
-	hide() {
-		this._overlayWidget.rawValue?.hide();
-	}
-}
-
-
-export class ChatEditingEditorOverlay implements IWorkbenchContribution {
-
-	static readonly ID = 'chat.edits.editorOverlay';
-
-	private readonly _store = new DisposableStore();
-
-	constructor(
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-
-		const editorGroups = observableFromEvent(
-			this,
-			Event.any(editorGroupsService.onDidAddGroup, editorGroupsService.onDidRemoveGroup),
-			() => editorGroupsService.groups
-		);
-
-		const overlayWidgets = new DisposableMap<IEditorGroup>();
-
-		this._store.add(autorun(r => {
-
-			const toDelete = new Set(overlayWidgets.keys());
-			const groups = editorGroups.read(r);
-
-
-			for (const group of groups) {
-
-				toDelete.delete(group); // we keep the widget for this group!
-
-				if (!overlayWidgets.has(group)) {
-
-					const scopedInstaService = instantiationService.createChild(
-						new ServiceCollection([IContextKeyService, group.scopedContextKeyService])
-					);
-
-					// TODO@jrieken UGLY, fix in https://github.com/microsoft/vscode/tree/ben/layout-group-container
-					const container = (group as EditorGroupView).element;
-
-					const ctrl = scopedInstaService.createInstance(ChatEditingOverlayController, container, group);
-					overlayWidgets.set(group, combinedDisposable(ctrl, scopedInstaService));
-
-				}
-			}
-
-			for (const group of toDelete) {
-				overlayWidgets.deleteAndDispose(group);
-			}
-		}));
-	}
-
-	dispose(): void {
-		this._store.dispose();
-	}
-}
-
 class ChatEditingOverlayController {
 
 	private readonly _store = new DisposableStore();
@@ -455,9 +281,10 @@ class ChatEditingOverlayController {
 		this._domNode.classList.add('chat-editing-editor-overlay');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.bottom = `24px`;
-		this._domNode.style.left = `20px`;
+		this._domNode.style.right = `24px`;
+		this._domNode.style.zIndex = `100`;
 
-		const widget = instaService.createInstance(ChatEditorOverlayWidget2, group);
+		const widget = instaService.createInstance(ChatEditorOverlayWidget, group);
 		this._domNode.appendChild(widget.getDomNode());
 		this._store.add(toDisposable(() => this._domNode.remove()));
 		this._store.add(widget);
@@ -571,6 +398,64 @@ class ChatEditingOverlayController {
 			} else {
 				// nothing
 				hide();
+			}
+		}));
+	}
+
+	dispose(): void {
+		this._store.dispose();
+	}
+}
+
+export class ChatEditingEditorOverlay implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.edits.editorOverlay';
+
+	private readonly _store = new DisposableStore();
+
+	constructor(
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+
+		const editorGroups = observableFromEvent(
+			this,
+			Event.any(editorGroupsService.onDidAddGroup, editorGroupsService.onDidRemoveGroup),
+			() => editorGroupsService.groups
+		);
+
+		const overlayWidgets = new DisposableMap<IEditorGroup>();
+
+		this._store.add(autorun(r => {
+
+			const toDelete = new Set(overlayWidgets.keys());
+			const groups = editorGroups.read(r);
+
+
+			for (const group of groups) {
+
+				if (!(group instanceof EditorGroupView)) {
+					// TODO@jrieken better with https://github.com/microsoft/vscode/tree/ben/layout-group-container
+					continue;
+				}
+
+				toDelete.delete(group); // we keep the widget for this group!
+
+				if (!overlayWidgets.has(group)) {
+
+					const scopedInstaService = instantiationService.createChild(
+						new ServiceCollection([IContextKeyService, group.scopedContextKeyService])
+					);
+
+					const container = group.element;
+
+					const ctrl = scopedInstaService.createInstance(ChatEditingOverlayController, container, group);
+					overlayWidgets.set(group, combinedDisposable(ctrl, scopedInstaService));
+				}
+			}
+
+			for (const group of toDelete) {
+				overlayWidgets.deleteAndDispose(group);
 			}
 		}));
 	}
