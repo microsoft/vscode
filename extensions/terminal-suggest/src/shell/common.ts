@@ -94,11 +94,16 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 	}
 	return result;
 }
-
-export async function getZshBashBuiltins(options: ExecOptionsWithStringEncoding, scriptToRun: string, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
+export async function getZshBashBuiltins(
+	options: ExecOptionsWithStringEncoding,
+	scriptToRun: string,
+	existingCommands?: Set<string>,
+	getInfo?: string
+): Promise<(string | ICompletionResource)[]> {
 	const compgenOutput = await execHelper(scriptToRun, options);
 	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
 	let builtins: (string | ICompletionResource)[] = compgenOutput.split('\n').filter(filter);
+
 	if (builtins.find(r => r === '.')) {
 		builtins = builtins.filter(r => r !== '.');
 		builtins.push({
@@ -106,5 +111,27 @@ export async function getZshBashBuiltins(options: ExecOptionsWithStringEncoding,
 			detail: 'Source a file in the current shell'
 		});
 	}
+
+	if (getInfo) {
+		// Retrieve command descriptions using 'getInfo' argument
+		const descriptions: Record<string, string | undefined> = {};
+		for (const cmd of builtins) {
+			if (typeof cmd === 'string') {
+				try {
+					const description = await execHelper(`${getInfo} ${cmd}`, options);
+					descriptions[cmd] = description.trim();
+				} catch (error) {
+					descriptions[cmd] = undefined;
+				}
+			}
+		}
+
+		// Map commands to include descriptions
+		builtins = builtins.map(cmd =>
+			typeof cmd === 'string' ? { label: cmd, detail: descriptions[cmd] } : cmd
+		);
+	}
+
 	return builtins;
 }
+
