@@ -305,7 +305,6 @@ class NotebookChatEditorController2 extends Disposable {
 		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor));
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
-		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
 		// We need to render viewzones only when the viewmodel is attached (i.e. list view is ready).
 		// https://github.com/microsoft/vscode/issues/234718
 		const readyToRenderViewzones = observableValue<boolean>('viewModelAttached', false);
@@ -385,19 +384,19 @@ class NotebookChatEditorController2 extends Disposable {
 			const entry = sessionEntry.read(r)?.entry;
 			const diffInfo = notebookCellDiffInfo.read(r);
 			const modified = notebookModel.read(r);
-			const original = originalModel.read(r);
+			const original = entry?.originalModel;
 			const ready = readyToRenderViewzones.read(r);
 			if (!ready || !entry || !modified || !original || !diffInfo) {
 				return;
 			}
 			if (entry.state.read(r) !== WorkingSetEntryState.Modified) {
 				this.insertedCellDecorator.apply([]);
-				this.deletedCellDecorator.apply([], original);
+				this.deletedCellDecorator.apply([], original as NotebookTextModel);
 				return;
 			}
 			// updatedDeletedInsertedDecoratorsOnceBefore = true;
 			this.insertedCellDecorator.apply(diffInfo);
-			this.deletedCellDecorator.apply(diffInfo, original);
+			this.deletedCellDecorator.apply(diffInfo, original as NotebookTextModel);
 		}));
 
 		const shouldBeReadOnly = derived(this, r => {
@@ -411,7 +410,7 @@ class NotebookChatEditorController2 extends Disposable {
 			}
 			const entry = sessionEntry.read(r)?.entry;
 			const modified = notebookModel.read(r);
-			const original = originalModel.read(r);
+			const original = entry?.originalModel as NotebookTextModel;
 			if (modified && original && entry?.state.read(r) === WorkingSetEntryState.Modified) {
 				notebookEditor.notebookOptions.previousModelToCompare.set(original, undefined);
 			} else {
