@@ -773,7 +773,7 @@ export function getCommitShortHash(scope: Uri, hash: string): string {
 	return hash.substring(0, shortHashLength);
 }
 
-export type DiagnosticSeverityConfig = 'error' | 'warning' | 'information' | 'hint';
+export type DiagnosticSeverityConfig = 'error' | 'warning' | 'information' | 'hint' | 'none';
 
 export function toDiagnosticSeverity(value: DiagnosticSeverityConfig): DiagnosticSeverity {
 	return value === 'error'

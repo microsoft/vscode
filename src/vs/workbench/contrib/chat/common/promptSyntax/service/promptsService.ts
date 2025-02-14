@@ -86,27 +86,51 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const prompts = await Promise.all([
 			this.fileLocator.listFilesIn(globalLocations, [])
-				.then(withSource('global')),
+				.then(withType('global')),
 			this.fileLocator.listFiles([])
-				.then(withSource('local')),
+				.then(withType('local')),
 		]);
 
 		return prompts.flat();
 	}
+
+	public getSourceFolders(
+		type: IPrompt['type'],
+	): readonly IPrompt[] {
+		// sanity check to make sure we don't miss a new prompt type
+		// added in the future
+		assert(
+			type === 'local' || type === 'global',
+			`Unknown prompt type '${type}'.`,
+		);
+
+		const prompts = (type === 'global')
+			? [this.userDataService.currentProfile.promptsHome]
+			: this.fileLocator.getSourceLocations();
+
+		return prompts.map(addType(type));
+	}
 }
 
 /**
- * Utility to add a provided prompt `source` to a list of prompt URIs.
+ * Utility to add a provided prompt `type` to a prompt URI.
  */
-const withSource = (
-	source: IPrompt['source'],
+const addType = (
+	type: 'local' | 'global',
+): (uri: URI) => IPrompt => {
+	return (uri) => {
+		return { uri, type: type };
+	};
+};
+
+/**
+ * Utility to add a provided prompt `type` to a list of prompt URIs.
+ */
+const withType = (
+	type: 'local' | 'global',
 ): (uris: readonly URI[]) => (readonly IPrompt[]) => {
 	return (uris) => {
-		return uris.map((uri) => {
-			return {
-				uri,
-				source,
-			};
-		});
+		return uris
+			.map(addType(type));
 	};
 };

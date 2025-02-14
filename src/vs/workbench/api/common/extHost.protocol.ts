@@ -161,12 +161,26 @@ export interface AuthenticationForceNewSessionOptions {
 	sessionToRecreate?: AuthenticationSession;
 }
 
+export interface AuthenticationInteractiveOptions {
+	detail?: string;
+	learnMore?: UriComponents;
+	sessionToRecreate?: AuthenticationSession;
+}
+
+export interface AuthenticationGetSessionOptions {
+	clearSessionPreference?: boolean;
+	createIfNone?: boolean | AuthenticationInteractiveOptions;
+	forceNewSession?: boolean | AuthenticationInteractiveOptions;
+	silent?: boolean;
+	account?: AuthenticationSessionAccount;
+}
+
 export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$ensureProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): void;
-	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean; forceNewSession?: boolean | AuthenticationForceNewSessionOptions; clearSessionPreference?: boolean }): Promise<AuthenticationSession | undefined>;
+	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
 	$getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 }

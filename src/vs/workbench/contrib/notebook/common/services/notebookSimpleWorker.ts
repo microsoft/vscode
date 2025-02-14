@@ -193,7 +193,8 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			dto.language,
 			dto.cellKind,
 			dto.outputs,
-			dto.metadata
+			dto.metadata,
+			dto.internalMetadata
 		)), metadata, transientDocumentMetadata);
 	}
 
