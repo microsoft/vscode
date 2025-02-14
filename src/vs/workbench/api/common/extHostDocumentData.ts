@@ -67,14 +67,8 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				get version() { return that._versionId; },
 				get isClosed() { return that._isDisposed; },
 				get isDirty() { return that._isDirty; },
-				get encoding() {
-					// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
-					return that._encoding;
-				},
-				save(options?: { encoding?: string }) {
-					// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
-					return that._save(options);
-				},
+				get encoding() { return that._encoding; },
+				save(options?: { encoding?: string }) { return that._save(options); },
 				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
 				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
 				get lineCount() { return that._lines.length; },
