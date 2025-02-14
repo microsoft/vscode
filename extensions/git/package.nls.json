@@ -288,7 +288,7 @@
 	"config.commitShortHashLength": "Controls the length of the commit short hash.",
 	"config.diagnosticsCommitHook.Enabled": "Controls whether to check for unresolved diagnostics before committing.",
 	"config.diagnosticsCommitHook.Sources": "Controls the list of sources (**Item**) and the minimum severity (**Value**) to be considered before committing. **Note:** To ignore diagnostics from a particular source, add the source to the list and set the minimum severity to `none`.",
-	"config.untrackedChangesSoftDelete": "Controls whether discarding untracked changes moves the file(s) to the Recycle Bin (Windows), Trash (macOS, Linux) instead of deleting them.",
+	"config.untrackedChangesSoftDelete": "Controls whether discarding untracked changes moves the file(s) to the Recycle Bin (Windows), Trash (macOS, Linux) instead of deleting them. **Note:** This setting has no effect when connected to a remote.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",

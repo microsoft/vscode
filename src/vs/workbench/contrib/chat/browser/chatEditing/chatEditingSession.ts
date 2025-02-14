@@ -38,6 +38,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedFileEntry, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
@@ -624,6 +625,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, isLastEdits, responseModel));
+	}
+	acceptNotebookEdits(_resource: URI, _edits: ICellEditOperation[], _isLastEdits: boolean, _responseModel: IChatResponseModel): void {
+		//
 	}
 
 	resolve(): void {

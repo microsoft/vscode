@@ -200,20 +200,16 @@ extends:
         image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
-    authenticatedContainerRegistries:
-      - registry: onebranch.azurecr.io
-        tenant: AME
-        identity: 1ESPipelineIdentity
     stages:
       - stage: Compile
         jobs:
           - job: Compile
             timeoutInMinutes: 90
             pool:
-              name: 1es-ubuntu-22.04-x64
-              os: linux
+              name: AcesShared
+              os: macOS
             variables:
-              VSCODE_ARCH: x64
+              VSCODE_ARCH: arm64
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
@@ -265,6 +261,11 @@ extends:
                   os: linux
                   hostArchitecture: arm64
                 container: ubuntu-2004-arm64
+                templateContext:
+                  authenticatedContainerRegistries:
+                    - registry: onebranch.azurecr.io
+                      tenant: AME
+                      identity: 1ESPipelineIdentity
                 steps:
                   - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
                     parameters:
@@ -507,6 +508,11 @@ extends:
                 container: snapcraft
                 variables:
                   VSCODE_ARCH: x64
+                templateContext:
+                  authenticatedContainerRegistries:
+                    - registry: onebranch.azurecr.io
+                      tenant: AME
+                      identity: 1ESPipelineIdentity
                 steps:
                   - template: build/azure-pipelines/linux/snap-build-linux.yml@self
 

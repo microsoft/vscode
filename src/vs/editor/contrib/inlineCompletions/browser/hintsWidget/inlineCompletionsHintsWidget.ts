@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from '../../../../../base/browser/dom.js';
+import { h, n } from '../../../../../base/browser/dom.js';
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
@@ -34,7 +34,6 @@ import { Command, InlineCompletionTriggerKind, InlineCompletionWarning } from '.
 import { PositionAffinity } from '../../../../common/model.js';
 import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from '../controller/commandIds.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
-import { n } from '../view/inlineEdits/utils.js';
 import './inlineCompletionsHintsWidget.css';
 
 export class InlineCompletionsHintsWidget extends Disposable {

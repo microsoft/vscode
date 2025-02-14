@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, h } from '../../../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, constObservable, autorun } from '../../../../../../base/common/observable.js';
-import { buttonBackground, buttonForeground, buttonSeparator } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
-import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { OffsetRange } from '../../../../../common/core/offsetRange.js';
-import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { localize } from '../../../../../../nls.js';
+import { addDisposableListener, h } from '../../../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, constObservable } from '../../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../../nls.js';
+import { buttonBackground, buttonForeground, buttonSeparator } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { registerColor } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
 
 export interface IInlineEditsIndicatorState {
 	editTop: number;

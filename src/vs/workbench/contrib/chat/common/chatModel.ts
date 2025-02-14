@@ -21,9 +21,10 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent, reviveSerializedAgent } from './chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 
 export interface IBaseChatRequestVariableEntry {
@@ -143,6 +144,14 @@ export interface IChatTextEditGroup {
 	done: boolean | undefined;
 }
 
+export interface IChatNotebookEditGroup {
+	uri: URI;
+	edits: ICellEditOperation[][];
+	state?: IChatTextEditGroupState;
+	kind: 'notebookEditGroup';
+	done: boolean | undefined;
+}
+
 /**
  * Progress kinds that are included in the history of a response.
  * Excludes "internal" types that are included in history.
@@ -158,6 +167,7 @@ export type IChatProgressHistoryResponseContent =
 	| IChatWarningMessage
 	| IChatTask
 	| IChatTextEditGroup
+	| IChatNotebookEditGroup
 	| IChatConfirmation;
 
 /**
@@ -376,6 +386,7 @@ class AbstractResponse implements IResponse {
 					segment = { text: part.command.title, isBlock: true };
 					break;
 				case 'textEditGroup':
+				case 'notebookEditGroup':
 					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
 					break;
 				case 'confirmation':
@@ -459,7 +470,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._updateRepr(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatTask | IChatUndoStop, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatUndoStop, quiet?: boolean): void {
 		if (progress.kind === 'markdownContent') {
 
 			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
@@ -477,27 +488,27 @@ export class Response extends AbstractResponse implements IDisposable {
 				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
 			}
 			this._updateRepr(quiet);
-		} else if (progress.kind === 'textEdit') {
-			// merge text edits for the same file no matter when they come in
+		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
+			// merge edits for the same file no matter when they come in
+			const groupKind = progress.kind === 'textEdit' ? 'textEditGroup' : 'notebookEditGroup';
 			let found = false;
 			for (let i = 0; !found && i < this._responseParts.length; i++) {
 				const candidate = this._responseParts[i];
-				if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
-					candidate.edits.push(progress.edits);
+				if (candidate.kind === groupKind && isEqual(candidate.uri, progress.uri)) {
+					candidate.edits.push(progress.edits as any);
 					candidate.done = progress.done;
 					found = true;
 				}
 			}
 			if (!found) {
 				this._responseParts.push({
-					kind: 'textEditGroup',
+					kind: groupKind,
 					uri: progress.uri,
-					edits: [progress.edits],
+					edits: [progress.edits as any],
 					done: progress.done
 				});
 			}
 			this._updateRepr(quiet);
-
 		} else if (progress.kind === 'progressTask') {
 			// Add a new resolving part
 			const responsePosition = this._responseParts.push(progress) - 1;
@@ -707,7 +718,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	/**
 	 * Apply a progress update to the actual response content.
 	 */
-	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit, quiet?: boolean) {
+	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit, quiet?: boolean) {
 		this.bufferWhenPaused(() => this._response.updateContent(responsePart, quiet));
 	}
 
@@ -1427,6 +1438,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			progress.kind === 'progressMessage' ||
 			progress.kind === 'command' ||
 			progress.kind === 'textEdit' ||
+			progress.kind === 'notebookEdit' ||
 			progress.kind === 'warning' ||
 			progress.kind === 'progressTask' ||
 			progress.kind === 'confirmation' ||

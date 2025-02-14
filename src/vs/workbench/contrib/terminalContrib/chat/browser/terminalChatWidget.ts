@@ -446,6 +446,14 @@ export class TerminalChatWidget extends Disposable {
 						uri: item.uri
 					});
 				}
+			} else if (item.kind === 'notebookEditGroup') {
+				for (const group of item.edits) {
+					message.push({
+						kind: 'notebookEdit',
+						edits: group,
+						uri: item.uri
+					});
+				}
 			} else {
 				message.push(item);
 			}
