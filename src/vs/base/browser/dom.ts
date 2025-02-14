@@ -19,6 +19,8 @@ import { URI } from '../common/uri.js';
 import { hash } from '../common/hash.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
 import { isPointWithinTriangle } from '../common/numbers.js';
+export * from './domImpl/domObservable.js';
+export * from './domImpl/n.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;

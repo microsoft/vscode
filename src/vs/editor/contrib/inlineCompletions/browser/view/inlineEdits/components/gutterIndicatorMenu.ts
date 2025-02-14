@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
-import { IObservable, autorun, constObservable, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { OS } from '../../../../../../base/common/platform.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { localize } from '../../../../../../nls.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { Command } from '../../../../../common/languages.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId } from '../../controller/commandIds.js';
-import { ChildNode, FirstFnArg, InlineEditTabAction, LiveElement, n } from './utils.js';
+import { ChildNode, LiveElement, n } from '../../../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../../../../../../base/common/keybindings.js';
+import { IObservable, autorun, constObservable, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
+import { OS } from '../../../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../../nls.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { Command } from '../../../../../../common/languages.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId } from '../../../controller/commandIds.js';
+import { FirstFnArg, InlineEditTabAction } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
 	constructor(
