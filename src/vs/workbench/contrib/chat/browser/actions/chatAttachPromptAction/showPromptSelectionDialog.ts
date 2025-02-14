@@ -6,19 +6,15 @@
 import { IChatWidget } from '../../chat.js';
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { WithUriValue } from '../../../../../../base/common/types.js';
 import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
-import { IPrompt, IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
+import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
-
-/**
- * Type for an {@link IQuickPickItem} with its `value` property being a `URI`.
- */
-type WithUriValue<T extends IQuickPickItem> = T & { value: URI };
 
 /**
  * Options for the {@link showSelectPromptDialog} function.
@@ -67,7 +63,7 @@ interface IPromptSelectionResult {
  * Creates a quick pick item for a prompt.
  */
 const createPickItem = (
-	{ uri }: IPrompt,
+	{ uri }: IPromptPath,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
 	const fileBasename = basename(uri);
@@ -181,7 +177,7 @@ export const showSelectPromptDialog = async (
 	// keep track of whether the `alt` (`option` on mac) key is
 	// pressed when a prompt item is selected in the dialog
 	let altOption = false;
-	if (!location) {
+	if (!widget) {
 		pickOptions.onKeyMods = (keyMods) => {
 			if (keyMods.alt) {
 				altOption = true;

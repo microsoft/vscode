@@ -273,7 +273,10 @@ export class ApplyCodeBlockOperation {
 			const response: ICodeMapperResponse = {
 				textEdit: (target: URI, edit: TextEdit[]) => {
 					executor.emitOne(edit);
-				}
+				},
+				notebookEdit(_resource, _edit) {
+					//
+				},
 			};
 			const result = await this.codeMapperService.mapCode(request, response, token);
 			if (result?.errorMessage) {

@@ -1865,12 +1865,18 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this._push(remote, undefined, false, false, forcePushMode, true));
 	}
 
-	async blame(path: string): Promise<string> {
-		return await this.run(Operation.Blame(true), () => this.repository.blame(path));
+	async blame(filePath: string): Promise<string> {
+		return await this.run(Operation.Blame(true), () => {
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.blame(path);
+		});
 	}
 
-	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
-		return await this.run(Operation.Blame(false), () => this.repository.blame2(path, ref));
+	async blame2(filePath: string, ref?: string): Promise<BlameInformation[] | undefined> {
+		return await this.run(Operation.Blame(false), () => {
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.blame2(path, ref);
+		});
 	}
 
 	@throttle
@@ -2017,7 +2023,10 @@ export class Repository implements Disposable {
 	}
 
 	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
-		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
+		return this.run(Operation.GetObjectDetails, () => {
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.getObjectDetails(ref, path);
+		});
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {

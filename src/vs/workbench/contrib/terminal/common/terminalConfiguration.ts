@@ -378,7 +378,7 @@ const terminalConfiguration: IConfigurationNode = {
 			scope: ConfigurationScope.RESOURCE
 		},
 		[TerminalSettingId.ConfirmOnExit]: {
-			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions."),
+			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions. Background terminals like those launched by some extensions will not trigger the confirmation."),
 			type: 'string',
 			enum: ['never', 'always', 'hasChildProcesses'],
 			enumDescriptions: [
