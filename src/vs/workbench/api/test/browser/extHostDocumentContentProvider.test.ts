@@ -54,6 +54,7 @@ suite('ExtHostDocumentContentProvider', () => {
 				versionId: 1,
 				lines: ['foo'],
 				EOL: '\n',
+				encoding: 'utf8'
 			}]
 		});
 		documentContentProvider = new ExtHostDocumentContentProvider(ehContext, documentsAndEditors, new NullLogService());

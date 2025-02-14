@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { raceCancellation, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -34,11 +34,12 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorBackground, editorSelectionBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
-import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { IResolvedTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryNavigator, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -184,6 +185,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService,
+		@ILabelService labelService: ILabelService
 	) {
 		super();
 		if (kind === ChatEditKind.Created) {
@@ -245,6 +248,26 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			const tempValue = this._reviewModeTempObs.read(r);
 			return tempValue ?? configuredValue === 0;
 		});
+
+		// block auto-save while rewrite is in progress
+
+		this._register(textFileService.files.addSaveParticipant({
+
+			ordinal: Number.MIN_SAFE_INTEGER,
+
+			participate: async (model, context, progress, token) => {
+				if (!isEqual(model.resource, this.modifiedURI) || context.reason === SaveReason.EXPLICIT) {
+					return;
+				}
+
+				progress.report({ message: localize('saveBlock', "Save waits for Chat Edits rewriting {0}...", labelService.getUriBasenameLabel(this.modifiedURI)) });
+
+				await raceCancellation(
+					waitForState(this.isCurrentlyBeingModifiedBy, value => !value),
+					token
+				);
+			},
+		}));
 	}
 
 	override dispose(): void {

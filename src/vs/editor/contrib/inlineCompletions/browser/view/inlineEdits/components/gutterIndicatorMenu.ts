@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
-import { IObservable, autorun, constObservable, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { OS } from '../../../../../../base/common/platform.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { localize } from '../../../../../../nls.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { Command } from '../../../../../common/languages.js';
-import { AcceptInlineCompletion, HideInlineCompletion, JumpToNextInlineEdit } from '../../controller/commands.js';
-import { ChildNode, FirstFnArg, InlineEditTabAction, LiveElement, n } from './utils.js';
+import { ChildNode, LiveElement, n } from '../../../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../../../../../../base/common/keybindings.js';
+import { IObservable, autorun, constObservable, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
+import { OS } from '../../../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../../nls.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { Command } from '../../../../../../common/languages.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId } from '../../../controller/commandIds.js';
+import { FirstFnArg, InlineEditTabAction } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
 	constructor(
@@ -55,8 +56,12 @@ export class GutterIndicatorMenuContent {
 		// TODO make this menu contributable!
 		return hoverContent([
 			header(this._menuTitle),
-			option(createOptionArgs({ id: 'gotoAndAccept', title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`, icon: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight), commandId: this._tabAction.map(action => action === 'accept' ? new AcceptInlineCompletion().id : new JumpToNextInlineEdit().id) })),
-			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: new HideInlineCompletion().id })),
+			option(createOptionArgs({
+				id: 'gotoAndAccept', title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
+				icon: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight),
+				commandId: this._tabAction.map(action => action === 'accept' ? inlineSuggestCommitId : jumpToNextInlineEditId)
+			})),
+			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: hideInlineCompletionId })),
 			separator(),
 			this._extensionCommands?.map(c => c && c.length > 0 ? [
 				...c.map(c => option(createOptionArgs({ id: c.id, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments }))),
