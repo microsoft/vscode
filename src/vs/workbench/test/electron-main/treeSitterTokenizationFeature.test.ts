@@ -116,7 +116,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 	let languageConfigurationService: ILanguageConfigurationService;
 	const telemetryService: ITelemetryService = new MockTelemetryService();
 	const logService: ILogService = new NullLogService();
-	const configurationService: IConfigurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter': ['typescript'] });
+	const configurationService: IConfigurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter.typescript': true });
 	const themeService: IThemeService = new TestThemeService(new TestTreeSitterColorTheme());
 	let languageService: ILanguageService;
 	const environmentService: IEnvironmentService = {} as IEnvironmentService;

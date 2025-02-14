@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../media/chatEditorController.css';
-import { addStandardDisposableListener, getTotalWidth } from '../../../../../base/browser/dom.js';
+import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
@@ -19,7 +19,7 @@ import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRange
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../editor/common/viewModel.js';
 import { localize } from '../../../../../nls.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -35,19 +35,13 @@ import { isDiffEditorForEntry } from './chatEditing.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
-import { ChatEditorOverlayController } from './chatEditingEditorOverlay.js';
 import { IChatService } from '../../common/chatService.js';
-import { StableEditorScrollState } from '../../../../../editor/browser/stableEditorScroll.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-
-export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chat.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
-export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
-export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
-export const ctxReviewModeEnabled = new RawContextKey<boolean>('chat.ctxReviewModeEnabled', true, localize('chat.ctxReviewModeEnabled', "Review mode for chat changes is enabled"));
+import { IChatResponseModel } from '../../common/chatModel.js';
 
 export class ChatEditorController extends Disposable implements IEditorContribution {
 
@@ -62,12 +56,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _viewZones: string[] = [];
 
-	private readonly _overlayCtrl: ChatEditorOverlayController;
 
-	private readonly _ctxIsGlobalEditsSession: IContextKey<boolean>;
-	private readonly _ctxHasEditorModification: IContextKey<boolean>;
-	private readonly _ctxRequestInProgress: IContextKey<boolean>;
-	private readonly _ctxReviewModelEnabled: IContextKey<boolean>;
 
 	static get(editor: ICodeEditor): ChatEditorController | null {
 		return editor.getContribution<ChatEditorController>(ChatEditorController.ID);
@@ -82,8 +71,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
 
-	private _scrollLock: boolean = false;
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
@@ -96,24 +83,12 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	) {
 		super();
 
-		this._overlayCtrl = ChatEditorOverlayController.get(_editor)!;
-		this._ctxIsGlobalEditsSession = ctxIsGlobalEditingSession.bindTo(contextKeyService);
-		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
-		this._ctxRequestInProgress = ctxHasRequestInProgress.bindTo(contextKeyService);
-		this._ctxReviewModelEnabled = ctxReviewModeEnabled.bindTo(contextKeyService);
 
 		const editorObs = observableCodeEditor(this._editor);
 		const fontInfoObs = editorObs.getOption(EditorOption.fontInfo);
 		const lineHeightObs = editorObs.getOption(EditorOption.lineHeight);
 		const modelObs = editorObs.model;
 
-		this._store.add(autorun(r => {
-			let isStreamingEdits = false;
-			for (const session of _chatEditingService.editingSessionsObs.read(r)) {
-				isStreamingEdits ||= session.state.read(r) === ChatEditingSessionState.StreamingEdits;
-			}
-			this._ctxRequestInProgress.set(isStreamingEdits);
-		}));
 
 		const entryForEditor = derived(r => {
 			const model = modelObs.read(r);
@@ -128,7 +103,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				const chatModel = chatService.getSession(session.chatSessionId);
 
 				if (idx >= 0 && chatModel) {
-					return { session, chatModel, entry: entries[idx], entries, idx };
+					return { session, chatModel, entry: entries[idx], idx };
 				}
 			}
 
@@ -146,20 +121,13 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			).read(r);
 		});
 
-		let scrollState: StableEditorScrollState | undefined = undefined;
-		let didReveal = false;
-		this._register(autorun(r => {
-			const value = lastRequest.read(r);
-			scrollState = value ? StableEditorScrollState.capture(_editor) : undefined;
-			didReveal = false;
-		}));
+		let lastRevealedResponse: IChatResponseModel | undefined;
 
-		this._register(autorunWithStore((r, store) => {
+		this._register(autorun(r => {
 
 			const currentEditorEntry = entryForEditor.read(r);
 
 			if (!currentEditorEntry) {
-				this._ctxIsGlobalEditsSession.reset();
 				this._clear();
 				return;
 			}
@@ -169,42 +137,15 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				return;
 			}
 
-			const { session, entries, idx, entry } = currentEditorEntry;
-
-			this._ctxIsGlobalEditsSession.set(session.isGlobalEditingSession);
-			this._ctxReviewModelEnabled.set(entry.reviewMode.read(r));
+			const { idx, entry } = currentEditorEntry;
 
 			// context
 			this._currentEntryIndex.set(idx, undefined);
 
-			// overlay widget
-			if (entry.state.read(r) !== WorkingSetEntryState.Modified) {
-				this._overlayCtrl.hide();
-			} else {
-				this._overlayCtrl.showEntry(
-					session,
-					entry, entries[(idx + 1) % entries.length],
-					{
-						entryIndex: this._currentEntryIndex,
-						changeIndex: this._currentChangeIndex
-					}
-				);
-			}
 
 			// scrolling logic
-			if (entry.isCurrentlyBeingModifiedBy.read(r)) {
-				// while modified: scroll along unless locked
-				if (!this._scrollLock) {
-					const maxLineNumber = entry.maxLineNumber.read(r);
-					this._editor.revealLineNearTop(maxLineNumber, ScrollType.Smooth);
-				}
-				const domNode = this._editor.getDomNode();
-				if (domNode) {
-					store.add(addStandardDisposableListener(domNode, 'wheel', () => {
-						this._scrollLock = true;
-					}));
-				}
-			} else {
+			if (!entry.isCurrentlyBeingModifiedBy.read(r)) {
+
 				// done: render diff
 				fontInfoObs.read(r);
 				lineHeightObs.read(r);
@@ -223,14 +164,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					this._clearDiffRendering();
 				}
 
-				if (lastRequest.read(r)?.response?.isComplete) {
-					if (diff.identical) {
-						scrollState?.restore(_editor);
-						scrollState = undefined;
-					} else if (!didReveal) {
-						this._reveal(true, false, ScrollType.Immediate);
-						didReveal = true;
-					}
+				const response = lastRequest.read(r)?.response;
+				if (response?.isComplete && response !== lastRevealedResponse && !diff.identical) {
+					lastRevealedResponse = response;
+					this._reveal(true, false, ScrollType.Immediate);
 				}
 			}
 		}));
@@ -331,12 +268,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _clear() {
 		this._clearDiffRendering();
-		this._overlayCtrl.hide();
 		this._diffLineDecorations.clear();
 		this._currentChangeIndex.set(undefined, undefined);
 		this._currentEntryIndex.set(undefined, undefined);
-		this._ctxHasEditorModification.reset();
-		this._ctxReviewModelEnabled.reset();
 	}
 
 	private _clearDiffRendering() {
@@ -348,7 +282,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._viewZones = [];
 		this._diffHunksRenderStore.clear();
 		this._diffVisualDecorations.clear();
-		this._scrollLock = false;
 	}
 
 	private _updateDiffRendering(entry: IModifiedFileEntry, diff: IDocumentDiff, reviewMode: boolean): void {
@@ -558,7 +491,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	}
 
 	private _updateDiffLineDecorations(diff: IDocumentDiff): void {
-		this._ctxHasEditorModification.set(!diff.identical);
 
 		const modifiedLineDecorations: IModelDeltaDecoration[] = [];
 
@@ -569,10 +501,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			});
 		}
 		this._diffLineDecorations.set(modifiedLineDecorations);
-	}
-
-	unlockScroll(): void {
-		this._scrollLock = false;
 	}
 
 	initNavigation(): void {

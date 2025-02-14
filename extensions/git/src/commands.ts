@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, getCommitShortHash, grep, isDefined, isDescendant, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, getCommitShortHash, grep, isDefined, isDescendant, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -619,11 +619,10 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 
 async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
 	const config = workspace.getConfiguration('git', Uri.file(repository.root));
-	const diagnosticSource = config.get<string[]>('diagnosticsCommitHook.Source', []);
-	const diagnosticSeveritySetting = config.get<DiagnosticSeverityConfig>('diagnosticsCommitHook.Severity', 'error');
-	const diagnosticSeverity = toDiagnosticSeverity(diagnosticSeveritySetting);
+	const enabled = config.get<boolean>('diagnosticsCommitHook.Enabled', false) === true;
+	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.Sources', { '*': 'error' });
 
-	if (diagnosticSource.length === 0) {
+	if (!enabled) {
 		return true;
 	}
 
@@ -643,12 +642,34 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	}
 
 	const diagnostics = languages.getDiagnostics();
-	const changesDiagnostics = diagnostics.filter(([uri, diags]) =>
+	const changesDiagnostics = diagnostics.filter(([uri, diags]) => {
 		// File
-		changes.some(u => uri.scheme === 'file' && pathEquals(u.fsPath, uri.fsPath)) &&
-		// Severity
-		diags.some(d => d.source && diagnosticSource.includes(d.source) && d.severity <= diagnosticSeverity)
-	);
+		if (uri.scheme !== 'file' || !changes.find(c => pathEquals(c.fsPath, uri.fsPath))) {
+			return false;
+		}
+
+		// Diagnostics
+		return diags.find(d => {
+			// No source or ignored source
+			if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+				return false;
+			}
+
+			// Source severity
+			if (Object.keys(sourceSeverity).includes(d.source) &&
+				d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+				return true;
+			}
+
+			// Wildcard severity
+			if (Object.keys(sourceSeverity).includes('*') &&
+				d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+				return true;
+			}
+
+			return false;
+		});
+	});
 
 	if (changesDiagnostics.length === 0) {
 		return true;
@@ -659,7 +680,7 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	const view = l10n.t('View Problems');
 
 	const message = changesDiagnostics.length === 1
-		? l10n.t('The following file has unresolved diagnostic information: {0}.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
+		? l10n.t('The following file has unresolved diagnostic information: \'{0}\'.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
 		: l10n.t('There are {0} files that have unresolved diagnostic information.\n\nHow would you like to proceed?', changesDiagnostics.length);
 
 	const choice = await window.showWarningMessage(message, { modal: true }, commit, view);
@@ -2132,7 +2153,7 @@ export class CommandCenter {
 
 	private getDiscardUntrackedChangesDialogDetails(resources: Resource[]): [string, string, string] {
 		const config = workspace.getConfiguration('git');
-		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) === true;
+		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) && !isRemote;
 
 		const messageWarning = !untrackedChangesSoftDelete
 			? resources.length === 1

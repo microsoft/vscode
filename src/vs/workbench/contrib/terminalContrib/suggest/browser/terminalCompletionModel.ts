@@ -18,11 +18,11 @@ export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompl
 }
 
 const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionItem, b: TerminalCompletionItem) => {
-	// Boost inline completions first as matches should be first regardless of score
-	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+	// Boost always on top inline completions
+	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop && a.completion.kind !== b.completion.kind) {
 		return -1;
 	}
-	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop && a.completion.kind !== b.completion.kind) {
 		return 1;
 	}
 
@@ -30,6 +30,14 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	let score = b.score[0] - a.score[0];
 	if (score !== 0) {
 		return score;
+	}
+
+	// Boost inline completions
+	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return -1;
+	}
+	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return 1;
 	}
 
 	// Sort by underscore penalty (eg. `__init__/` should be penalized)

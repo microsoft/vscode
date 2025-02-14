@@ -52,9 +52,9 @@ export abstract class EditingSessionAction extends Action2 {
 		const context: IEditingSessionActionContext | undefined = args[0];
 
 		const chatEditingService = accessor.get(IChatEditingService);
-		const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
 
-		if (chatWidget?.location !== ChatAgentLocation.EditingSession || !chatWidget.viewModel) {
+		if (!chatWidget?.viewModel) {
 			return;
 		}
 
@@ -231,7 +231,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 	constructor() {
 		super({
 			id: 'chatEditing.acceptFile',
-			title: localize2('accept.file', 'Accept'),
+			title: localize2('accept.file', 'Keep'),
 			icon: Codicon.check,
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
@@ -256,7 +256,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 	constructor() {
 		super({
 			id: 'chatEditing.discardFile',
-			title: localize2('discard.file', 'Discard'),
+			title: localize2('discard.file', 'Undo'),
 			icon: Codicon.discard,
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
@@ -282,9 +282,9 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: 'chatEditing.acceptAllFiles',
-			title: localize('accept', 'Accept'),
+			title: localize('accept', 'Keep'),
 			icon: Codicon.check,
-			tooltip: localize('acceptAllEdits', 'Accept All Edits'),
+			tooltip: localize('acceptAllEdits', 'Keep All Edits'),
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -314,9 +314,9 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: 'chatEditing.discardAllFiles',
-			title: localize('discard', 'Discard'),
+			title: localize('discard', 'Undo'),
 			icon: Codicon.discard,
-			tooltip: localize('discardAllEdits', 'Discard All Edits'),
+			tooltip: localize('discardAllEdits', 'Undo All Edits'),
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			menu: [
 				{
@@ -348,7 +348,7 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 	const entries = currentEditingSession.entries.get();
 	if (entries.length > 0) {
 		const confirmation = await dialogService.confirm({
-			title: localize('chat.editing.discardAll.confirmation.title', "Discard all edits?"),
+			title: localize('chat.editing.discardAll.confirmation.title', "Undo all edits?"),
 			message: entries.length === 1
 				? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made by {0} in {1}. Do you want to proceed?", 'Copilot Edits', basename(entries[0].modifiedURI))
 				: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made by {0} in {1} files. Do you want to proceed?", 'Copilot Edits', entries.length),
@@ -572,7 +572,7 @@ registerAction2(class RemoveAction extends Action2 {
 
 			// Restore the snapshot to what it was before the request(s) that we deleted
 			const snapshotRequestId = chatRequests[itemIndex].id;
-			await session.restoreSnapshot(snapshotRequestId);
+			await session.restoreSnapshot(snapshotRequestId, undefined);
 
 			// Remove the request and all that come after it
 			for (const request of requestsToRemove) {

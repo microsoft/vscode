@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../browser/rect.js';
-import { HoverService } from '../../../../../browser/services/hoverService/hoverService.js';
-import { HoverWidget } from '../../../../../browser/services/hoverService/hoverWidget.js';
-import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../common/core/offsetRange.js';
-import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
-import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
+import { n, trackFocus } from '../../../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { Rect } from '../../../../../../browser/rect.js';
+import { HoverService } from '../../../../../../browser/services/hoverService/hoverService.js';
+import { HoverWidget } from '../../../../../../browser/services/hoverService/hoverWidget.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../../../common/core/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
+import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
+import { inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
+import { InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
-import { InlineEditTabAction, mapOutFalsy, n, rectToProps } from './utils.js';
-import { localize } from '../../../../../../nls.js';
-import { trackFocus } from '../../../../../../base/browser/dom.js';
-import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
-import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
-import { inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulForeground } from './theme.js';
 
 export class InlineEditsGutterIndicator extends Disposable {
 	constructor(
@@ -71,7 +71,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight)
 		: constObservable(0);
 
-	private readonly _layout = derived(reader => {
+	private readonly _layout = derived(this, reader => {
 		const s = this._state.read(reader);
 		if (!s) { return undefined; }
 

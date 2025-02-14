@@ -3298,31 +3298,28 @@
           "markdownDescription": "%config.commitShortHashLength%",
           "scope": "resource"
         },
-        "git.diagnosticsCommitHook.Severity": {
-          "type": "string",
-          "enum": [
-            "error",
-            "warning",
-            "information",
-            "hint"
-          ],
-          "enumDescriptions": [
-            "%config.diagnosticsCommitHook.Severity.error%",
-            "%config.diagnosticsCommitHook.Severity.warning%",
-            "%config.diagnosticsCommitHook.Severity.information%",
-            "%config.diagnosticsCommitHook.Severity.hint%"
-          ],
-          "default": "error",
-          "markdownDescription": "%config.diagnosticsCommitHook.Severity%",
+        "git.diagnosticsCommitHook.Enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.diagnosticsCommitHook.Enabled%",
           "scope": "resource"
         },
-        "git.diagnosticsCommitHook.Source": {
-          "type": "array",
-          "items": {
-            "type": "string"
+        "git.diagnosticsCommitHook.Sources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "information",
+              "hint",
+              "none"
+            ]
           },
-          "default": [],
-          "markdownDescription": "%config.diagnosticsCommitHook.Source%",
+          "default": {
+            "*": "error"
+          },
+          "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
           "scope": "resource"
         },
         "git.untrackedChangesSoftDelete": {

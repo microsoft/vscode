@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
-import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
-import { dirname, extUri } from '../../../../../base/common/resources.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { PROMPT_FILE_EXTENSION } from '../../common/promptSyntax/constants.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { PromptFilesConfig } from '../config.js';
+import { PROMPT_FILE_EXTENSION } from '../constants.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
+import { dirname, extUri } from '../../../../../../base/common/resources.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Class to locate prompt files.
  */
-export class ChatInstructionsFileLocator {
+export class PromptFilesLocator {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
@@ -28,35 +28,54 @@ export class ChatInstructionsFileLocator {
 	 * @param exclude List of `URIs` to exclude from the result.
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(exclude: ReadonlyArray<URI>): Promise<readonly URI[]> {
+	public async listFiles(
+		exclude: readonly URI[],
+	): Promise<readonly URI[]> {
+		return await this.listFilesIn(
+			this.getConfigBasedSourceFolders(),
+			exclude,
+		);
+	}
+
+	/**
+	 * Lists all prompt files in the provided folders.
+	 *
+	 * @param folders List of `URIs` to search for prompt files in.
+	 * @param exclude List of `URIs` to exclude from the result.
+	 * @returns List of prompt files found in the provided folders.
+	 */
+	public async listFilesIn(
+		folders: readonly URI[],
+		exclude: readonly URI[],
+	): Promise<readonly URI[]> {
 		// create a set from the list of URIs for convenience
 		const excludeSet: Set<string> = new Set();
 		for (const excludeUri of exclude) {
 			excludeSet.add(excludeUri.path);
 		}
 
-		// filter out the excluded paths from the locations list
-		const locations = this.getSourceLocations()
-			.filter((location) => {
-				return !excludeSet.has(location.path);
+		// filter out the excluded paths from the folders list
+		const cleanFolders = folders
+			.filter((folder) => {
+				return !excludeSet.has(folder.path);
 			});
 
-		return await this.findInstructionFiles(locations, excludeSet);
+		return await this.findInstructionFiles(cleanFolders, excludeSet);
 	}
 
 	/**
-	 * Get all possible prompt file locations based on the current
+	 * Get all possible prompt file source folders based on the current
 	 * workspace folder structure.
 	 *
-	 * @returns List of possible prompt file locations.
+	 * @returns List of possible prompt file folders.
 	 */
-	private getSourceLocations(): readonly URI[] {
+	public getConfigBasedSourceFolders(): readonly URI[] {
 		const paths = new ResourceSet();
-		const sourceLocations = PromptFilesConfig.sourceLocations(this.configService);
+		const sourceFolders = PromptFilesConfig.promptSourceFolders(this.configService);
 
 		// otherwise for each folder provided in the configuration, create
 		// a URI per each folder in the current workspace
-		for (const sourceFolderName of sourceLocations) {
+		for (const sourceFolderName of sourceFolders) {
 			// if source folder is an absolute path, add the path as is
 			// without trying to resolve it against the workspace folders
 			const sourceFolderUri = URI.file(sourceFolderName);
@@ -83,7 +102,7 @@ export class ChatInstructionsFileLocator {
 					continue;
 				}
 
-				// if inside a multi-root workspace, consider the specified source location
+				// if inside a multi-root workspace, consider the specified prompts source folder
 				// inside the workspace root, to allow users to use some (e.g., `.github/prompts`)
 				// folder as a top-level folder in the workspace
 				const workspaceRootUri = dirname(folder.uri);
@@ -93,9 +112,9 @@ export class ChatInstructionsFileLocator {
 					continue;
 				}
 
-				// otherwise, if the source location is inside a top-level workspace folder,
-				// add it to the list of paths too; this helps to handle the case when a
-				// relative path must be resolved from `root` of the workspace
+				// otherwise, if the prompt source folder is inside a top-level workspace folder,
+				// add it to the list of paths too; this helps to handle the case when a relative
+				// path must be resolved from `root` of the workspace
 				if (workspaceFolderUri.fsPath.startsWith(folder.uri.fsPath)) {
 					paths.add(workspaceFolderUri);
 				}
@@ -106,18 +125,18 @@ export class ChatInstructionsFileLocator {
 	}
 
 	/**
-	 * Finds all existent prompt files in the provided locations.
+	 * Finds all existent prompt files in the provided source folders.
 	 *
-	 * @param locations List of locations to search for prompt files in.
+	 * @param folders List of prompt file source folders to search for prompt files in.
 	 * @param exclude Map of `path -> boolean` to exclude from the result.
-	 * @returns List of prompt files found in the provided locations.
+	 * @returns List of prompt files found in the provided source folders.
 	 */
 	private async findInstructionFiles(
-		locations: readonly URI[],
+		folders: readonly URI[],
 		exclude: ReadonlySet<string>,
 	): Promise<readonly URI[]> {
 		const results = await this.fileService.resolveAll(
-			locations.map((resource) => {
+			folders.map((resource) => {
 				return { resource };
 			}),
 		);

@@ -159,6 +159,60 @@ export async function collectCompletionItemResult(
 	const addSuggestions = async (specArgs: SpecArg[] | Record<string, SpecArg> | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
 		if (kind === vscode.TerminalCompletionItemKind.Argument && parsedArguments?.currentArg?.generators) {
 			const generators = parsedArguments.currentArg.generators;
+			const initialFigState: FigState = {
+				buffer: terminalContext.commandLine,
+				cursorLocation: terminalContext.cursorPosition,
+				cwd: shellIntegrationCwd?.fsPath ?? null,
+				processUserIsIn: null,
+				sshContextString: null,
+				aliases: {},
+				environmentVariables: env,
+				shellContext: {
+					currentWorkingDirectory: shellIntegrationCwd?.fsPath,
+					environmentVariables: convertEnvRecordToArray(env),
+				},
+			};
+			const state: AutocompleteState = {
+				figState: initialFigState,
+				parserResult: parsedArguments,
+				generatorStates: [],
+				command,
+
+				visibleState: Visibility.HIDDEN_UNTIL_KEYPRESS,
+				lastInsertedSuggestion: null,
+				justInserted: false,
+
+				selectedIndex: 0,
+				suggestions: [],
+				hasChangedIndex: false,
+
+				historyModeEnabled: false,
+				fuzzySearchEnabled: false,
+				userFuzzySearchEnabled: false,
+			};
+			const s = createGeneratorState(state);
+			const generatorResults = s.triggerGenerators(parsedArguments);
+			for (const generatorResult of generatorResults) {
+				for (const item of (await generatorResult?.request) ?? []) {
+					if (!item.name) {
+						continue;
+					}
+					const suggestionLabels = getFigSuggestionLabel(item);
+					if (!suggestionLabels) {
+						continue;
+					}
+					for (const label of suggestionLabels) {
+						items.push(createCompletionItem(
+							terminalContext.cursorPosition,
+							prefix,
+							{ label },
+							undefined,
+							typeof item === 'string' ? item : item.description,
+							kind
+						));
+					}
+				}
+			}
 			for (const generator of generators) {
 				// Only some templates are supported, these are applied generally before calling
 				// into the general fig code for now
@@ -169,61 +223,6 @@ export async function collectCompletionItemResult(
 							filesRequested = true;
 						} else if (template === 'folders') {
 							foldersRequested = true;
-						}
-					}
-				}
-
-				const initialFigState: FigState = {
-					buffer: terminalContext.commandLine,
-					cursorLocation: terminalContext.cursorPosition,
-					cwd: shellIntegrationCwd?.fsPath ?? null,
-					processUserIsIn: null,
-					sshContextString: null,
-					aliases: {},
-					environmentVariables: env,
-					shellContext: {
-						currentWorkingDirectory: shellIntegrationCwd?.fsPath,
-						environmentVariables: convertEnvRecordToArray(env),
-					},
-				};
-				const state: AutocompleteState = {
-					figState: initialFigState,
-					parserResult: parsedArguments,
-					generatorStates: [],
-					command,
-
-					visibleState: Visibility.HIDDEN_UNTIL_KEYPRESS,
-					lastInsertedSuggestion: null,
-					justInserted: false,
-
-					selectedIndex: 0,
-					suggestions: [],
-					hasChangedIndex: false,
-
-					historyModeEnabled: false,
-					fuzzySearchEnabled: false,
-					userFuzzySearchEnabled: false,
-				};
-				const s = createGeneratorState(state);
-				const generatorResults = s.triggerGenerators(parsedArguments);
-				for (const generatorResult of generatorResults) {
-					for (const item of (await generatorResult?.request) ?? []) {
-						if (!item.name) {
-							continue;
-						}
-						const suggestionLabels = getFigSuggestionLabel(item);
-						if (!suggestionLabels) {
-							continue;
-						}
-						for (const label of suggestionLabels) {
-							items.push(createCompletionItem(
-								terminalContext.cursorPosition,
-								prefix,
-								{ label },
-								undefined,
-								typeof item === 'string' ? item : item.description,
-								kind
-							));
 						}
 					}
 				}

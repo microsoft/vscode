@@ -15,8 +15,8 @@ vsc_env_values=()
 use_associative_array=0
 bash_major_version=${BASH_VERSINFO[0]}
 
-__vscode_disable_env_reporting="$VSCODE_DISABLE_ENV_REPORTING"
-unset VSCODE_DISABLE_ENV_REPORTING
+__vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
+unset VSCODE_SHELL_ENV_REPORTING
 
 if (( BASH_VERSINFO[0] >= 4 )); then
 	use_associative_array=1
@@ -303,8 +303,7 @@ __trackMissingEnvVars() {
 }
 
 __vsc_update_env() {
-	# Only use shell env API for non-Windows, and Windows with newer conpty-dll
-	if [[ "$__vsc_is_windows" = "0" || "$__vscode_disable_env_reporting" != "1" ]]; then
+	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
 
 		if [ "$use_associative_array" = 1 ]; then
@@ -337,7 +336,6 @@ __vsc_update_env() {
 				done < <(env)
 				__trackMissingEnvVars
 			fi
-
 
 		fi
 		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
@@ -400,9 +398,7 @@ __vsc_precmd() {
 	fi
 	__vsc_first_prompt=1
 	__vsc_update_prompt
-	if [ "$__vsc_stable" = "0" ]; then
-		__vsc_update_env
-	fi
+	__vsc_update_env
 }
 
 __vsc_preexec() {
