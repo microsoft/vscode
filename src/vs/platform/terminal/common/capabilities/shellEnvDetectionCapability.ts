@@ -7,22 +7,23 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IShellEnvDetectionCapability, TerminalCapability } from './capabilities.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { equals } from '../../../../base/common/objects.js';
+// eslint-disable-next-line local/code-import-patterns
+import { TerminalShellIntegrationEnvironment } from 'vscode';
 
 export class ShellEnvDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
 	readonly type = TerminalCapability.ShellEnvDetection;
 
 	private _pendingEnv: Map<string, string> | undefined;
 	private _env: Map<string, string> = new Map();
-	get env(): Map<string, string> { return this._env; }
+	private _isTrusted: boolean = false;
+	get env(): { value: { [key: string]: string }; isTrusted: boolean } {
+		return { value: Object.fromEntries(this._env), isTrusted: this._isTrusted };
+	}
 
-	private readonly _onDidChangeEnv = this._register(new Emitter<Map<string, string>>());
+	private readonly _onDidChangeEnv = this._register(new Emitter<TerminalShellIntegrationEnvironment>());
 	readonly onDidChangeEnv = this._onDidChangeEnv.event;
 
 	setEnvironment(env: { [key: string]: string | undefined }, isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
-
 		if (equals(this._env, env)) {
 			return;
 		}
@@ -35,27 +36,18 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		}
 
 		// Convert to event and fire event
-		this._onDidChangeEnv.fire(this._env);
+		this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
 	}
 
 	startEnvironmentSingleVar(isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
 		this._pendingEnv = new Map();
 	}
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
 		if (key !== undefined && value !== undefined) {
 			this._pendingEnv?.set(key, value);
 		}
 	}
 	endEnvironmentSingleVar(isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
 		if (!this._pendingEnv) {
 			return;
 		}
@@ -64,13 +56,10 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 	}
 
 	deleteEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
 		if (key !== undefined && value !== undefined) {
 			this._env.delete(key);
 			this._pendingEnv?.delete(key);
-			this._onDidChangeEnv.fire(this._env);
+			this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
 		}
 		return;
 	}
@@ -86,17 +75,17 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		for (const [key, value] of env.entries()) {
 			if (this._env.has(key) && this._env.get(key) === value) {
 				// Do nothing
-			} else if (this.env.has(key) && value !== this.env.get(key)) {
+			} else if (this._env.has(key) && value !== this._env.get(key)) {
 				this._env.set(key, value);
 				envDiffers = true;
-			} else if (!this.env.has(key)) {
+			} else if (!this._env.has(key)) {
 				this._env.set(key, value);
 				envDiffers = true;
 			}
 		}
 
 		if (envDiffers) {
-			this._onDidChangeEnv.fire(this._env);
+			this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
 			return;
 		}
 	}
