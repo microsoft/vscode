@@ -833,10 +833,8 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 	private async getValidatedEncodingForResource(resource: URI, preferredEncoding?: string): Promise<string> {
 		let fileEncoding = this.getUnvalidatedEncodingForResource(resource, preferredEncoding);
-		if (fileEncoding !== UTF8) {
-			if (!(await encodingExists(fileEncoding))) {
-				fileEncoding = UTF8;
-			}
+		if (fileEncoding !== UTF8 && !(await encodingExists(fileEncoding))) {
+			fileEncoding = UTF8;
 		}
 
 		return fileEncoding;

@@ -1140,7 +1140,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return false;
 			}
 
-			return await this.save({ source: TextFileEditorModel.TEXTFILE_SAVE_ENCODING_SOURCE });
+			return this.save({ source: TextFileEditorModel.TEXTFILE_SAVE_ENCODING_SOURCE });
 		}
 
 		// Decode: Resolve with encoding
@@ -1149,15 +1149,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return true; // return early if the encoding is already the same
 			}
 
+			let saved = undefined;
 			if (this.isDirty() && !this.inConflictMode) {
-				await this.save();
+				saved = await this.save();
 			}
 
 			this.updatePreferredEncoding(encoding);
 
 			await this.forceResolveFromFile();
 
-			return true;
+			return saved === false ? false : true; // signal back if model was saved
 		}
 	}
 
