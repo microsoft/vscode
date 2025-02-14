@@ -160,7 +160,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		let result = `${value.substring(0, this.cursorIndex)}|`;
 		if (this.ghostTextIndex !== -1) {
 			result += `${value.substring(this.cursorIndex, this.ghostTextIndex)}[`;
-			result += `${value.substring(this.ghostTextIndex)}]`;
+			result += `${value.trimEnd().substring(this.ghostTextIndex)}]`;
 		} else {
 			result += value.substring(this.cursorIndex);
 		}
