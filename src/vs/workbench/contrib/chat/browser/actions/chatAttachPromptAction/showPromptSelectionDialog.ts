@@ -11,7 +11,7 @@ import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
-import { IPrompt, IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -63,7 +63,7 @@ interface IPromptSelectionResult {
  * Creates a quick pick item for a prompt.
  */
 const createPickItem = (
-	{ uri }: IPrompt,
+	{ uri }: IPromptPath,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
 	const fileBasename = basename(uri);

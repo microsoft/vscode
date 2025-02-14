@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPrompt, IPromptsService } from './types.js';
+import { IPromptPath, IPromptsService } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
@@ -81,7 +81,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cache.get(model);
 	}
 
-	public async listPromptFiles(): Promise<readonly IPrompt[]> {
+	public async listPromptFiles(): Promise<readonly IPromptPath[]> {
 		const globalLocations = [this.userDataService.currentProfile.promptsHome];
 
 		const prompts = await Promise.all([
@@ -95,8 +95,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public getSourceFolders(
-		type: IPrompt['type'],
-	): readonly IPrompt[] {
+		type: IPromptPath['type'],
+	): readonly IPromptPath[] {
 		// sanity check to make sure we don't miss a new prompt type
 		// added in the future
 		assert(
@@ -106,7 +106,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const prompts = (type === 'global')
 			? [this.userDataService.currentProfile.promptsHome]
-			: this.fileLocator.getSourceLocations();
+			: this.fileLocator.getConfigBasedSourceFolders();
 
 		return prompts.map(addType(type));
 	}
@@ -117,7 +117,7 @@ export class PromptsService extends Disposable implements IPromptsService {
  */
 const addType = (
 	type: 'local' | 'global',
-): (uri: URI) => IPrompt => {
+): (uri: URI) => IPromptPath => {
 	return (uri) => {
 		return { uri, type: type };
 	};
@@ -128,7 +128,7 @@ const addType = (
  */
 const withType = (
 	type: 'local' | 'global',
-): (uris: readonly URI[]) => (readonly IPrompt[]) => {
+): (uris: readonly URI[]) => (readonly IPromptPath[]) => {
 	return (uris) => {
 		return uris
 			.map(addType(type));

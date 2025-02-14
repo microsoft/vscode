@@ -13,25 +13,25 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  *         This comment is tracked by [#13119](https://github.com/microsoft/vscode-copilot/issues/13119).
  *
  * Configuration helper for the `prompt files` feature.
- * @see {@link CONFIG_KEY} and {@link DEFAULT_LOCATION}
+ * @see {@link CONFIG_KEY} and {@link DEFAULT_SOURCE_FOLDER}
  *
  * ### Functions
  *
  * - {@link getValue} allows to current read configuration value
  * - {@link enabled} allows to check if the feature is enabled
- * - {@link sourceLocations} gets the source folder locations for prompt files
+ * - {@link promptSourceFolders} gets list of source folders for prompt files
  *
  * ### Configuration Examples
  *
- * Enable the feature, using defaults for prompt files source folder locations
- * (see {@link DEFAULT_LOCATION}):
+ * Enable the feature, using defaults for prompt files source folders
+ * (see {@link DEFAULT_SOURCE_FOLDER}):
  * ```json
  * {
  *   "chat.promptFiles": true,
  * }
  * ```
  *
- * Enable the feature, specifying a single prompt files source folder location,
+ * Enable the feature, specifying a single prompt files source folders,
  * in addition to the default `'.github/prompts'` one:
  * ```json
  * {
@@ -39,7 +39,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * }
  * ```
  *
- * Enable the feature, specifying multiple prompt files source folder locations,
+ * Enable the feature, specifying multiple prompt files source folders,
  * in addition to the default `'.github/prompts'` one:
  * ```json
  * {
@@ -50,7 +50,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * }
  * ```
  *
- * Enable the feature, specifying multiple prompt files source folder locations,
+ * Enable the feature, specifying multiple prompt files source folders,
  * in addition to the default `'.github/prompts'` one:
  * ```json
  * {
@@ -67,8 +67,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * and the `workspace` settings. On the other hand, the "object" case provides
  * more flexibility - the settings are combined into a single object.
  *
- * Enable the feature, using defaults for prompt files source folder locations
- * (see {@link DEFAULT_LOCATION}):
+ * Enable the feature, using defaults for prompt files source folders
+ * (see {@link DEFAULT_SOURCE_FOLDER}):
  * ```jsonc
  * {
  *   "chat.promptFiles": {}, // same as setting to `true`
@@ -81,37 +81,37 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  *
  * - `undefined`/`null`: feature is disabled
  * - `boolean`:
- *   - `true`: feature is enabled, prompt files source folder locations
- *             fallback to {@link DEFAULT_LOCATION}
+ *   - `true`: feature is enabled, prompt files source folders
+ *             fallback to {@link DEFAULT_SOURCE_FOLDER}
  *   - `false`: feature is disabled
  * - `string`:
  *   - values that can be mapped to `boolean`(`"true"`, `"FALSE", "TrUe"`, etc.)
  *     are treated the same as the `boolean` case above
  *   - any other `non-empty` string value is treated as a single prompt files source folder path,
- *     which is used in addition to the default {@link DEFAULT_LOCATION}
+ *     which is used in addition to the default {@link DEFAULT_SOURCE_FOLDER}
  *   - `empty` string value is treated the same as the `undefined`/`null` case above (disabled)
  * - `object`:
  *   - expects the { "string": `boolean` } pairs, where the `string` is a path and the `boolean`
- *     is a flag that defines if this additional source folder location is enabled or disabled;
- *     enabled locations are used in addition to the default {@link DEFAULT_LOCATION} location
- *     you can explicitly disable the default location by setting it to `false` in the object
+ *     is a flag that defines if this additional source folder is enabled or disabled;
+ *     enabled source folders are used in addition to the default {@link DEFAULT_SOURCE_FOLDER} path
+ *     you can explicitly disable the default source folder by setting it to `false` in the object
  *   - value of a record in the object can also be a `string`:
  *     - if the string can be clearly mapped to a `boolean` (e.g., `"true"`, `"FALSE", "TrUe"`, etc.),
  *       it is treated as `boolean` value
  *     - any other string value is treated as `false` and is effectively ignored
  *   - if the record `key` is an `empty` string, it is ignored
  *   - if the resulting object is empty, the feature is considered `enabled`, prompt files source
- *     folder locations fallback to {@link DEFAULT_LOCATION}
+ *     folders fallback to {@link DEFAULT_SOURCE_FOLDER}
  * - `array`:
  *   - `string` items(non-empty) in the array are treated as prompt files source folder paths,
- *     in addition to the default {@link DEFAULT_LOCATION} location
+ *     in addition to the default {@link DEFAULT_SOURCE_FOLDER} folder
  *   - all `non-string` items in the array are `ignored`
  *   - if the resulting array is empty, the feature is considered `enabled`, prompt files
- *     source folder locations fallback to {@link DEFAULT_LOCATION}
+ *     source folders fallback to {@link DEFAULT_SOURCE_FOLDER}
  *
  * ### File Paths Resolution
  *
- * We resolve only `*.prompt.md` files inside the resulting source folder locations and
+ * We resolve only `*.prompt.md` files inside the resulting source folders and
  * all `relative` folder paths are resolved relative to:
  *
  * - the current workspace `root`, if applicable, in other words one of the workspace folders
@@ -127,9 +127,9 @@ export namespace PromptFilesConfig {
 	export const CONFIG_KEY: string = 'chat.promptFiles';
 
 	/**
-	 * Default reusable prompt files location.
+	 * Default reusable prompt files source folder.
 	 */
-	export const DEFAULT_LOCATION = '.github/prompts';
+	export const DEFAULT_SOURCE_FOLDER = '.github/prompts';
 
 	/**
 	 * Get value of the `prompt files` configuration setting.
@@ -204,23 +204,23 @@ export namespace PromptFilesConfig {
 	};
 
 	/**
-	 * Gets the source folder locations for prompt files.
-	 * Defaults to {@link DEFAULT_LOCATION}.
+	 * Gets list of source folders for prompt files.
+	 * Defaults to {@link DEFAULT_SOURCE_FOLDER}.
 	 */
-	export const sourceLocations = (
+	export const promptSourceFolders = (
 		configService: IConfigurationService,
 	): string[] => {
 		const value = getValue(configService);
 
 		if (value === true) {
-			return [DEFAULT_LOCATION];
+			return [DEFAULT_SOURCE_FOLDER];
 		}
 
 		if (typeof value === 'string') {
-			const result = [DEFAULT_LOCATION];
+			const result = [DEFAULT_SOURCE_FOLDER];
 			const trimmedValue = value.trim();
 
-			if (trimmedValue !== DEFAULT_LOCATION) {
+			if (trimmedValue !== DEFAULT_SOURCE_FOLDER) {
 				result.push(trimmedValue);
 			}
 
@@ -228,12 +228,12 @@ export namespace PromptFilesConfig {
 		}
 
 		if (Array.isArray(value)) {
-			const result = [DEFAULT_LOCATION];
+			const result = [DEFAULT_SOURCE_FOLDER];
 
 			return [
 				...result,
 				...value.filter((item) => {
-					return item !== DEFAULT_LOCATION;
+					return item !== DEFAULT_SOURCE_FOLDER;
 				}),
 			];
 		}
@@ -242,14 +242,14 @@ export namespace PromptFilesConfig {
 		if (value && (typeof value === 'object')) {
 			const paths: string[] = [];
 
-			// if the default location is not explicitly disabled, add it
-			if (value[DEFAULT_LOCATION] !== false) {
-				paths.push(DEFAULT_LOCATION);
+			// if the default source folder is not explicitly disabled, add it
+			if (value[DEFAULT_SOURCE_FOLDER] !== false) {
+				paths.push(DEFAULT_SOURCE_FOLDER);
 			}
 
 			// copy all the enabled paths to the result list
 			for (const [path, enabled] of Object.entries(value)) {
-				if (enabled && path !== DEFAULT_LOCATION) {
+				if (enabled && path !== DEFAULT_SOURCE_FOLDER) {
 					paths.push(path);
 				}
 			}

@@ -127,7 +127,10 @@ export class EditTool implements IToolImpl {
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });
-			}
+			},
+			notebookEdit(target, edits) {
+				model.acceptResponseProgress(request, { kind: 'notebookEdit', uri: target, edits });
+			},
 		}, token);
 
 		model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });

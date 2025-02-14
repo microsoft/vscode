@@ -343,6 +343,12 @@ export interface ITextFileSaveParticipantContext {
 export interface ITextFileSaveParticipant {
 
 	/**
+	 * The ordinal number which determines the order of participation.
+	 * Lower values mean to participant sooner
+	 */
+	readonly ordinal?: number;
+
+	/**
 	 * Participate in a save of a model. Allows to change the model
 	 * before it is being saved to disk.
 	 */
