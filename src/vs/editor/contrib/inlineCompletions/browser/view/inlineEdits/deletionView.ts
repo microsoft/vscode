@@ -14,7 +14,7 @@ import { Range } from '../../../../../common/core/range.js';
 import { IInlineEditsView } from './sideBySideDiff.js';
 import { getOriginalBorderColor, originalBackgroundColor } from './theme.js';
 import { createRectangle, getPrefixTrim, InlineEditTabAction, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
-import { InlineEditWithChanges } from './viewAndDiffProducer.js';
+import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs = observableCodeEditor(this._editor);

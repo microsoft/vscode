@@ -25,7 +25,7 @@ import { InlineEditsInsertionView } from './insertionView.js';
 import { InlineEditsSideBySideDiff } from './sideBySideDiff.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit, InlineEditTabAction } from './utils.js';
 import './view.css';
-import { InlineEditWithChanges } from './viewAndDiffProducer.js';
+import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 import { LineReplacementView, WordReplacementView } from './replacementViews.js';
 
 export class InlineEditsView extends Disposable {

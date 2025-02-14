@@ -16,7 +16,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { Command } from '../../../../../common/languages.js';
-import { AcceptInlineCompletion, HideInlineCompletion, JumpToNextInlineEdit } from '../../controller/commands.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId } from '../../controller/commandIds.js';
 import { ChildNode, FirstFnArg, InlineEditTabAction, LiveElement, n } from './utils.js';
 
 export class GutterIndicatorMenuContent {
@@ -55,8 +55,12 @@ export class GutterIndicatorMenuContent {
 		// TODO make this menu contributable!
 		return hoverContent([
 			header(this._menuTitle),
-			option(createOptionArgs({ id: 'gotoAndAccept', title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`, icon: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight), commandId: this._tabAction.map(action => action === 'accept' ? new AcceptInlineCompletion().id : new JumpToNextInlineEdit().id) })),
-			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: new HideInlineCompletion().id })),
+			option(createOptionArgs({
+				id: 'gotoAndAccept', title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
+				icon: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight),
+				commandId: this._tabAction.map(action => action === 'accept' ? inlineSuggestCommitId : jumpToNextInlineEditId)
+			})),
+			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: hideInlineCompletionId })),
 			separator(),
 			this._extensionCommands?.map(c => c && c.length > 0 ? [
 				...c.map(c => option(createOptionArgs({ id: c.id, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments }))),

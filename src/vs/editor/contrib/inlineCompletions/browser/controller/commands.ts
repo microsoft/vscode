@@ -17,7 +17,7 @@ import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
-import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
 
@@ -226,11 +226,10 @@ KeybindingsRegistry.registerKeybindingRule({
 	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
 });
 
-
 export class JumpToNextInlineEdit extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.inlineSuggest.jump',
+			id: jumpToNextInlineEditId,
 			label: nls.localize2('action.inlineSuggest.jump', "Jump to next inline edit"),
 			precondition: InlineCompletionContextKeys.inlineEditVisible,
 			menuOpts: [{
@@ -263,7 +262,7 @@ export class JumpToNextInlineEdit extends EditorAction {
 }
 
 export class HideInlineCompletion extends EditorAction {
-	public static ID = 'editor.action.inlineSuggest.hide';
+	public static ID = hideInlineCompletionId;
 
 	constructor() {
 		super({
