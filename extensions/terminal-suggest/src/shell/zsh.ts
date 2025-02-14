@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
-import { execHelper, getAliasesHelper, getZshBashBuiltins } from './common';
+import { execHelper, getAliasesHelper } from './common';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
@@ -13,7 +14,7 @@ export async function getZshGlobals(options: ExecOptionsWithStringEncoding, exis
 	}
 	return [
 		...await getAliases(options),
-		...await getZshBashBuiltins(options, 'printf "%s\\n" ${(k)builtins}', getCommandDescription, existingCommands),
+		...await getBuiltins(options, existingCommands),
 	];
 }
 
@@ -21,6 +22,44 @@ async function getAliases(options: ExecOptionsWithStringEncoding): Promise<IComp
 	return getAliasesHelper('zsh', ['-ic', 'alias'], /^(?<alias>[a-zA-Z0-9\.:-]+)=(?:'(?<resolved>.+)'|(?<resolved>.+))$/, options);
 }
 
+async function getBuiltins(
+	options: ExecOptionsWithStringEncoding,
+	existingCommands?: Set<string>,
+): Promise<(string | ICompletionResource)[]> {
+	const compgenOutput = await execHelper('printf "%s\\n" ${(k)builtins}', options);
+	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
+	const builtins: string[] = compgenOutput.split('\n').filter(filter);
+	const completions: ICompletionResource[] = [];
+	if (builtins.find(r => r === '.')) {
+		completions.push({
+			label: '.',
+			detail: 'Source a file in the current shell',
+			kind: vscode.TerminalCompletionItemKind.Method
+		});
+	}
+
+	for (const cmd of builtins) {
+		if (typeof cmd === 'string') {
+			try {
+				completions.push({
+					label: cmd,
+					documentation: getCommandDescription(cmd),
+					kind: vscode.TerminalCompletionItemKind.Method
+				});
+
+			} catch (e) {
+				// Ignore errors
+				console.log(`Error getting info for ${e}`);
+				completions.push({
+					label: cmd,
+					kind: vscode.TerminalCompletionItemKind.Method
+				});
+			}
+		}
+	}
+
+	return completions;
+}
 
 let cachedZshCommandDescriptions: Map<string, string> | undefined;
 async function createCommandsCache(options: ExecOptionsWithStringEncoding): Promise<void> {
