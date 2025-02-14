@@ -142,11 +142,14 @@ abstract class AcceptDiscardAction extends Action2 {
 		super({
 			id,
 			title: accept
-				? localize2('accept', 'Accept Chat Edit')
-				: localize2('discard', 'Discard Chat Edit'),
+				? localize2('accept', 'Keep Chat Edits')
+				: localize2('discard', 'Undo Chat Edits'),
 			shortTitle: accept
-				? localize2('accept2', 'Accept')
-				: localize2('discard2', 'Discard'),
+				? localize2('accept2', 'Keep')
+				: localize2('discard2', 'Undo'),
+			tooltip: accept
+				? localize2('accept3', 'Keep Chat Edits in this File')
+				: localize2('discard3', 'Undo Chat Edits in this File'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ctxHasEditorModification),
 			icon: accept
@@ -242,7 +245,7 @@ class RejectHunkAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'chatEditor.action.undoHunk',
-			title: localize2('undo', 'Discard this Change'),
+			title: localize2('undo', 'Undo this Change'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.discard,
@@ -268,7 +271,7 @@ class AcceptHunkAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'chatEditor.action.acceptHunk',
-			title: localize2('acceptHunk', 'Accept this Change'),
+			title: localize2('acceptHunk', 'Keep this Change'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.check,
@@ -381,7 +384,7 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 	constructor(readonly accept: boolean) {
 		super({
 			id: accept ? 'chatEditing.multidiff.acceptAllFiles' : 'chatEditing.multidiff.discardAllFiles',
-			title: accept ? localize('accept3', 'Accept All Edits') : localize('discard3', 'Discard All Edits'),
+			title: accept ? localize('accept4', 'Keep All Edits') : localize('discard4', 'Undo All Edits'),
 			icon: accept ? Codicon.check : Codicon.discard,
 			menu: {
 				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
