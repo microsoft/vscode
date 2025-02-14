@@ -118,7 +118,7 @@ export async function getZshBashBuiltins(
 				const description = (await execHelper(`${getInfo} ${cmd}`, options))?.trim();
 				completions.push({
 					label: cmd,
-					detail: description,
+					documentation: description,
 					kind: vscode.TerminalCompletionItemKind.Method
 				});
 
