@@ -2623,19 +2623,6 @@ export namespace NotebookEdit {
 			};
 		}
 	}
-	export function to(edit: extHostProtocol.ICellEditOperationDto): vscode.NotebookEdit {
-		switch (edit.editType) {
-			case CellEditType.Metadata:
-				return types.NotebookEdit.updateCellMetadata(edit.index, edit.metadata);
-			case CellEditType.DocumentMetadata:
-				return types.NotebookEdit.updateNotebookMetadata(edit.metadata);
-			case CellEditType.Replace:
-				return new types.NotebookEdit(new types.NotebookRange(edit.index, edit.index + edit.count), edit.cells.map(NotebookCellData.to));
-			default:
-				// Not possible to get here.
-				throw new Error('Invalid edit type');
-		}
-	}
 }
 
 
