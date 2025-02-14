@@ -97,7 +97,7 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 export async function getZshBashBuiltins(
 	options: ExecOptionsWithStringEncoding,
 	scriptToRun: string,
-	getInfo: string,
+	getInfo: string | ((description: string) => string | undefined),
 	existingCommands?: Set<string>,
 ): Promise<(string | ICompletionResource)[]> {
 	const compgenOutput = await execHelper(scriptToRun, options);
@@ -115,7 +115,12 @@ export async function getZshBashBuiltins(
 	for (const cmd of builtins) {
 		if (typeof cmd === 'string') {
 			try {
-				const description = (await execHelper(`${getInfo} ${cmd}`, options))?.trim();
+				let description;
+				if (typeof getInfo === 'string') {
+					description = (await execHelper(`${getInfo} ${cmd}`, options))?.trim();
+				} else {
+					description = getInfo(cmd);
+				}
 				completions.push({
 					label: cmd,
 					documentation: description,
@@ -135,4 +140,3 @@ export async function getZshBashBuiltins(
 
 	return completions;
 }
-
