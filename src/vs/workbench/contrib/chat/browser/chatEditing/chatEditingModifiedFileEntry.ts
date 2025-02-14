@@ -18,7 +18,7 @@ import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/di
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
 import { OffsetEdits } from '../../../../../editor/common/model/textModelOffsetEdit.js';
@@ -30,7 +30,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground, editorSelectionBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
@@ -47,6 +47,11 @@ class AutoAcceptControl {
 		readonly cancel: () => void
 	) { }
 }
+
+const pendingRewriteMinimap = registerColor('chatEdits.minimapColor',
+	transparent(editorBackground, 0.6),
+	localize('editorSelectionBackground', "Color of pending edit regions in the minimap"));
+
 
 export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
@@ -136,6 +141,10 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		isWholeLine: true,
 		description: 'chat-pending-edit',
 		className: 'chat-editing-pending-edit',
+		minimap: {
+			position: MinimapPosition.Inline,
+			color: themeColorFromId(pendingRewriteMinimap)
+		}
 	});
 
 	get telemetryInfo(): IModifiedEntryTelemetryInfo {

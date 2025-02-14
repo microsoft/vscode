@@ -12,14 +12,13 @@ import { IChatEditingSession, IModifiedFileEntry } from '../../common/chatEditin
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
-import { $, addDisposableGenericMouseMoveListener, append, EventLike, reset } from '../../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseMoveListener, append, reset } from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditingEditorActions.js';
-import { ChatEditorController } from './chatEditingEditorController.js';
 import '../media/chatEditorOverlay.css';
 import { findDiffEditorContainingCodeEditor } from '../../../../../editor/browser/widget/diffEditor/commands.js';
 import { IChatService } from '../../common/chatService.js';
@@ -110,10 +109,6 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 							} else {
 								return localize('tooltip_nm', "{0} changes in {1} files", changeCount, entriesCount);
 							}
-						}
-
-						override onClick(event: EventLike, preserveFocus?: boolean): void {
-							ChatEditorController.get(that._editor)?.unlockScroll();
 						}
 					};
 				}
