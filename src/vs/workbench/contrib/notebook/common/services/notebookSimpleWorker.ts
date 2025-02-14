@@ -237,8 +237,8 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	}
 
 	async $computeDiffWithCellIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): Promise<IDiffResult | undefined> {
-		const originalCellIndexIds = original.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || cell.internalMetadata?.cellId || '') as string }));
-		const modifiedCellIndexIds = modified.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || cell.internalMetadata?.cellId || '') as string }));
+		const originalCellIndexIds = original.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		const modifiedCellIndexIds = modified.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
 		const originalCellIds = originalCellIndexIds.map(c => c.id);
 		const modifiedCellIds = modifiedCellIndexIds.map(c => c.id);
 		const orderOrOriginalCellIds = originalCellIds.filter(id => modifiedCellIds.includes(id)).join(',');
