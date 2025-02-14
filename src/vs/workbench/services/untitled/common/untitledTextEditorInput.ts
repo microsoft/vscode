@@ -130,7 +130,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model.getEncoding();
 	}
 
-	setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): Promise<void> {
+	setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): Promise<boolean> {
 		return this.model.setEncoding(encoding);
 	}
 

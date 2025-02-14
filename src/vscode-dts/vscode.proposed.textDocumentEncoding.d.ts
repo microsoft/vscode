@@ -26,5 +26,13 @@ declare module 'vscode' {
 		 * 'cp865', 'cp850'.
 		 */
 		readonly encoding: string;
+
+		save(options?: { encoding?: string }): Thenable<boolean>;
+	}
+
+	export namespace workspace {
+		export function openTextDocument(uri: Uri, options?: { encoding?: string }): Thenable<TextDocument>;
+		export function openTextDocument(path: string, options?: { encoding?: string }): Thenable<TextDocument>;
+		export function openTextDocument(options?: { language?: string; content?: string; encoding?: string }): Thenable<TextDocument>;
 	}
 }

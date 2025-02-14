@@ -292,12 +292,15 @@ suite('Files - TextFileEditorModel', () => {
 		let encodingEvent = false;
 		disposables.add(model.onDidChangeEncoding(() => encodingEvent = true));
 
-		await model.setEncoding('utf8', EncodingMode.Encode); // no-op
+		let res = await model.setEncoding('utf8', EncodingMode.Encode); // no-op
+		assert.strictEqual(res, false);
 		assert.strictEqual(getLastModifiedTime(model), -1);
 
 		assert.ok(!encodingEvent);
 
-		await model.setEncoding('utf16', EncodingMode.Encode);
+		await model.resolve();
+		res = await model.setEncoding('utf16', EncodingMode.Encode); // expect model to be saved
+		assert.strictEqual(res, true);
 
 		assert.ok(encodingEvent);
 
@@ -308,7 +311,8 @@ suite('Files - TextFileEditorModel', () => {
 		let model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
 		accessor.workingCopyService.testUnregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
 
-		await model.setEncoding('utf16', EncodingMode.Decode);
+		const res = await model.setEncoding('utf16', EncodingMode.Decode);
+		assert.strictEqual(res, true); // expect the model to be saved
 
 		// we have to get the model again from working copy service
 		// because `setEncoding` will resolve it again through the
@@ -327,7 +331,8 @@ suite('Files - TextFileEditorModel', () => {
 		model.updateTextEditorModel(createTextBufferFactory('bar'));
 		assert.strictEqual(model.isDirty(), true);
 
-		await model.setEncoding('utf16', EncodingMode.Decode);
+		const res = await model.setEncoding('utf16', EncodingMode.Decode);
+		assert.strictEqual(res, true);
 
 		assert.strictEqual(model.isDirty(), false);
 	});

@@ -253,10 +253,14 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return this.preferredEncoding;
 	}
 
-	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
+	async setEncoding(encoding: string, mode: EncodingMode): Promise<boolean> {
 		this.setPreferredEncoding(encoding);
 
-		return this.model?.setEncoding(encoding, mode);
+		if (this.model) {
+			return this.model.setEncoding(encoding, mode);
+		}
+
+		return true;
 	}
 
 	setPreferredEncoding(encoding: string): void {

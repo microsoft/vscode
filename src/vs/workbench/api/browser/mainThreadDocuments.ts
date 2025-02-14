@@ -12,7 +12,7 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { IFileService, FileOperation } from '../../../platform/files/common/files.js';
 import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from '../common/extHost.protocol.js';
-import { ITextFileEditorModel, ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { EncodingMode, ITextFileEditorModel, ITextFileService } from '../../services/textfile/common/textfiles.js';
 import { IUntitledTextEditorModel } from '../../services/untitled/common/untitledTextEditorModel.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { toLocalResource, extUri, IExtUri } from '../../../base/common/resources.js';
@@ -214,12 +214,23 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	// --- from extension host process
 
-	async $trySaveDocument(uri: UriComponents): Promise<boolean> {
-		const target = await this._textFileService.save(URI.revive(uri));
+	async $trySaveDocument(uri: UriComponents, options?: { encoding?: string }): Promise<boolean> {
+		const inputUri = URI.revive(uri);
+
+		if (options?.encoding) {
+			const model = uri.scheme === Schemas.untitled ? this._textFileService.untitled.get(inputUri) : this._textFileService.files.get(inputUri);
+			const result = await model?.setEncoding(options.encoding, EncodingMode.Encode);
+
+			if (uri.scheme !== Schemas.untitled) {
+				return Boolean(result); // non untitled files get saved right away
+			}
+		}
+
+		const target = await this._textFileService.save(inputUri);
 		return Boolean(target);
 	}
 
-	async $tryOpenDocument(uriData: UriComponents): Promise<URI> {
+	async $tryOpenDocument(uriData: UriComponents, options?: { encoding?: string }): Promise<URI> {
 		const inputUri = URI.revive(uriData);
 		if (!inputUri.scheme || !(inputUri.fsPath || inputUri.authority)) {
 			throw new ErrorNoTelemetry(`Invalid uri. Scheme and authority or path must be set.`);
@@ -230,11 +241,11 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		let promise: Promise<URI>;
 		switch (canonicalUri.scheme) {
 			case Schemas.untitled:
-				promise = this._handleUntitledScheme(canonicalUri);
+				promise = this._handleUntitledScheme(canonicalUri, options);
 				break;
 			case Schemas.file:
 			default:
-				promise = this._handleAsResourceInput(canonicalUri);
+				promise = this._handleAsResourceInput(canonicalUri, options);
 				break;
 		}
 
@@ -255,31 +266,37 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		}
 	}
 
-	$tryCreateDocument(options?: { language?: string; content?: string }): Promise<URI> {
-		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
+	$tryCreateDocument(options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
+		return this._doCreateUntitled(undefined, options);
 	}
 
-	private async _handleAsResourceInput(uri: URI): Promise<URI> {
+	private async _handleAsResourceInput(uri: URI, options?: { encoding?: string }): Promise<URI> {
+		if (options?.encoding) {
+			const model = await this._textFileService.files.resolve(uri);
+			await model.setEncoding(options.encoding, EncodingMode.Decode);
+		}
+
 		const ref = await this._textModelResolverService.createModelReference(uri);
 		this._modelReferenceCollection.add(uri, ref, ref.object.textEditorModel.getValueLength());
 		return ref.object.textEditorModel.uri;
 	}
 
-	private async _handleUntitledScheme(uri: URI): Promise<URI> {
+	private async _handleUntitledScheme(uri: URI, options?: { encoding?: string }): Promise<URI> {
 		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
 		const exists = await this._fileService.exists(asLocalUri);
 		if (exists) {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));
 		}
-		return await this._doCreateUntitled(Boolean(uri.path) ? uri : undefined);
+		return await this._doCreateUntitled(Boolean(uri.path) ? uri : undefined, options);
 	}
 
-	private async _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
+	private async _doCreateUntitled(associatedResource?: URI, options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
 		const model = this._textFileService.untitled.create({
 			associatedResource,
-			languageId,
-			initialValue
+			languageId: options?.language,
+			initialValue: options?.content,
+			encoding: options?.encoding
 		});
 		const resource = model.resource;
 		const ref = await this._textModelResolverService.createModelReference(resource);

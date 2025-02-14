@@ -76,16 +76,16 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return data.document;
 	}
 
-	public ensureDocumentData(uri: URI): Promise<ExtHostDocumentData> {
+	public ensureDocumentData(uri: URI, options?: { encoding?: string }): Promise<ExtHostDocumentData> {
 
 		const cached = this._documentsAndEditors.getDocument(uri);
-		if (cached) {
+		if (cached && (!options?.encoding || cached.document.encoding === options.encoding)) {
 			return Promise.resolve(cached);
 		}
 
 		let promise = this._documentLoader.get(uri.toString());
 		if (!promise) {
-			promise = this._proxy.$tryOpenDocument(uri).then(uriData => {
+			promise = this._proxy.$tryOpenDocument(uri, options).then(uriData => {
 				this._documentLoader.delete(uri.toString());
 				const canonicalUri = URI.revive(uriData);
 				return assertIsDefined(this._documentsAndEditors.getDocument(canonicalUri));
@@ -99,7 +99,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return promise;
 	}
 
-	public createDocumentData(options?: { language?: string; content?: string }): Promise<URI> {
+	public createDocumentData(options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
 		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
