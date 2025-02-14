@@ -272,22 +272,17 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					editsSeen.set(part.uri, entry);
 				}
 
-				const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
+				const allEdits = part.kind !== 'codeblockUri' ? part.edits : [];
 				const newEdits = allEdits.slice(entry.seen);
 				entry.seen += newEdits.length;
 
-				if (part.kind !== 'codeblockUri') {
-					const newEdits = part.edits.length - entry.seen;
-					entry.seen += newEdits;
-
-					if (newEdits > 0 || entry.seen === 0) {
-						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
-						editsSource ??= new AsyncIterableSource<IChatTextEditGroup | IChatNotebookEditGroup>();
-						if (part.kind === 'notebookEditGroup') {
-							editsSource.emitOne({ uri: part.uri, kind: part.kind, edits: part.edits.slice(-newEdits), done: part.done });
-						} else {
-							editsSource.emitOne({ uri: part.uri, kind: part.kind, edits: part.edits.slice(-newEdits), done: part.done });
-						}
+				if (newEdits.length > 0 || entry.seen === 0) {
+					// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
+					editsSource ??= new AsyncIterableSource();
+					if (part.kind === 'notebookEditGroup') {
+						editsSource.emitOne({ uri: part.uri, edits: newEdits as ICellEditOperation[][], kind: part.kind, done: part.done });
+					} else if (part.kind === 'textEditGroup') {
+						editsSource.emitOne({ uri: part.uri, edits: newEdits as TextEdit[][], kind: part.kind, done: part.done });
 					}
 				}
 
