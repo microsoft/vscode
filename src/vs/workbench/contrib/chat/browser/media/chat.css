@@ -1472,6 +1472,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				font-size: 11px;
 			}
 		}
+
+		.chat-inline-anchor-widget {
+			display: inline;
+		}
 	}
 }
 
