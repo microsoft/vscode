@@ -1027,8 +1027,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; encoding?: string }, options?: { encoding?: string }) {
 				let uriPromise: Thenable<URI>;
 
-				options = options ?? uriOrFileNameOrOptions as { language?: string; content?: string; encoding?: string };
-				if (typeof options.encoding === 'string') {
+				options = (options ?? uriOrFileNameOrOptions) as ({ language?: string; content?: string; encoding?: string } | undefined);
+				if (typeof options?.encoding === 'string') {
 					checkProposedApiEnabled(extension, 'textDocumentEncoding');
 				}
 
