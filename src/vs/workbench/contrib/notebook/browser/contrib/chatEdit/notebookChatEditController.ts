@@ -287,6 +287,7 @@ class NotebookChatEditorController2 extends Disposable {
 		return null;
 	}
 
+	private readonly useInlineDiffEditor = true;
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
@@ -404,6 +405,49 @@ class NotebookChatEditorController2 extends Disposable {
 			return session?.state.read(r) === ChatEditingSessionState.StreamingEdits;
 		});
 
+		this._register(autorun(r => {
+			if (!this.useInlineDiffEditor) {
+				return;
+			}
+			const entry = sessionEntry.read(r)?.entry;
+			const modified = notebookModel.read(r);
+			const original = originalModel.read(r);
+			if (modified && original && entry?.state.read(r) === WorkingSetEntryState.Modified) {
+				notebookEditor.notebookOptions.previousModelToCompare.set(original, undefined);
+			} else {
+				notebookEditor.notebookOptions.previousModelToCompare.set(undefined, undefined);
+			}
+		}));
+
+		if (this.useInlineDiffEditor) {
+			// // ---- readonly while streaming
+			// let actualOptions: IEditorOptions | undefined;
+
+			// this._register(autorun(r => {
+			// 	const value = shouldBeReadOnly.read(r);
+			// 	if (value) {
+
+			// 		actualOptions ??= {
+			// 			readOnly: notebookEditor.getOption(EditorOption.readOnly),
+			// 			renderValidationDecorations: this._editor.getOption(EditorOption.renderValidationDecorations),
+			// 			stickyScroll: this._editor.getOption(EditorOption.stickyScroll)
+			// 		};
+
+			// 		this._editor.updateOptions({
+			// 			readOnly: true,
+			// 			renderValidationDecorations: 'off',
+			// 			stickyScroll: { enabled: false }
+			// 		});
+			// 	} else {
+			// 		if (actualOptions !== undefined) {
+			// 			this._editor.updateOptions(actualOptions);
+			// 			actualOptions = undefined;
+			// 		}
+			// 	}
+			// }));
+		}
+
+
 		const visibleCellEditors = derived((r) => {
 			const entry = sessionEntry.read(r)?.entry;
 			if (!entry) {
@@ -424,48 +468,50 @@ class NotebookChatEditorController2 extends Disposable {
 			}).filter(item => !!item) as [ICodeEditor, IModifiedTextFileEntry][];
 		});
 
-		this._register(autorun((r) => {
-			const info = sessionEntry.read(r);
-			if (!info) {
-				return;
-			}
-			const cellEditors = visibleCellEditors.read(r);
-			const validEntries = new Set<IModifiedTextFileEntry>();
-			cellEditors.forEach(([editor, fileEntry]) => {
-				validEntries.add(fileEntry);
-				if (this.cellEditorDecorators.has(fileEntry)) {
+		if (!this.useInlineDiffEditor) {
+			this._register(autorun((r) => {
+				const info = sessionEntry.read(r);
+				if (!info) {
 					return;
 				}
-				this.ownedCells.add(fileEntry.modifiedURI);
-				const cellDecorator = this._register(instantiationService.createInstance(NotebookModifiedCellEditorController, editor, fileEntry, shouldBeReadOnly, info.session, info.chatModel));
-				this.cellEditorDecorators.set(fileEntry, cellDecorator);
-			});
+				const cellEditors = visibleCellEditors.read(r);
+				const validEntries = new Set<IModifiedTextFileEntry>();
+				cellEditors.forEach(([editor, fileEntry]) => {
+					validEntries.add(fileEntry);
+					if (this.cellEditorDecorators.has(fileEntry)) {
+						return;
+					}
+					this.ownedCells.add(fileEntry.modifiedURI);
+					const cellDecorator = this._register(instantiationService.createInstance(NotebookModifiedCellEditorController, editor, fileEntry, shouldBeReadOnly, info.session, info.chatModel));
+					this.cellEditorDecorators.set(fileEntry, cellDecorator);
+				});
 
-			this.cellEditorDecorators.forEach((v, fileEntry) => {
-				if (!validEntries.has(fileEntry)) {
-					this.ownedCells.delete(fileEntry.modifiedURI);
-					v.dispose();
-					this.cellEditorDecorators.delete(fileEntry);
+				this.cellEditorDecorators.forEach((v, fileEntry) => {
+					if (!validEntries.has(fileEntry)) {
+						this.ownedCells.delete(fileEntry.modifiedURI);
+						v.dispose();
+						this.cellEditorDecorators.delete(fileEntry);
+					}
+				});
+			}));
+
+			this._register(autorun(r => {
+				const entry = this.entry.read(r);
+				const cellDiffInfo = entry?.cellDiffInfo?.read(r);
+				if (!cellDiffInfo || !entry) {
+					return;
 				}
-			});
-		}));
 
-		this._register(autorun(r => {
-			const entry = this.entry.read(r);
-			const cellDiffInfo = entry?.cellDiffInfo?.read(r);
-			if (!cellDiffInfo || !entry) {
-				return;
-			}
+				if (entry.state.read(r) !== WorkingSetEntryState.Modified) {
+					this.insertedCellDecorator.apply([]);
+					this.deletedCellDecorator.apply([], entry.originalModel as NotebookTextModel);
+					return;
+				}
 
-			if (entry.state.read(r) !== WorkingSetEntryState.Modified) {
-				this.insertedCellDecorator.apply([]);
-				this.deletedCellDecorator.apply([], entry.originalModel as NotebookTextModel);
-				return;
-			}
-
-			this.insertedCellDecorator.apply(cellDiffInfo);
-			this.deletedCellDecorator.apply(cellDiffInfo, entry.originalModel as NotebookTextModel);
-		}));
+				this.insertedCellDecorator.apply(cellDiffInfo);
+				this.deletedCellDecorator.apply(cellDiffInfo, entry.originalModel as NotebookTextModel);
+			}));
+		}
 	}
 
 	public unlockScroll(cell?: URI): void {
