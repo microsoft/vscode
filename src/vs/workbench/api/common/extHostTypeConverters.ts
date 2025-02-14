@@ -2603,6 +2603,41 @@ export namespace ChatResponseTextEditPart {
 
 
 export namespace NotebookEdit {
+	export function from(edit: vscode.NotebookEdit): extHostProtocol.ICellEditOperationDto {
+		if (edit.newCellMetadata) {
+			return {
+				editType: CellEditType.Metadata,
+				index: edit.range.start,
+				metadata: edit.newCellMetadata
+			};
+		} else if (edit.newNotebookMetadata) {
+			return {
+				editType: CellEditType.DocumentMetadata,
+				metadata: edit.newNotebookMetadata
+			};
+		} else {
+			return {
+				editType: CellEditType.Replace,
+				index: edit.range.start,
+				count: edit.range.end - edit.range.start,
+				cells: edit.newCells.map(NotebookCellData.from)
+			};
+		}
+	}
+	export function to(edit: extHostProtocol.ICellEditOperationDto): vscode.NotebookEdit {
+		switch (edit.editType) {
+			case CellEditType.Metadata:
+				return types.NotebookEdit.updateCellMetadata(edit.index, edit.metadata);
+			case CellEditType.DocumentMetadata:
+				return types.NotebookEdit.updateNotebookMetadata(edit.metadata);
+			case CellEditType.Replace:
+				return new types.NotebookEdit(new types.NotebookRange(edit.index, edit.index + edit.count), edit.cells.map(NotebookCellData.to));
+			default:
+				// Not possible to get here.
+				throw new Error('Invalid edit type');
+		}
+	}
+
 	export function toEditReplaceOperation(edit: vscode.NotebookEdit): Dto<extHostProtocol.ICellEditReplaceOperationDto | undefined> {
 		// We are only interested in cell replaces (insertions, deletions, replacements)
 		if (!edit.newCellMetadata && !edit.newNotebookMetadata) {
@@ -2627,18 +2662,9 @@ export namespace ChatResponseNotebookEditPart {
 		return {
 			kind: 'notebookEdit',
 			uri: URI.revive(part.uri),
-			// We are only interested in cell replaces (insertions, deletions, replacements)
-			edits: part.edits.map(e => NotebookEdit.toEditReplaceOperation(e)).filter(isDefined),
+			edits: part.edits.map(NotebookEdit.from),
 			done: part.isDone
 		};
-	}
-
-	export function to(part: extHostProtocol.IChatNotebookEditDto): vscode.ChatResponseNotebookEditPart {
-		if (part.done) {
-			return new types.ChatResponseNotebookEditPart(URI.revive(part.uri), true);
-		} else {
-			return new types.ChatResponseNotebookEditPart(URI.revive(part.uri), part.edits.map(NotebookEdit.fromEditReplaceOperation));
-		}
 	}
 }
 

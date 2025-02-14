@@ -21,7 +21,6 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ICellEditOperation, INotebookTextModel } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { IChatResponseModel } from './chatModel.js';
-import { ICellEditReplaceOperation } from './chatService.js';
 
 export const STORAGE_CONTENTS_FOLDER = 'contents';
 export const STORAGE_STATE_FILE = 'state.json';
@@ -285,7 +284,7 @@ export function isTextFileEntry(entry: IModifiedFileEntry): entry is IModifiedTe
 
 export interface IChatEditingSessionStream {
 	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
-	notebookEdits(resource: URI, edits: ICellEditReplaceOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
+	notebookEdits(resource: URI, edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
 }
 
 export const enum ChatEditingSessionState {

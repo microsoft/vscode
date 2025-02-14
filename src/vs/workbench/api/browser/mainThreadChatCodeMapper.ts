@@ -63,7 +63,7 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 			const resource = URI.revive(data.uri);
 			if (!edits.length) {
 				response.textEdit(resource, []);
-			} else if (areTextEdits(edits)) {
+			} else if (edits.every(TextEdit.isTextEdit)) {
 				response.textEdit(resource, edits);
 			} else {
 				const cellEdits: ICellEditOperation[] = [];
@@ -75,21 +75,23 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 							count: dto.count,
 							cells: dto.cells.map(NotebookDto.fromNotebookCellDataDto)
 						});
+					} else if (dto.editType === CellEditType.DocumentMetadata) {
+						cellEdits.push({
+							editType: dto.editType,
+							metadata: dto.metadata
+						});
+					} else if (dto.editType === CellEditType.Metadata) {
+						cellEdits.push({
+							editType: dto.editType,
+							index: dto.index,
+							metadata: dto.metadata
+
+						});
 					}
 				});
 				response.notebookEdit(resource, cellEdits);
 			}
 		}
 		return Promise.resolve();
-	}
-}
-
-
-
-function areTextEdits(edits: ICodeMapperProgressDto['edits']): edits is TextEdit[] {
-	if (edits.some(e => 'range' in e && 'text' in e)) {
-		return true;
-	} else {
-		return false;
 	}
 }

@@ -33,10 +33,11 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { parse } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatNotebookEditGroup, IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
-import { ICellEditReplaceOperation, IChatService } from '../../common/chatService.js';
+import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -271,27 +272,18 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					editsSeen.set(part.uri, entry);
 				}
 
-				if (part.kind === 'notebookEditGroup') {
-					const allEdits: ICellEditReplaceOperation[][] = part.edits;
-					// The -1 is not great, we sent a notebook edit with an empty array to indicate the start of the edit for this notebook.
-					// Perhaps we should not send an empty edit for the noteobook Uri,
-					// instead we should sent an empty notebook edit for the notebook Uri.
-					const newEdits = allEdits.slice(entry.seen - 1);
-					entry.seen += newEdits.length;
-					if (newEdits.length > 0 || (entry.seen - 1) === 0) {
-						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
-						editsSource ??= new AsyncIterableSource();
-						editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'notebookEditGroup', done: part.kind === 'notebookEditGroup' && part.done });
-					}
-				} else {
-					const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
-					const newEdits = allEdits.slice(entry.seen);
-					entry.seen += newEdits.length;
+				if (part.kind !== 'codeblockUri') {
+					const newEdits = part.edits.length - entry.seen;
+					entry.seen += newEdits;
 
-					if (newEdits.length > 0 || entry.seen === 0) {
+					if (newEdits > 0 || entry.seen === 0) {
 						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
-						editsSource ??= new AsyncIterableSource();
-						editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+						editsSource ??= new AsyncIterableSource<IChatTextEditGroup | IChatNotebookEditGroup>();
+						if (part.kind === 'notebookEditGroup') {
+							editsSource.emitOne({ uri: part.uri, kind: part.kind, edits: part.edits.slice(-newEdits), done: part.done });
+						} else {
+							editsSource.emitOne({ uri: part.uri, kind: part.kind, edits: part.edits.slice(-newEdits), done: part.done });
+						}
 					}
 				}
 
@@ -362,7 +354,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			textEdits: (resource: URI, textEdits: TextEdit[], isDone: boolean, responseModel: IChatResponseModel) => {
 				session.acceptTextEdits(resource, textEdits, isDone, responseModel);
 			},
-			notebookEdits(resource: URI, edits: ICellEditReplaceOperation[], isLastEdits: boolean, responseModel: IChatResponseModel) {
+			notebookEdits(resource: URI, edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel) {
 				session.acceptNotebookEdits(resource, edits, isLastEdits, responseModel);
 			},
 		};

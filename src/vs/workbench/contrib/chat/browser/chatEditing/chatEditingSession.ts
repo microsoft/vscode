@@ -42,7 +42,7 @@ import { INotebookEditorModelResolverService } from '../../../notebook/common/no
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, ISnapshotEntryDTO, isTextFileEntry, STORAGE_CONTENTS_FOLDER, STORAGE_STATE_FILE, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { ICellEditReplaceOperation, IChatService } from '../../common/chatService.js';
+import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedNotebookEntry2, NotebookSnapshotEntry } from './chatEditingModifiedNotebookEntry.js';
 import { ChatEditingModifiedFileEntry, TextSnapshotEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -596,7 +596,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, isLastEdits, responseModel));
 	}
 
-	acceptNotebookEdits(resource: URI, edits: ICellEditReplaceOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
+	acceptNotebookEdits(resource: URI, edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
 		this._sequencer.queue(() => this._acceptNotebookEdits(resource, edits, isLastEdits, responseModel));
 	}
 

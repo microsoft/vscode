@@ -1299,7 +1299,7 @@ export interface ICodeMapperTextEdit {
 	edits: languages.TextEdit[];
 }
 
-export type ICodeMapperProgressDto = Dto<ICodeMapperTextEdit> | ICodeMapperNotebookEditDto;
+export type ICodeMapperProgressDto = Dto<ICodeMapperTextEdit> | Dto<ICodeMapperNotebookEditDto>;
 
 export interface ICodeMapperNotebookEditDto {
 	uri: URI;
@@ -2133,7 +2133,7 @@ export interface IWorkspaceEditEntryMetadataDto {
 
 export interface IChatNotebookEditDto {
 	uri: URI;
-	edits: ICellEditReplaceOperationDto[];
+	edits: ICellEditOperationDto[];
 	kind: 'notebookEdit';
 	done?: boolean;
 }

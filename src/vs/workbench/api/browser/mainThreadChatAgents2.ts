@@ -392,30 +392,7 @@ namespace ChatNotebookEdit {
 			kind: 'notebookEdit',
 			uri: part.uri,
 			done: part.done,
-			edits: part.edits.map(e => {
-				return {
-					count: e.count,
-					editType: e.editType,
-					index: e.index,
-					cells: e.cells.map(NotebookDto.fromNotebookCellDataDto),
-				};
-			})
+			edits: part.edits.map(NotebookDto.fromCellEditOperationDto)
 		};
 	}
-	export function toChatEdit(part: IChatNotebookEdit): IChatNotebookEditDto {
-		return {
-			kind: 'notebookEdit',
-			done: part.done,
-			uri: URI.revive(part.uri),
-			edits: part.edits.map(e => {
-				return {
-					count: e.count,
-					editType: e.editType,
-					index: e.index,
-					cells: e.cells.map(NotebookDto.toNotebookCellDataDto)
-				};
-			})
-		};
-	}
-
 }
