@@ -30,7 +30,7 @@ import { InlineCompletionContextKeys } from '../../controller/inlineCompletionCo
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from './theme.js';
 import { InlineEditTabAction, PathBuilder, StatusBarViewItem, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
-import { InlineEditWithChanges } from './viewAndDiffProducer.js';
+import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
 export interface IInlineEditsView {
 	isHovered: IObservable<boolean>;

@@ -22,6 +22,7 @@ import { hotClassGetOriginalInstance } from '../../../../../platform/observable/
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -33,10 +34,9 @@ import { TextModelChangeRecorder } from '../model/changeRecorder.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { ObservableSuggestWidgetAdapter } from '../model/suggestWidgetAdapter.js';
 import { ObservableContextKeyService } from '../utils.js';
+import { InlineCompletionsView } from '../view/inlineCompletionsView.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
-import { InlineCompletionsView } from '../view/inlineCompletionsView.js';
-import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 
 export class InlineCompletionsController extends Disposable {
 	private static readonly _instances = new Set<InlineCompletionsController>();
