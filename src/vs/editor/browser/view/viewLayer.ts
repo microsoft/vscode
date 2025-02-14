@@ -279,7 +279,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 
 	public onFlushed(e: viewEvents.ViewFlushedEvent, flushDom?: boolean): boolean {
 		// No need to clear the dom node because a full .innerHTML will occur in
-		// ViewLayerRenderer._render, however the the fallbakc mechanism in the
+		// ViewLayerRenderer._render, however the fallback mechanism in the
 		// GPU renderer may cause this to be necessary as the .innerHTML call
 		// may not happen depending on the new state, leaving stale DOM nodes
 		// around.

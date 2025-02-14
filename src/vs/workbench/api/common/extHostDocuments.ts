@@ -140,6 +140,20 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		});
 	}
 
+	public $acceptEncodingChanged(uriComponents: UriComponents, encoding: string): void {
+		const uri = URI.revive(uriComponents);
+		const data = this._documentsAndEditors.getDocument(uri);
+		if (!data) {
+			throw new Error('unknown document');
+		}
+		data._acceptEncoding(encoding);
+		this._onDidChangeDocument.fire({
+			document: data.document,
+			contentChanges: [],
+			reason: undefined
+		});
+	}
+
 	public $acceptModelChanged(uriComponents: UriComponents, events: IModelChangedEvent, isDirty: boolean): void {
 		const uri = URI.revive(uriComponents);
 		const data = this._documentsAndEditors.getDocument(uri);

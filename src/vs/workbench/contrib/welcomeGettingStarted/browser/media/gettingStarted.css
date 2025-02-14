@@ -530,7 +530,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	height: 100%;
-	max-width: 1200px;
+	max-width: 80%;
 	margin: 0 auto;
 	padding: 0 32px;
 	display: grid;
@@ -580,10 +580,12 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
-	grid-area: title-start / media-start / steps-end / media-end;
-	align-self: unset;
+	grid-area: steps-start / media-start / footer-start / media-end;
+	align-self: self-start;
 	display: flex;
-	justify-content: center;
+	justify-content:center ;
+	height: 100%;
+	width: 100%;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
@@ -611,6 +613,11 @@
 	width: inherit;
 	display: flex;
 	justify-content: center;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
+	display: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media > video {

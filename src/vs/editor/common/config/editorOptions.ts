@@ -4315,6 +4315,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.edits.codeShifting,
 					description: nls.localize('inlineSuggest.edits.codeShifting', "Controls whether showing a suggestion will shift the code to make space for the suggestion inline."),
+					tags: ['nextEditSuggestions']
 				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
@@ -4325,6 +4326,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 						nls.localize('editor.inlineSuggest.edits.renderSideBySide.auto', "Larger suggestions will show side by side if there is enough space, otherwise they will be shown bellow."),
 						nls.localize('editor.inlineSuggest.edits.renderSideBySide.never', "Larger suggestions are never shown side by side and will always be shown bellow."),
 					],
+					tags: ['nextEditSuggestions']
 				},
 				/* 'editor.inlineSuggest.edits.useMultiLineGhostText': {
 					type: 'boolean',
@@ -6058,7 +6060,7 @@ export const EditorOptions = {
 	)),
 	occurrencesHighlightDelay: register(new EditorIntOption(
 		EditorOption.occurrencesHighlightDelay, 'occurrencesHighlightDelay',
-		250, 0, 2000,
+		0, 0, 2000,
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']

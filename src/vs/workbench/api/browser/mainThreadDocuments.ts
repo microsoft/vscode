@@ -12,7 +12,8 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { IFileService, FileOperation } from '../../../platform/files/common/files.js';
 import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from '../common/extHost.protocol.js';
-import { ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { ITextFileEditorModel, ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { IUntitledTextEditorModel } from '../../services/untitled/common/untitledTextEditorModel.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { toLocalResource, extUri, IExtUri } from '../../../base/common/resources.js';
 import { IWorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
@@ -143,6 +144,14 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._store.add(_textFileService.files.onDidChangeDirty(m => {
 			if (this._shouldHandleFileEvent(m.resource)) {
 				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
+			}
+		}));
+		this._store.add(Event.any<ITextFileEditorModel | IUntitledTextEditorModel>(_textFileService.files.onDidChangeEncoding, _textFileService.untitled.onDidChangeEncoding)(m => {
+			if (this._shouldHandleFileEvent(m.resource)) {
+				const encoding = m.getEncoding();
+				if (encoding) {
+					this._proxy.$acceptEncodingChanged(m.resource, encoding);
+				}
 			}
 		}));
 

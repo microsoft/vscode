@@ -8,7 +8,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { IChatEditingService } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatInstructionAttachmentsModel } from './chatAttachmentModel/chatInstructionAttachmentsModel.js';
@@ -69,7 +68,6 @@ export class ChatAttachmentModel extends Disposable {
 			id: uri.toString() + (range?.toString() ?? ''),
 			name: basename(uri),
 			isFile: true,
-			isDynamic: true,
 			isMarkedReadonly,
 		};
 	}
@@ -110,14 +108,9 @@ export class EditsAttachmentModel extends ChatAttachmentModel {
 	}
 
 	constructor(
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService _initService: IInstantiationService,
 	) {
 		super(_initService);
-	}
-
-	private isExcludeFileAttachment(fileAttachmentId: string) {
-		return this._excludedFileAttachments.some(attachment => attachment.id === fileAttachmentId);
 	}
 
 	override addContext(...attachments: IChatRequestVariableEntry[]) {
@@ -136,38 +129,11 @@ export class EditsAttachmentModel extends ChatAttachmentModel {
 			newFileAttachments.push(attachment);
 		}
 
-		const availableFileCount = Math.max(0, this._chatEditingService.editingSessionFileLimit - this.fileAttachments.length);
-		const fileAttachmentsToBeAdded = newFileAttachments.slice(0, availableFileCount);
-
-		if (newFileAttachments.length > availableFileCount) {
-			const attachmentsExceedingSize = newFileAttachments.slice(availableFileCount).filter(attachment => !this.isExcludeFileAttachment(attachment.id));
-			this._excludedFileAttachments.push(...attachmentsExceedingSize);
-			this._onDidChangeContext.fire();
-			this._onFileLimitExceeded.fire();
-		}
-
-		super.addContext(...otherAttachments, ...fileAttachmentsToBeAdded);
+		super.addContext(...otherAttachments, ...newFileAttachments);
 	}
 
 	override clear(): void {
 		this._excludedFileAttachments.splice(0, this._excludedFileAttachments.length);
 		super.clear();
-	}
-
-	override delete(...variableEntryIds: string[]) {
-		for (const variableEntryId of variableEntryIds) {
-			const excludedFileIndex = this._excludedFileAttachments.findIndex(attachment => attachment.id === variableEntryId);
-			if (excludedFileIndex !== -1) {
-				this._excludedFileAttachments.splice(excludedFileIndex, 1);
-			}
-		}
-
-		super.delete(...variableEntryIds);
-
-		if (this.fileAttachments.length < this._chatEditingService.editingSessionFileLimit) {
-			const availableFileCount = Math.max(0, this._chatEditingService.editingSessionFileLimit - this.fileAttachments.length);
-			const reAddAttachments = this._excludedFileAttachments.splice(0, availableFileCount);
-			super.addContext(...reAddAttachments);
-		}
 	}
 }

@@ -204,7 +204,7 @@ export function registerContextualInstanceAction(
 		activeInstanceType?: 'view' | 'editor';
 		run: (instance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown>;
 		/**
-		 * A callback to run after the the `run` callbacks have completed.
+		 * A callback to run after the `run` callbacks have completed.
 		 * @param instances The selected instance(s) that the command was run on.
 		 */
 		runAfter?: (instances: ITerminalInstance[], c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown>;

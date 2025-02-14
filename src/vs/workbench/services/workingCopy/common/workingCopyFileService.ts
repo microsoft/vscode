@@ -102,6 +102,12 @@ export interface IStoredFileWorkingCopySaveParticipantContext {
 export interface IStoredFileWorkingCopySaveParticipant {
 
 	/**
+	 * The ordinal number which determines the order of participation.
+	 * Lower values mean to participant sooner
+	 */
+	readonly ordinal?: number;
+
+	/**
 	 * Participate in a save operation of file stored working copies.
 	 * Allows to make changes before content is being saved to disk.
 	 */

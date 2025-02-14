@@ -3,13 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, reset } from '../../../../base/browser/dom.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
-import { IProcessMainService } from '../../../../platform/process/common/process.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IProcessMainService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { applyZoom } from '../../../../platform/window/electron-sandbox/window.js';
 import { BaseIssueReporterService } from '../browser/baseIssueReporterService.js';
@@ -40,9 +45,11 @@ export class IssueReporter extends BaseIssueReporterService {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueFormService issueFormService: IIssueFormService,
 		@IProcessMainService processMainService: IProcessMainService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IFileService fileService: IFileService,
+		@IFileDialogService fileDialogService: IFileDialogService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService);
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService);
 		this.processMainService = processMainService;
 		this.processMainService.$getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
@@ -90,8 +97,31 @@ export class IssueReporter extends BaseIssueReporterService {
 
 	public override async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
 		if (issueBody.length > MAX_GITHUB_API_LENGTH) {
-			console.error('Issue body is too long.');
-			return false;
+			const extensionData = this.issueReporterModel.getData().extensionData;
+			if (extensionData) {
+				issueBody = issueBody.replace(extensionData, '');
+				const date = new Date();
+				const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD
+				const formattedTime = date.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+				const fileName = `extensionData_${formattedDate}_${formattedTime}.md`;
+				try {
+					const downloadPath = await this.fileDialogService.showSaveDialog({
+						title: localize('saveExtensionData', "Save Extension Data"),
+						availableFileSystems: [Schemas.file],
+						defaultUri: joinPath(await this.fileDialogService.defaultFilePath(Schemas.file), fileName),
+					});
+
+					if (downloadPath) {
+						await this.fileService.writeFile(downloadPath, VSBuffer.fromString(extensionData));
+					}
+				} catch (e) {
+					console.error('Writing extension data to file failed');
+					return false;
+				}
+			} else {
+				console.error('Issue body too large to submit to GitHub');
+				return false;
+			}
 		}
 		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
 		const init = {

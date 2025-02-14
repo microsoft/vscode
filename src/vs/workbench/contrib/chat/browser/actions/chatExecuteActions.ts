@@ -6,21 +6,21 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
-import { discardAllEditsWithConfirmation } from '../chatEditing/chatEditingActions.js';
+import { discardAllEditsWithConfirmation, EditingSessionAction } from '../chatEditing/chatEditingActions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatDoneActionId } from './chatClearActions.js';
@@ -95,7 +95,8 @@ export interface IToggleAgentModeArgs {
 	agentMode: boolean;
 }
 
-export class ToggleAgentModeAction extends Action2 {
+export class ToggleAgentModeAction extends EditingSessionAction {
+
 	static readonly ID = ToggleAgentModeActionId;
 
 	constructor() {
@@ -132,20 +133,16 @@ export class ToggleAgentModeAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async runEditingSessionAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
+
 		const agentService = accessor.get(IChatAgentService);
-		const chatEditingService = accessor.get(IChatEditingService);
 		const chatService = accessor.get(IChatService);
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
 
 		const entries = currentEditingSession.entries.get();
 		if (entries.length > 0 && entries.some(entry => entry.state.get() === WorkingSetEntryState.Modified)) {
-			if (!await discardAllEditsWithConfirmation(accessor)) {
+			if (!await discardAllEditsWithConfirmation(accessor, currentEditingSession)) {
 				// User cancelled
 				return;
 			}
@@ -370,7 +367,7 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 	}
 }
 
-class SendToChatEditingAction extends Action2 {
+class SendToChatEditingAction extends EditingSessionAction {
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			// if the input has prompt instructions attached, allow submitting requests even
@@ -410,16 +407,8 @@ class SendToChatEditingAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async runEditingSessionAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, widget: IChatWidget, ...args: any[]) {
 		if (!accessor.get(IChatAgentService).getDefaultAgent(ChatAgentLocation.EditingSession)) {
-			return;
-		}
-
-		const context: IChatExecuteActionContext | undefined = args[0];
-
-		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget || widget.viewModel?.model.initialLocation === ChatAgentLocation.EditingSession) {
 			return;
 		}
 
@@ -427,7 +416,6 @@ class SendToChatEditingAction extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const chatEditingService = accessor.get(IChatEditingService);
 
-		const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
 		const currentEditCount = currentEditingSession?.entries.get().length;
 		if (currentEditCount) {
 			const result = await dialogService.confirm({
@@ -447,9 +435,16 @@ class SendToChatEditingAction extends Action2 {
 		}
 
 		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
+		if (!editingWidget.viewModel?.sessionId) {
+			return;
+		}
+		const chatEditingSession = chatEditingService.getEditingSession(editingWidget.viewModel.sessionId);
+		if (!chatEditingSession) {
+			return;
+		}
 		for (const attachment of widget.attachmentModel.attachments) {
 			if (attachment.isFile && URI.isUri(attachment.value)) {
-				chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(attachment.value);
+				chatEditingSession.addFileToWorkingSet(attachment.value);
 			} else {
 				editingWidget.attachmentModel.addContext(attachment);
 			}

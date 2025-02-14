@@ -17,6 +17,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
@@ -26,7 +27,6 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { ChatInstructionsAttachmentModel } from '../../chatAttachmentModel/chatInstructionsAttachment.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { PROMPT_SNIPPET_FILE_EXTENSION } from '../../../common/promptSyntax/contentProviders/promptContentsProviderBase.js';
 
 /**
  * Widget for a single prompt instructions attachment.
@@ -132,7 +132,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 			title += `\n-\n[${errorCaption}]: ${details}`;
 		}
 
-		const fileWithoutExtension = fileBasename.replace(PROMPT_SNIPPET_FILE_EXTENSION, '');
+		const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
 		label.setFile(URI.file(fileWithoutExtension), {
 			fileKind: FileKind.FILE,
 			hidePath: true,
@@ -148,7 +148,15 @@ export class InstructionsAttachmentWidget extends Disposable {
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		// create the `remove` button
-		const removeButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: localize('remove', "Remove") }));
+		const removeButton = this.renderDisposables.add(
+			new Button(
+				this.domNode,
+				{
+					supportIcons: true,
+					title: localize('remove', "Remove"),
+				},
+			),
+		);
 		removeButton.icon = Codicon.x;
 		this.renderDisposables.add(removeButton.onDidClick((e) => {
 			e.stopPropagation();

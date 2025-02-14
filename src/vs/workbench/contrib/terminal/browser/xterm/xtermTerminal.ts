@@ -308,11 +308,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			updateProgress();
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
-				commandDetection.onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 });
+				this._register(commandDetection.onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 }));
 			} else {
 				const disposable = this._capabilities.onDidAddCapability(e => {
 					if (e.id === TerminalCapability.CommandDetection) {
-						(e.capability as CommandDetectionCapability).onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 });
+						this._register((e.capability as CommandDetectionCapability).onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 }));
 						this._store.delete(disposable);
 					}
 				});

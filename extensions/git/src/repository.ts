@@ -23,7 +23,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isRemote, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { detectEncoding } from './encoding';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
@@ -1373,6 +1373,9 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) && !isRemote;
+
 		await this.run(
 			Operation.Clean(!this.optimisticUpdateEnabled()),
 			async () => {
@@ -1410,7 +1413,14 @@ export class Repository implements Disposable {
 					}
 				});
 
-				await this.repository.clean(toClean);
+				if (untrackedChangesSoftDelete) {
+					const limiter = new Limiter<void>(5);
+					await Promise.all(toClean.map(fsPath => limiter.queue(
+						async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+				} else {
+					await this.repository.clean(toClean);
+				}
+
 				try {
 					await this.repository.checkout('', toCheckout);
 				} catch (err) {
@@ -1667,8 +1677,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
-		await this.run(Operation.DeleteRemoteTag, () => this.repository.deleteRemoteTag(remoteName, tagName));
+	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
+		await this.run(Operation.DeleteRemoteRef, () => this.repository.deleteRemoteRef(remoteName, refName, options));
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
@@ -1798,6 +1808,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Pull, async () => {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const autoStash = config.get<boolean>('autoStash');
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 
@@ -1807,7 +1818,7 @@ export class Repository implements Disposable {
 				}
 
 				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags });
+					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags, autoStash });
 				}
 			});
 		});
@@ -1854,12 +1865,18 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this._push(remote, undefined, false, false, forcePushMode, true));
 	}
 
-	async blame(path: string): Promise<string> {
-		return await this.run(Operation.Blame(true), () => this.repository.blame(path));
+	async blame(filePath: string): Promise<string> {
+		return await this.run(Operation.Blame(true), () => {
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.blame(path);
+		});
 	}
 
-	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
-		return await this.run(Operation.Blame(false), () => this.repository.blame2(path, ref));
+	async blame2(filePath: string, ref?: string): Promise<BlameInformation[] | undefined> {
+		return await this.run(Operation.Blame(false), () => {
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.blame2(path, ref);
+		});
 	}
 
 	@throttle
@@ -1881,6 +1898,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Sync, async () => {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const autoStash = config.get<boolean>('autoStash');
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 				const followTags = config.get<boolean>('followTagsWhenSync');
@@ -1893,7 +1911,7 @@ export class Repository implements Disposable {
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken });
+						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken, autoStash });
 					}
 				};
 
@@ -2005,7 +2023,10 @@ export class Repository implements Disposable {
 	}
 
 	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
-		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
+		return this.run(Operation.GetObjectDetails, () => {
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.getObjectDetails(ref, path);
+		});
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
@@ -2530,6 +2551,7 @@ export class Repository implements Disposable {
 	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const shouldAutoStash = config.get<boolean>('autoStash')
+			&& this.repository.git.compareGitVersionTo('2.27.0') < 0
 			&& (this.indexGroup.resourceStates.length > 0
 				|| this.workingTreeGroup.resourceStates.some(
 					r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED));

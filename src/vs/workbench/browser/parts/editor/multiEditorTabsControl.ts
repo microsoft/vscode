@@ -34,7 +34,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
-import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from './editor.js';
+import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
 import { CloseEditorTabAction, UnpinEditorAction } from './editorActions.js';
 import { assertAllDefined, assertIsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -1157,11 +1157,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				const targetGroup = auxiliaryEditorPart.activeGroup;
-				const editors = draggedEditors.map(de => ({ editor: de.identifier.editor }));
+				const editorsWithOptions = prepareMoveCopyEditors(this.groupView, draggedEditors.map(editor => editor.identifier.editor));
 				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, draggedEditors[0].identifier.editor)) {
-					this.groupView.moveEditors(editors, targetGroup);
+					this.groupView.moveEditors(editorsWithOptions, targetGroup);
 				} else {
-					this.groupView.copyEditors(editors, targetGroup);
+					this.groupView.copyEditors(editorsWithOptions, targetGroup);
 				}
 
 				targetGroup.focus();

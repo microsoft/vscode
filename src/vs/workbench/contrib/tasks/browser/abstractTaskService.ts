@@ -2007,7 +2007,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._contextService, this._environmentService,
 			AbstractTaskService.OutputChannelId, this._fileService, this._terminalProfileResolverService,
 			this._pathService, this._viewDescriptorService, this._logService, this._notificationService,
-			this._instantiationService,
+			this._contextKeyService, this._instantiationService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
 					return this._getTaskSystemInfo(workspaceFolder.uri.scheme);
@@ -2946,6 +2946,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					then(pickThen);
 			}
 		});
+	}
+
+
+	rerun(terminalInstanceId: number): void {
+		const task = this._taskSystem?.getTaskForTerminal(terminalInstanceId);
+		if (task) {
+			this._restart(task);
+		} else {
+			this._reRunTaskCommand();
+		}
 	}
 
 	private _reRunTaskCommand(): void {
