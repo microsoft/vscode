@@ -563,19 +563,17 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 	}
 
-	private stopPromise: Promise<void> | undefined;
+	private _stopPromise: Promise<void> | undefined;
 
 	async stop(clearState = false): Promise<void> {
-		if (!this.stopPromise) {
-			this.stopPromise = this._performStop();
-		}
-		await this.stopPromise;
+		this._stopPromise ??= this._performStop();
+		await this._stopPromise;
 		if (clearState) {
 			await this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId).clearState();
 		}
 	}
 
-	async _performStop(): Promise<void> {
+	private async _performStop(): Promise<void> {
 		// Close out all open files
 		const schemes = [ChatEditingModifiedFileEntry.scheme, ChatEditingTextModelContentProvider.scheme];
 		await Promise.allSettled(this._editorGroupsService.groups.flatMap(async (g) => {
