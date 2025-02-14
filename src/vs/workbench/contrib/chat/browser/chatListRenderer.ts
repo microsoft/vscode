@@ -827,7 +827,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (content.kind === 'treeData') {
 			return this.renderTreeData(content, templateData, context);
 		} else if (content.kind === 'progressMessage') {
-			return this.instantiationService.createInstance(ChatProgressContentPart, content, this.renderer, context);
+			return this.instantiationService.createInstance(ChatProgressContentPart, content, this.renderer, context, undefined, undefined, undefined);
 		} else if (content.kind === 'progressTask') {
 			return this.renderProgressTask(content, templateData, context);
 		} else if (content.kind === 'command') {
