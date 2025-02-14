@@ -64,7 +64,7 @@ export class NotebookCellEditorPool extends Disposable {
 		}, {
 			contributions: this.notebookEditor.creationOptions.cellEditorContributions
 		}));
-
+		editorOptions.dispose();
 		this._isInitialized = true;
 	}
 
