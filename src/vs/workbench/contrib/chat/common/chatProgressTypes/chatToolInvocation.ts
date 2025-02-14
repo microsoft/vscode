@@ -31,6 +31,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return this._isConfirmed;
 	}
 
+	private _resultDetails: IToolResult['toolResultDetails'] | undefined;
+	public get resultDetails(): IToolResult['toolResultDetails'] | undefined {
+		return this._resultDetails;
+	}
+
 	constructor(
 		public readonly invocationMessage: string | IMarkdownString,
 		public pastTenseMessage: string | IMarkdownString | undefined,
@@ -57,6 +62,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this.pastTenseMessage = result.toolResultMessage;
 		}
 
+		this._resultDetails = result?.toolResultDetails;
 		this._isCompleteDeferred.complete();
 	}
 
@@ -72,6 +78,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			tooltip: this.tooltip,
 			isConfirmed: this._isConfirmed ?? false,
 			isComplete: this._isComplete,
+			resultDetails: this._resultDetails
 		};
 	}
 }
