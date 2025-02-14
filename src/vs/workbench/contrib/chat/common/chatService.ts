@@ -14,6 +14,7 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
 import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
@@ -132,6 +133,11 @@ export interface IChatTask extends IChatTaskDto {
 	isSettled: () => boolean;
 }
 
+export interface IChatUndoStop {
+	kind: 'undoStop';
+	id: string;
+}
+
 export interface IChatTaskDto {
 	content: IMarkdownString;
 	kind: 'progressTask';
@@ -178,6 +184,13 @@ export interface IChatTextEdit {
 	uri: URI;
 	edits: TextEdit[];
 	kind: 'textEdit';
+	done?: boolean;
+}
+
+export interface IChatNotebookEdit {
+	uri: URI;
+	edits: ICellEditOperation[];
+	kind: 'notebookEdit';
 	done?: boolean;
 }
 
@@ -232,11 +245,13 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatNotebookEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
 	| IChatToolInvocation
-	| IChatToolInvocationSerialized;
+	| IChatToolInvocationSerialized
+	| IChatUndoStop;
 
 export interface IChatFollowup {
 	kind: 'reply';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../media/chatEditorController.css';
-import { addStandardDisposableListener, getTotalWidth } from '../../../../../base/browser/dom.js';
+import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
@@ -37,7 +37,6 @@ import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
 import { ChatEditorOverlayController } from './chatEditingEditorOverlay.js';
 import { IChatService } from '../../common/chatService.js';
-import { StableEditorScrollState } from '../../../../../editor/browser/stableEditorScroll.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
@@ -81,8 +80,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 
 	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
-
-	private _scrollLock: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -146,15 +143,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			).read(r);
 		});
 
-		let scrollState: StableEditorScrollState | undefined = undefined;
-		let didReveal = false;
-		this._register(autorun(r => {
-			const value = lastRequest.read(r);
-			scrollState = value ? StableEditorScrollState.capture(_editor) : undefined;
-			didReveal = false;
-		}));
 
-		this._register(autorunWithStore((r, store) => {
+		this._register(autorun(r => {
 
 			const currentEditorEntry = entryForEditor.read(r);
 
@@ -192,19 +182,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			}
 
 			// scrolling logic
-			if (entry.isCurrentlyBeingModifiedBy.read(r)) {
-				// while modified: scroll along unless locked
-				if (!this._scrollLock) {
-					const maxLineNumber = entry.maxLineNumber.read(r);
-					this._editor.revealLineNearTop(maxLineNumber, ScrollType.Smooth);
-				}
-				const domNode = this._editor.getDomNode();
-				if (domNode) {
-					store.add(addStandardDisposableListener(domNode, 'wheel', () => {
-						this._scrollLock = true;
-					}));
-				}
-			} else {
+			if (!entry.isCurrentlyBeingModifiedBy.read(r)) {
+
 				// done: render diff
 				fontInfoObs.read(r);
 				lineHeightObs.read(r);
@@ -223,14 +202,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					this._clearDiffRendering();
 				}
 
-				if (lastRequest.read(r)?.response?.isComplete) {
-					if (diff.identical) {
-						scrollState?.restore(_editor);
-						scrollState = undefined;
-					} else if (!didReveal) {
-						this._reveal(true, false, ScrollType.Immediate);
-						didReveal = true;
-					}
+				if (lastRequest.read(r)?.response?.isComplete && !diff.identical) {
+					this._reveal(true, false, ScrollType.Immediate);
 				}
 			}
 		}));
@@ -348,7 +321,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._viewZones = [];
 		this._diffHunksRenderStore.clear();
 		this._diffVisualDecorations.clear();
-		this._scrollLock = false;
 	}
 
 	private _updateDiffRendering(entry: IModifiedFileEntry, diff: IDocumentDiff, reviewMode: boolean): void {
@@ -569,10 +541,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			});
 		}
 		this._diffLineDecorations.set(modifiedLineDecorations);
-	}
-
-	unlockScroll(): void {
-		this._scrollLock = false;
 	}
 
 	initNavigation(): void {

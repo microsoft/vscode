@@ -18,7 +18,6 @@ bash_major_version=${BASH_VERSINFO[0]}
 __vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
 unset VSCODE_SHELL_ENV_REPORTING
 
-
 if (( BASH_VERSINFO[0] >= 4 )); then
 	use_associative_array=1
 	# Associative arrays are only available in bash 4.0+

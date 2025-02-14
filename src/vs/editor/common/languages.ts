@@ -1515,6 +1515,10 @@ export abstract class TextEdit {
 	static asEditOperation(edit: TextEdit): ISingleEditOperation {
 		return EditOperation.replace(Range.lift(edit.range), edit.text);
 	}
+	static isTextEdit(thing: any): thing is TextEdit {
+		const possibleTextEdit = thing as TextEdit;
+		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
+	}
 }
 
 /**

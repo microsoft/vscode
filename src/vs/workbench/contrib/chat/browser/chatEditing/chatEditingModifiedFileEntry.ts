@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { raceCancellation, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
@@ -18,7 +19,7 @@ import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/di
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
 import { OffsetEdits } from '../../../../../editor/common/model/textModelOffsetEdit.js';
@@ -29,11 +30,12 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground, editorSelectionBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason } from '../../../../common/editor.js';
-import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { IResolvedTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -47,6 +49,11 @@ class AutoAcceptControl {
 		readonly cancel: () => void
 	) { }
 }
+
+const pendingRewriteMinimap = registerColor('chatEdits.minimapColor',
+	transparent(editorBackground, 0.6),
+	localize('editorSelectionBackground', "Color of pending edit regions in the minimap"));
+
 
 export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
@@ -136,6 +143,10 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		isWholeLine: true,
 		description: 'chat-pending-edit',
 		className: 'chat-editing-pending-edit',
+		minimap: {
+			position: MinimapPosition.Inline,
+			color: themeColorFromId(pendingRewriteMinimap)
+		}
 	});
 
 	get telemetryInfo(): IModifiedEntryTelemetryInfo {
@@ -168,6 +179,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService,
+		@ILabelService labelService: ILabelService
 	) {
 		super();
 		if (kind === ChatEditKind.Created) {
@@ -229,6 +242,26 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			const tempValue = this._reviewModeTempObs.read(r);
 			return tempValue ?? configuredValue === 0;
 		});
+
+		// block auto-save while rewrite is in progress
+
+		this._register(textFileService.files.addSaveParticipant({
+
+			ordinal: Number.MIN_SAFE_INTEGER,
+
+			participate: async (model, context, progress, token) => {
+				if (!isEqual(model.resource, this.modifiedURI) || context.reason === SaveReason.EXPLICIT) {
+					return;
+				}
+
+				progress.report({ message: localize('saveBlock', "Save waits for Chat Edits rewriting {0}...", labelService.getUriBasenameLabel(this.modifiedURI)) });
+
+				await raceCancellation(
+					waitForState(this.isCurrentlyBeingModifiedBy, value => !value),
+					token
+				);
+			},
+		}));
 	}
 
 	override dispose(): void {
@@ -266,12 +299,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._telemetryInfo = telemetryInfo;
 	}
 
-	createSnapshot(requestId: string | undefined): ISnapshotEntry {
+	createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
 		this._isFirstEditAfterStartOrSnapshot = true;
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, this.modifiedURI.path),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			originalToCurrentEdit: this._edit,

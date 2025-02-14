@@ -3312,22 +3312,14 @@
               "error",
               "warning",
               "information",
-              "hint"
+              "hint",
+              "none"
             ]
           },
           "default": {
             "*": "error"
           },
           "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
-          "scope": "resource"
-        },
-      "git.diagnosticsCommitHook.IgnoredSources": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "markdownDescription": "%config.diagnosticsCommitHook.IgnoredSources%",
           "scope": "resource"
         },
         "git.untrackedChangesSoftDelete": {

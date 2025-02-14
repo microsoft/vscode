@@ -47,6 +47,7 @@ import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import './promptSyntax/contributions/usePromptCommand.js';
+import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
@@ -167,9 +168,9 @@ configurationRegistry.registerConfiguration({
 			title: PromptFilesConfig.CONFIG_TITLE,
 			markdownDescription: PromptFilesConfig.CONFIG_DESCRIPTION,
 			default: {
-				[PromptFilesConfig.DEFAULT_LOCATION]: false,
+				[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: false,
 			},
-			required: [PromptFilesConfig.DEFAULT_LOCATION],
+			required: [PromptFilesConfig.DEFAULT_SOURCE_FOLDER],
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
@@ -177,10 +178,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			examples: [
 				{
-					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+					[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+					[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
