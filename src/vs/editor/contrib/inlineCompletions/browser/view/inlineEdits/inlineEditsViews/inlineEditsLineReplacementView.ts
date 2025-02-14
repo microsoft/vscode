@@ -216,7 +216,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 					n.div({
 						style: {
 							position: 'absolute',
-							...rectToProps(reader => layout.read(reader).lowerBackground.moveLeft(contentLeft)),
+							...rectToProps(reader => layout.read(reader).lowerBackground.translateX(-contentLeft)),
 							borderRadius: '4px',
 							background: asCssVariable(editorBackground),
 							boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
@@ -240,7 +240,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							position: 'absolute',
 							padding: '0px',
 							boxSizing: 'border-box',
-							...rectToProps(reader => layout.read(reader).lowerText.moveLeft(contentLeft)),
+							...rectToProps(reader => layout.read(reader).lowerText.translateX(-contentLeft)),
 							fontFamily: this._editor.getOption(EditorOption.fontFamily),
 							fontSize: this._editor.getOption(EditorOption.fontSize),
 							fontWeight: this._editor.getOption(EditorOption.fontWeight),
@@ -250,7 +250,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 					n.div({
 						style: {
 							position: 'absolute',
-							...rectToProps(reader => layout.read(reader).background.moveLeft(contentLeft)),
+							...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft)),
 							borderRadius: '4px',
 
 							border: `1px solid ${modifiedBorderColor}`,
@@ -263,9 +263,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		})
 	]).keepUpdated(this._store);
 
-	readonly isHovered = derived(this, reader => {
-		return this._div.getIsHovered(this._store).read(reader);
-	});
+	readonly isHovered = this._div.isHovered;
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,

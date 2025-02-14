@@ -20,6 +20,7 @@ import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEditsGutterIndicator } from './components/gutterIndicatorView.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './components/indicatorView.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
+import { IInlineEditsViewHost } from './inlineEditsViewInterface.js';
 import { InlineEditsDeletionView } from './inlineEditsViews/inlineEditsDeletionView.js';
 import { InlineEditsInsertionView } from './inlineEditsViews/inlineEditsInsertionView.js';
 import { InlineEditsLineReplacementView } from './inlineEditsViews/inlineEditsLineReplacementView.js';
@@ -129,6 +130,13 @@ export class InlineEditsView extends Disposable {
 		null
 	));
 
+	private readonly _host: IInlineEditsViewHost = {
+		tabAction: this._tabAction,
+		accept: () => {
+			this._model.get()?.accept();
+		}
+	};
+
 	private readonly _sideBySide = this._register(this._instantiationService.createInstance(InlineEditsSideBySideView,
 		this._editor,
 		this._edit,
@@ -138,7 +146,7 @@ export class InlineEditsView extends Disposable {
 			newTextLineCount: s.newTextLineCount,
 			originalDisplayRange: s.originalDisplayRange,
 		}) : undefined),
-		this._tabAction,
+		this._host,
 	));
 
 	protected readonly _deletion = this._register(this._instantiationService.createInstance(InlineEditsDeletionView,
@@ -178,7 +186,7 @@ export class InlineEditsView extends Disposable {
 	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
 
 	protected readonly _wordReplacementViews = mapObservableArrayCached(this, this._uiState.map(s => s?.state?.kind === 'wordReplacements' ? s.state.replacements : []), (e, store) => {
-		return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, [e], this._tabAction));
+		return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, [e], this._host));
 	}).recomputeInitiallyAndOnChange(this._store);
 
 	protected readonly _lineReplacementView = this._register(this._instantiationService.createInstance(InlineEditsLineReplacementView,

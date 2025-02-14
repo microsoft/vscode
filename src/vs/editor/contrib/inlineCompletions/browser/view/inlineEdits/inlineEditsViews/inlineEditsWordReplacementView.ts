@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { n } from '../../../../../../../base/browser/dom.js';
+import { n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, mapObservableArrayCached } from '../../../../../../../base/common/observable.js';
-import { IObservable } from '../../../../../../../base/common/observableInternal/base.js';
+import { constObservable, derived, observableValue } from '../../../../../../../base/common/observable.js';
 import { editorBackground, editorHoverForeground, scrollbarShadow } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { Point } from '../../../../../../browser/point.js';
 import { Rect } from '../../../../../../browser/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -20,9 +20,9 @@ import { SingleTextEdit } from '../../../../../../common/core/textEdit.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
-import { IInlineEditsView } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, modifiedChangedTextOverlayColor, originalChangedTextOverlayColor, replacementViewBackground } from '../theme.js';
-import { InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
+import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsWordReplacementView extends Disposable implements IInlineEditsView {
 
@@ -33,7 +33,29 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 	private readonly _line = document.createElement('div');
 
-	private readonly _text = derived(reader => {
+	private readonly _hoverableElement = observableValue<ObserverNodeWithElement | null>(this, null);
+
+	readonly isHovered = this._hoverableElement.map((e, reader) => e?.isHovered.read(reader) ?? false);
+
+	constructor(
+		private readonly _editor: ObservableCodeEditor,
+		/** Must be single-line in both sides */
+		private readonly _edit: SingleTextEdit,
+		private readonly _innerEdits: SingleTextEdit[],
+		private readonly _host: IInlineEditsViewHost,
+		@ILanguageService private readonly _languageService: ILanguageService,
+	) {
+		super();
+
+		this._register(this._editor.createOverlayWidget({
+			domNode: this._root.element,
+			minContentWidthInPx: constObservable(0),
+			position: constObservable({ preference: { top: 0, left: 0 } }),
+			allowEditorOverflow: false,
+		}));
+	}
+
+	private readonly _renderTextEffect = derived(_reader => {
 		const tm = this._editor.model.get()!;
 		const origLine = tm.getLineContent(this._edit.range.startLineNumber);
 
@@ -49,16 +71,16 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		renderLines(new LineSource([tokens]), RenderOptions.fromEditor(this._editor.editor).withSetWidth(false), [], this._line, true);
 	});
 
-	private readonly _editLocations = mapObservableArrayCached(this, constObservable(this._innerEdits), (edit, store) => {
-		const start = this._editor.observePosition(constObservable(edit.range.getStartPosition()), store);
-		const end = this._editor.observePosition(constObservable(edit.range.getEndPosition()), store);
+	private readonly _editLocations = this._innerEdits.map(edit => {
+		const start = this._editor.observePosition(constObservable(edit.range.getStartPosition()), this._store);
+		const end = this._editor.observePosition(constObservable(edit.range.getEndPosition()), this._store);
 		return { start, end, edit };
-	}).recomputeInitiallyAndOnChange(this._store);
+	});
 
 	private readonly _layout = derived(this, reader => {
-		this._text.read(reader);
+		this._renderTextEffect.read(reader);
 		const widgetStart = this._start.read(reader);
-		const widgetEnd = this._end.read(reader);
+		const widgetEnd = this._end.read(reader);//
 
 		if (!widgetStart || !widgetEnd || widgetStart.x > widgetEnd.x) {
 			return undefined;
@@ -68,28 +90,29 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
 		const scrollLeft = this._editor.scrollLeft.read(reader);
 		const w = this._editor.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
+
 		const modifiedLeftOffset = 20;
 		const modifiedTopOffset = 5;
+		const modifiedOffset = new Point(modifiedLeftOffset, modifiedTopOffset);
 		const PADDING = 4;
 
-		const originalLine = Rect.fromLeftTopWidthHeight(widgetStart.x + contentLeft - scrollLeft, widgetStart.y, widgetEnd.x - widgetStart.x, lineHeight);
-		const modifiedLine = Rect.fromLeftTopWidthHeight(originalLine.left + modifiedLeftOffset, originalLine.top + lineHeight + modifiedTopOffset, this._edit.text.length * w + 5, originalLine.height);
+		const originalLine = Rect.fromPoints(widgetStart, widgetEnd).withHeight(lineHeight).translateX(contentLeft - scrollLeft);
+		const modifiedLine = Rect.fromPointSize(originalLine.getLeftBottom().add(modifiedOffset), new Point(this._edit.text.length * w + 5, originalLine.height));
 		const background = Rect.hull([originalLine, modifiedLine]).withMargin(PADDING);
 
 		let textLengthDelta = 0;
-		const editLocations = this._editLocations.read(reader);
 		const innerEdits = [];
-		for (const editLocation of editLocations) {
+		for (const editLocation of this._editLocations) {
 			const editStart = editLocation.start.read(reader);
 			const editEnd = editLocation.end.read(reader);
 			const edit = editLocation.edit;
 
 			if (!editStart || !editEnd || editStart.x > editEnd.x) {
-				return;
+				return undefined;
 			}
 
 			const original = Rect.fromLeftTopWidthHeight(editStart.x + contentLeft - scrollLeft, editStart.y, editEnd.x - editStart.x, lineHeight);
-			const modified = Rect.fromLeftTopWidthHeight(original.left + modifiedLeftOffset + textLengthDelta * w, original.top + lineHeight + modifiedTopOffset, edit.text.length * w + 5, original.height);
+			const modified = Rect.fromLeftTopWidthHeight(original.left + modifiedLeftOffset + textLengthDelta * w, original.bottom + modifiedTopOffset, edit.text.length * w + 5, original.height);
 
 			textLengthDelta += edit.text.length - (edit.range.endColumn - edit.range.startColumn);
 
@@ -98,6 +121,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 		const lowerBackground = background.intersectVertical(new OffsetRange(originalLine.bottom, Number.MAX_SAFE_INTEGER));
 		const lowerText = new Rect(lowerBackground.left + modifiedLeftOffset + 6, lowerBackground.top + modifiedTopOffset, lowerBackground.right, lowerBackground.bottom); // TODO: left seems slightly off? zooming?
+
+		// debugView(debugLogRects({ lowerBackground }, this._editor.editor.getContainerDomNode()), reader);
 
 		return {
 			originalLine,
@@ -110,7 +135,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		};
 	});
 
-	private readonly _div = n.div({
+	private readonly _root = n.div({
 		class: 'word-replacement',
 	}, [
 		derived(reader => {
@@ -130,9 +155,9 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				contentWidth += layoutProps.padding;
 			}
 
-			const edits = layoutProps.innerEdits.map(edit => ({ modified: edit.modified.moveLeft(contentLeft), original: edit.original.moveLeft(contentLeft) }));
+			const edits = layoutProps.innerEdits.map(edit => ({ modified: edit.modified.translateX(-contentLeft), original: edit.original.translateX(-contentLeft) }));
 
-			const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+			const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
 
 			return [
 				n.div({
@@ -149,18 +174,24 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 					n.div({
 						style: {
 							position: 'absolute',
-							...rectToProps(reader => layout.read(reader).lowerBackground.moveLeft(contentLeft)),
+							...rectToProps(reader => layout.read(reader).lowerBackground.translateX(-contentLeft)),
 							borderRadius: '4px',
 							background: asCssVariable(editorBackground),
-							boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`
+							boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
+							cursor: 'pointer',
+							pointerEvents: 'auto',
 						},
-					}, []),
+						onmouseup: () => this._host.accept(),
+						obsRef: (elem) => {
+							this._hoverableElement.set(elem, undefined);
+						}
+					}),
 					n.div({
 						style: {
 							position: 'absolute',
 							padding: '0px',
 							boxSizing: 'border-box',
-							...rectToProps(reader => layout.read(reader).lowerText.moveLeft(contentLeft)),
+							...rectToProps(reader => layout.read(reader).lowerText.translateX(-contentLeft)),
 							fontFamily: this._editor.getOption(EditorOption.fontFamily),
 							fontSize: this._editor.getOption(EditorOption.fontSize),
 							fontWeight: this._editor.getOption(EditorOption.fontWeight),
@@ -196,7 +227,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 					n.div({
 						style: {
 							position: 'absolute',
-							...rectToProps(reader => layout.read(reader).background.moveLeft(contentLeft)),
+							...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft)),
 							borderRadius: '4px',
 
 							border: `1px solid ${modifiedBorderColor}`,
@@ -214,7 +245,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 						fill: 'none',
 						style: {
 							position: 'absolute',
-							left: derived(reader => layout.read(reader).modifiedLine.moveLeft(contentLeft).left - 15),
+							left: derived(reader => layout.read(reader).modifiedLine.translateX(-contentLeft).left - 15),
 							top: derived(reader => layout.read(reader).modifiedLine.top),
 						}
 					}, [
@@ -232,28 +263,6 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			];
 		})
 	]).keepUpdated(this._store);
-
-	readonly isHovered = derived(this, reader => {
-		return this._div.getIsHovered(this._store).read(reader);
-	});
-
-	constructor(
-		private readonly _editor: ObservableCodeEditor,
-		/** Must be single-line in both sides */
-		private readonly _edit: SingleTextEdit,
-		private readonly _innerEdits: SingleTextEdit[],
-		private readonly _tabAction: IObservable<InlineEditTabAction>,
-		@ILanguageService private readonly _languageService: ILanguageService,
-	) {
-		super();
-
-		this._register(this._editor.createOverlayWidget({
-			domNode: this._div.element,
-			minContentWidthInPx: constObservable(0),
-			position: constObservable({ preference: { top: 0, left: 0 } }),
-			allowEditorOverflow: false,
-		}));
-	}
 }
 
 export function rangesToBubbleRanges(ranges: Range[]): Range[] {
