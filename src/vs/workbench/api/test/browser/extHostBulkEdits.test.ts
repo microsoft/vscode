@@ -40,6 +40,7 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 				versionId: 1337,
 				lines: ['foo'],
 				EOL: '\n',
+				encoding: 'utf8'
 			}]
 		});
 		bulkEdits = new ExtHostBulkEdits(rpcProtocol, documentsAndEditors);
