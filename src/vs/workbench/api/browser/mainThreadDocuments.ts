@@ -218,14 +218,11 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		const inputUri = URI.revive(uri);
 
 		if (options?.encoding) {
-			const target = uri.scheme === Schemas.untitled ? this._textFileService.untitled.get(inputUri) : this._textFileService.files.get(inputUri);
-			const result = await target?.setEncoding(options.encoding, EncodingMode.Encode);
-			if (!result) {
-				return false;
-			}
+			const model = uri.scheme === Schemas.untitled ? this._textFileService.untitled.get(inputUri) : this._textFileService.files.get(inputUri);
+			const result = await model?.setEncoding(options.encoding, EncodingMode.Encode);
 
 			if (uri.scheme !== Schemas.untitled) {
-				return result; // non untitled files get saved right away
+				return Boolean(result); // non untitled files get saved right away
 			}
 		}
 
@@ -270,12 +267,13 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	$tryCreateDocument(options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
-		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined, options?.encoding);
+		return this._doCreateUntitled(undefined, options);
 	}
 
-	private async _handleAsResourceInput(uri: URI, options: { encoding?: string } | undefined): Promise<URI> {
+	private async _handleAsResourceInput(uri: URI, options?: { encoding?: string }): Promise<URI> {
 		if (options?.encoding) {
-			await this._textFileService.files.resolve(uri, { encoding: options?.encoding });
+			const model = await this._textFileService.files.resolve(uri);
+			await model.setEncoding(options.encoding, EncodingMode.Decode);
 		}
 
 		const ref = await this._textModelResolverService.createModelReference(uri);
@@ -283,22 +281,22 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		return ref.object.textEditorModel.uri;
 	}
 
-	private async _handleUntitledScheme(uri: URI, options: { encoding?: string } | undefined): Promise<URI> {
+	private async _handleUntitledScheme(uri: URI, options?: { encoding?: string }): Promise<URI> {
 		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
 		const exists = await this._fileService.exists(asLocalUri);
 		if (exists) {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));
 		}
-		return await this._doCreateUntitled(Boolean(uri.path) ? uri : undefined, undefined, undefined, options?.encoding);
+		return await this._doCreateUntitled(Boolean(uri.path) ? uri : undefined, options);
 	}
 
-	private async _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string, encoding?: string): Promise<URI> {
+	private async _doCreateUntitled(associatedResource?: URI, options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
 		const model = this._textFileService.untitled.create({
 			associatedResource,
-			languageId,
-			initialValue,
-			encoding
+			languageId: options?.language,
+			initialValue: options?.content,
+			encoding: options?.encoding
 		});
 		const resource = model.resource;
 		const ref = await this._textModelResolverService.createModelReference(resource);
