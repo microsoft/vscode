@@ -1318,7 +1318,7 @@ export interface ICodeMapperNotebookEditDto {
 	edits: ICellEditOperationDto[];
 }
 
-export type ICodeMapperProgressDto = Dto<ICodeMapperTextEdit> | ICodeMapperNotebookEditDto;
+export type ICodeMapperProgressDto = Dto<ICodeMapperTextEdit> | Dto<ICodeMapperNotebookEditDto>;
 
 export interface MainThreadCodeMapperShape extends IDisposable {
 	$registerCodeMapperProvider(handle: number, displayName: string): void;
@@ -2148,17 +2148,10 @@ export interface IWorkspaceEditEntryMetadataDto {
 
 export interface IChatNotebookEditDto {
 	uri: URI;
-	edits: ICellEditReplaceOperationDto[];
+	edits: ICellEditOperationDto[];
 	kind: 'notebookEdit';
 	done?: boolean;
 }
-
-export type ICellEditReplaceOperationDto = {
-	editType: notebookCommon.CellEditType.Replace;
-	index: number;
-	count: number;
-	cells: NotebookCellDataDto[];
-};
 
 export type ICellEditOperationDto =
 	notebookCommon.ICellMetadataEdit

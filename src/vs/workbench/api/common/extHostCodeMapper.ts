@@ -10,7 +10,6 @@ import { ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperServi
 import * as extHostProtocol from './extHost.protocol.js';
 import { NotebookEdit, TextEdit } from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
-import { isDefined } from '../../../base/common/types.js';
 import { asArray } from '../../../base/common/arrays.js';
 
 export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape {
@@ -45,7 +44,7 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 				edits = asArray(edits);
 				this._proxy.$handleProgress(internalRequest.requestId, {
 					uri: target,
-					edits: edits.map(NotebookEdit.toEditReplaceOperation).filter(isDefined)
+					edits: edits.map(NotebookEdit.from)
 				});
 			}
 		};
