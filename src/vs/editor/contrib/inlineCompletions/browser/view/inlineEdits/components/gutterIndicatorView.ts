@@ -90,7 +90,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
 		const pillOffset = this._verticalOffset.read(reader);
-		const pillRect = targetRect.withHeight(lineHeight).withWidth(22).moveDown(pillOffset);
+		const pillRect = targetRect.withHeight(lineHeight).withWidth(22).translateY(pillOffset);
 		const pillRectMoved = pillRect.moveToBeContainedIn(viewPortWithStickyScroll);
 
 		const rect = targetRect;
