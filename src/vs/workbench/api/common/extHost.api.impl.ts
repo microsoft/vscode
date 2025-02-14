@@ -1024,11 +1024,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			set textDocuments(value) {
 				throw new errors.ReadonlyError('textDocuments');
 			},
-			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string }, textDocumentOptions?: { encoding?: string }) {
+			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; encoding?: string }, options?: { encoding?: string }) {
 				// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
 				let uriPromise: Thenable<URI>;
 
-				const options = uriOrFileNameOrOptions as { language?: string; content?: string };
+				options = options ?? uriOrFileNameOrOptions as { language?: string; content?: string; encoding?: string };
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
 				} else if (URI.isUri(uriOrFileNameOrOptions)) {
@@ -1044,7 +1044,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if (uri.scheme === Schemas.vscodeRemote && !uri.authority) {
 						extHostApiDeprecation.report('workspace.openTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
 					}
-					return extHostDocuments.ensureDocumentData(uri, textDocumentOptions).then(documentData => {
+					return extHostDocuments.ensureDocumentData(uri, options).then(documentData => {
 						return documentData.document;
 					});
 				});

@@ -99,7 +99,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return promise;
 	}
 
-	public createDocumentData(options?: { language?: string; content?: string }): Promise<URI> {
+	public createDocumentData(options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
 		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 

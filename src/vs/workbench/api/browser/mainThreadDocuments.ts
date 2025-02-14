@@ -269,8 +269,8 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		}
 	}
 
-	$tryCreateDocument(options?: { language?: string; content?: string }): Promise<URI> {
-		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
+	$tryCreateDocument(options?: { language?: string; content?: string; encoding?: string }): Promise<URI> {
+		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined, options?.encoding);
 	}
 
 	private async _handleAsResourceInput(uri: URI, options: { encoding?: string } | undefined): Promise<URI> {
@@ -293,11 +293,12 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		return await this._doCreateUntitled(Boolean(uri.path) ? uri : undefined);
 	}
 
-	private async _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
+	private async _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string, encoding?: string): Promise<URI> {
 		const model = this._textFileService.untitled.create({
 			associatedResource,
 			languageId,
-			initialValue
+			initialValue,
+			encoding
 		});
 		const resource = model.resource;
 		const ref = await this._textModelResolverService.createModelReference(resource);
