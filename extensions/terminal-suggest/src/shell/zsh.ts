@@ -8,8 +8,10 @@ import type { ICompletionResource } from '../types';
 import { execHelper, getAliasesHelper } from './common';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 
+let cachedCommandDescriptions: Map<string, string> | undefined;
+
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
-	if (!cachedZshCommandDescriptions) {
+	if (!cachedCommandDescriptions) {
 		await createCommandDescriptionsCache(options);
 	}
 	return [
@@ -60,9 +62,9 @@ async function getBuiltins(
 
 	return completions;
 }
-let cachedZshCommandDescriptions: Map<string, string> | undefined;
+
 async function createCommandDescriptionsCache(options: ExecOptionsWithStringEncoding): Promise<void> {
-	cachedZshCommandDescriptions = new Map();
+	cachedCommandDescriptions = new Map();
 	try {
 		let output = (await execHelper('man zshbuiltins', options));
 		if (output) {
@@ -95,7 +97,7 @@ async function createCommandDescriptionsCache(options: ExecOptionsWithStringEnco
 				if (boldCommands.has(potentialCommand)) {
 					// Store the previous command and its description
 					if (command && description.length) {
-						cachedZshCommandDescriptions.set(command, description.join(' ').trim());
+						cachedCommandDescriptions.set(command, description.join(' ').trim());
 					}
 
 					// Capture new command name
@@ -114,7 +116,7 @@ async function createCommandDescriptionsCache(options: ExecOptionsWithStringEnco
 
 			// Store the last command-description pair
 			if (command && description.length) {
-				cachedZshCommandDescriptions.set(command, description.join(' ').trim());
+				cachedCommandDescriptions.set(command, description.join(' ').trim());
 			}
 		}
 	} catch {
@@ -125,5 +127,5 @@ async function createCommandDescriptionsCache(options: ExecOptionsWithStringEnco
 
 
 export function getCommandDescription(command: string): string | undefined {
-	return cachedZshCommandDescriptions?.get(command);
+	return cachedCommandDescriptions?.get(command);
 }
