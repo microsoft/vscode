@@ -653,7 +653,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	private _createChangeNavigator(editor: IEditorPane): IModifiedFileEntryNavigator {
 		const codeEditor = getCodeEditor(editor.getControl());
 
-		assertType(codeEditor?.hasModel());
+		assertType(codeEditor);
 
 		const store = this._store.add(new DisposableStore());
 
@@ -689,7 +689,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 			// INIT current index
 			if (!this.isCurrentlyBeingModifiedBy.read(r) && currentIndex.read(r) === -1) {
-				const position = codeEditor.getPosition();
+				const position = codeEditor.getPosition() ?? new Position(1, 1);
 				const ranges = diffLineDecorations.getRanges();
 				let initialIndex = ranges.findIndex(r => r.containsPosition(position));
 				if (initialIndex < 0) {
