@@ -47,6 +47,7 @@ export const enum ViewDimUnfocusedOpacityProperties {
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
+	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalChat = 'accessibility.verbosity.terminalChat',
