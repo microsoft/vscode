@@ -12,6 +12,7 @@ export interface ICompletionResource {
 	 * completion.
 	 */
 	definitionCommand?: string;
+	documentation?: string | vscode.MarkdownString;
 	detail?: string;
 	kind?: vscode.TerminalCompletionItemKind;
 }

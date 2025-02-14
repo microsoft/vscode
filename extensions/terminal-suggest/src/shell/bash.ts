@@ -10,7 +10,7 @@ import { getAliasesHelper, getZshBashBuiltins } from './common';
 export async function getBashGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
 		...await getAliases(options),
-		...await getZshBashBuiltins(options, 'compgen -b', existingCommands, 'help')
+		...await getZshBashBuiltins(options, 'compgen -b', 'help', existingCommands)
 	];
 }
 

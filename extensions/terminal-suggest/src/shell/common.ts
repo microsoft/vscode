@@ -97,41 +97,42 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 export async function getZshBashBuiltins(
 	options: ExecOptionsWithStringEncoding,
 	scriptToRun: string,
+	getInfo: string,
 	existingCommands?: Set<string>,
-	getInfo?: string
 ): Promise<(string | ICompletionResource)[]> {
 	const compgenOutput = await execHelper(scriptToRun, options);
 	const filter = (cmd: string) => cmd && !existingCommands?.has(cmd);
-	let builtins: (string | ICompletionResource)[] = compgenOutput.split('\n').filter(filter);
-
+	const builtins: string[] = compgenOutput.split('\n').filter(filter);
+	const completions: ICompletionResource[] = [];
 	if (builtins.find(r => r === '.')) {
-		builtins = builtins.filter(r => r !== '.');
-		builtins.push({
+		completions.push({
 			label: '.',
-			detail: 'Source a file in the current shell'
+			detail: 'Source a file in the current shell',
+			kind: vscode.TerminalCompletionItemKind.Method
 		});
 	}
 
-	if (getInfo) {
-		// Retrieve command descriptions using 'getInfo' argument
-		const descriptions: Record<string, string | undefined> = {};
-		for (const cmd of builtins) {
-			if (typeof cmd === 'string') {
-				try {
-					const description = await execHelper(`${getInfo} ${cmd}`, options);
-					descriptions[cmd] = description.trim();
-				} catch (error) {
-					descriptions[cmd] = undefined;
-				}
+	for (const cmd of builtins) {
+		if (typeof cmd === 'string') {
+			try {
+				const description = (await execHelper(`${getInfo} ${cmd}`, options))?.trim();
+				completions.push({
+					label: cmd,
+					detail: description,
+					kind: vscode.TerminalCompletionItemKind.Method
+				});
+
+			} catch (e) {
+				// Ignore errors
+				console.log(`Error getting info for ${e}`);
+				completions.push({
+					label: cmd,
+					kind: vscode.TerminalCompletionItemKind.Method
+				});
 			}
 		}
-
-		// Map commands to include descriptions
-		builtins = builtins.map(cmd =>
-			typeof cmd === 'string' ? { label: cmd, detail: descriptions[cmd] } : cmd
-		);
 	}
 
-	return builtins;
+	return completions;
 }
 

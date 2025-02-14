@@ -10,7 +10,7 @@ import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
 		...await getAliases(options),
-		...await getZshBashBuiltins(options, 'printf "%s\\n" ${(k)builtins}', existingCommands, 'whatis'),
+		...await getZshBashBuiltins(options, 'printf "%s\\n" ${(k)builtins}', 'run-help', existingCommands),
 	];
 }
 

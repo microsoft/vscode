@@ -241,7 +241,8 @@ export async function getCompletionItemsFromSpecs(
 					terminalContext.cursorPosition,
 					prefix,
 					command,
-					command.detail
+					command.detail,
+					command.documentation
 				));
 			}
 		}
