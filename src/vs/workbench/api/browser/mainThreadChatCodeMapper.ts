@@ -66,30 +66,7 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 			} else if (edits.every(TextEdit.isTextEdit)) {
 				response.textEdit(resource, edits);
 			} else {
-				const cellEdits: ICellEditOperation[] = [];
-				edits.forEach(dto => {
-					if (dto.editType === CellEditType.Replace) {
-						cellEdits.push({
-							editType: dto.editType,
-							index: dto.index,
-							count: dto.count,
-							cells: dto.cells.map(NotebookDto.fromNotebookCellDataDto)
-						});
-					} else if (dto.editType === CellEditType.DocumentMetadata) {
-						cellEdits.push({
-							editType: dto.editType,
-							metadata: dto.metadata
-						});
-					} else if (dto.editType === CellEditType.Metadata) {
-						cellEdits.push({
-							editType: dto.editType,
-							index: dto.index,
-							metadata: dto.metadata
-
-						});
-					}
-				});
-				response.notebookEdit(resource, cellEdits);
+				response.notebookEdit(resource, edits.map(NotebookDto.fromCellEditOperationDto));
 			}
 		}
 		return Promise.resolve();
