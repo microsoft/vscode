@@ -16,6 +16,7 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatResponseModel } from './chatModel.js';
 
@@ -126,26 +127,43 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
+export interface IModifiedFileEntryNavigator {
+	currentIndex: IObservable<number>;
+	next(wrap: boolean): boolean;
+	previous(wrap: boolean): boolean;
+}
+
 export interface IModifiedFileEntry {
 	readonly entryId: string;
 	readonly originalURI: URI;
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 
+	readonly lastModifyingRequestId: string;
+
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 	readonly maxLineNumber: IObservable<number>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
-	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
-	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
-	readonly lastModifyingRequestId: string;
+
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
+
+	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
+	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
 
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
+
+
+	/**
+	 * Number of changes for this file
+	 */
+	readonly changesCount: IObservable<number>;
+
+	getChangeNavigator(editor: IEditorPane): IModifiedFileEntryNavigator;
 }
 
 export interface IChatEditingSessionStream {
