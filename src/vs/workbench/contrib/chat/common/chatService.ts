@@ -212,6 +212,7 @@ export interface IChatToolInvocation {
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	tooltip: string | IMarkdownString | undefined;
+	resultDetails: IToolResult['toolResultDetails'];
 
 	isCompletePromise: Promise<void>;
 	isComplete: boolean;
@@ -225,6 +226,7 @@ export interface IChatToolInvocation {
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
+	resultDetails: IToolResult['toolResultDetails'];
 	tooltip: string | IMarkdownString | undefined;
 	isConfirmed: boolean;
 	isComplete: boolean;

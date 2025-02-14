@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/path.js';
@@ -71,7 +72,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 
 	constructor(
 		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
-		labelOverride: string | undefined,
+		labelOverride: IMarkdownString | string | undefined,
 		context: IChatContentPartRenderContext,
 		contentReferencesListPool: CollapsibleListPool,
 		options: IChatCollapsibleListOptions,
@@ -87,7 +88,6 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		const referencesLabel = labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1));
-		const iconElement = $('.chat-used-context-icon');
 		const isExpanded = () =>
 			element.usedReferencesExpanded ?? (
 				options.expandedWhenEmptyResponse && element.response.value.length === 0
@@ -95,10 +95,9 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		const icon = (element: IChatResponseViewModel) => {
 			return isExpanded() ? Codicon.chevronDown : Codicon.chevronRight;
 		};
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 		const buttonElement = $('.chat-used-context-label', undefined);
 
-		const collapseButton = this._register(new Button(buttonElement, {
+		const collapseButton = this._register(new ButtonWithIcon(buttonElement, {
 			buttonBackground: undefined,
 			buttonBorder: undefined,
 			buttonForeground: undefined,
@@ -110,16 +109,15 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		}));
 		this.domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
-		collapseButton.element.prepend(iconElement);
-		this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
+		collapseButton.icon = icon(element);
+		this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, isExpanded());
 		this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
 		this._register(collapseButton.onDidClick(() => {
-			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
 			element.usedReferencesExpanded = !isExpanded();
-			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
+			collapseButton.icon = icon(element);
 			this.domNode.classList.toggle('chat-used-context-collapsed', !isExpanded());
 			this._onDidChangeHeight.fire();
-			this.updateAriaLabel(collapseButton.element, referencesLabel, isExpanded());
+			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, isExpanded());
 		}));
 
 		const ref = this._register(contentReferencesListPool.get());
