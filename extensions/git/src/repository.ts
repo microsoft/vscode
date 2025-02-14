@@ -2017,7 +2017,8 @@ export class Repository implements Disposable {
 	}
 
 	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
-		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
+		const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, path));
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
