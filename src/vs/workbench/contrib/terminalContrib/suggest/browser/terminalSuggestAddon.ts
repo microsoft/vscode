@@ -340,6 +340,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
 	}
 
+	private _wasLastInputVerticalArrowKey(): boolean {
+		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-B]$/);
+	}
+
 	private _wasLastInputArrowKey(): boolean {
 		// Never request completions if the last key sequence was up or down as the user was likely
 		// navigating history
@@ -376,7 +380,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						// with git branches in particular
 						this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 					) {
-						if (!this._wasLastInputArrowKey()) {
+						if (!this._wasLastInputVerticalArrowKey()) {
 							this.requestCompletions();
 							sent = true;
 						}
@@ -388,7 +392,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 							}
 							for (const char of provider.triggerCharacters) {
 								if (prefix?.endsWith(char)) {
-									if (!this._wasLastInputArrowKey()) {
+									if (!this._wasLastInputVerticalArrowKey()) {
 										this.requestCompletions();
 										sent = true;
 									}
@@ -410,7 +414,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						// with git branches in particular
 						this._isFilteringDirectories && char.match(/[\\\/]$/)
 					) {
-						if (!this._wasLastInputArrowKey()) {
+						if (!this._wasLastInputVerticalArrowKey()) {
 							this.requestCompletions();
 							sent = true;
 						}
@@ -437,7 +441,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// requested, but since extensions are expected to allow the client-side to filter, they are
 		// only invalidated when whitespace is encountered.
 		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
-			if (this._currentPromptInputState.cursorIndex <= 0 || this._currentPromptInputState.value[this._currentPromptInputState.cursorIndex - 1].match(/\s/)) {
+			if (this._currentPromptInputState.cursorIndex <= 0 || this._currentPromptInputState.value[this._currentPromptInputState.cursorIndex].match(/[\\\/\s]/)) {
 				this.hideSuggestWidget(false);
 				return;
 			}
