@@ -78,8 +78,8 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public ensureDocumentData(uri: URI, options?: { encoding?: string }): Promise<ExtHostDocumentData> {
 
-		const cached = this._documentsAndEditors.getDocument(uri); // TODO cache per encoding?
-		if (cached) {
+		const cached = this._documentsAndEditors.getDocument(uri);
+		if (cached && (!options?.encoding || cached.document.encoding === options.encoding)) {
 			return Promise.resolve(cached);
 		}
 

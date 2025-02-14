@@ -1304,4 +1304,64 @@ suite('vscode API - workspace', () => {
 		disposeAll(disposables);
 		return deleteFile(file);
 	}
+
+	test('text document encodings', async () => {
+		const uri1 = await createRandomFile();
+		const uri2 = await createRandomFile();
+
+		// --- events
+		const disposables: vscode.Disposable[] = [];
+		const onDidChangeTextDocument = new Set<vscode.TextDocument>();
+		disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
+			onDidChangeTextDocument.add(e.document);
+		}));
+
+		// --- create with encoding
+
+		const doc1 = await vscode.workspace.openTextDocument(uri1);
+		assert.strictEqual(doc1.encoding, 'utf8');
+
+		const doc2 = await vscode.workspace.openTextDocument(uri2, { encoding: 'utf16le' });
+		assert.strictEqual(doc2.encoding, 'utf16le');
+
+		const doc3 = await vscode.workspace.openTextDocument({ encoding: 'utf16be' });
+		assert.strictEqual(doc3.encoding, 'utf16be');
+
+		const doc4 = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled://foo/bar'), { encoding: 'cp1252' });
+		assert.strictEqual(doc4.encoding, 'cp1252');
+
+		// --- encode (save with encoding)
+		onDidChangeTextDocument.clear();
+		let res = await doc1.save({ encoding: 'utf16le' });
+		assert.strictEqual(res, true);
+		assert.ok(Array.from(onDidChangeTextDocument).find(e => e.uri.toString() === doc1.uri.toString()), 'did Change: ' + doc1.uri.toString());
+		res = await doc1.save({ encoding: 'utf16le' });
+		assert.strictEqual(res, true);
+		assert.strictEqual(doc1.encoding, 'utf16le');
+
+		// --- decode (reopen with encoding)
+
+		const textDocumentChangeEvent = function (uri: vscode.Uri) {
+			return new Promise(resolve => {
+				vscode.workspace.onDidChangeTextDocument(e => {
+					if (e.document.uri.toString() === uri.toString()) {
+						resolve(e);
+					}
+				});
+			});
+		};
+
+		let event = textDocumentChangeEvent(uri2);
+		const doc2Reopened = await vscode.workspace.openTextDocument(uri2, { encoding: 'cp1252' });
+		assert.strictEqual(doc2, doc2Reopened);
+		assert.strictEqual(doc2.encoding, 'cp1252');
+		await event;
+
+		event = textDocumentChangeEvent(uri2);
+		await vscode.workspace.openTextDocument(uri2, { encoding: 'utf8' });
+		assert.strictEqual(doc2.encoding, 'utf8');
+		await event;
+
+		disposeAll(disposables);
+	});
 });
