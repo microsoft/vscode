@@ -72,6 +72,11 @@
         "category": "Notebook"
       },
       {
+        "command": "notebook.cellOutput.addToChat",
+        "title": "%addCellOutputToChat.title%",
+        "category": "Notebook"
+      },
+      {
         "command": "notebook.cellOutput.openInTextEditor",
         "title": "%openCellOutput.title%",
         "category": "Notebook"
@@ -130,11 +135,17 @@
       "webview/context": [
         {
           "command": "notebook.cellOutput.copy",
-          "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'",
+          "group": "context@1"
         },
         {
           "command": "notebook.cellOutput.copy",
           "when": "webviewId == 'notebook.output' && webviewSection == 'text'"
+        },
+        {
+          "command": "notebook.cellOutput.addToChat",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'",
+          "group": "context@2"
         },
         {
           "command": "notebook.cellOutput.openInTextEditor",
