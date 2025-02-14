@@ -15,7 +15,7 @@ import { ctxHasEditorModification, ctxReviewModeEnabled } from './chatEditingEdi
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
@@ -106,17 +106,23 @@ async function openNextOrPreviousChange(accessor: ServicesAccessor, session: ICh
 	const editorService = accessor.get(IEditorService);
 
 	const entries = session.entries.get();
-	const idx = entries.indexOf(entry);
-	const newIdx = (idx + (next ? 1 : -1) + entries.length) % entries.length;
-	if (idx === newIdx) {
-		return false;
+	let idx = entries.indexOf(entry);
+
+	let newEntry: IModifiedFileEntry;
+	while (true) {
+		idx = (idx + (next ? 1 : -1) + entries.length) % entries.length;
+		newEntry = entries[idx];
+		if (newEntry.state.get() === WorkingSetEntryState.Modified) {
+			break;
+		} else if (newEntry === entry) {
+			return false;
+		}
 	}
 
-	entry = entries[newIdx];
-	const change = entry.diffInfo.get().changes.at(next ? 0 : -1);
+	const change = newEntry.diffInfo.get().changes.at(next ? 0 : -1);
 
 	const newEditorPane = await editorService.openEditor({
-		resource: entry.modifiedURI,
+		resource: newEntry.modifiedURI,
 		options: {
 			selection: change && Range.fromPositions({ lineNumber: change.modified.startLineNumber, column: 1 }),
 			revealIfOpened: false,
