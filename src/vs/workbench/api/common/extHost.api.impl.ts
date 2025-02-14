@@ -1025,10 +1025,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				throw new errors.ReadonlyError('textDocuments');
 			},
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; encoding?: string }, options?: { encoding?: string }) {
-				// TODO: checkProposedApiEnabled(that._extension, 'textDocumentEncoding');
 				let uriPromise: Thenable<URI>;
 
 				options = options ?? uriOrFileNameOrOptions as { language?: string; content?: string; encoding?: string };
+				if (typeof options.encoding === 'string') {
+					checkProposedApiEnabled(extension, 'textDocumentEncoding');
+				}
+
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
 				} else if (URI.isUri(uriOrFileNameOrOptions)) {
