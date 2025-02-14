@@ -144,7 +144,7 @@ export interface IModifiedFileEntry {
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
-	readonly maxLineNumber: IObservable<number>;
+
 	readonly diffInfo: IObservable<IDocumentDiff>;
 
 	accept(transaction: ITransaction | undefined): Promise<void>;

@@ -107,11 +107,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._rewriteRatioObs;
 	}
 
-	private readonly _maxLineNumberObs = observableValue<number>(this, 0);
-	public get maxLineNumber(): IObservable<number> {
-		return this._maxLineNumberObs;
-	}
-
 	private readonly _reviewModeTempObs = observableValue<true | undefined>(this, undefined);
 	readonly reviewMode: IObservable<boolean>;
 
@@ -473,7 +468,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 				const lineCount = this.doc.getLineCount();
 				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
-				this._maxLineNumberObs.set(maxLineNumber, tx);
+
 			} else {
 				this._resetEditsState(tx);
 				this._updateDiffInfoSeq();
