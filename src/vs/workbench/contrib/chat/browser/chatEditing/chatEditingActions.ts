@@ -572,7 +572,7 @@ registerAction2(class RemoveAction extends Action2 {
 
 			// Restore the snapshot to what it was before the request(s) that we deleted
 			const snapshotRequestId = chatRequests[itemIndex].id;
-			await session.restoreSnapshot(snapshotRequestId);
+			await session.restoreSnapshot(snapshotRequestId, undefined);
 
 			// Remove the request and all that come after it
 			for (const request of requestsToRemove) {

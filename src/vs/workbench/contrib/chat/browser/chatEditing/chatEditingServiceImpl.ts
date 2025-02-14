@@ -232,7 +232,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const onResponseComplete = (responseModel: IChatResponseModel) => {
 			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
 				// Roll back everything
-				session.restoreSnapshot(responseModel.requestId);
+				session.restoreSnapshot(responseModel.requestId, undefined);
 			}
 
 			editsSource?.resolve();
@@ -315,7 +315,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			if (e.kind !== 'addRequest') {
 				return;
 			}
-			session.createSnapshot(e.request.id);
+			session.createSnapshot(e.request.id, undefined);
 			const responseModel = e.request.response;
 			if (!responseModel) {
 				return;
@@ -324,11 +324,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				await handleResponseParts(responseModel);
 				onResponseComplete(responseModel);
 			} else {
-				const disposable = observerDisposables.add(responseModel.onDidChange(async () => {
-					await handleResponseParts(responseModel);
-					if (responseModel.isComplete) {
-						onResponseComplete(responseModel);
-						observerDisposables.delete(disposable);
+				const disposable = observerDisposables.add(responseModel.onDidChange(e2 => {
+					if (e2.reason === 'undoStop') {
+						session.createSnapshot(e.request.id, e2.id);
+					} else {
+						handleResponseParts(responseModel).then(() => {
+							if (responseModel.isComplete) {
+								onResponseComplete(responseModel);
+								observerDisposables.delete(disposable);
+							}
+						});
 					}
 				}));
 			}

@@ -132,6 +132,11 @@ export interface IChatTask extends IChatTaskDto {
 	isSettled: () => boolean;
 }
 
+export interface IChatUndoStop {
+	kind: 'undoStop';
+	id: string;
+}
+
 export interface IChatTaskDto {
 	content: IMarkdownString;
 	kind: 'progressTask';
@@ -236,7 +241,8 @@ export type IChatProgress =
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
 	| IChatToolInvocation
-	| IChatToolInvocationSerialized;
+	| IChatToolInvocationSerialized
+	| IChatUndoStop;
 
 export interface IChatFollowup {
 	kind: 'reply';

@@ -69,7 +69,7 @@ export class PromptFilesLocator {
 	 *
 	 * @returns List of possible prompt file locations.
 	 */
-	private getSourceLocations(): readonly URI[] {
+	public getSourceLocations(): readonly URI[] {
 		const paths = new ResourceSet();
 		const sourceLocations = PromptFilesConfig.sourceLocations(this.configService);
 
