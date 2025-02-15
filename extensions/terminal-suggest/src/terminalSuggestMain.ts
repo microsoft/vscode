@@ -89,7 +89,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
 		id: 'terminal-suggest',
-		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string; cursorPosition: number }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
+		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -198,7 +198,7 @@ export function asArray<T>(x: T | T[]): T[] {
 
 export async function getCompletionItemsFromSpecs(
 	specs: Fig.Spec[],
-	terminalContext: { commandLine: string; cursorPosition: number },
+	terminalContext: vscode.TerminalCompletionContext,
 	availableCommands: ICompletionResource[],
 	prefix: string,
 	tokenType: TokenType,
@@ -247,10 +247,13 @@ export async function getCompletionItemsFromSpecs(
 		}
 		filesRequested = true;
 		foldersRequested = true;
-	} else if (!items.length && !filesRequested && !foldersRequested && !hasCurrentArg) {
-		// Not a command and no specific args or options were provided, so show resources
-		filesRequested = true;
-		foldersRequested = true;
+	}
+	// For arguments when no fig suggestions are found these are fallback suggestions
+	else if (!items.length && !filesRequested && !foldersRequested && !hasCurrentArg) {
+		if (terminalContext.allowFallbackCompletions) {
+			filesRequested = true;
+			foldersRequested = true;
+		}
 	}
 
 	let cwd: vscode.Uri | undefined;
