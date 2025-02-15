@@ -116,6 +116,11 @@ class ChatToolInvocationSubPart extends Disposable {
 			if (content.value === 'Running&nbsp;command&nbsp;in&nbsp;terminal…') {
 				const element = document.createElement('div');
 				this.domNode = element;
+
+
+
+				// Prototype for streaming terminal inline:
+
 				terminalService.createDetachedTerminal({
 					cols: 80,
 					rows: 16,
@@ -127,7 +132,7 @@ class ChatToolInvocationSubPart extends Disposable {
 					processInfo: new DetachedProcessInfo({})
 				}).then(terminal => {
 					this._register(terminal);
-					terminal.attachToElement(element);
+					// terminal.attachToElement(element);
 					const win = dom.getActiveWindow();
 					const events = [
 						{ id: 7, event: '\u001b]0;npm\u0007', time: 48.550 },
@@ -305,6 +310,17 @@ class ChatToolInvocationSubPart extends Disposable {
 			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, progressMessage, renderer, context, undefined, true, iconOverride));
 			if (toolInvocation.tooltip) {
 				this._register(hoverService.setupDelayedHover(progressPart.domNode, { content: toolInvocation.tooltip, additionalClasses: ['chat-tool-hover'] }));
+			}
+
+			if (content.value === 'Ran&nbsp;command&nbsp;in&nbsp;terminal') {
+				const element = document.createElement('div');
+				const elementList = document.createElement('div');
+				elementList.classList.add('chat-used-context-list');
+				elementList.textContent = 'Run terminal command';
+
+				element.append(progressPart.domNode, elementList);
+				this.domNode = element;
+				return;
 			}
 
 			this.domNode = progressPart.domNode;
