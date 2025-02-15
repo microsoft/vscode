@@ -300,6 +300,16 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._telemetryInfo = telemetryInfo;
 	}
 
+	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
+		return !!snapshot &&
+			this.modifiedURI.toString() === snapshot.resource.toString() &&
+			this.modifiedModel.getLanguageId() === snapshot.languageId &&
+			this.originalModel.getValue() === snapshot.original &&
+			this.modifiedModel.getValue() === snapshot.current &&
+			this._edit.equals(snapshot.originalToCurrentEdit) &&
+			this.state.get() === snapshot.state;
+	}
+
 	createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
 		this._isFirstEditAfterStartOrSnapshot = true;
 		return {
