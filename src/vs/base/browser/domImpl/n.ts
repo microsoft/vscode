@@ -5,8 +5,8 @@
 
 import { BugIndicatingError } from '../../common/errors.js';
 import { DisposableStore, IDisposable } from '../../common/lifecycle.js';
-import { derived, derivedOpts, IObservable, IReader, observableValue } from '../../common/observable.js';
-import { addDisposableListener, isSVGElement } from '../dom.js';
+import { derived, derivedOpts, derivedWithStore, IObservable, IReader, observableValue } from '../../common/observable.js';
+import { isSVGElement } from '../dom.js';
 
 export namespace n {
 	function nodeNs<TMap extends Record<string, any>>(elementNs: string | undefined = undefined): DomTagCreateFn<TMap> {
@@ -15,8 +15,10 @@ export namespace n {
 			delete attributes.class;
 			const ref = attributes.ref;
 			delete attributes.ref;
+			const obsRef = attributes.obsRef;
+			delete attributes.obsRef;
 
-			return new ObserverNodeWithElement(tag as any, ref, elementNs, className, attributes, children);
+			return new ObserverNodeWithElement(tag as any, ref, obsRef, elementNs, className, attributes, children);
 		};
 	}
 
@@ -89,12 +91,12 @@ type SVGElementTagNameMap2 = {
 
 type DomTagCreateFn<TMap extends Record<string, any>> = <TTag extends keyof TMap>(
 	tag: TTag,
-	attributes: ElementAttributeKeys<TMap[TTag]> & { class?: ValueOrList<string | false | undefined>; ref?: IRef<TMap[TTag]> },
+	attributes: ElementAttributeKeys<TMap[TTag]> & { class?: ValueOrList<string | false | undefined>; ref?: IRef<TMap[TTag]>; obsRef?: IRef<ObserverNodeWithElement<TMap[TTag]> | null> },
 	children?: ChildNode
 ) => ObserverNode<TMap[TTag]>;
 
 type DomCreateFn<TAttributes, TResult extends Element> = (
-	attributes: ElementAttributeKeys<TAttributes> & { class?: ValueOrList<string | false | undefined>; ref?: IRef<TResult> },
+	attributes: ElementAttributeKeys<TAttributes> & { class?: ValueOrList<string | false | undefined>; ref?: IRef<TResult>; obsRef?: IRef<ObserverNodeWithElement<TResult> | null> },
 	children?: ChildNode
 ) => ObserverNode<TResult>;
 
@@ -114,6 +116,7 @@ export abstract class ObserverNode<T extends Element = Element> {
 	constructor(
 		tag: string,
 		ref: IRef<T> | undefined,
+		obsRef: IRef<ObserverNodeWithElement<T> | null> | undefined,
 		ns: string | undefined,
 		className: ValueOrList<string | undefined | false> | undefined,
 		attributes: ElementAttributeKeys<T>,
@@ -122,6 +125,16 @@ export abstract class ObserverNode<T extends Element = Element> {
 		this._element = (ns ? document.createElementNS(ns, tag) : document.createElement(tag)) as unknown as T;
 		if (ref) {
 			ref(this._element);
+		}
+		if (obsRef) {
+			this._deriveds.push(derivedWithStore((_reader, store) => {
+				obsRef(this as unknown as ObserverNodeWithElement<T>);
+				store.add({
+					dispose: () => {
+						obsRef(null);
+					}
+				});
+			}));
 		}
 
 		if (className) {
@@ -303,11 +316,16 @@ export class ObserverNodeWithElement<T extends Element = Element> extends Observ
 		return this._element;
 	}
 
-	public getIsHovered(store: DisposableStore): IObservable<boolean> {
-		const hovered = observableValue<boolean>('hovered', false);
-		store.add(addDisposableListener(this._element, 'mouseenter', () => hovered.set(true, undefined)));
-		store.add(addDisposableListener(this._element, 'mouseleave', () => hovered.set(false, undefined)));
-		return hovered;
+	private _isHovered: IObservable<boolean> | undefined = undefined;
+
+	get isHovered(): IObservable<boolean> {
+		if (!this._isHovered) {
+			const hovered = observableValue<boolean>('hovered', false);
+			this._element.onmouseenter = () => hovered.set(true, undefined);
+			this._element.onmouseleave = () => hovered.set(false, undefined);
+			this._isHovered = hovered;
+		}
+		return this._isHovered;
 	}
 }
 

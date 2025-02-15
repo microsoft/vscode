@@ -75,6 +75,13 @@ export interface WorkingSetDisplayMetadata {
 	isMarkedReadonly?: boolean;
 }
 
+export interface IStreamingEdits {
+	pushText(edits: TextEdit[]): void;
+	pushNotebook(edits: ICellEditOperation[]): void;
+	/** Marks edits as done, idempotent */
+	complete(): void;
+}
+
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
@@ -83,7 +90,6 @@ export interface IChatEditingSession extends IDisposable {
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
-	readonly isToolsAgentSession: boolean;
 	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
@@ -100,6 +106,21 @@ export interface IChatEditingSession extends IDisposable {
 	 * Will lead to this object getting disposed
 	 */
 	stop(clearState?: boolean): Promise<void>;
+
+	/**
+	 * Starts making edits to the resource.
+	 * @param resource URI that's being edited
+	 * @param responseModel The response model making the edits
+	 * @param inUndoStop The undo stop the edits will be grouped in
+	 */
+	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
+
+	/**
+	 * Gets the document diff of a change made to a URI between one undo stop and
+	 * the next one.
+	 * @returns The observable or undefined if there is no diff between the stops.
+	 */
+	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IDocumentDiff | undefined> | undefined;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;

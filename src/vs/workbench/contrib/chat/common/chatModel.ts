@@ -226,6 +226,7 @@ export interface IChatResponseModel {
 	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
+	addUndoStop(undoStop: IChatUndoStop): void;
 	setVote(vote: ChatAgentVoteDirection): void;
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
@@ -494,7 +495,7 @@ export class Response extends AbstractResponse implements IDisposable {
 			let found = false;
 			for (let i = 0; !found && i < this._responseParts.length; i++) {
 				const candidate = this._responseParts[i];
-				if (candidate.kind === groupKind && isEqual(candidate.uri, progress.uri)) {
+				if (candidate.kind === groupKind && !candidate.done && isEqual(candidate.uri, progress.uri)) {
 					candidate.edits.push(progress.edits as any);
 					candidate.done = progress.done;
 					found = true;

@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorunWithStore, constObservable, derived, IObservable, observableFromEvent } from '../../../../../../../base/common/observable.js';
-import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
+import { ICodeEditor, MouseTargetType } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { rangeIsSingleLine } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
@@ -57,6 +57,17 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		}));
 
 		const editor = observableCodeEditor(this._originalEditor);
+
+		console.log('et');
+		this._register(this._originalEditor.onMouseUp(e => {
+			console.log(e);
+			if (e.target.type === MouseTargetType.CONTENT_TEXT) {
+				const a = e.target.detail.injectedText?.options.attachedData;
+				if (a) {
+
+				}
+			}
+		}));
 
 		const originalViewZones = derived(this, (reader) => {
 			const originalModel = editor.model.read(reader);

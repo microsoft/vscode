@@ -4,7 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../../base/common/observable.js';
+import { InlineEditTabAction } from './utils/utils.js';
 
 export interface IInlineEditsView {
 	isHovered: IObservable<boolean>;
+}
+
+export interface IInlineEditsViewHost {
+	accept(): void;
+	tabAction: IObservable<InlineEditTabAction>;
 }
