@@ -43,7 +43,7 @@ export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
 export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
-	quickSuggestions: {
+	quickSuggestions: /*Legacy - was this when experimental*/boolean | {
 		commands: 'off' | 'on';
 		arguments: 'off' | 'on';
 		unknown: 'off' | 'on';
