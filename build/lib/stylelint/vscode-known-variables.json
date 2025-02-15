@@ -232,6 +232,8 @@
 		"--vscode-editorGutter-commentGlyphForeground",
 		"--vscode-editorGutter-commentRangeForeground",
 		"--vscode-editorGutter-commentUnresolvedGlyphForeground",
+		"--vscode-editorGutter-itemGlyphForeground",
+		"--vscode-editorGutter-itemBackground",
 		"--vscode-editorGutter-deletedBackground",
 		"--vscode-editorGutter-foldingControlForeground",
 		"--vscode-editorGutter-modifiedBackground",
