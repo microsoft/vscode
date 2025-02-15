@@ -108,7 +108,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, this.isExpanded());
 		this.domNode.classList.toggle('chat-used-context-collapsed', !this.isExpanded());
 		this._register(collapseButton.onDidClick(() => {
-			this._isExpanded = !this.isExpanded();
+			this.setExpanded(!this.isExpanded());
 			collapseButton.icon = icon();
 			this.domNode.classList.toggle('chat-used-context-collapsed', !this.isExpanded());
 			this._onDidChangeHeight.fire();
