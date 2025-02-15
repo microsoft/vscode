@@ -86,7 +86,7 @@ class ChatToolInvocationSubPart extends Disposable {
 
 		if (toolInvocation.kind === 'toolInvocation' && toolInvocation.confirmationMessages) {
 			this.domNode = this.createConfirmationWidget(toolInvocation, instantiationService);
-		} else if (toolInvocation.resultDetails) {
+		} else if (toolInvocation.resultDetails?.length) {
 			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails, context, instantiationService, listPool);
 		} else {
 			this.domNode = this.createProgressPart(toolInvocation, context, renderer, instantiationService, hoverService);
@@ -169,7 +169,6 @@ class ChatToolInvocationSubPart extends Disposable {
 			message,
 			context,
 			listPool,
-			{}
 		));
 		this._onDidChangeHeight.input = collapsibleListPart.onDidChangeHeight;
 		return collapsibleListPart.domNode;
