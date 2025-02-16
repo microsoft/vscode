@@ -54,7 +54,7 @@
 				"type": "git",
 				"git": {
 					"name": "@fig/autocomplete-shared",
-					"repositoryUrl": "https://github.com/withfig/autocomplete-tools/blob/main/shared",
+					"repositoryUrl": "https://github.com/withfig/autocomplete-tools",
 					"commitHash": "104377c19a91ca8a312cb38c115a74468f6227cb"
 				}
 			},

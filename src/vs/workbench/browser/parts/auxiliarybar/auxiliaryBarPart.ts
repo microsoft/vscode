@@ -119,6 +119,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 				this.onDidChangeActivityBarLocation();
+			} else if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
+				this.updateCompositeBar(true);
 			}
 		}));
 	}
@@ -159,7 +161,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			pinnedViewContainersKey: AuxiliaryBarPart.pinnedViewsKey,
 			placeholderViewContainersKey: AuxiliaryBarPart.placeholdeViewContainersKey,
 			viewContainersWorkspaceStateKey: AuxiliaryBarPart.viewContainersWorkspaceStateKey,
-			icon: true,
+			icon: this.configurationService.getValue('workbench.secondarySideBar.showLabels') === false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
@@ -198,10 +200,18 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 		const positionActions = getContextMenuActions(activityBarPositionMenu).secondary;
 
+		const auxiliarybarShowLabels = this.configurationService.getValue<boolean | undefined>('workbench.secondarySideBar.showLabels');
+		const toggleShowLabelsAction = toAction({
+			id: 'workbench.action.auxiliarybar.toggleShowLabels',
+			label: auxiliarybarShowLabels ? localize('showIcons', "Show Icons") : localize('showLabels', "Show Labels"),
+			run: () => this.configurationService.updateValue('workbench.secondarySideBar.showLabels', !auxiliarybarShowLabels)
+		});
+
 		actions.push(...[
 			new Separator(),
 			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
 			toAction({ id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID) }),
+			toggleShowLabelsAction,
 			toAction({ id: ToggleAuxiliaryBarAction.ID, label: localize('hide second side bar', "Hide Secondary Side Bar"), run: () => this.commandService.executeCommand(ToggleAuxiliaryBarAction.ID) })
 		]);
 	}

@@ -358,18 +358,18 @@ class WordHighlighter {
 		return (this.decorations.length > 0);
 	}
 
-	public restore(): void {
+	public restore(delay: number): void {
 		if (this.occurrencesHighlightEnablement === 'off') {
 			return;
 		}
 
 		this.runDelayer.cancel();
-		this._run();
+		this.runDelayer.trigger(() => { this._run(false, delay); });
 	}
 
 	public trigger() {
 		this.runDelayer.cancel();
-		this._run(false, true); // immediate rendering (noDelay = true)
+		this._run(false, 0); // immediate rendering (delay = 0)
 	}
 
 	public stop(): void {
@@ -548,7 +548,7 @@ class WordHighlighter {
 
 		// ignore typing & other
 		// need to check if the model is a notebook cell, should not stop if nb
-		if (e.reason !== CursorChangeReason.Explicit && this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell) {
+		if (e.source !== 'api' && e.reason !== CursorChangeReason.Explicit && this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell) {
 			this._stopAll();
 			return;
 		}
@@ -631,7 +631,7 @@ class WordHighlighter {
 		return currentModels;
 	}
 
-	private async _run(multiFileConfigChange?: boolean, noDelay?: boolean): Promise<void> {
+	private async _run(multiFileConfigChange?: boolean, delay?: number): Promise<void> {
 
 		const hasTextFocus = this.editor.hasTextFocus();
 		if (!hasTextFocus) { // new nb cell scrolled in, didChangeModel fires
@@ -710,7 +710,7 @@ class WordHighlighter {
 					if (myRequestId === this.workerRequestTokenId) {
 						this.workerRequestCompleted = true;
 						this.workerRequestValue = data || [];
-						this._beginRenderDecorations();
+						this._beginRenderDecorations(delay ?? this.occurrencesHighlightDelay);
 					}
 				}, onUnexpectedError);
 			} catch (e) {
@@ -721,8 +721,6 @@ class WordHighlighter {
 
 		} else if (this.model.uri.scheme === Schemas.vscodeNotebookCell) {
 			// new wordHighlighter coming from a different model, NOT the query model, need to create a textModel ref
-
-			// this._stopAll(multiFileConfigChange ? this.model.uri : undefined);
 
 			const myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
@@ -738,7 +736,7 @@ class WordHighlighter {
 					if (myRequestId === this.workerRequestTokenId) {
 						this.workerRequestCompleted = true;
 						this.workerRequestValue = data || [];
-						this._beginRenderDecorations(noDelay);
+						this._beginRenderDecorations(delay ?? this.occurrencesHighlightDelay);
 					}
 				}, onUnexpectedError);
 			} catch (e) {
@@ -757,9 +755,9 @@ class WordHighlighter {
 		}
 	}
 
-	private _beginRenderDecorations(noDelay?: boolean): void {
+	private _beginRenderDecorations(delay: number): void {
 		const currentTime = (new Date()).getTime();
-		const minimumRenderTime = this.lastCursorPositionChangeTime + (noDelay ? 0 : this.occurrencesHighlightDelay);
+		const minimumRenderTime = this.lastCursorPositionChangeTime + delay;
 
 		if (currentTime >= minimumRenderTime) {
 			// Synchronous
@@ -886,7 +884,7 @@ export class WordHighlighterContribution extends Disposable implements IEditorCo
 
 	public restoreViewState(state: boolean | undefined): void {
 		if (this._wordHighlighter && state) {
-			this._wordHighlighter.restore();
+			this._wordHighlighter.restore(250); // 250 ms delay to restoring view state, since only exts call this
 		}
 	}
 

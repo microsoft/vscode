@@ -794,7 +794,19 @@ export interface InlineCompletion {
 	readonly isInlineEdit?: boolean;
 
 	readonly showRange?: IRange;
+
+	readonly warning?: InlineCompletionWarning;
 }
+
+export interface InlineCompletionWarning {
+	message: IMarkdownString | string;
+	icon?: IconPath;
+}
+
+/**
+ * TODO: add `| URI | { light: URI; dark: URI }`.
+*/
+export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];
@@ -854,6 +866,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 
 	displayName?: string;
+
+	debounceDelayMs?: number;
 
 	toString?(): string;
 }
@@ -1500,6 +1514,10 @@ export interface TextEdit {
 export abstract class TextEdit {
 	static asEditOperation(edit: TextEdit): ISingleEditOperation {
 		return EditOperation.replace(Range.lift(edit.range), edit.text);
+	}
+	static isTextEdit(thing: any): thing is TextEdit {
+		const possibleTextEdit = thing as TextEdit;
+		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
 	}
 }
 

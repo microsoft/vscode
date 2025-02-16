@@ -14,7 +14,7 @@ import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
 import { Point } from './point.js';
 
 /**
@@ -280,6 +280,25 @@ export class ObservableCodeEditor extends Disposable {
 		});
 	}
 
+	public createContentWidget(widget: IObservableContentWidget): IDisposable {
+		const contentWidgetId = 'observableContentWidget' + (this._widgetCounter++);
+		const w: IContentWidget = {
+			getDomNode: () => widget.domNode,
+			getPosition: () => widget.position.get(),
+			getId: () => contentWidgetId,
+			allowEditorOverflow: widget.allowEditorOverflow,
+		};
+		this.editor.addContentWidget(w);
+		const d = autorun(reader => {
+			widget.position.read(reader);
+			this.editor.layoutContentWidget(w);
+		});
+		return toDisposable(() => {
+			d.dispose();
+			this.editor.removeContentWidget(w);
+		});
+	}
+
 	public observeLineOffsetRange(lineRange: IObservable<LineRange>, store: DisposableStore): IObservable<OffsetRange> {
 		const start = this.observePosition(lineRange.map(r => new Position(r.startLineNumber, 1)), store);
 		const end = this.observePosition(lineRange.map(r => new Position(r.endLineNumberExclusive + 1, 1)), store);
@@ -333,11 +352,19 @@ export class ObservableCodeEditor extends Disposable {
 		}));
 		return result;
 	}
+
+	public readonly openedPeekWidgets = observableValue(this, 0);
 }
 
 interface IObservableOverlayWidget {
 	get domNode(): HTMLElement;
 	readonly position: IObservable<IOverlayWidgetPosition | null>;
 	readonly minContentWidthInPx: IObservable<number>;
+	get allowEditorOverflow(): boolean;
+}
+
+interface IObservableContentWidget {
+	get domNode(): HTMLElement;
+	readonly position: IObservable<IContentWidgetPosition | null>;
 	get allowEditorOverflow(): boolean;
 }

@@ -619,7 +619,6 @@ suite('vscode API - workspace', () => {
 
 	test('findFiles2, exclude', () => {
 		return vscode.workspace.findFiles2(['**/image.png'], { exclude: ['**/sub/**'] }).then((res) => {
-			res.forEach(r => console.log(r.toString()));
 			assert.strictEqual(res.length, 1);
 		});
 	});
@@ -1305,4 +1304,26 @@ suite('vscode API - workspace', () => {
 		disposeAll(disposables);
 		return deleteFile(file);
 	}
+
+	test('text document encodings', async () => {
+		const uri1 = await createRandomFile();
+		const uri2 = await createRandomFile(new Uint8Array([0xEF, 0xBB, 0xBF]) /* UTF-8 with BOM */);
+		const uri3 = await createRandomFile(new Uint8Array([0xFF, 0xFE]) /* UTF-16 LE BOM */);
+		const uri4 = await createRandomFile(new Uint8Array([0xFE, 0xFF]) /* UTF-16 BE BOM */);
+
+		const doc1 = await vscode.workspace.openTextDocument(uri1);
+		assert.strictEqual(doc1.encoding, 'utf8');
+
+		const doc2 = await vscode.workspace.openTextDocument(uri2);
+		assert.strictEqual(doc2.encoding, 'utf8bom');
+
+		const doc3 = await vscode.workspace.openTextDocument(uri3);
+		assert.strictEqual(doc3.encoding, 'utf16le');
+
+		const doc4 = await vscode.workspace.openTextDocument(uri4);
+		assert.strictEqual(doc4.encoding, 'utf16be');
+
+		const doc5 = await vscode.workspace.openTextDocument({ content: 'Hello World' });
+		assert.strictEqual(doc5.encoding, 'utf8');
+	});
 });

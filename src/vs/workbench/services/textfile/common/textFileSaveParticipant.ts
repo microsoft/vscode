@@ -51,7 +51,14 @@ export class TextFileSaveParticipant extends Disposable {
 			cancellable: localize('skip', "Skip"),
 			delay: model.isDirty() ? 5000 : 3000
 		}, async progress => {
-			for (const saveParticipant of this.saveParticipants) {
+
+			const participants = Array.from(this.saveParticipants).sort((a, b) => {
+				const aValue = a.ordinal ?? 0;
+				const bValue = b.ordinal ?? 0;
+				return aValue - bValue;
+			});
+
+			for (const saveParticipant of participants) {
 				if (cts.token.isCancellationRequested || !model.textEditorModel /* disposed */) {
 					break;
 				}

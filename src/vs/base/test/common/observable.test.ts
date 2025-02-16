@@ -1541,7 +1541,7 @@ export class LoggingObservableValue<T, TChange = void>
 
 		this.value = value;
 
-		for (const observer of this.observers) {
+		for (const observer of this._observers) {
 			tx.updateObserver(observer, this);
 			observer.handleChange(this, change);
 		}

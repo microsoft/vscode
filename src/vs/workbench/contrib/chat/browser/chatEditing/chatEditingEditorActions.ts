@@ -10,11 +10,12 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ChatEditorController, ctxHasEditorModification, ctxReviewModeEnabled } from './chatEditingEditorController.js';
+import { ChatEditorController } from './chatEditingEditorController.js';
+import { ctxHasEditorModification, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
@@ -24,6 +25,8 @@ import { IListService } from '../../../../../platform/list/browser/listService.j
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -63,41 +66,37 @@ abstract class NavigateAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		let editor = editorService.activeTextEditorControl;
-		if (isDiffEditor(editor)) {
-			editor = editor.getModifiedEditor();
-		}
-		if (!isCodeEditor(editor) || !editor.hasModel()) {
-			return;
-		}
-		const ctrl = ChatEditorController.get(editor);
-		if (!ctrl) {
+		const uri = EditorResourceAccessor.getOriginalUri(editorService.activeEditorPane?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
+
+		if (!uri || !editorService.activeEditorPane) {
 			return;
 		}
 
 		const session = chatEditingService.editingSessionsObs.get()
-			.find(candidate => candidate.getEntry(editor.getModel().uri));
+			.find(candidate => candidate.getEntry(uri));
 
 		if (!session) {
 			return;
 		}
 
+		const entry = session.getEntry(uri)!;
+
+		const navigation = entry.getChangeNavigator(editorService.activeEditorPane);
+
 		const done = this.next
-			? ctrl.revealNext(true)
-			: ctrl.revealPrevious(true);
+			? navigation.next(false)
+			: navigation.previous(false);
 
 		if (done) {
 			return;
 		}
 
-		const didOpenNext = await instaService.invokeFunction(openNextOrPreviousChange, session, session.getEntry(editor.getModel().uri)!, this.next);
+		const didOpenNext = await instaService.invokeFunction(openNextOrPreviousChange, session, entry, this.next);
 		if (!didOpenNext) {
 			// wrap inside the same file
-			if (this.next) {
-				ctrl.revealNext(false);
-			} else {
-				ctrl.revealPrevious(false);
-			}
+			this.next
+				? navigation.next(true)
+				: navigation.previous(true);
 		}
 	}
 }
@@ -107,17 +106,23 @@ async function openNextOrPreviousChange(accessor: ServicesAccessor, session: ICh
 	const editorService = accessor.get(IEditorService);
 
 	const entries = session.entries.get();
-	const idx = entries.indexOf(entry);
-	const newIdx = (idx + (next ? 1 : -1) + entries.length) % entries.length;
-	if (idx === newIdx) {
-		return false;
+	let idx = entries.indexOf(entry);
+
+	let newEntry: IModifiedFileEntry;
+	while (true) {
+		idx = (idx + (next ? 1 : -1) + entries.length) % entries.length;
+		newEntry = entries[idx];
+		if (newEntry.state.get() === WorkingSetEntryState.Modified) {
+			break;
+		} else if (newEntry === entry) {
+			return false;
+		}
 	}
 
-	entry = entries[newIdx];
-	const change = entry.diffInfo.get().changes.at(next ? 0 : -1);
+	const change = newEntry.diffInfo.get().changes.at(next ? 0 : -1);
 
 	const newEditorPane = await editorService.openEditor({
-		resource: entry.modifiedURI,
+		resource: newEntry.modifiedURI,
 		options: {
 			selection: change && Range.fromPositions({ lineNumber: change.modified.startLineNumber, column: 1 }),
 			revealIfOpened: false,
@@ -139,11 +144,14 @@ abstract class AcceptDiscardAction extends Action2 {
 		super({
 			id,
 			title: accept
-				? localize2('accept', 'Accept Chat Edit')
-				: localize2('discard', 'Discard Chat Edit'),
+				? localize2('accept', 'Keep Chat Edits')
+				: localize2('discard', 'Undo Chat Edits'),
 			shortTitle: accept
-				? localize2('accept2', 'Accept')
-				: localize2('discard2', 'Discard'),
+				? localize2('accept2', 'Keep')
+				: localize2('discard2', 'Undo'),
+			tooltip: accept
+				? localize2('accept3', 'Keep Chat Edits in this File')
+				: localize2('discard3', 'Undo Chat Edits in this File'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ctxHasEditorModification),
 			icon: accept
@@ -239,7 +247,7 @@ class RejectHunkAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'chatEditor.action.undoHunk',
-			title: localize2('undo', 'Discard this Change'),
+			title: localize2('undo', 'Undo this Change'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.discard,
@@ -265,7 +273,7 @@ class AcceptHunkAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'chatEditor.action.acceptHunk',
-			title: localize2('acceptHunk', 'Accept this Change'),
+			title: localize2('acceptHunk', 'Keep this Change'),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
 			icon: Codicon.check,
@@ -287,14 +295,14 @@ class AcceptHunkAction extends EditorAction2 {
 	}
 }
 
-class OpenDiffAction extends EditorAction2 {
+class ToggleDiffAction extends EditorAction2 {
 	constructor() {
 		super({
-			id: 'chatEditor.action.diffHunk',
+			id: 'chatEditor.action.toggleDiff',
 			title: localize2('diff', 'Toggle Diff Editor'),
 			category: CHAT_CATEGORY,
 			toggled: {
-				condition: EditorContextKeys.inDiffEditor,
+				condition: ContextKeyExpr.or(EditorContextKeys.inDiffEditor, ActiveEditorContext.isEqualTo(TEXT_DIFF_EDITOR_ID))!,
 				icon: Codicon.goToFile,
 			},
 			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
@@ -318,6 +326,27 @@ class OpenDiffAction extends EditorAction2 {
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
 		ChatEditorController.get(editor)?.toggleDiff(args[0]);
+	}
+}
+
+class ToggleAccessibleDiffViewAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'chatEditor.action.showAccessibleDiffView',
+			title: localize2('accessibleDiff', 'Show Accessible Diff View'),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ChatContextKeys.requestInProgress.negate()),
+			keybinding: {
+				when: EditorContextKeys.focus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.F7,
+			}
+		});
+	}
+
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		ChatEditorController.get(editor)?.showAccessibleDiffView();
 	}
 }
 
@@ -357,7 +386,7 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 	constructor(readonly accept: boolean) {
 		super({
 			id: accept ? 'chatEditing.multidiff.acceptAllFiles' : 'chatEditing.multidiff.discardAllFiles',
-			title: accept ? localize('accept3', 'Accept All Edits') : localize('discard3', 'Discard All Edits'),
+			title: accept ? localize('accept4', 'Keep All Edits') : localize('discard4', 'Undo All Edits'),
 			icon: accept ? Codicon.check : Codicon.discard,
 			menu: {
 				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
@@ -404,7 +433,8 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptHunkAction);
 	registerAction2(RejectAction);
 	registerAction2(RejectHunkAction);
-	registerAction2(OpenDiffAction);
+	registerAction2(ToggleDiffAction);
+	registerAction2(ToggleAccessibleDiffViewAction);
 
 	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(true); } });
 	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(false); } });

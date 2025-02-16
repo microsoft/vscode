@@ -6,7 +6,7 @@
 import { isWindows } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
 import { SimpleCompletionModel, type LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
-import type { TerminalCompletionItem } from './terminalCompletionItem.js';
+import { TerminalCompletionItemKind, type TerminalCompletionItem } from './terminalCompletionItem.js';
 
 export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompletionItem> {
 	constructor(
@@ -18,10 +18,26 @@ export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompl
 }
 
 const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionItem, b: TerminalCompletionItem) => {
+	// Boost always on top inline completions
+	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop && a.completion.kind !== b.completion.kind) {
+		return -1;
+	}
+	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop && a.completion.kind !== b.completion.kind) {
+		return 1;
+	}
+
 	// Sort by the score
 	let score = b.score[0] - a.score[0];
 	if (score !== 0) {
 		return score;
+	}
+
+	// Boost inline completions
+	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return -1;
+	}
+	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return 1;
 	}
 
 	// Sort by underscore penalty (eg. `__init__/` should be penalized)

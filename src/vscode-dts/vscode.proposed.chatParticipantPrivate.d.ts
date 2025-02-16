@@ -123,6 +123,11 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString;
 	}
 
+	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+		toolResultMessage?: string | MarkdownString;
+		toolResultDetails?: Array<Uri | Location>;
+	}
+
 	// #region Chat participant detection
 
 	export interface ChatParticipantMetadata {
