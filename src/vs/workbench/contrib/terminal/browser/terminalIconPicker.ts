@@ -50,7 +50,8 @@ export class TerminalIconPicker extends Disposable {
 		});
 	}
 
-	async pickIcons(): Promise<ThemeIcon | undefined> {
+
+	/*async pickIcons(): Promise<ThemeIcon | undefined> {
 		const dimension = new Dimension(486, 260);
 		return new Promise<ThemeIcon | undefined>(resolve => {
 			this._register(this._iconSelectBox.onDidSelect(e => {
@@ -77,5 +78,38 @@ export class TerminalIconPicker extends Disposable {
 			this._iconSelectBox.layout(dimension);
 			this._iconSelectBox.focus();
 		});
+	}*/
+
+	//Change that will pass in  atarget element so that the icon picker is positioned relative to the element
+	async pickIcons(target?: HTMLElement): Promise<ThemeIcon | undefined> {
+		const dimension = new Dimension(486, 260);
+		return new Promise<ThemeIcon | undefined>(resolve => {
+			this._register(this._iconSelectBox.onDidSelect(e => {
+				resolve(e);
+				this._iconSelectBox.dispose();
+			}));
+			this._iconSelectBox.clearInput();
+			// Use the passed target element or fall back to document body.
+			const hoverTarget = target || getActiveDocument().body;
+			const hoverWidget = this._hoverService.showHover({
+				content: this._iconSelectBox.domNode,
+				target: hoverTarget,
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+				},
+				persistence: {
+					sticky: true,
+				},
+				appearance: {
+					showPointer: true
+				}
+			}, true);
+			if (hoverWidget) {
+				this._register(hoverWidget);
+			}
+			this._iconSelectBox.layout(dimension);
+			this._iconSelectBox.focus();
+		});
 	}
+
 }
