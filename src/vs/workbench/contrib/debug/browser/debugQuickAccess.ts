@@ -73,7 +73,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				// Most recently used configuration
 				if (selectedConfiguration.name === config.name && selectedConfiguration.launch === config.launch) {
 					const separator: IQuickPickSeparator = { type: 'separator', label: localize('mostRecent', 'Most Recent') };
-					picks.unshift(...[separator, pick]);
+					picks.unshift(separator, pick);
 					continue;
 				}
 
