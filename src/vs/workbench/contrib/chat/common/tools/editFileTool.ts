@@ -116,7 +116,7 @@ export class EditTool implements IToolImpl {
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
-			content: new MarkdownString('// placeholder\n```')
+			content: new MarkdownString(parameters.code + '\n````\n')
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'textEdit',
