@@ -196,7 +196,8 @@ function getSuffix(c: EmbeddedRegion) {
 }
 function updateContent(c: EmbeddedRegion, content: string): string {
 	if (!c.attributeValue && c.languageId === 'javascript') {
-		return content.replace(/<!--[^\r\n\u2028\u2029]*-->/g, (_, p1: string) => {
+		const SingleLineHTMLComment = /<!--([^\r\n\u2028\u2029]*)-->/g;
+		return content.replace(SingleLineHTMLComment, (_, p1: string) => {
 			return `/* ${p1} */`;
 		});
 	}
