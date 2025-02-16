@@ -490,6 +490,15 @@ export class AttachContextAction extends Action2 {
 					fullName: pick.label,
 					name: pick.symbol.name,
 				});
+			} else if (isIDirectorySearchResultQuickPickItem(pick)) {
+				const directory = pick.resource;
+				toAttach.push({
+					id: pick.id,
+					value: directory,
+					name: basename(directory),
+					isFile: false,
+					isDirectory: true,
+				});
 			} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
 				if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
 					// checks if the file is an image
@@ -565,15 +574,6 @@ export class AttachContextAction extends Action2 {
 						});
 					}
 				}
-			} else if (isIDirectorySearchResultQuickPickItem(pick)) {
-				const directory = pick.resource;
-				toAttach.push({
-					id: pick.id,
-					value: directory,
-					name: basename(directory),
-					isFile: false,
-					isDirectory: true,
-				});
 			} else if (isRelatedFileQuickPickItem(pick)) {
 				// Get all provider results and show them in a second tier picker
 				const chatSessionId = widget.viewModel?.sessionId;
