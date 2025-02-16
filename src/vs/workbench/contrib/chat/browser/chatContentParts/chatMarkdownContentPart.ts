@@ -356,11 +356,12 @@ class CollapsedCodeBlock extends Disposable {
 		iconEl.classList.add(...iconClasses);
 
 		const children = [dom.$('span.icon-label', {}, iconText)];
+		const labelDetail = dom.$('span.label-detail', {}, '');
+		children.push(labelDetail);
 		if (isStreaming) {
-			children.push(dom.$('span.label-detail', {}, localize('chat.codeblock.generating', "Generating edits...")));
-		} else if (!isComplete) {
-			children.push(dom.$('span.label-detail', {}, ''));
+			labelDetail.textContent = localize('chat.codeblock.generating', "Generating edits...");
 		}
+
 		this.element.replaceChildren(iconEl, ...children);
 		this.element.title = this.labelService.getUriLabel(uri, { relative: false });
 
@@ -388,12 +389,11 @@ class CollapsedCodeBlock extends Disposable {
 		this._progressStore.add(autorun(r => {
 			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
 
-			const labelDetail = this.element.querySelector('.label-detail');
 			const isComplete = !modifiedEntry?.isCurrentlyBeingModifiedBy.read(r);
-			if (labelDetail && !isStreaming && !isComplete) {
+			if (!isStreaming && !isComplete) {
 				const value = rewriteRatio;
-				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.applying', "Applying edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));
-			} else if (labelDetail && !isStreaming && isComplete) {
+				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));
+			} else if (!isStreaming && isComplete) {
 				iconEl.classList.remove(...iconClasses);
 				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 				iconEl.classList.add(...getIconClasses(this.modelService, this.languageService, uri, fileKind));
