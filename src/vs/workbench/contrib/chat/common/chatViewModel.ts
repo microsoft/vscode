@@ -593,8 +593,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 				} else {
 					const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
 					const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
-					const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (newTotalTime / 1000);
-					this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
+					const impliedWordLoadRate = wordCount / (newTotalTime / 1000);
+					this.trace('onDidChange', `Update- got ${wordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s`);
 					this._contentUpdateTimings = {
 						totalTime: this._contentUpdateTimings.totalTime !== 0 || this.response.value.some(v => v.kind === 'markdownContent') ?
 							newTotalTime :
