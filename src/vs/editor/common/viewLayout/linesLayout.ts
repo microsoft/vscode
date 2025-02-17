@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorWhitespace, IPartialViewLinesViewportData, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
+import { IEditorWhitespace, IPartialViewLinesViewportData, ISpecialLineHeightChangeAccessor, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
 import * as strings from '../../../base/common/strings.js';
 
 // I suppose thw second field means that everything after line number needs to be recomputed
@@ -65,6 +65,57 @@ class PendingChanges {
 	}
 }
 
+class PendingSpecialLineHeightChanges {
+
+	private _hasPending: boolean;
+	private _inserts: { decoration: string; lineNumber: number; lineHeight: number }[];
+	private _changes: { decoration: string; lineNumber: number; lineHeight: number }[];
+	private _removes: { decoration: string }[];
+
+	constructor() {
+		this._hasPending = false;
+		this._inserts = [];
+		this._changes = [];
+		this._removes = [];
+	}
+
+	public insert(x: { decoration: string; lineNumber: number; lineHeight: number }): void {
+		this._hasPending = true;
+		this._inserts.push(x);
+	}
+
+	public change(x: { decoration: string; lineNumber: number; lineHeight: number }): void {
+		this._hasPending = true;
+		this._changes.push(x);
+	}
+
+	public remove(x: { decoration: string }): void {
+		this._hasPending = true;
+		this._removes.push(x);
+	}
+
+	public mustCommit(): boolean {
+		return this._hasPending;
+	}
+
+	public commit(linesLayout: LinesLayout): void {
+		if (!this._hasPending) {
+			return;
+		}
+
+		const inserts = this._inserts;
+		const changes = this._changes;
+		const removes = this._removes;
+
+		this._hasPending = false;
+		this._inserts = [];
+		this._changes = [];
+		this._removes = [];
+
+		linesLayout._commitPendingSpecialLineHeightChanges(inserts, changes, removes);
+	}
+}
+
 export class EditorWhitespace implements IEditorWhitespace {
 	public id: string;
 	public afterLineNumber: number;
@@ -84,6 +135,55 @@ export class EditorWhitespace implements IEditorWhitespace {
 	}
 }
 
+export class SpecialLineHeights {
+
+
+	public maximumHeight: number = 0;
+
+	public specialLineHeights: Map<string, number> = new Map<string, number>();
+
+	public prefixSum: number = 0;
+
+	constructor(specialLineHeights: Map<string, number>, prefixSum: number) {
+		this.specialLineHeights = specialLineHeights;
+		this.prefixSum = prefixSum;
+		this._computeMaximumHeight();
+	}
+
+	/**
+	 * Inserts a special line height, returns whether the maximum line height on the given line has changed
+	 */
+	public insert(decoration: string, height: number): boolean {
+		this.specialLineHeights.set(decoration, height);
+		const previousMaximumHeight = this.maximumHeight;
+		this.maximumHeight = Math.max(this.maximumHeight, height);
+		return previousMaximumHeight !== this.maximumHeight;
+	}
+
+	/**
+	 * Deletes a special line height, returns whether the maximum line height on the given line has changed
+	 */
+	public delete(decoration: string): boolean {
+		const previousMaximumHeight = this.maximumHeight;
+		const height = this.specialLineHeights.get(decoration);
+		if (height !== undefined) {
+			this.specialLineHeights.delete(decoration);
+			if (height === this.maximumHeight) {
+				this.maximumHeight = this._computeMaximumHeight();
+			}
+		}
+		return previousMaximumHeight !== this.maximumHeight;
+	}
+
+	private _computeMaximumHeight(): number {
+		let result = 0;
+		this.specialLineHeights.forEach((value) => {
+			result = Math.max(result, value);
+		});
+		return result;
+	}
+}
+
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
  *
@@ -97,6 +197,8 @@ export class LinesLayout {
 
 	private readonly _instanceId: string;
 	private readonly _pendingChanges: PendingChanges;
+	private readonly _pendingSpecialLineHeightChanges: PendingSpecialLineHeightChanges;
+
 	// presumably the last id of the last space that was added
 	private _lastWhitespaceId: number;
 	private _arr: EditorWhitespace[];
@@ -107,11 +209,14 @@ export class LinesLayout {
 	private _lineHeight: number;
 	private _paddingTop: number;
 	private _paddingBottom: number;
-	private _specialLineHeights = new Map<number, number>();
+
+	private _decorationIDToLineNumber: Map<string, number> = new Map<string, number>();
+	private _lineNumberToSpecialLineHeights: Map<number, SpecialLineHeights> = new Map<number, SpecialLineHeights>();
 
 	constructor(lineCount: number, lineHeight: number, paddingTop: number, paddingBottom: number) {
 		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
 		this._pendingChanges = new PendingChanges();
+		this._pendingSpecialLineHeightChanges = new PendingSpecialLineHeightChanges();
 		this._lastWhitespaceId = 0;
 		this._arr = [];
 		this._prefixSumValidIndex = -1;
@@ -181,6 +286,30 @@ export class LinesLayout {
 		this._lineCount = lineCount;
 	}
 
+	public changeSpecialLineHeights(callback: (accessor: ISpecialLineHeightChangeAccessor) => void): boolean {
+		// initially we assume there has been no change
+		let hadAChange = false;
+		try {
+			const accessor: ISpecialLineHeightChangeAccessor = {
+				insertSpecialLineHeight: (decoration: string, lineNumber: number, lineHeight: number): void => {
+					hadAChange = true;
+					this._pendingSpecialLineHeightChanges.insert({ decoration, lineNumber, lineHeight });
+				},
+				changeSpecialLineHeight: (decoration: string, lineNumber: number, lineHeight: number): void => {
+					hadAChange = true;
+					this._pendingSpecialLineHeightChanges.change({ decoration, lineNumber, lineHeight });
+				},
+				removeWhitespace: (decoration: string): void => {
+					hadAChange = true;
+					this._pendingSpecialLineHeightChanges.remove({ decoration });
+				}
+			};
+			callback(accessor);
+		} finally {
+			this._pendingSpecialLineHeightChanges.commit(this);
+		}
+		return hadAChange;
+	}
 
 	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): boolean {
 		// initially we assume there has been no change
@@ -292,10 +421,104 @@ export class LinesLayout {
 		this._prefixSumValidIndex = -1;
 	}
 
+	public _commitPendingSpecialLineHeightChanges(inserts: { decoration: string; lineNumber: number; lineHeight: number }[], changes: { decoration: string; lineNumber: number; lineHeight: number }[], removes: { decoration: string }[]): void {
+
+		if (inserts.length + changes.length + removes.length <= 1) {
+			for (const insert of inserts) {
+				this._insertSpecialLineHeight(insert);
+			}
+			for (const change of changes) {
+				this._changeSpecialLineHeight(change);
+			}
+			for (const remove of removes) {
+				this._removeSpecialLineHeight(remove);
+			}
+			return;
+		}
+
+		const _decorationIDToLineNumberCopy: Map<string, number> = new Map<string, number>(this._decorationIDToLineNumber);
+		const _lineNumberToSpecialLineHeightsCopy: Map<number, SpecialLineHeights> = new Map<number, SpecialLineHeights>(this._lineNumberToSpecialLineHeights);
+
+		changes.forEach((value) => {
+			const decoration = value.decoration;
+			const lineNumber = value.lineNumber;
+			const lineHeight = value.lineHeight;
+
+			// changing the current data
+			const currentLineNumber = _decorationIDToLineNumberCopy.get(decoration);
+			_decorationIDToLineNumberCopy.set(decoration, lineNumber);
+			if (currentLineNumber !== undefined) {
+				const oldSpecialLineHeights = _lineNumberToSpecialLineHeightsCopy.get(currentLineNumber);
+				if (oldSpecialLineHeights !== undefined) {
+					oldSpecialLineHeights.delete(decoration);
+				}
+				const newSpecialLineHeights = _lineNumberToSpecialLineHeightsCopy.get(lineNumber);
+				if (newSpecialLineHeights === undefined) {
+					_lineNumberToSpecialLineHeightsCopy.set(lineNumber, new SpecialLineHeights(new Map<string, number>([[decoration, lineHeight]]), 0));
+				}
+				_lineNumberToSpecialLineHeightsCopy.get(lineNumber)!.insert(decoration, lineHeight);
+			}
+
+			// changing the inserts
+			inserts.forEach((value) => {
+				if (value.decoration === decoration) {
+					value.lineNumber = lineNumber;
+					value.lineHeight = lineHeight;
+				}
+			});
+		});
+
+		const newInserts: {
+			decoration: string;
+			lineNumber: number;
+			lineHeight: number;
+		}[] = [];
+		removes.forEach((value) => {
+
+			// changing the actual value
+			const decoration = value.decoration;
+			const correspondingLineNumber = _decorationIDToLineNumberCopy.get(decoration);
+			_decorationIDToLineNumberCopy.delete(decoration);
+			if (correspondingLineNumber !== undefined) {
+				const specialLineHeights = _lineNumberToSpecialLineHeightsCopy.get(correspondingLineNumber);
+				if (specialLineHeights !== undefined) {
+					specialLineHeights.delete(decoration);
+				}
+			}
+
+			// changing the inserts
+			// not quite correct
+			inserts.forEach((value) => {
+				if (value.decoration !== decoration) {
+					newInserts.push(value);
+				}
+			});
+		});
+
+		inserts.forEach((value) => {
+			const decoration = value.decoration;
+			const lineNumber = value.lineNumber;
+			const lineHeight = value.lineHeight;
+			_decorationIDToLineNumberCopy.set(decoration, lineNumber);
+			const specialLineHeights = _lineNumberToSpecialLineHeightsCopy.get(lineNumber);
+			if (specialLineHeights) {
+				specialLineHeights.insert(decoration, lineHeight);
+			} else {
+				_lineNumberToSpecialLineHeightsCopy.set(lineNumber, new SpecialLineHeights(new Map<string, number>([[decoration, lineHeight]]), 0));
+			}
+		});
+
+		this._decorationIDToLineNumber = _decorationIDToLineNumberCopy;
+		this._lineNumberToSpecialLineHeights = _lineNumberToSpecialLineHeightsCopy;
+	}
+
 	private _checkPendingChanges(): void {
 		// if there are pending changes, then we commit the changes
 		if (this._pendingChanges.mustCommit()) {
 			this._pendingChanges.commit(this);
+		}
+		if (this._pendingSpecialLineHeightChanges.mustCommit()) {
+			this._pendingSpecialLineHeightChanges.commit(this);
 		}
 	}
 
@@ -316,6 +539,20 @@ export class LinesLayout {
 			}
 		}
 		return -1;
+	}
+
+	private _insertSpecialLineHeight(specialLineHeight: {
+		decoration: string;
+		lineNumber: number;
+		lineHeight: number;
+	}): void {
+		this._decorationIDToLineNumber.set(specialLineHeight.decoration, specialLineHeight.lineNumber);
+		const specialLineHeights = this._lineNumberToSpecialLineHeights.get(specialLineHeight.lineNumber);
+		if (specialLineHeights) {
+			specialLineHeights.insert(specialLineHeight.decoration, specialLineHeight.lineHeight);
+		} else {
+			this._lineNumberToSpecialLineHeights.set(specialLineHeight.lineNumber, new SpecialLineHeights(new Map<string, number>([[specialLineHeight.decoration, specialLineHeight.lineHeight]]), 0));
+		}
 	}
 
 	// We change the whitespace with the given id, and it has to be inserted after the number corresponding to the second parameter
@@ -352,11 +589,47 @@ export class LinesLayout {
 		}
 	}
 
+	private _changeSpecialLineHeight(specialLineHeight: {
+		decoration: string;
+		lineNumber: number;
+		lineHeight: number;
+	}): void {
+		const correspondingLineNumber = this._decorationIDToLineNumber.get(specialLineHeight.decoration);
+		this._decorationIDToLineNumber.delete(specialLineHeight.decoration);
+		this._decorationIDToLineNumber.set(specialLineHeight.decoration, specialLineHeight.lineNumber);
+
+		if (correspondingLineNumber) {
+			const specialLineHeights = this._lineNumberToSpecialLineHeights.get(correspondingLineNumber);
+			if (specialLineHeights) {
+				specialLineHeights.delete(specialLineHeight.decoration);
+			}
+		}
+
+		const specialLineHeights = this._lineNumberToSpecialLineHeights.get(specialLineHeight.lineNumber);
+		if (specialLineHeights) {
+			specialLineHeights.insert(specialLineHeight.decoration, specialLineHeight.lineHeight);
+		} else {
+			this._lineNumberToSpecialLineHeights.set(specialLineHeight.lineNumber, new SpecialLineHeights(new Map<string, number>([[specialLineHeight.decoration, specialLineHeight.lineHeight]]), 0));
+		}
+	}
+
 	private _removeWhitespace(removeIndex: number): void {
 		this._arr.splice(removeIndex, 1);
 		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, removeIndex - 1);
 	}
 
+	private _removeSpecialLineHeight(remove: { decoration: string }): void {
+		const correspondingLineNumber = this._decorationIDToLineNumber.get(remove.decoration);
+		this._decorationIDToLineNumber.delete(remove.decoration);
+		if (correspondingLineNumber) {
+			const specialLineHeights = this._lineNumberToSpecialLineHeights.get(correspondingLineNumber);
+			if (specialLineHeights) {
+				specialLineHeights.delete(remove.decoration);
+			}
+		}
+	}
+
+	/// TODO
 	/**
 	 * Notify the layouter that lines have been deleted (a continuous zone of lines).
 	 *
@@ -454,20 +727,6 @@ export class LinesLayout {
 	}
 
 	/**
-	 * Add special line height
-	 */
-	public addSpecialLineHeight(lineNumber: number, height: number): void {
-		this._specialLineHeights.set(lineNumber, height);
-	}
-
-	/**
-	 * Remove special line height
-	 */
-	public removeSpecialLineHeight(lineNumber: number): void {
-		this._specialLineHeights.delete(lineNumber);
-	}
-
-	/**
 	 * Get the sum of heights for all objects.
 	 *
 	 * @return The sum of heights for all objects.
@@ -483,6 +742,7 @@ export class LinesLayout {
 		return linesHeight + whitespacesHeight + this._paddingTop + this._paddingBottom;
 	}
 
+	// will need to maybe use an array instead of a map for this because need to use binary search here
 	private _linesHeight(_untilLineNumber?: number): number {
 		const untilLineNumber = _untilLineNumber ?? this._lineCount;
 		let specialLinesHeight = 0;
@@ -599,10 +859,8 @@ export class LinesLayout {
 	}
 
 	public getLineHeightForLineNumber(lineNumber: number): number {
-		if (this._specialLineHeights.has(lineNumber)) {
-			return this._specialLineHeights.get(lineNumber)!;
-		}
-		return this._lineHeight;
+		const specialLineHeights = this._lineNumberToSpecialLineHeights.get(lineNumber);
+		return specialLineHeights ? specialLineHeights.maximumHeight : this._lineHeight;
 	}
 
 	/**
