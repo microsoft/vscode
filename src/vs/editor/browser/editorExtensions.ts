@@ -226,15 +226,12 @@ export class MultiCommand extends Command {
 					continue;
 				}
 			}
-			const result = impl.implementation(accessor, args);
+			const result = await impl.implementation(accessor, args);
 			if (result === false) {
 				continue;
 			}
-			const resolvedResult = await result;
-			if (resolvedResult === false) {
-				continue;
-			} else if (resolvedResult === true) {
-				logService.trace(`Command '${this.id}' was handled by '${impl.name}'.`);
+			logService.trace(`Command '${this.id}' was handled by '${impl.name}'.`);
+			if (result === true) {
 				return;
 			} else {
 				return Promise.resolve();
