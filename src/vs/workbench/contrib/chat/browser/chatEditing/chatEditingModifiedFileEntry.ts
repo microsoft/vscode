@@ -337,8 +337,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._setDocValue(this.initialContent);
 	}
 
-	acceptStreamingEditsStart(tx: ITransaction) {
+	acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
 		this._resetEditsState(tx);
+		this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 		this._autoAcceptCtrl.get()?.cancel();
 	}
 
