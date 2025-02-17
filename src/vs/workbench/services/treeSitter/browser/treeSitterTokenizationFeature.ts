@@ -100,8 +100,10 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 
 export class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTokenizationSupport {
 	private _query: Parser.Query | undefined;
-	private readonly _onDidChangeTokens: Emitter<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = new Emitter();
+	private readonly _onDidChangeTokens: Emitter<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._register(new Emitter());
 	public readonly onDidChangeTokens: Event<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._onDidChangeTokens.event;
+	private readonly _onDidCompleteFirstTokenization: Emitter<{ textModel: ITextModel }> = this._register(new Emitter());
+	public readonly onDidCompleteFirstTokenization: Event<{ textModel: ITextModel }> = this._onDidCompleteFirstTokenization.event;
 	private _colorThemeData!: ColorThemeData;
 	private _languageAddedListener: IDisposable | undefined;
 	private _codeEditors: TreeSitterCodeEditors;
@@ -119,10 +121,16 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	) {
 		super();
 		this._codeEditors = this._instantiationService.createInstance(TreeSitterCodeEditors, this._languageId);
-		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
 		this._register(this._codeEditors.onDidChangeViewport(e => {
 			this._parseAndTokenizeViewPort(e.model, e.ranges);
 		}));
+		this._codeEditors.getInitialViewPorts().then(async (viewports) => {
+			for (const viewport of viewports) {
+				this._parseAndTokenizeViewPort(viewport.model, viewport.ranges);
+			}
+		});
+		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
+		let hasDoneFullTokenization = false;
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
 			if (e.textModel.getLanguageId() !== this._languageId) {
 				return;
@@ -137,11 +145,20 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				return;
 			}
 
+			let updatePromise: Promise<void>;
 			// First time we see a tree we need to build a token store.
 			if (!this._tokenizationStoreService.hasTokens(e.textModel)) {
-				this._firstTreeUpdate(e.textModel, e.versionId);
+				// This will likely not happen as we first handle all models, which are ready before trees.
+				updatePromise = this._firstTreeUpdate(e.textModel, e.versionId);
 			} else {
-				this._handleTreeUpdate(e);
+				updatePromise = this._handleTreeUpdate(e);
+			}
+
+			if (!hasDoneFullTokenization) {
+				hasDoneFullTokenization = true;
+				updatePromise.then(() => {
+					this._onDidCompleteFirstTokenization.fire({ textModel: e.textModel });
+				});
 			}
 		}));
 	}
@@ -214,7 +231,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	private _firstTreeUpdate(textModel: ITextModel, versionId: number) {
 		this._setInitialTokens(textModel);
-		this._setViewPortTokens(textModel, versionId);
+		return this._setViewPortTokens(textModel, versionId);
 	}
 
 	private _codeEditorForModel(textModel: ITextModel) {
@@ -246,7 +263,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			const valueLength = textModel.getValueLength();
 			rangeChanges = [{ newRange: new Range(1, 1, maxLine, textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength, oldRangeLength: valueLength }];
 		}
-		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
+		return this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
 	}
 
 	/**
@@ -296,7 +313,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		// Get the captures immediately while the text model is correct
 		const captures = rangeChanges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
 		// Don't block
-		this._updateTreeForRanges(e.textModel, rangeChanges, e.versionId, captures).then(() => {
+		return this._updateTreeForRanges(e.textModel, rangeChanges, e.versionId, captures).then(() => {
 			const tree = this._getTree(e.textModel);
 			if (!e.textModel.isDisposed() && (tree?.versionId === e.textModel.getVersionId())) {
 				this._refreshNeedsRefresh(e.textModel);
