@@ -914,6 +914,7 @@
 		"--widget-color",
 		"--text-link-decoration",
 		"--vscode-action-item-auto-timeout",
-		"--monaco-editor-warning-decoration"
+		"--monaco-editor-warning-decoration",
+		"--animation-opacity"
 	]
 }
