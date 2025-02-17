@@ -385,7 +385,7 @@ class ChatEditingOverlayController {
 				assertType(editorPane);
 
 				const changeIndex = derived(r => {
-					const idx = entry.getChangeNavigator(editorPane).currentIndex.read(r);
+					const idx = entry.getEditorIntegration(editorPane).currentIndex.read(r);
 					return idx < 0 ? undefined : idx;
 				});
 

@@ -10,7 +10,6 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
-import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
@@ -25,7 +24,6 @@ export const IChatEditingService = createDecorator<IChatEditingService>('chatEdi
 export interface IChatEditingService {
 
 	_serviceBrand: undefined;
-
 
 	startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 
@@ -148,10 +146,58 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
-export interface IModifiedFileEntryNavigator {
+/**
+ * Represents a part of a change
+ */
+export interface IModifiedFileEntryChangeHunk {
+	accept(): Promise<boolean>;
+	reject(): Promise<boolean>;
+}
+
+export interface IModifiedFileEntryEditorIntegration extends IDisposable {
+
+	/**
+	 * The index of a change
+	 */
 	currentIndex: IObservable<number>;
+
+	/**
+	 * Reveal the first (`true`) or last (`false`) change
+	 */
+	reveal(firstOrLast: boolean): void;
+
+	/**
+	 * Go to next change and increate `currentIndex`
+	 * @param wrap When at the last, start over again or not
+	 * @returns If it went next
+	 */
 	next(wrap: boolean): boolean;
+
+	/**
+	 * @see `next`
+	 */
 	previous(wrap: boolean): boolean;
+
+	/**
+	 * Enable the accessible diff viewer for this editor
+	 */
+	enableAccessibleDiffView(): void;
+
+	/**
+	 * Accept the change given or the nearest
+	 * @param change An opaque change object
+	 */
+	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void;
+
+	/**
+	 * @see `acceptNearestChange`
+	 */
+	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void;
+
+	/**
+	 * Toggle between diff-editor and normal editor
+	 */
+	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void>;
 }
 
 export interface IModifiedFileEntry {
@@ -171,20 +217,17 @@ export interface IModifiedFileEntry {
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 
-	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
-	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
 
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
-
 
 	/**
 	 * Number of changes for this file
 	 */
 	readonly changesCount: IObservable<number>;
 
-	getChangeNavigator(editor: IEditorPane): IModifiedFileEntryNavigator;
+	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 }
 
 export interface IChatEditingSessionStream {
