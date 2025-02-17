@@ -12,6 +12,7 @@ export namespace AccessibilityHelpNLS {
 	export const editableDiffEditor = nls.localize("editableDiffEditor", "You are in a pane of a diff editor.");
 	export const readonlyEditor = nls.localize("readonlyEditor", "You are in a read-only code editor.");
 	export const editableEditor = nls.localize("editableEditor", "You are in a code editor.");
+	export const activeEditorState = nls.localize("activeEditorState", "Get information about the active editor such as Modified, Problems, and more by setting activeEditorState as a part of the window.title setting.");
 	export const changeConfigToOnMac = nls.localize("changeConfigToOnMac", "Configure the application to be optimized for usage with a Screen Reader (Command+E).");
 	export const changeConfigToOnWinLinux = nls.localize("changeConfigToOnWinLinux", "Configure the application to be optimized for usage with a Screen Reader (Control+E).");
 	export const auto_on = nls.localize("auto_on", "The application is configured to be optimized for usage with a Screen Reader.");
@@ -21,6 +22,9 @@ export namespace AccessibilityHelpNLS {
 	export const tabFocusModeOnMsg = nls.localize("tabFocusModeOnMsg", "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior{0}.", '<keybinding:editor.action.toggleTabFocusMode>');
 	export const tabFocusModeOffMsg = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior{0}.", '<keybinding:editor.action.toggleTabFocusMode>');
 	export const stickScroll = nls.localize("stickScrollKb", "Focus Sticky Scroll{0} to focus the currently nested scopes.", '<keybinding:editor.action.focusStickyDebugConsole>');
+	export const suggestActions = nls.localize("suggestActionsKb", "Trigger the suggest widget{0} to show possible code completions.", '<keybinding:editor.action.triggerSuggest>');
+	export const acceptSuggestAction = nls.localize("acceptSuggestAction", "Accept suggestion{0} to accept the currently selected suggestion.", '<keybinding:acceptSelectedSuggestion>');
+	export const toggleSuggestionFocus = nls.localize("toggleSuggestionFocus", "Toggle focus between the suggest widget and the editor{0} and toggle details focus with{1} to learn more about the suggestion.", '<keybinding:focusSuggestion>', '<keybinding:toggleSuggestionFocus>');
 	export const codeFolding = nls.localize("codeFolding", "Use code folding to collapse blocks of code and focus on the code you're interested in via the Toggle Folding Command{0}.", '<keybinding:editor.toggleFold>');
 	export const intellisense = nls.localize("intellisense", "Use Intellisense to improve coding efficiency and reduce errors. Trigger suggestions{0}.", '<keybinding:editor.action.triggerSuggest>');
 	export const showOrFocusHover = nls.localize("showOrFocusHover", "Show or focus the hover{0} to read information about the current symbol.", '<keybinding:editor.action.showHover>');

@@ -261,10 +261,10 @@ export function registerChatTitleActions() {
 					await configurationService.updateValue('chat.editing.confirmEditRequestRetry', false);
 				}
 
-				// Reset the snapshot
+				// Reset the snapshot to the first stop (undefined undo index)
 				const snapshotRequest = chatRequests[itemIndex];
 				if (snapshotRequest) {
-					await currentEditingSession.restoreSnapshot(snapshotRequest.id);
+					await currentEditingSession.restoreSnapshot(snapshotRequest.id, undefined);
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);

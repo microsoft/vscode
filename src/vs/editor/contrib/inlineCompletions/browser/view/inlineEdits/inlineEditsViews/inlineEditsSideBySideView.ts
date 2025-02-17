@@ -2,44 +2,34 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, getWindow } from '../../../../../../base/browser/dom.js';
-import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../../../base/common/actions.js';
-import { Color } from '../../../../../../base/common/color.js';
-import { structuralEquals } from '../../../../../../base/common/equals.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, observableFromEvent } from '../../../../../../base/common/observable.js';
-import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
-import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
-import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../browser/point.js';
-import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
-import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../common/core/offsetRange.js';
-import { Position } from '../../../../../common/core/position.js';
-import { Range } from '../../../../../common/core/range.js';
-import { Command } from '../../../../../common/languages.js';
-import { ITextModel } from '../../../../../common/model.js';
-import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
-import { InlineCompletionContextKeys } from '../../controller/inlineCompletionContextKeys.js';
-import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
-import { getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from './theme.js';
-import { InlineEditTabAction, PathBuilder, StatusBarViewItem, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
-import { InlineEditWithChanges } from './viewAndDiffProducer.js';
-
-export interface IInlineEditsView {
-	isHovered: IObservable<boolean>;
-}
+import { $, getWindow, n } from '../../../../../../../base/browser/dom.js';
+import { Color } from '../../../../../../../base/common/color.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { IObservable, IReader, autorun, constObservable, derived, derivedObservableWithCache, observableFromEvent } from '../../../../../../../base/common/observable.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { Rect } from '../../../../../../browser/rect.js';
+import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../../../common/core/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { Position } from '../../../../../../common/core/position.js';
+import { Range } from '../../../../../../common/core/range.js';
+import { ITextModel } from '../../../../../../common/model.js';
+import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
+import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
+import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
+import { getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
+import { PathBuilder, createRectangle, getOffsetForPos, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
 
 const PADDING = 4;
 const ENABLE_OVERFLOW = false;
 
-export class InlineEditsSideBySideDiff extends Disposable implements IInlineEditsView {
+export class InlineEditsSideBySideView extends Disposable implements IInlineEditsView {
 
 	// This is an approximation and should be improved by using the real parameters used bellow
 	static fitsInsideViewport(editor: ICodeEditor, edit: InlineEditWithChanges, originalDisplayRange: LineRange, reader: IReader): boolean {
@@ -69,9 +59,8 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 			newTextLineCount: number;
 			originalDisplayRange: LineRange;
 		} | undefined>,
-		private readonly _tabAction: IObservable<InlineEditTabAction>,
+		private readonly _host: IInlineEditsViewHost,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -102,27 +91,17 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		this.previewEditor.setModel(this._previewTextModel);
 
 		this._register(autorun(reader => {
-
 			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 			if (!layoutInfo) {
-				//this._elements.svg.replaceChildren();
 				return;
 			}
+			const editorRect = layoutInfo.editRect.deltaTop(layoutInfo.padding).deltaBottom(-layoutInfo.padding);
 
-			const editorTopLeft = layoutInfo.editStart1.deltaY(layoutInfo.padding);
-			const editorBottomLeft = layoutInfo.editStart2.deltaY(-layoutInfo.padding);
-
-			this.previewEditor.layout({ height: editorBottomLeft.y - editorTopLeft.y, width: layoutInfo.previewEditorWidth + 15 /* Make sure editor does not scroll horizontally */ });
-			this._editorContainer.element.style.top = `${editorTopLeft.y}px`;
-			this._editorContainer.element.style.left = `${editorTopLeft.x}px`;
+			this.previewEditor.layout({ height: editorRect.height, width: layoutInfo.previewEditorWidth + 15 /* Make sure editor does not scroll horizontally */ });
+			this._editorContainer.element.style.top = `${editorRect.top}px`;
+			this._editorContainer.element.style.left = `${editorRect.left}px`;
 			this._editorContainer.element.style.width = `${layoutInfo.previewEditorWidth}px`; // Set width to clip view zone
 		}));
-
-		/*const toolbarDropdownVisible = observableFromEvent(this, this._toolbar.onDidChangeDropdownVisibility, (e) => e ?? false);
-
-		this._register(autorun(reader => {
-			this._elements.root.classList.toggle('toolbarDropdownVisible', toolbarDropdownVisible.read(reader));
-		}));*/
 
 		this._register(autorun(reader => {
 			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
@@ -137,66 +116,18 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 	private readonly _display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
 
 	private readonly previewRef = n.ref<HTMLDivElement>();
-	private readonly toolbarRef = n.ref<HTMLDivElement>();
 
 	private readonly _editorContainer = n.div({
 		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.useGutterIndicator && 'showHover')],
-		style: { position: 'absolute', overflow: 'hidden' },
+		style: { position: 'absolute', overflow: 'hidden', cursor: 'pointer' },
+		onclick: () => {
+			this._host.accept();
+		}
 	}, [
-		n.div({ class: 'preview', style: {}, ref: this.previewRef }),
-		n.div({ class: 'toolbar', style: {}, ref: this.toolbarRef }),
+		n.div({ class: 'preview', style: { pointerEvents: 'none' }, ref: this.previewRef }),
 	]).keepUpdated(this._store);
 
-	public readonly isHovered = this._editorContainer.getIsHovered(this._store);
-
-	protected readonly _toolbar = this._register(this._instantiationService.createInstance(CustomizedMenuWorkbenchToolBar, this.toolbarRef.element, MenuId.InlineEditsActions, {
-		menuOptions: { renderShortTitle: true },
-		toolbarOptions: {
-			primaryGroup: g => g.startsWith('primary'),
-		},
-		actionViewItemProvider: (action, options) => {
-			if (action instanceof MenuItemAction) {
-				return this._instantiationService.createInstance(StatusBarViewItem, action, undefined);
-			}
-			if (action.class === undefined) {
-				return this._instantiationService.createInstance(ActionViewItem, {}, action, { icon: false });
-			}
-			return undefined;
-		},
-		telemetrySource: 'inlineEditsToolbar'
-	}));
-
-	private readonly _extraCommands = derivedOpts<readonly Command[]>({ owner: this, equalsFn: structuralEquals }, reader => {
-		return this._uiState.read(reader)?.edit.commands ?? [];
-	});
-
-	protected readonly _updateToolbarAutorun = this._register(autorun(reader => {
-		/** @description extra commands */
-		const extraCommands = this._extraCommands.read(reader);
-		const primaryExtraActions: IAction[] = [];
-		const secondaryExtraActions: IAction[] = [];
-		for (const c of extraCommands) {
-			const action: IAction = {
-				class: undefined,
-				id: c.id,
-				enabled: true,
-				tooltip: c.tooltip || '',
-				label: c.title,
-				run: (event) => {
-					return this._commandService.executeCommand(c.id, ...(c.arguments ?? []));
-				},
-			};
-			// TODO this is a hack just to make the feedback action more visible.
-			if (c.title.toLowerCase().indexOf('feedback') !== -1) {
-				primaryExtraActions.push(action);
-			} else {
-				secondaryExtraActions.push(action);
-			}
-		}
-
-		this._toolbar.setAdditionalPrimaryActions(primaryExtraActions);
-		this._toolbar.setAdditionalSecondaryActions(secondaryExtraActions);
-	}));
+	public readonly isHovered = this._editorContainer.didMouseMoveDuringHover;
 
 	public readonly previewEditor = this._register(this._instantiationService.createInstance(
 		EmbeddedCodeEditorWidget,
@@ -343,9 +274,6 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		});
 	}).map((v, r) => v.read(r));
 
-	/**
-	 * ![test](./layout.dio.svg)
-	*/
 	private readonly _previewEditorLayoutInfo = derived(this, (reader) => {
 		const inlineEdit = this._edit.read(reader);
 		if (!inlineEdit) {
@@ -405,63 +333,39 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		// TODO: const { prefixLeftOffset } = getPrefixTrim(inlineEdit.edit.edits.map(e => e.range), inlineEdit.originalLineRange, [], this._editor);
 		const codeLeft = editorLayout.contentLeft;
 
-		let code1 = new Point(left, selectionTop);
-		let codeStart1 = new Point(codeLeft, selectionTop);
-		let code2 = new Point(left, selectionBottom);
-		let codeStart2 = new Point(codeLeft, selectionBottom);
+		let codeRect = Rect.fromLeftTopRightBottom(codeLeft, selectionTop, left, selectionBottom);
 
 		const editHeight = this._editor.getOption(EditorOption.lineHeight) * inlineEdit.modifiedLineRange.length;
 		const codeHeight = selectionBottom - selectionTop;
 		const previewEditorHeight = Math.max(codeHeight, editHeight);
 
-		const editIsSameHeight = codeHeight === previewEditorHeight;
+		const editIsSameHeight = codeRect.height === previewEditorHeight;
 		const codeEditDistRange = editIsSameHeight
 			? new OffsetRange(4, 61)
 			: new OffsetRange(60, 61);
 
 		const clipped = dist === 0;
-
 		const codeEditDist = editIsSameHeight ? PADDING : codeEditDistRange.clip(dist); // TODO: Is there a better way to specify the distance?
-
 		const previewEditorWidth = Math.min(previewContentWidth, remainingWidthRightOfEditor + editorLayout.width - editorLayout.contentLeft - codeEditDist);
 
-		let editStart1 = new Point(left + codeEditDist, selectionTop);
-		let edit1 = editStart1.deltaX(previewEditorWidth);
-		let editStart2 = new Point(left + codeEditDist, selectionTop + previewEditorHeight);
-		let edit2 = editStart2.deltaX(previewEditorWidth);
+		let editRect = Rect.fromLeftTopWidthHeight(left + codeEditDist, selectionTop, previewEditorWidth, previewEditorHeight);
 
-		// padding
-		const isInsertion = codeHeight === 0;
+		const isInsertion = codeRect.height === 0;
 		if (!isInsertion) {
-			codeStart1 = codeStart1.deltaY(-PADDING).deltaX(-PADDING);
-			code1 = code1.deltaY(-PADDING);
-			codeStart2 = codeStart2.deltaY(PADDING).deltaX(-PADDING);
-			code2 = code2.deltaY(PADDING);
-
-			editStart1 = editStart1.deltaY(-PADDING);
-			edit1 = edit1.deltaY(-PADDING).deltaX(PADDING);
-			editStart2 = editStart2.deltaY(PADDING);
-			edit2 = edit2.deltaY(PADDING).deltaX(PADDING);
+			codeRect = codeRect.withMargin(PADDING).deltaRight(-PADDING);
+			editRect = editRect.withMargin(PADDING).deltaLeft(PADDING);
 		} else {
 			// Align top of edit with insertion line
-			edit1 = edit1.deltaX(PADDING);
-			editStart2 = editStart2.deltaY(2 * PADDING);
-			edit2 = edit2.deltaY(2 * PADDING).deltaX(PADDING);
+			editRect = editRect.withMargin(PADDING).translateY(PADDING);
 		}
 
+		// debugView(debugLogRects({ codeRect, editRect }, this._editor.getDomNode()!), reader);
+
 		return {
-			code1,
-			codeStart1,
-			code2,
-			codeStart2,
-			codeHeight,
+			codeRect,
+			editRect,
 			codeScrollLeft: horizontalScrollOffset,
 
-			editStart1,
-			edit1,
-			editStart2,
-			edit2,
-			editHeight,
 			maxContentWidth,
 			shouldShowShadow: clipped,
 			desiredPreviewEditorScrollLeft,
@@ -499,19 +403,19 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		if (!layoutInfo) { return undefined; }
 
 		const path = new PathBuilder()
-			.moveTo(layoutInfo.code2)
-			.lineTo(layoutInfo.code1)
-			.lineTo(layoutInfo.editStart1)
-			.lineTo(layoutInfo.edit1.deltaX(-layoutInfo.borderRadius))
-			.curveTo(layoutInfo.edit1, layoutInfo.edit1.deltaY(layoutInfo.borderRadius))
-			.lineTo(layoutInfo.edit2.deltaY(-layoutInfo.borderRadius))
-			.curveTo(layoutInfo.edit2, layoutInfo.edit2.deltaX(-layoutInfo.borderRadius))
-			.lineTo(layoutInfo.editStart2);
+			.moveTo(layoutInfo.codeRect.getRightBottom())
+			.lineTo(layoutInfo.codeRect.getRightTop())
+			.lineTo(layoutInfo.editRect.getLeftTop())
+			.lineTo(layoutInfo.editRect.getRightTop().deltaX(-layoutInfo.borderRadius))
+			.curveTo(layoutInfo.editRect.getRightTop(), layoutInfo.editRect.getRightTop().deltaY(layoutInfo.borderRadius))
+			.lineTo(layoutInfo.editRect.getRightBottom().deltaY(-layoutInfo.borderRadius))
+			.curveTo(layoutInfo.editRect.getRightBottom(), layoutInfo.editRect.getRightBottom().deltaX(-layoutInfo.borderRadius))
+			.lineTo(layoutInfo.editRect.getLeftBottom());
 
-		if (layoutInfo.editStart2.y !== layoutInfo.code2.y) {
-			path.curveTo2(layoutInfo.editStart2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
+		if (layoutInfo.editRect.bottom !== layoutInfo.codeRect.bottom) {
+			path.curveTo2(layoutInfo.editRect.getLeftBottom().deltaX(-20), layoutInfo.codeRect.getRightBottom().deltaX(20), layoutInfo.codeRect.getRightBottom().deltaX(0));
 		}
-		path.lineTo(layoutInfo.code2);
+		path.lineTo(layoutInfo.codeRect.getRightBottom());
 		return path.build();
 	});
 
@@ -536,10 +440,10 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 				}
 
 				return new PathBuilder()
-					.moveTo(layoutInfo.code1)
-					.lineTo(layoutInfo.code1.deltaX(1000))
-					.lineTo(layoutInfo.code2.deltaX(1000))
-					.lineTo(layoutInfo.code2)
+					.moveTo(layoutInfo.codeRect.getRightTop())
+					.lineTo(layoutInfo.codeRect.getRightTop().deltaX(1000))
+					.lineTo(layoutInfo.codeRect.getRightBottom().deltaX(1000))
+					.lineTo(layoutInfo.codeRect.getRightBottom())
 					.build();
 			}),
 			style: {
@@ -583,9 +487,9 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 			display: this._previewEditorLayoutInfo.map(i => i?.shouldShowShadow ? 'block' : 'none'),
 			width: '6px',
 			boxShadow: 'var(--vscode-scrollbar-shadow) -6px 0 6px -6px inset',
-			left: this._previewEditorLayoutInfo.map(i => i ? i.code1.x - 6 : 0),
-			top: this._previewEditorLayoutInfo.map(i => i ? i.code1.y : 0),
-			height: this._previewEditorLayoutInfo.map(i => i ? i.code2.y - i.code1.y : 0),
+			left: this._previewEditorLayoutInfo.map(i => i ? i.codeRect.right - 6 : 0),
+			top: this._previewEditorLayoutInfo.map(i => i ? i.codeRect.top : 0),
+			height: this._previewEditorLayoutInfo.map(i => i ? i.codeRect.height : 0),
 		},
 	}, []).keepUpdated(this._store);
 
@@ -596,14 +500,14 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 		const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 		if (!layoutInfoObs) { return undefined; }
 
-		const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
-		const originalBorderColor = getOriginalBorderColor(this._tabAction).read(reader);
+		const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
+		const originalBorderColor = getOriginalBorderColor(this._host.tabAction).read(reader);
 
 		return [
 			n.svgElem('path', {
 				class: 'originalOverlay',
 				d: layoutInfoObs.map(layoutInfo => createRectangle(
-					{ topLeft: layoutInfo.codeStart1, width: layoutInfo.code1.x - layoutInfo.codeStart1.x, height: layoutInfo.code2.y - layoutInfo.code1.y },
+					{ topLeft: layoutInfo.codeRect.getLeftTop(), width: layoutInfo.codeRect.width, height: layoutInfo.codeRect.height },
 					0,
 					{ topLeft: layoutInfo.borderRadius, bottomLeft: layoutInfo.borderRadius, topRight: 0, bottomRight: 0 },
 					{ hideRight: true, hideLeft: layoutInfo.codeScrollLeft !== 0 }
@@ -627,8 +531,8 @@ export class InlineEditsSideBySideDiff extends Disposable implements IInlineEdit
 			n.svgElem('path', {
 				class: 'middleBorder',
 				d: layoutInfoObs.map(layoutInfo => new PathBuilder()
-					.moveTo(layoutInfo.code1)
-					.lineTo(layoutInfo.code2)
+					.moveTo(layoutInfo.codeRect.getRightTop())
+					.lineTo(layoutInfo.codeRect.getRightBottom())
 					.build()
 				),
 				style: {

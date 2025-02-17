@@ -110,6 +110,7 @@ export interface ITreeSitterTokenizationSupport {
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
+	onDidCompleteFirstTokenization: Event<{ textModel: model.ITextModel }>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
 
@@ -1514,6 +1515,10 @@ export interface TextEdit {
 export abstract class TextEdit {
 	static asEditOperation(edit: TextEdit): ISingleEditOperation {
 		return EditOperation.replace(Range.lift(edit.range), edit.text);
+	}
+	static isTextEdit(thing: any): thing is TextEdit {
+		const possibleTextEdit = thing as TextEdit;
+		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
 	}
 }
 

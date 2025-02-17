@@ -8,6 +8,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { SaveReason } from '../../../../common/editor.js';
@@ -95,6 +96,16 @@ export class EditTool implements IToolImpl {
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
 
+		// Undo stops mark groups of response data in the output. Operations, such
+		// as text edits, that happen between undo stops are all done or undone together.
+		if (request.response?.response.getMarkdown().length) {
+			// slightly hacky way to avoid an extra 'no-op' undo stop at the start of responses that are just edits
+			model.acceptResponseProgress(request, {
+				kind: 'undoStop',
+				id: generateUuid(),
+			});
+		}
+
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString('\n````\n')
@@ -106,6 +117,11 @@ export class EditTool implements IToolImpl {
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
+		});
+		model.acceptResponseProgress(request, {
+			kind: 'textEdit',
+			edits: [],
+			uri
 		});
 
 		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
@@ -120,7 +136,10 @@ export class EditTool implements IToolImpl {
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });
-			}
+			},
+			notebookEdit(target, edits) {
+				model.acceptResponseProgress(request, { kind: 'notebookEdit', uri: target, edits });
+			},
 		}, token);
 
 		model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });

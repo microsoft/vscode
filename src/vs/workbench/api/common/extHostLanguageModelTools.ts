@@ -17,6 +17,7 @@ import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext
 import * as typeConvert from './extHostTypeConverters.js';
 import { IToolInputProcessor } from '../../contrib/chat/common/tools/tools.js';
 import { EditToolData, EditToolId, EditToolInputProcessor } from '../../contrib/chat/common/tools/editFileTool.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
@@ -75,7 +76,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
 				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
 			}, token);
-			return typeConvert.LanguageModelToolResult.to(result);
+			return typeConvert.LanguageModelToolResult.to(revive(result));
 		} finally {
 			this._tokenCountFuncs.delete(callId);
 		}
@@ -100,7 +101,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			});
 	}
 
-	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
+	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<Dto<IToolResult>> {
 		const item = this._registeredTools.get(dto.toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${dto.toolId}`);

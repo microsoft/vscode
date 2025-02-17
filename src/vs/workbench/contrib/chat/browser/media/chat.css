@@ -365,8 +365,14 @@
 	margin: 0 0 16px 0;
 }
 
-.interactive-item-container .value > .chat-tool-invocation-part .rendered-markdown p {
-	margin: 0 0 6px 0;
+.interactive-item-container .value > .chat-tool-invocation-part {
+	.rendered-markdown p {
+		margin: 0 0 6px 0;
+	}
+
+	.progress-container {
+		padding-top: 2px;
+	}
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
@@ -1406,6 +1412,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
+
+	code {
+		font-size: 11px;
+	}
 }
 
 .interactive-session .chat-used-context-label:hover {
@@ -1418,7 +1428,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 	border: none;
 	border-radius: 4px;
-	gap: 2px;
+	gap: 4px;
 	padding: 2px 6px 2px 2px;
 	text-align: initial;
 	justify-content: initial;
@@ -1444,11 +1454,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .progress-container {
 	display: flex;
-	gap: 8px;
+	align-items: center;
+	gap: 7px;
 	margin: 0 0 6px 4px;
 
-	> .codicon {
-		height: 16px;
+	> .codicon[class*='codicon-'] {
+		height: 12px;
+		font-size: 12px;
+
+		&::before {
+			font-size: 12px;
+		}
 	}
 
 	.codicon {
@@ -1471,6 +1487,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			code {
 				font-size: 11px;
 			}
+		}
+
+		.chat-inline-anchor-widget {
+			display: inline;
 		}
 	}
 }

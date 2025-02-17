@@ -9,7 +9,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../.
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
 import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSupport, QueryCapture, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, TreeUpdateEvent, RangeChange, ITreeSitterImporter } from '../../../../editor/common/services/treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, TreeUpdateEvent, RangeChange, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT } from '../../../../editor/common/services/treeSitterParserService.js';
 import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -28,7 +28,6 @@ import { setTimeout0 } from '../../../../base/common/platform.js';
 import { findLikelyRelevantLines } from '../../../../editor/common/model/textModelTokens.js';
 import { TreeSitterCodeEditors } from './treeSitterCodeEditors.js';
 
-const ALLOWED_SUPPORT = ['typescript', 'ini'];
 type TreeSitterQueries = string;
 
 export const ITreeSitterTokenizationFeature = createDecorator<ITreeSitterTokenizationFeature>('treeSitterTokenizationFeature');
@@ -63,16 +62,15 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 		}));
 	}
 
-	private _getSetting(): string[] {
-		return this._configurationService.getValue<string[]>(EDITOR_EXPERIMENTAL_PREFER_TREESITTER) || [];
+	private _getSetting(languageId: string): boolean {
+		return this._configurationService.getValue<boolean>(`${EDITOR_EXPERIMENTAL_PREFER_TREESITTER}.${languageId}`);
 	}
 
 	private _handleGrammarsExtPoint(): void {
-		const setting = this._getSetting();
-
 		// Eventually, this should actually use an extension point to add tree sitter grammars, but for now they are hard coded in core
-		for (const languageId of setting) {
-			if (ALLOWED_SUPPORT.includes(languageId) && !this._tokenizersRegistrations.has(languageId)) {
+		for (const languageId of TREESITTER_ALLOWED_SUPPORT) {
+			const setting = this._getSetting(languageId);
+			if (setting && !this._tokenizersRegistrations.has(languageId)) {
 				const lazyTokenizationSupport = new LazyTokenizationSupport(() => this._createTokenizationSupport(languageId));
 				const disposableStore = new DisposableStore();
 				disposableStore.add(lazyTokenizationSupport);
@@ -81,7 +79,7 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 				TreeSitterTokenizationRegistry.getOrCreate(languageId);
 			}
 		}
-		const languagesToUnregister = [...this._tokenizersRegistrations.keys()].filter(languageId => !setting.includes(languageId));
+		const languagesToUnregister = [...this._tokenizersRegistrations.keys()].filter(languageId => !this._getSetting(languageId));
 		for (const languageId of languagesToUnregister) {
 			this._tokenizersRegistrations.deleteAndDispose(languageId);
 		}
@@ -102,8 +100,10 @@ export class TreeSitterTokenizationFeature extends Disposable implements ITreeSi
 
 export class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTokenizationSupport {
 	private _query: Parser.Query | undefined;
-	private readonly _onDidChangeTokens: Emitter<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = new Emitter();
+	private readonly _onDidChangeTokens: Emitter<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._register(new Emitter());
 	public readonly onDidChangeTokens: Event<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._onDidChangeTokens.event;
+	private readonly _onDidCompleteFirstTokenization: Emitter<{ textModel: ITextModel }> = this._register(new Emitter());
+	public readonly onDidCompleteFirstTokenization: Event<{ textModel: ITextModel }> = this._onDidCompleteFirstTokenization.event;
 	private _colorThemeData!: ColorThemeData;
 	private _languageAddedListener: IDisposable | undefined;
 	private _codeEditors: TreeSitterCodeEditors;
@@ -121,10 +121,16 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	) {
 		super();
 		this._codeEditors = this._instantiationService.createInstance(TreeSitterCodeEditors, this._languageId);
-		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
 		this._register(this._codeEditors.onDidChangeViewport(e => {
 			this._parseAndTokenizeViewPort(e.model, e.ranges);
 		}));
+		this._codeEditors.getInitialViewPorts().then(async (viewports) => {
+			for (const viewport of viewports) {
+				this._parseAndTokenizeViewPort(viewport.model, viewport.ranges);
+			}
+		});
+		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
+		let hasDoneFullTokenization = false;
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
 			if (e.textModel.getLanguageId() !== this._languageId) {
 				return;
@@ -139,11 +145,20 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				return;
 			}
 
+			let updatePromise: Promise<void>;
 			// First time we see a tree we need to build a token store.
 			if (!this._tokenizationStoreService.hasTokens(e.textModel)) {
-				this._firstTreeUpdate(e.textModel, e.versionId);
+				// This will likely not happen as we first handle all models, which are ready before trees.
+				updatePromise = this._firstTreeUpdate(e.textModel, e.versionId);
 			} else {
-				this._handleTreeUpdate(e);
+				updatePromise = this._handleTreeUpdate(e);
+			}
+
+			if (!hasDoneFullTokenization) {
+				hasDoneFullTokenization = true;
+				updatePromise.then(() => {
+					this._onDidCompleteFirstTokenization.fire({ textModel: e.textModel });
+				});
 			}
 		}));
 	}
@@ -216,7 +231,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 
 	private _firstTreeUpdate(textModel: ITextModel, versionId: number) {
 		this._setInitialTokens(textModel);
-		this._setViewPortTokens(textModel, versionId);
+		return this._setViewPortTokens(textModel, versionId);
 	}
 
 	private _codeEditorForModel(textModel: ITextModel) {
@@ -248,7 +263,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			const valueLength = textModel.getValueLength();
 			rangeChanges = [{ newRange: new Range(1, 1, maxLine, textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength, oldRangeLength: valueLength }];
 		}
-		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
+		return this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
 	}
 
 	/**
@@ -298,7 +313,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		// Get the captures immediately while the text model is correct
 		const captures = rangeChanges.map(range => this._getTreeAndCaptures(range.newRange, e.textModel));
 		// Don't block
-		this._updateTreeForRanges(e.textModel, rangeChanges, e.versionId, captures).then(() => {
+		return this._updateTreeForRanges(e.textModel, rangeChanges, e.versionId, captures).then(() => {
 			const tree = this._getTree(e.textModel);
 			if (!e.textModel.isDisposed() && (tree?.versionId === e.textModel.getVersionId())) {
 				this._refreshNeedsRefresh(e.textModel);

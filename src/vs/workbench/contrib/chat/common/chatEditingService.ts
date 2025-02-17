@@ -10,12 +10,13 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
-import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatResponseModel } from './chatModel.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
@@ -23,7 +24,6 @@ export const IChatEditingService = createDecorator<IChatEditingService>('chatEdi
 export interface IChatEditingService {
 
 	_serviceBrand: undefined;
-
 
 	startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 
@@ -73,6 +73,13 @@ export interface WorkingSetDisplayMetadata {
 	isMarkedReadonly?: boolean;
 }
 
+export interface IStreamingEdits {
+	pushText(edits: TextEdit[]): void;
+	pushNotebook(edits: ICellEditOperation[]): void;
+	/** Marks edits as done, idempotent */
+	complete(): void;
+}
+
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
@@ -81,7 +88,6 @@ export interface IChatEditingSession extends IDisposable {
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
-	readonly isToolsAgentSession: boolean;
 	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
@@ -91,13 +97,28 @@ export interface IChatEditingSession extends IDisposable {
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
 	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
 
-	restoreSnapshot(requestId: string): Promise<void>;
+	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
 
 	/**
 	 * Will lead to this object getting disposed
 	 */
 	stop(clearState?: boolean): Promise<void>;
+
+	/**
+	 * Starts making edits to the resource.
+	 * @param resource URI that's being edited
+	 * @param responseModel The response model making the edits
+	 * @param inUndoStop The undo stop the edits will be grouped in
+	 */
+	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
+
+	/**
+	 * Gets the document diff of a change made to a URI between one undo stop and
+	 * the next one.
+	 * @returns The observable or undefined if there is no diff between the stops.
+	 */
+	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IDocumentDiff | undefined> | undefined;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;
@@ -125,30 +146,93 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
+/**
+ * Represents a part of a change
+ */
+export interface IModifiedFileEntryChangeHunk {
+	accept(): Promise<boolean>;
+	reject(): Promise<boolean>;
+}
+
+export interface IModifiedFileEntryEditorIntegration extends IDisposable {
+
+	/**
+	 * The index of a change
+	 */
+	currentIndex: IObservable<number>;
+
+	/**
+	 * Reveal the first (`true`) or last (`false`) change
+	 */
+	reveal(firstOrLast: boolean): void;
+
+	/**
+	 * Go to next change and increate `currentIndex`
+	 * @param wrap When at the last, start over again or not
+	 * @returns If it went next
+	 */
+	next(wrap: boolean): boolean;
+
+	/**
+	 * @see `next`
+	 */
+	previous(wrap: boolean): boolean;
+
+	/**
+	 * Enable the accessible diff viewer for this editor
+	 */
+	enableAccessibleDiffView(): void;
+
+	/**
+	 * Accept the change given or the nearest
+	 * @param change An opaque change object
+	 */
+	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void;
+
+	/**
+	 * @see `acceptNearestChange`
+	 */
+	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void;
+
+	/**
+	 * Toggle between diff-editor and normal editor
+	 */
+	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void>;
+}
+
 export interface IModifiedFileEntry {
 	readonly entryId: string;
 	readonly originalURI: URI;
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 
+	readonly lastModifyingRequestId: string;
+
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
-	readonly maxLineNumber: IObservable<number>;
+
 	readonly diffInfo: IObservable<IDocumentDiff>;
-	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
-	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
-	readonly lastModifyingRequestId: string;
+
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
+
 
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
+
+	/**
+	 * Number of changes for this file
+	 */
+	readonly changesCount: IObservable<number>;
+
+	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 }
 
 export interface IChatEditingSessionStream {
 	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
+	notebookEdits(resource: URI, edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
 }
 
 export const enum ChatEditingSessionState {

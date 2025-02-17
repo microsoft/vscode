@@ -34,6 +34,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		notebookEditor: INotebookEditor,
 		public readonly modifiedCell: NotebookCellTextModel,
 		public readonly originalCell: NotebookCellTextModel,
+		private readonly editor: ICodeEditor,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@INotebookOriginalCellModelFactory private readonly originalCellModelFactory: INotebookOriginalCellModelFactory,
 
@@ -112,8 +113,8 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		}
 
 
-		if (diff && !diff.identical && originalModel && model === editor.getModel() && editor.getModel()?.getVersionId() === version) {
-			this._updateWithDiff(editor, originalModel, diff);
+		if (diff && !diff.identical && this.modifiedCell.textModel && originalModel && model === editor.getModel() && editor.getModel()?.getVersionId() === version) {
+			this._updateWithDiff(editor, originalModel, diff, this.modifiedCell.textModel);
 		} else {
 			this.perEditorDisposables.clear();
 		}
@@ -131,7 +132,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		return this._originalModel;
 	}
 
-	private _updateWithDiff(editor: ICodeEditor, originalModel: ITextModel | undefined, diff: IDocumentDiff): void {
+	private _updateWithDiff(editor: ICodeEditor, originalModel: ITextModel, diff: IDocumentDiff, currentModel: ITextModel): void {
 		if (areDiffsEqual(diff, this.diffForPreviouslyAppliedDecorators)) {
 			return;
 		}
@@ -174,64 +175,75 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 				viewZoneChangeAccessor.removeZone(id);
 			}
 			this._viewZones = [];
-			const modifiedDecorations: IModelDeltaDecoration[] = [];
-			const mightContainNonBasicASCII = originalModel?.mightContainNonBasicASCII();
-			const mightContainRTL = originalModel?.mightContainRTL();
-			const renderOptions = RenderOptions.fromEditor(editor);
-
+			const modifiedVisualDecorations: IModelDeltaDecoration[] = [];
+			const mightContainNonBasicASCII = originalModel.mightContainNonBasicASCII();
+			const mightContainRTL = originalModel.mightContainRTL();
+			const renderOptions = RenderOptions.fromEditor(this.editor);
+			const editorLineCount = currentModel.getLineCount();
 			for (const diffEntry of diff.changes) {
+
 				const originalRange = diffEntry.original;
-				if (originalModel) {
-					originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
-				}
+				originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
 				const source = new LineSource(
-					(originalRange.length && originalModel) ? originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)) : [],
+					originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)),
 					[],
 					mightContainNonBasicASCII,
 					mightContainRTL,
 				);
 				const decorations: InlineDecoration[] = [];
+
 				for (const i of diffEntry.innerChanges || []) {
 					decorations.push(new InlineDecoration(
 						i.originalRange.delta(-(diffEntry.original.startLineNumber - 1)),
 						diffDeleteDecoration.className!,
 						InlineDecorationType.Regular
 					));
-					modifiedDecorations.push({
-						range: i.modifiedRange, options: chatDiffAddDecoration
-					});
+
+					// If the original range is empty, the start line number is 1 and the new range spans the entire file, don't draw an Added decoration
+					if (!(i.originalRange.isEmpty() && i.originalRange.startLineNumber === 1 && i.modifiedRange.endLineNumber === editorLineCount) && !i.modifiedRange.isEmpty()) {
+						modifiedVisualDecorations.push({
+							range: i.modifiedRange, options: chatDiffAddDecoration
+						});
+					}
 				}
-				if (!diffEntry.modified.isEmpty) {
-					modifiedDecorations.push({
-						range: diffEntry.modified.toInclusiveRange()!, options: chatDiffWholeLineAddDecoration
+
+				// Render an added decoration but don't also render a deleted decoration for newly inserted content at the start of the file
+				// Note, this is a workaround for the `LineRange.isEmpty()` in diffEntry.original being `false` for newly inserted content
+				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && diffEntry.original.startLineNumber === 1;
+
+				if (!diffEntry.modified.isEmpty && !(isCreatedContent && (diffEntry.modified.endLineNumberExclusive - 1) === editorLineCount)) {
+					modifiedVisualDecorations.push({
+						range: diffEntry.modified.toInclusiveRange()!,
+						options: chatDiffWholeLineAddDecoration
 					});
 				}
 
 				if (diffEntry.original.isEmpty) {
 					// insertion
-					modifiedDecorations.push({
+					modifiedVisualDecorations.push({
 						range: diffEntry.modified.toInclusiveRange()!,
 						options: addedDecoration
 					});
 				} else if (diffEntry.modified.isEmpty) {
 					// deletion
-					modifiedDecorations.push({
+					modifiedVisualDecorations.push({
 						range: new Range(diffEntry.modified.startLineNumber - 1, 1, diffEntry.modified.startLineNumber, 1),
 						options: deletedDecoration
 					});
 				} else {
 					// modification
-					modifiedDecorations.push({
+					modifiedVisualDecorations.push({
 						range: diffEntry.modified.toInclusiveRange()!,
 						options: modifiedDecoration
 					});
 				}
+
 				const domNode = document.createElement('div');
 				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 				const result = renderLines(source, renderOptions, decorations, domNode);
 
-				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && decorations[0].range.startLineNumber === 1;
 				if (!isCreatedContent) {
+
 					const viewZoneData: IViewZone = {
 						afterLineNumber: diffEntry.modified.startLineNumber - 1,
 						heightInLines: result.heightInLines,
@@ -243,7 +255,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 				}
 			}
 
-			decorations.set(modifiedDecorations);
+			decorations.set(modifiedVisualDecorations);
 		});
 	}
 }
