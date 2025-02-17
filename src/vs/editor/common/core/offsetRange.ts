@@ -14,6 +14,10 @@ export interface IOffsetRange {
  * A range of offsets (0-based).
 */
 export class OffsetRange implements IOffsetRange {
+	public static fromTo(start: number, endExclusive: number): OffsetRange {
+		return new OffsetRange(start, endExclusive);
+	}
+
 	public static addRange(range: OffsetRange, sortedRanges: OffsetRange[]): void {
 		let i = 0;
 		while (i < sortedRanges.length && sortedRanges[i].endExclusive < range.start) {

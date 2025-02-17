@@ -155,6 +155,24 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
 	});
 
+	suite('rcut', () => {
+		test('basic truncation', () => {
+			assert.strictEqual(strings.rcut('foo bar', 0), 'foo');
+			assert.strictEqual(strings.rcut('foo bar', 1), 'foo');
+			assert.strictEqual(strings.rcut('foo bar', 4), 'foo');
+			assert.strictEqual(strings.rcut('foo bar', 7), 'foo bar');
+			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3), 'test');
+		});
+
+		test('truncation with suffix', () => {
+			assert.strictEqual(strings.rcut('foo bar', 0, '…'), 'foo…');
+			assert.strictEqual(strings.rcut('foo bar', 1, '…'), 'foo…');
+			assert.strictEqual(strings.rcut('foo bar', 4, '…'), 'foo…');
+			assert.strictEqual(strings.rcut('foo bar', 7, '…'), 'foo bar');
+			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3, '…'), 'test…');
+		});
+	});
+
 	test('escape', () => {
 		assert.strictEqual(strings.escape(''), '');
 		assert.strictEqual(strings.escape('foo'), 'foo');

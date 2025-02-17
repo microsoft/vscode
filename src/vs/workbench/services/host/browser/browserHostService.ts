@@ -40,6 +40,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { mainWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { URI } from '../../../../base/common/uri.js';
 
 enum HostShutdownReason {
 
@@ -238,7 +239,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		const payload = this.preservePayload(false /* not an empty window */, options);
 		const fileOpenables: IFileToOpen[] = [];
+
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
+		const foldersToRemove: URI[] = [];
 
 		for (const openable of toOpen) {
 			openable.label = openable.label || this.getRecentLabel(openable);
@@ -246,7 +249,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 			// Folder
 			if (isFolderToOpen(openable)) {
 				if (options?.addMode) {
-					foldersToAdd.push(({ uri: openable.folderUri }));
+					foldersToAdd.push({ uri: openable.folderUri });
+				} else if (options?.removeMode) {
+					foldersToRemove.push(openable.folderUri);
 				} else {
 					this.doOpen({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 				}
@@ -263,11 +268,17 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}
 
-		// Handle Folders to Add
-		if (foldersToAdd.length > 0) {
-			this.withServices(accessor => {
+		// Handle Folders to add or remove
+		if (foldersToAdd.length > 0 || foldersToRemove.length > 0) {
+			this.withServices(async accessor => {
 				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
-				workspaceEditingService.addFolders(foldersToAdd);
+				if (foldersToAdd.length > 0) {
+					await workspaceEditingService.addFolders(foldersToAdd);
+				}
+
+				if (foldersToRemove.length > 0) {
+					await workspaceEditingService.removeFolders(foldersToRemove);
+				}
 			});
 		}
 

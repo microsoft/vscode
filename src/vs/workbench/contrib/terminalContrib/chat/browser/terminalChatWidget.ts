@@ -328,6 +328,12 @@ export class TerminalChatWidget extends Disposable {
 				const model = this._model.value;
 				if (model) {
 					this._inlineChatWidget.setChatModel(model, this._loadViewState());
+					model.waitForInitialization().then(() => {
+						if (token.isCancellationRequested) {
+							return;
+						}
+						this._resetPlaceholder();
+					});
 				}
 				if (!this._model.value) {
 					throw new Error('Failed to start chat session');
@@ -376,7 +382,6 @@ export class TerminalChatWidget extends Disposable {
 		this._activeRequestCts = new CancellationTokenSource();
 		const store = new DisposableStore();
 		this._requestActiveContextKey.set(true);
-		let responseContent = '';
 		const response = await this._inlineChatWidget.chatWidget.acceptInput(lastInput, { isVoiceInput: options?.isVoiceInput });
 		this._currentRequestId = response?.requestId;
 		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
@@ -384,7 +389,6 @@ export class TerminalChatWidget extends Disposable {
 			this._requestActiveContextKey.set(true);
 			if (response) {
 				store.add(response.onDidChange(async () => {
-					responseContent += response.response.value;
 					if (response.isCanceled) {
 						this._requestActiveContextKey.set(false);
 						responsePromise.complete(undefined);
@@ -438,6 +442,14 @@ export class TerminalChatWidget extends Disposable {
 				for (const group of item.edits) {
 					message.push({
 						kind: 'textEdit',
+						edits: group,
+						uri: item.uri
+					});
+				}
+			} else if (item.kind === 'notebookEditGroup') {
+				for (const group of item.edits) {
+					message.push({
+						kind: 'notebookEdit',
 						edits: group,
 						uri: item.uri
 					});

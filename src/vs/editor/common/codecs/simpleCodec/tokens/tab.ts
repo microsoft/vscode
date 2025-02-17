@@ -19,6 +19,13 @@ export class Tab extends BaseToken {
 	public static readonly symbol: string = '\t';
 
 	/**
+	 * Return text representation of the token.
+	 */
+	public get text(): string {
+		return Tab.symbol;
+	}
+
+	/**
 	 * Create new `Tab` token with range inside
 	 * the given `Line` at the given `column number`.
 	 */

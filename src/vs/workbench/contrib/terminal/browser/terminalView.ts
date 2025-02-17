@@ -35,7 +35,7 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { getColorForSeverity } from './terminalStatusList.js';
 import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { getColorClass, getUriClasses } from './terminalIcon.js';
@@ -57,11 +57,17 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _isInitialized: boolean = false;
+	/**
+	 * Tracks an active promise of terminal creation requested by this component. This helps prevent
+	 * double creation for example when toggling a terminal's visibility and focusing it.
+	 */
+	private _isTerminalBeingCreated: boolean = false;
 	private readonly _newDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
 	private readonly _disposableStore = this._register(new DisposableStore());
+	private readonly _actionDisposables: DisposableMap<TerminalCommandId> = this._register(new DisposableMap());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -121,13 +127,13 @@ export class TerminalViewPane extends ViewPane {
 				this._updateForShellIntegration(this._parentDomElement);
 			}
 		}));
-		this._register(this._terminalService.onDidCreateInstance((i) => {
-			i.capabilities.onDidAddCapabilityType(c => {
-				if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
-					this._parentDomElement?.classList.add('shell-integration');
-				}
-			});
-		}));
+		const shellIntegrationDisposable = this._register(new MutableDisposable());
+		shellIntegrationDisposable.value = this._terminalService.onAnyInstanceAddedCapabilityType(c => {
+			if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
+				this._parentDomElement?.classList.add('shell-integration');
+				shellIntegrationDisposable.clear();
+			}
+		});
 	}
 
 	private _updateForShellIntegration(container: HTMLElement) {
@@ -164,7 +170,8 @@ export class TerminalViewPane extends ViewPane {
 			if (!wasInitialized) {
 				switch (hideOnStartup) {
 					case 'never':
-						this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+						this._isTerminalBeingCreated = true;
+						this._terminalService.createTerminal({ location: TerminalLocation.Panel }).finally(() => this._isTerminalBeingCreated = false);
 						break;
 					case 'whenEmpty':
 						if (this._terminalService.restoredGroupCount === 0) {
@@ -175,7 +182,10 @@ export class TerminalViewPane extends ViewPane {
 				return;
 			}
 
-			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+			if (!this._isTerminalBeingCreated) {
+				this._isTerminalBeingCreated = true;
+				this._terminalService.createTerminal({ location: TerminalLocation.Panel }).finally(() => this._isTerminalBeingCreated = false);
+			}
 		}
 	}
 
@@ -241,17 +251,17 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalTabbedView?.layout(width, height);
 	}
 
-	override getActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+	override createActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
 				const that = this;
-				const panelOnlySplitAction = new class extends Action {
+				const store = new DisposableStore();
+				const panelOnlySplitAction = store.add(new class extends Action {
 					constructor() {
 						super(action.id, action.label, action.class, action.enabled);
 						this.checked = action.checked;
 						this.tooltip = action.tooltip;
-						this._register(action);
 					}
 					override async run() {
 						const instance = that._terminalGroupService.activeInstance;
@@ -261,40 +271,35 @@ export class TerminalViewPane extends ViewPane {
 						}
 						return;
 					}
-				};
-				return new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) });
+				});
+				const item = store.add(new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) }));
+				this._actionDisposables.set(action.id, store);
+				return item;
 			}
 			case TerminalCommandId.SwitchTerminal: {
-				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
+				const item = this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
+				this._actionDisposables.set(action.id, item);
+				return item;
 			}
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
 					const actions = getFlatContextMenuActions(this._singleTabMenu.getActions({ shouldForwardArgs: true }));
-					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
+					const item = this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
+					this._actionDisposables.set(action.id, item);
+					return item;
 				}
+				break;
 			}
 			case TerminalCommandId.New: {
 				if (action instanceof MenuItemAction) {
-					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
-					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
+					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
 					this._newDropdown.value = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate }, this._contextMenuService, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
 					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 					return this._newDropdown.value;
 				}
 			}
 		}
-		return super.getActionViewItem(action, options);
-	}
-
-	/**
-	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
-	 */
-	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
-		this._disposableStore.clear();
-		if (dropdownAction instanceof Action) {
-			this._disposableStore.add(dropdownAction);
-		}
-		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._disposableStore.add(a));
+		return super.createActionViewItem(action, options);
 	}
 
 	private _getDefaultProfileName(): string {
@@ -312,14 +317,17 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
-		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
-		this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
+		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
 		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
 	override focus() {
 		super.focus();
 		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			if (this._terminalGroupService.instances.length === 0 && !this._isTerminalBeingCreated) {
+				this._isTerminalBeingCreated = true;
+				this._terminalService.createTerminal({ location: TerminalLocation.Panel }).finally(() => this._isTerminalBeingCreated = false);
+			}
 			this._terminalGroupService.showPanel(true);
 			return;
 		}
@@ -632,9 +640,9 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
-				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
+				// exclude status icons (file-icon) and inline action icons (trashcan, horizontalSplit, rerunTask)
 				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
+					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):not(.codicon-rerun-task)` +
 					`{ color: ${color} !important; }`
 				);
 			}

@@ -947,7 +947,7 @@ interface IAbstractFindControllerOptions extends IFindWidgetOptions {
 	showNotFoundMessage?: boolean;
 }
 
-interface IFindControllerOptions extends IAbstractFindControllerOptions {
+export interface IFindControllerOptions extends IAbstractFindControllerOptions {
 	defaultFindMode?: TreeFindMode;
 	defaultFindMatchType?: TreeFindMatchType;
 }
@@ -1177,7 +1177,7 @@ export class FindController<T, TFilterData> extends AbstractFindController<T, TF
 		this.tree.refilter();
 
 		if (pattern) {
-			this.tree.focusNext(0, true, undefined, (node) => this.shouldAllowFocus(node));
+			this.tree.focusNext(0, true, undefined, (node) => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
 		}
 
 		const focus = this.tree.getFocus();
@@ -3080,16 +3080,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		const root = this.model.getNode();
-		const queue = [root];
+		const stack = [root];
 
-		while (queue.length > 0) {
-			const node = queue.shift()!;
+		while (stack.length > 0) {
+			const node = stack.pop()!;
 
 			if (node !== root && node.collapsible) {
 				state.expanded[getId(node.element)] = node.collapsed ? 0 : 1;
 			}
 
-			insertInto(queue, queue.length, node.children);
+			insertInto(stack, stack.length, node.children);
 		}
 
 		return state;

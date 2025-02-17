@@ -54,6 +54,7 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
+import { TitleBarVisibleContext } from '../../../common/contextkeys.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -119,11 +120,12 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 					title: localize2('focusTitleBar', 'Focus Title Bar'),
 					category: Categories.View,
 					f1: true,
+					precondition: TitleBarVisibleContext
 				});
 			}
 
 			run(): void {
-				that.getPartByDocument(getActiveDocument()).focus();
+				that.getPartByDocument(getActiveDocument())?.focus();
 			}
 		}));
 	}
@@ -247,7 +249,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	//#endregion
 
 	protected rootContainer!: HTMLElement;
-	protected windowControlsContainer: HTMLElement | undefined;
 	protected dragRegion: HTMLElement | undefined;
 	private title!: HTMLElement;
 
@@ -480,7 +481,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// container helps with allowing to move the window when clicking very close to the
 				// window control buttons.
 			} else {
-				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+				const windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
 				if (isWeb) {
 					// Web: its possible to have control overlays on both sides, for example on macOS
 					// with window controls on the left and PWA controls on the right.
@@ -488,7 +489,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 
 				if (isWCOEnabled()) {
-					this.windowControlsContainer.classList.add('wco-enabled');
+					windowControlsContainer.classList.add('wco-enabled');
 				}
 			}
 		}
@@ -661,14 +662,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			if (this.editorActionsEnabled && this.editorService.activeEditor !== undefined) {
 				const context: IEditorCommandsContext = { groupId: this.editorGroupsContainer.activeGroup.id };
 
-				this.actionToolBar.actionRunner = new EditorCommandsContextActionRunner(context);
+				this.actionToolBar.actionRunner = this.editorToolbarMenuDisposables.add(new EditorCommandsContextActionRunner(context));
 				this.actionToolBar.context = context;
-				this.editorToolbarMenuDisposables.add(this.actionToolBar.actionRunner);
 			} else {
-				this.actionToolBar.actionRunner = new ActionRunner();
+				this.actionToolBar.actionRunner = this.editorToolbarMenuDisposables.add(new ActionRunner());
 				this.actionToolBar.context = undefined;
-
-				this.editorToolbarMenuDisposables.add(this.actionToolBar.actionRunner);
 			}
 		}
 

@@ -6,9 +6,11 @@
 import { Viewlet } from './viewlet';
 import { IElement } from './driver';
 import { findElement, findElements, Code } from './code';
+import { Quality } from './application';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
-const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
+const SCM_INPUT_NATIVE_EDIT_CONTEXT = `${VIEWLET} .scm-editor .native-edit-context`;
+const SCM_INPUT_TEXTAREA = `${VIEWLET} .scm-editor textarea`;
 const SCM_RESOURCE = `${VIEWLET} .monaco-list-row .resource`;
 const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[aria-label="Refresh"]`;
 const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[aria-label="Commit"]`;
@@ -44,7 +46,7 @@ export class SCM extends Viewlet {
 
 	async openSCMViewlet(): Promise<any> {
 		await this.code.dispatchKeybinding('ctrl+shift+g');
-		await this.code.waitForElement(SCM_INPUT);
+		await this.code.waitForElement(this._editContextSelector());
 	}
 
 	async waitForChange(name: string, type?: string): Promise<void> {
@@ -71,9 +73,13 @@ export class SCM extends Viewlet {
 	}
 
 	async commit(message: string): Promise<void> {
-		await this.code.waitAndClick(SCM_INPUT);
-		await this.code.waitForActiveElement(SCM_INPUT);
-		await this.code.waitForSetValue(SCM_INPUT, message);
+		await this.code.waitAndClick(this._editContextSelector());
+		await this.code.waitForActiveElement(this._editContextSelector());
+		await this.code.waitForSetValue(this._editContextSelector(), message);
 		await this.code.waitAndClick(COMMIT_COMMAND);
+	}
+
+	private _editContextSelector(): string {
+		return this.code.quality === Quality.Stable ? SCM_INPUT_TEXTAREA : SCM_INPUT_NATIVE_EDIT_CONTEXT;
 	}
 }

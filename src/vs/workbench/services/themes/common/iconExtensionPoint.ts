@@ -5,7 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
-import { IIconRegistry, Extensions as IconRegistryExtensions, fontCharacterErrorMessage, fontCharacterRegex } from '../../../../platform/theme/common/iconRegistry.js';
+import { IIconRegistry, Extensions as IconRegistryExtensions } from '../../../../platform/theme/common/iconRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as resources from '../../../../base/common/resources.js';
@@ -53,16 +53,14 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 								},
 								fontCharacter: {
 									description: nls.localize('contributes.icon.default.fontCharacter', 'The character for the icon in the icon font.'),
-									type: 'string',
-									pattern: fontCharacterRegex.source,
-									patternErrorMessage: fontCharacterErrorMessage
+									type: 'string'
 								}
 							},
 							required: ['fontPath', 'fontCharacter'],
 							defaultSnippets: [{ body: { fontPath: '${1:myiconfont.woff}', fontCharacter: '${2:\\\\E001}' } }]
 						}
 					],
-					description: nls.localize('contributes.icon.default', 'The default of the icon. Either a reference to an extisting ThemeIcon or an icon in an icon font.'),
+					description: nls.localize('contributes.icon.default', 'The default of the icon. Either a reference to an existing ThemeIcon or an icon in an icon font.'),
 				}
 			},
 			required: ['description', 'default'],
@@ -103,10 +101,6 @@ export class IconExtensionPoint {
 						const format = formatMap[fileExt];
 						if (!format) {
 							collector.warn(nls.localize('invalid.icons.default.fontPath.extension', "Expected `contributes.icons.default.fontPath` to have file extension 'woff', woff2' or 'ttf', is '{0}'.", fileExt));
-							return;
-						}
-						if (!defaultIcon.fontCharacter.match(fontCharacterRegex)) {
-							collector.warn(nls.localize('invalid.icons.default.fontCharacter', 'Invalid `contributes.icons.default.fontCharacter`: {0}', fontCharacterErrorMessage));
 							return;
 						}
 						const extensionLocation = extension.description.extensionLocation;

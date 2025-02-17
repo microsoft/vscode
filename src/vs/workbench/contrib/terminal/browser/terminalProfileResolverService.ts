@@ -268,7 +268,6 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		const automationProfile = this._configurationService.getValue(`terminal.integrated.automationProfile.${this._getOsKey(options.os)}`);
 		if (this._isValidAutomationProfile(automationProfile, options.os)) {
 			automationProfile.icon = this._getCustomIcon(automationProfile.icon) || Codicon.tools;
-			automationProfile.isAutomationShell = true;
 			return automationProfile;
 		}
 

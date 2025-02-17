@@ -27,7 +27,9 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { IModelTokensChangedEvent } from './textModelEvents.js';
-import type { Parser } from '@vscode/tree-sitter-wasm';
+import type * as Parser from '@vscode/tree-sitter-wasm';
+import { ITextModel } from './model.js';
+import { TokenUpdate } from './model/tokenStore.js';
 
 /**
  * @internal
@@ -84,14 +86,29 @@ export class EncodedTokenizationResult {
 	}
 }
 
+export interface SyntaxNode {
+	startIndex: number;
+	endIndex: number;
+}
+
+export interface QueryCapture {
+	name: string;
+	text?: string;
+	node: SyntaxNode;
+}
+
 /**
  * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
  * @internal
  */
 export interface ITreeSitterTokenizationSupport {
+	/**
+	 * exposed for testing
+	 */
+	getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
-	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
-	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
+	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
+	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
@@ -603,6 +620,7 @@ export interface CompletionList {
  */
 export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
+	acceptedLength: number;
 }
 
 /**
@@ -774,7 +792,21 @@ export interface InlineCompletion {
 	readonly completeBracketPairs?: boolean;
 
 	readonly isInlineEdit?: boolean;
+
+	readonly showRange?: IRange;
+
+	readonly warning?: InlineCompletionWarning;
 }
+
+export interface InlineCompletionWarning {
+	message: IMarkdownString | string;
+	icon?: IconPath;
+}
+
+/**
+ * TODO: add `| URI | { light: URI; dark: URI }`.
+*/
+export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];
@@ -810,6 +842,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	/**
 	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
+	 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
 	 */
 	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 
@@ -831,6 +864,10 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
+
+	displayName?: string;
+
+	debounceDelayMs?: number;
 
 	toString?(): string;
 }
@@ -1478,6 +1515,10 @@ export abstract class TextEdit {
 	static asEditOperation(edit: TextEdit): ISingleEditOperation {
 		return EditOperation.replace(Range.lift(edit.range), edit.text);
 	}
+	static isTextEdit(thing: any): thing is TextEdit {
+		const possibleTextEdit = thing as TextEdit;
+		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
+	}
 }
 
 /**
@@ -1793,7 +1834,7 @@ export interface IWorkspaceFileEdit {
 
 export interface IWorkspaceTextEdit {
 	resource: URI;
-	textEdit: TextEdit & { insertAsSnippet?: boolean };
+	textEdit: TextEdit & { insertAsSnippet?: boolean; keepWhitespace?: boolean };
 	versionId: number | undefined;
 	metadata?: WorkspaceEditMetadata;
 }
@@ -2105,7 +2146,7 @@ export interface CodeLens {
 
 export interface CodeLensList {
 	lenses: CodeLens[];
-	dispose(): void;
+	dispose?(): void;
 }
 
 export interface CodeLensProvider {
@@ -2337,65 +2378,10 @@ export interface DocumentDropEditProvider {
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
 }
 
-export interface DocumentContextItem {
-	readonly uri: URI;
-	readonly version: number;
-	readonly ranges: IRange[];
-}
-
-export interface MappedEditsContext {
-	/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
-	readonly documents: DocumentContextItem[][];
-	/**
-	 * @internal
-	 */
-	readonly conversation?: (ConversationRequest | ConversationResponse)[];
-}
-
-/**
- * @internal
- */
-export interface ConversationRequest {
-	readonly type: 'request';
-	readonly message: string;
-}
-
-/**
- * @internal
- */
-export interface ConversationResponse {
-	readonly type: 'response';
-	readonly message: string;
-	readonly references?: DocumentContextItem[];
-}
-
-export interface MappedEditsProvider {
-	/**
-	 * @internal
-	 */
-	readonly displayName: string; // internal
-
-	/**
-	 * Provider maps code blocks from the chat into a workspace edit.
-	 *
-	 * @param document The document to provide mapped edits for.
-	 * @param codeBlocks Code blocks that come from an LLM's reply.
-	 * 						"Apply in Editor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
-	 * @param context The context for providing mapped edits.
-	 * @param token A cancellation token.
-	 * @returns A provider result of text edits.
-	 */
-	provideMappedEdits(
-		document: model.ITextModel,
-		codeBlocks: string[],
-		context: MappedEditsContext,
-		token: CancellationToken
-	): Promise<WorkspaceEdit | null>;
-}
-
 export interface IInlineEdit {
 	text: string;
 	range: IRange;
+	showRange?: IRange;
 	accepted?: Command;
 	rejected?: Command;
 	shown?: Command;
@@ -2404,6 +2390,12 @@ export interface IInlineEdit {
 
 export interface IInlineEditContext {
 	triggerKind: InlineEditTriggerKind;
+
+	/**
+	 * @experimental
+	 * @internal
+	 */
+	requestUuid?: string;
 }
 
 export enum InlineEditTriggerKind {
@@ -2412,6 +2404,7 @@ export enum InlineEditTriggerKind {
 }
 
 export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
+	displayName?: string;
 	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
 	freeInlineEdit(edit: T): void;
 }

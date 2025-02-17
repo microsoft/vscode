@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Location } from '../../../../editor/common/languages.js';
 
 export interface IToolData {
 	id: string;
@@ -34,6 +35,7 @@ export interface IToolInvocation {
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
+	chatRequestId?: string;
 }
 
 export interface IToolInvocationContext {
@@ -46,6 +48,8 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
+	toolResultMessage?: string | IMarkdownString;
+	toolResultDetails?: Array<URI | Location>;
 }
 
 export interface IToolResultPromptTsxPart {
@@ -65,6 +69,8 @@ export interface IToolConfirmationMessages {
 
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
+	pastTenseMessage?: string | IMarkdownString;
+	tooltip?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 }
 
@@ -86,4 +92,5 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	cancelToolCallsForRequest(requestId: string): void;
 }

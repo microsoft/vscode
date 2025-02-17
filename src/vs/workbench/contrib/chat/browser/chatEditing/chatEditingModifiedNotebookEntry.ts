@@ -9,10 +9,12 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason } from '../../../../common/editor.js';
-import { IResolvedTextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
+import { IResolvedTextFileEditorModel, ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ChatEditKind } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo } from './chatEditingModifiedFileEntry.js';
@@ -33,8 +35,11 @@ export class ChatEditingModifiedNotebookEntry extends ChatEditingModifiedFileEnt
 		@IEditorWorkerService _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService _undoRedoService: IUndoRedoService,
 		@IFileService _fileService: IFileService,
+		@IConfigurationService configService: IConfigurationService,
+		@ITextFileService textFileService: ITextFileService,
+		@ILabelService labelService: ILabelService
 	) {
-		super(resourceRef, _multiDiffEntryDelegate, _telemetryInfo, kind, initialContent, modelService, textModelService, languageService, _chatService, _editorWorkerService, _undoRedoService, _fileService);
+		super(resourceRef, _multiDiffEntryDelegate, _telemetryInfo, kind, initialContent, modelService, textModelService, languageService, configService, _chatService, _editorWorkerService, _undoRedoService, _fileService, textFileService, labelService);
 		this.resolveTextFileEditorModel = resourceRef.object as IResolvedTextFileEditorModel;
 	}
 

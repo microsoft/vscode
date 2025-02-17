@@ -10,10 +10,8 @@
   "enabledApiProposals": [
     "workspaceTrust",
     "multiDocumentHighlightProvider",
-    "mappedEditsProvider",
     "codeActionAI",
     "codeActionRanges",
-    "documentPaste",
     "editorHoverVerbosityLevel"
   ],
   "capabilities": {
@@ -384,12 +382,6 @@
           "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
           "scope": "resource"
         },
-        "javascript.inlayHints.enumMemberValues.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
-          "scope": "resource"
-        },
         "javascript.suggest.includeCompletionsForImportStatements": {
           "type": "boolean",
           "default": true,
@@ -533,6 +525,12 @@
           ]
         },
         "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
+        },
+        "javascript.format.indentSwitchCase": {
           "type": "boolean",
           "default": true,
           "description": "%format.indentSwitchCase%",

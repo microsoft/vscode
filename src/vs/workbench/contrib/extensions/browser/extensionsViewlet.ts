@@ -59,7 +59,7 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { coalesce } from '../../../../base/common/arrays.js';
 import { extractEditorsAndFilesDropData } from '../../../../platform/dnd/browser/dnd.js';
 import { extname } from '../../../../base/common/resources.js';
-import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -992,8 +992,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 		return this.extensionsManagementService.getExtensionsControlManifest().then(extensionsControlManifest => {
 
 			return this.extensionsManagementService.getInstalled(ExtensionType.User).then(installed => {
-				const maliciousExtensions = installed
-					.filter(e => extensionsControlManifest.malicious.some(identifier => areSameExtensions(e.identifier, identifier)));
+				const maliciousExtensions = installed.filter(e => isMalicious(e.identifier, extensionsControlManifest));
 
 				if (maliciousExtensions.length) {
 					return Promises.settled(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e).then(() => {

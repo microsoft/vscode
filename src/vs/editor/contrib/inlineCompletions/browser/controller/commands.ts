@@ -11,15 +11,15 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
-import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
-import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 
 export class ShowNextInlineSuggestionAction extends EditorAction {
 	public static ID = showNextInlineSuggestionActionId;
@@ -84,7 +84,7 @@ export class ExplicitTriggerInlineEditAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.triggerInlineEditExplicit',
-			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Inline Edit"),
+			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Next Edit Suggestion"),
 			precondition: EditorContextKeys.writable,
 		});
 	}
@@ -113,7 +113,7 @@ export class TriggerInlineEditAction extends EditorCommand {
 
 	public override async runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.trigger(undefined, true);
+		await controller?.model.get()?.trigger(undefined, { onlyFetchInlineEdits: true });
 	}
 }
 
@@ -211,19 +211,25 @@ export class AcceptInlineCompletion extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = InlineCompletionsController.get(editor);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.getInFocusedEditorOrParent(accessor);
 		if (controller) {
 			controller.model.get()?.accept(controller.editor);
 			controller.editor.focus();
 		}
 	}
 }
+KeybindingsRegistry.registerKeybindingRule({
+	id: inlineSuggestCommitId,
+	weight: 202, // greater than jump
+	primary: KeyCode.Tab,
+	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
+});
 
 export class JumpToNextInlineEdit extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.inlineSuggest.jump',
+			id: jumpToNextInlineEditId,
 			label: nls.localize2('action.inlineSuggest.jump', "Jump to next inline edit"),
 			precondition: InlineCompletionContextKeys.inlineEditVisible,
 			menuOpts: [{
@@ -256,7 +262,7 @@ export class JumpToNextInlineEdit extends EditorAction {
 }
 
 export class HideInlineCompletion extends EditorAction {
-	public static ID = 'editor.action.inlineSuggest.hide';
+	public static ID = hideInlineCompletionId;
 
 	constructor() {
 		super({
@@ -264,7 +270,7 @@ export class HideInlineCompletion extends EditorAction {
 			label: nls.localize2('action.inlineSuggest.hide', "Hide Inline Suggestion"),
 			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			kbOpts: {
-				weight: 100,
+				weight: KeybindingWeight.EditorContrib + 90, // same as hiding the suggest widget
 				primary: KeyCode.Escape,
 			},
 			menuOpts: [{
@@ -276,13 +282,22 @@ export class HideInlineCompletion extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = InlineCompletionsController.get(editor);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.getInFocusedEditorOrParent(accessor);
 		transaction(tx => {
 			controller?.model.get()?.stop('explicitCancel', tx);
 		});
+		controller?.editor.focus();
 	}
 }
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: HideInlineCompletion.ID,
+	weight: -1, // very weak
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape],
+	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
+});
 
 export class ToggleAlwaysShowInlineSuggestionToolbar extends Action2 {
 	public static ID = 'editor.action.inlineSuggest.toggleAlwaysShowToolbar';

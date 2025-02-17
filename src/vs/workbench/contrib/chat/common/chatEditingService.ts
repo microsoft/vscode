@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatResponseModel } from './chatModel.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
@@ -23,23 +26,28 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
+
+	startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
+
+	getEditingSession(chatSessionId: string): IChatEditingSession | undefined;
+
 	/**
-	 * emitted when a session is created, changed or disposed
+	 * All editing sessions, sorted by recency, e.g the last created session comes first.
 	 */
-	readonly onDidChangeEditingSession: Event<void>;
+	readonly editingSessionsObs: IObservable<readonly IChatEditingSession[]>;
 
-	readonly currentEditingSessionObs: IObservable<IChatEditingSession | null>;
+	/**
+	 * Creates a new short lived editing session
+	 */
+	createEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 
-	readonly currentEditingSession: IChatEditingSession | null;
-	readonly currentAutoApplyOperation: CancellationTokenSource | null;
+	//#region related files
 
-	readonly editingSessionFileLimit: number;
-
-	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
-	getOrRestoreEditingSession(): Promise<IChatEditingSession | null>;
 	hasRelatedFilesProviders(): boolean;
 	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
 	getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
+
+	//#endregion
 }
 
 export interface IChatRequestDraft {
@@ -61,25 +69,37 @@ export interface IChatRelatedFilesProvider {
 	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<IChatRelatedFile[] | undefined>;
 }
 
-export interface WorkingSetDisplayMetadata { state: WorkingSetEntryState; description?: string }
+export interface WorkingSetDisplayMetadata {
+	state: WorkingSetEntryState;
+	description?: string;
+	isMarkedReadonly?: boolean;
+}
 
-export interface IChatEditingSession {
+export interface IStreamingEdits {
+	pushText(edits: TextEdit[]): void;
+	pushNotebook(edits: ICellEditOperation[]): void;
+	/** Marks edits as done, idempotent */
+	complete(): void;
+}
+
+export interface IChatEditingSession extends IDisposable {
+	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
 	readonly onDidChange: Event<ChatEditingSessionChangeType>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
-	readonly isVisible: boolean;
 	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
+	markIsReadonly(uri: URI, isReadonly?: boolean): void;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
 	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
 
-	restoreSnapshot(requestId: string): Promise<void>;
+	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
 
 	/**
@@ -87,6 +107,23 @@ export interface IChatEditingSession {
 	 */
 	stop(clearState?: boolean): Promise<void>;
 
+	/**
+	 * Starts making edits to the resource.
+	 * @param resource URI that's being edited
+	 * @param responseModel The response model making the edits
+	 * @param inUndoStop The undo stop the edits will be grouped in
+	 */
+	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
+
+	/**
+	 * Gets the document diff of a change made to a URI between one undo stop and
+	 * the next one.
+	 * @returns The observable or undefined if there is no diff between the stops.
+	 */
+	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IDocumentDiff | undefined> | undefined;
+
+	readonly canUndo: IObservable<boolean>;
+	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
 }
@@ -111,22 +148,48 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
+export interface IModifiedFileEntryNavigator {
+	currentIndex: IObservable<number>;
+	next(wrap: boolean): boolean;
+	previous(wrap: boolean): boolean;
+}
+
 export interface IModifiedFileEntry {
+	readonly entryId: string;
 	readonly originalURI: URI;
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
-	readonly state: IObservable<WorkingSetEntryState>;
-	readonly isCurrentlyBeingModified: IObservable<boolean>;
-	readonly rewriteRatio: IObservable<number>;
-	readonly maxLineNumber: IObservable<number>;
-	readonly diffInfo: IObservable<IDocumentDiff>;
+
 	readonly lastModifyingRequestId: string;
+
+	readonly state: IObservable<WorkingSetEntryState>;
+	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
+	readonly rewriteRatio: IObservable<number>;
+
+	readonly diffInfo: IObservable<IDocumentDiff>;
+
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
+
+	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
+	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
+
+	reviewMode: IObservable<boolean>;
+	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
+	enableReviewModeUntilSettled(): void;
+
+
+	/**
+	 * Number of changes for this file
+	 */
+	readonly changesCount: IObservable<number>;
+
+	getChangeNavigator(editor: IEditorPane): IModifiedFileEntryNavigator;
 }
 
 export interface IChatEditingSessionStream {
 	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
+	notebookEdits(resource: URI, edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
 }
 
 export const enum ChatEditingSessionState {
@@ -139,10 +202,11 @@ export const enum ChatEditingSessionState {
 export const CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME = 'chat-editing-multi-diff-source';
 
 export const chatEditingWidgetFileStateContextKey = new RawContextKey<WorkingSetEntryState>('chatEditingWidgetFileState', undefined, localize('chatEditingWidgetFileState', "The current state of the file in the chat editing widget"));
+export const chatEditingWidgetFileReadonlyContextKey = new RawContextKey<boolean>('chatEditingWidgetFileReadonly', undefined, localize('chatEditingWidgetFileReadonly', "Whether the file has been marked as read-only in the chat editing widget"));
+export const chatEditingAgentSupportsReadonlyReferencesContextKey = new RawContextKey<boolean>('chatEditingAgentSupportsReadonlyReferences', undefined, localize('chatEditingAgentSupportsReadonlyReferences', "Whether the chat editing agent supports readonly references (temporary)"));
 export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
-export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
 export const hasUndecidedChatEditingResourceContextKey = new RawContextKey<boolean | undefined>('hasUndecidedChatEditingResource', false);
 export const hasAppliedChatEditsContextKey = new RawContextKey<boolean | undefined>('hasAppliedChatEdits', false);
 export const applyingChatEditsFailedContextKey = new RawContextKey<boolean | undefined>('applyingChatEditsFailed', false);
@@ -164,9 +228,9 @@ export function isChatEditingActionContext(thing: unknown): thing is IChatEditin
 	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
 }
 
-export function getMultiDiffSourceUri(): URI {
+export function getMultiDiffSourceUri(session: IChatEditingSession): URI {
 	return URI.from({
 		scheme: CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME,
-		path: '',
+		authority: session.chatSessionId,
 	});
 }

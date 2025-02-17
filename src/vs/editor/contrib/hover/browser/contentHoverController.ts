@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from './hoverActionIds.js';
-import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
@@ -23,8 +23,6 @@ import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
 import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { EventType } from '../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -95,18 +93,11 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 		this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 		this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
+		this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => this._cancelSchedulerAndHide()));
 		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
 		this._listenersStore.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
-		const keyDownListener = (e: KeyboardEvent) => this._onKeyDown(e);
-		const keyUpListener = (e: KeyboardEvent) => this._onKeyUp(e);
-		mainWindow.addEventListener(EventType.KEY_DOWN, keyDownListener);
-		mainWindow.addEventListener(EventType.KEY_UP, keyUpListener);
-		this._listenersStore.add(toDisposable(() => {
-			mainWindow.removeEventListener(EventType.KEY_DOWN, keyDownListener);
-			mainWindow.removeEventListener(EventType.KEY_UP, keyUpListener);
-		}));
 	}
 
 	private _unhookListeners(): void {
@@ -164,9 +155,6 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		}
 		if (_sticky) {
 			return;
-		}
-		if (this._contentWidget) {
-			this._contentWidget.temporarilySticky = false;
 		}
 		this.hideContentHover();
 	}
@@ -247,32 +235,18 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this.hideContentHover();
 	}
 
-	private _onKeyDown(e: KeyboardEvent): void {
+	private _onKeyDown(e: IKeyboardEvent): void {
 		if (!this._contentWidget) {
 			return;
 		}
-		const event = new StandardKeyboardEvent(e);
-		if (event.keyCode === KeyCode.Alt) {
-			this._contentWidget.temporarilySticky = true;
-		}
-		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(event);
+		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(e);
 		if (isPotentialKeyboardShortcut) {
 			return;
 		}
-		if (this._contentWidget.isFocused && event.keyCode === KeyCode.Tab) {
+		if (this._contentWidget.isFocused && e.keyCode === KeyCode.Tab) {
 			return;
 		}
 		this.hideContentHover();
-	}
-
-	private _onKeyUp(e: KeyboardEvent): void {
-		if (!this._contentWidget) {
-			return;
-		}
-		const event = new StandardKeyboardEvent(e);
-		if (event.keyCode === KeyCode.Alt) {
-			this._contentWidget.temporarilySticky = false;
-		}
 	}
 
 	private _isPotentialKeyboardShortcut(e: IKeyboardEvent): boolean {

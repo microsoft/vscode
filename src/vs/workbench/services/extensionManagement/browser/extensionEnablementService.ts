@@ -80,7 +80,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		});
 
 		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(({ extensions, source }) => this._onDidChangeGloballyDisabledExtensions(extensions, source)));
-		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this._onDidChangeExtensions([], [], false)));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this._onDidChangeExtensions([], [], false)));
 
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {

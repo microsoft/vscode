@@ -40,7 +40,7 @@ import { TaskTerminalStatus } from './taskTerminalStatus.js';
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from '../common/problemCollectors.js';
 import { GroupKind } from '../common/taskConfiguration.js';
 import { IResolveSet, IResolvedVariables, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from '../common/taskSystem.js';
-import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../common/tasks.js';
+import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, TASK_TERMINAL_ACTIVE, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../common/tasks.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/browser/terminalEscapeSequences.js';
 import { TerminalProcessExtHostProxy } from '../../terminal/browser/terminalProcessExtHostProxy.js';
@@ -50,6 +50,8 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { RerunForActiveTerminalCommandId, rerunTaskIcon } from './task.contribution.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -197,6 +199,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _reconnectedTerminals: ITerminalInstance[] | undefined;
+	private _terminalTabActions = [{ id: RerunForActiveTerminalCommandId, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
+	private _taskTerminalActive: IContextKey<boolean>;
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
 		return (
@@ -231,6 +235,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private _viewDescriptorService: IViewDescriptorService,
 		private _logService: ILogService,
 		private _notificationService: INotificationService,
+		contextKeyService: IContextKeyService,
 		instantiationService: IInstantiationService,
 		taskSystemInfoResolver: ITaskSystemInfoResolver,
 	) {
@@ -244,6 +249,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = instantiationService.createInstance(TaskTerminalStatus));
+		this._taskTerminalActive = TASK_TERMINAL_ACTIVE.bindTo(contextKeyService);
+		this._register(this._terminalService.onDidChangeActiveInstance((e) => this._taskTerminalActive.set(e?.shellLaunchConfig.type === 'Task')));
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
@@ -1112,6 +1119,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				color: task.configurationProperties.icon?.color || undefined,
 				waitOnExit
 			};
+			let shellSpecified: boolean = false;
 			const shellOptions: IShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
 				if (shellOptions.executable) {
@@ -1120,12 +1128,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						shellLaunchConfig.args = undefined;
 					}
 					shellLaunchConfig.executable = await this._resolveVariable(variableResolver, shellOptions.executable);
+					shellSpecified = true;
 				}
 				if (shellOptions.args) {
 					shellLaunchConfig.args = await this._resolveVariables(variableResolver, shellOptions.args.slice());
 				}
 			}
-			const taskShellArgsSpecified = (defaultProfile.isAutomationShell ? shellLaunchConfig.args : shellOptions?.args) !== undefined;
 			if (shellLaunchConfig.args === undefined) {
 				shellLaunchConfig.args = [];
 			}
@@ -1138,34 +1146,29 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				windowsShellArgs = true;
 				// If we don't have a cwd, then the terminal uses the home dir.
 				const userHome = await this._pathService.userHome();
-				if (basename === 'cmd.exe') {
-					if ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath))) {
-						return undefined;
-					}
-					if (!taskShellArgsSpecified) {
-						toAdd.push('/d', '/c');
-					}
-				} else if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
-					if (!taskShellArgsSpecified) {
+				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
+					return undefined;
+				}
+				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
+					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
 				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
-					if (!taskShellArgsSpecified) {
+					if (!shellSpecified) {
 						toAdd.push('-c');
 					}
 				} else if (basename === 'wsl.exe') {
-					if (!taskShellArgsSpecified) {
+					if (!shellSpecified) {
 						toAdd.push('-e');
 					}
 				} else {
-					if (!taskShellArgsSpecified) {
-						// Push `-c` for unknown shells if the user didn't specify the args
-						toAdd.push('-c');
+					if (!shellSpecified) {
+						toAdd.push('/d', '/c');
 					}
 				}
 			} else {
-				if (!taskShellArgsSpecified) {
+				if (!shellSpecified) {
 					// Under Mac remove -l to not start it as a login shell.
 					if (platform === Platform.Platform.Mac) {
 						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
@@ -1265,6 +1268,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		shellLaunchConfig.isFeatureTerminal = true;
 		shellLaunchConfig.useShellEnvironment = true;
+		shellLaunchConfig.tabActions = this._terminalTabActions;
 		return shellLaunchConfig;
 	}
 
@@ -1272,12 +1276,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const combinedShellArgs: string[] = Objects.deepClone(configuredShellArgs);
 		shellCommandArgs.forEach(element => {
 			const shouldAddShellCommandArg = configuredShellArgs.every((arg, index) => {
-				const isDuplicated = arg.toLowerCase() === element.toLowerCase();
-				if (isDuplicated && (configuredShellArgs.length > index + 1)) {
+				if ((arg.toLowerCase() === element) && (configuredShellArgs.length > index + 1)) {
 					// We can still add the argument, but only if not all of the following arguments begin with "-".
 					return !configuredShellArgs.slice(index + 1).every(testArg => testArg.startsWith('-'));
 				} else {
-					return !isDuplicated;
+					return arg.toLowerCase() !== element;
 				}
 			});
 			if (shouldAddShellCommandArg) {
@@ -1466,6 +1469,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
 		this._terminals[terminalKey] = terminalData;
+		terminal.shellLaunchConfig.tabActions = this._terminalTabActions;
 		return [terminal, undefined];
 	}
 
@@ -1826,6 +1830,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return result;
 		}
 		return 'other';
+	}
+
+	public getTaskForTerminal(instanceId: number): Task | undefined {
+		for (const key in this._activeTasks) {
+			const activeTask = this._activeTasks[key];
+			if (activeTask.terminal?.instanceId === instanceId) {
+				return activeTask.task;
+			}
+		}
+		return undefined;
 	}
 
 	private _appendOutput(output: string): void {

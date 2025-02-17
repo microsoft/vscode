@@ -32,6 +32,13 @@ export class CarriageReturn extends BaseToken {
 	}
 
 	/**
+	 * Return text representation of the token.
+	 */
+	public get text(): string {
+		return CarriageReturn.symbol;
+	}
+
+	/**
 	 * Create new `CarriageReturn` token with range inside
 	 * the given `Line` at the given `column number`.
 	 */
