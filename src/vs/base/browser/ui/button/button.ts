@@ -605,7 +605,7 @@ export class ButtonWithIcon extends Button {
 		}
 
 		this._element.classList.add('monaco-icon-button');
-		this._iconElement = $('.monaco-button-icon');
+		this._iconElement = $('');
 		this._mdlabelElement = $('.monaco-button-mdlabel');
 		this._element.append(this._iconElement, this._mdlabelElement);
 	}
@@ -653,6 +653,7 @@ export class ButtonWithIcon extends Button {
 	}
 
 	override set icon(icon: ThemeIcon) {
+		this._iconElement.classList.value = '';
 		this._iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 		this._setAriaLabel();
 	}
