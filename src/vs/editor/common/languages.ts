@@ -595,6 +595,10 @@ export interface CompletionItem {
 	 */
 	command?: Command;
 	/**
+	 * A command that should be run upon acceptance of this item.
+	 */
+	action?: Command;
+	/**
 	 * @internal
 	 */
 	extensionId?: ExtensionIdentifier;
@@ -780,6 +784,8 @@ export interface InlineCompletion {
 	readonly range?: IRange;
 
 	readonly command?: Command;
+
+	readonly action?: Command;
 
 	/**
 	 * Is called the first time an inline completion is shown.
@@ -2387,6 +2393,7 @@ export interface IInlineEdit {
 	rejected?: Command;
 	shown?: Command;
 	commands?: Command[];
+	action?: Command;
 }
 
 export interface IInlineEditContext {
