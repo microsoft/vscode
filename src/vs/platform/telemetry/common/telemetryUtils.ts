@@ -57,8 +57,7 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 }
 
 export const telemetryLogId = 'telemetry';
-export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
-export const TelemetryLogGroup: LoggerGroup = { id: 'telemetry', name: localize('telemetryLogName', "Telemetry") };
+export const TelemetryLogGroup: LoggerGroup = { id: telemetryLogId, name: localize('telemetryLogName', "Telemetry") };
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;

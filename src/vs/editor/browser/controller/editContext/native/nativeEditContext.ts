@@ -304,7 +304,7 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 		if (!this._editContextPrimarySelection.equalsSelection(this._primarySelection)) {
-			this._updateEditContext();
+			return;
 		}
 		const model = this._context.viewModel.model;
 		const startPositionOfEditContext = this._editContextStartPosition();

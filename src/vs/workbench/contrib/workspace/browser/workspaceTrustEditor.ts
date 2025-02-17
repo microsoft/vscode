@@ -1091,7 +1091,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
 		if (!this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
-			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the the trusted folders below.");
+			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the trusted folders below.");
 		} else {
 			textElement.innerText = localize('trustedForcedReason', "This window is trusted by nature of the workspace that is opened.");
 		}

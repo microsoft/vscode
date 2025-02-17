@@ -853,7 +853,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 	}
 
-	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined> {
+	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'completions')));
 		}

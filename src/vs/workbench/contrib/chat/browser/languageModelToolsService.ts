@@ -20,6 +20,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../common/languageModelToolsService.js';
+import { EditToolId } from '../common/tools/editFileTool.js';
 
 interface IToolEntry {
 	data: IToolData;
@@ -150,6 +151,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		let requestId: string | undefined;
 		let store: DisposableStore | undefined;
+		let toolResult: IToolResult | undefined;
 		try {
 			if (dto.context) {
 				store = new DisposableStore();
@@ -186,7 +188,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
 				const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
-				if (tool.data.id !== 'vscode_editFile') {
+				if (tool.data.id !== EditToolId) {
 					toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.pastTenseMessage, prepared?.tooltip, prepared?.confirmationMessages);
 					model.acceptResponseProgress(request, toolInvocation);
 					if (prepared?.confirmationMessages) {
@@ -213,7 +215,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			const result = await tool.impl.invoke(dto, countTokens, token);
+			toolResult = await tool.impl.invoke(dto, countTokens, token);
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
 				'languageModelToolInvoked',
 				{
@@ -222,7 +224,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.extensionId?.value,
 				});
-			return result;
+			return toolResult;
 		} catch (err) {
 			const result = isCancellationError(err) ? 'userCancelled' : 'error';
 			this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>(
@@ -235,7 +237,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				});
 			throw err;
 		} finally {
-			toolInvocation?.isCompleteDeferred.complete();
+			toolInvocation?.complete(toolResult);
 
 			if (requestId && store) {
 				this.cleanupCallDisposables(requestId, store);

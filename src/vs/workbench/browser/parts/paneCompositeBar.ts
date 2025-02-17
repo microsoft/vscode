@@ -843,7 +843,7 @@ class ViewContainerActivityAction extends CompositeBarAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
-			owner: 'sbatten';
+			owner: 'benibenj';
 			comment: 'Event logged when an activity bar action is triggered.';
 			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view in the activity bar for which the action was performed.' };
 			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was performed. e.g. "hide", "show", or "refocus"' };

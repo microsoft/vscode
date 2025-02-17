@@ -245,7 +245,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 				},
 				overflowBehavior: { maxItems: this._isSmall.read(reader) ? 1 : 3 },
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				actionRunner: new ActionRunnerWithContext(() => {
+				actionRunner: store.add(new ActionRunnerWithContext(() => {
 					const item = this._item.get();
 					const mapping = item.mapping;
 					return {
@@ -254,7 +254,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 						originalUri: item.originalUri,
 						modifiedUri: item.modifiedUri,
 					} satisfies DiffEditorSelectionHunkToolbarContext;
-				}),
+				})),
 				menuOptions: {
 					shouldForwardArgs: true,
 				},

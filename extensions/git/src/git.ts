@@ -1127,8 +1127,9 @@ function parseGitBlame(data: string): BlameInformation[] {
 }
 
 export interface PullOptions {
-	unshallow?: boolean;
-	tags?: boolean;
+	readonly unshallow?: boolean;
+	readonly tags?: boolean;
+	readonly autoStash?: boolean;
 	readonly cancellationToken?: CancellationToken;
 }
 
@@ -1391,7 +1392,7 @@ export class Repository {
 		}
 
 		const { mode, object, size } = elements[0];
-		return { mode, object, size: parseInt(size) };
+		return { mode, object, size: parseInt(size) || 0 };
 	}
 
 	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {
@@ -1926,8 +1927,14 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
-		const args = ['push', '--delete', remoteName, tagName];
+	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
+		const args = ['push', remoteName, '--delete'];
+
+		if (options?.force) {
+			args.push('--force');
+		}
+
+		args.push(refName);
 		await this.exec(args);
 	}
 
@@ -2085,6 +2092,11 @@ export class Repository {
 
 		if (options.unshallow) {
 			args.push('--unshallow');
+		}
+
+		// --auto-stash option is only available `git pull --merge` starting with git 2.27.0
+		if (options.autoStash && this._git.compareGitVersionTo('2.27.0') !== -1) {
+			args.push('--autostash');
 		}
 
 		if (rebase) {
@@ -2747,7 +2759,7 @@ export class Repository {
 				return {
 					type: RefType.Head,
 					name: branchName,
-					upstream: upstream ? {
+					upstream: upstream !== '' && status !== '[gone]' ? {
 						name: upstreamRef ? upstreamRef.substring(11) : upstream.substring(index + 1),
 						remote: remoteName ? remoteName : upstream.substring(0, index)
 					} : undefined,

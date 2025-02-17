@@ -9,11 +9,15 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { ChatTreeItem } from '../chat.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressMessage, IChatTask } from '../../common/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatTreeItem } from '../chat.js';
+import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -25,9 +29,11 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		progress: IChatProgressMessage | IChatTask,
 		renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
-		forceShowSpinner?: boolean,
-		forceShowMessage?: boolean,
-		icon?: ThemeIcon
+		forceShowSpinner: boolean | undefined,
+		forceShowMessage: boolean | undefined,
+		icon: ThemeIcon | undefined,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
@@ -51,12 +57,25 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		});
 		const result = this._register(renderer.render(markdown));
 		result.element.classList.add('progress-step');
+		this.renderFileWidgets(result.element);
 
 		this.domNode = $('.progress-container');
 		const iconElement = $('div');
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(codicon));
 		append(this.domNode, iconElement);
 		append(this.domNode, result.element);
+	}
+
+	private renderFileWidgets(element: HTMLElement): void {
+		const links = element.querySelectorAll('a');
+		links.forEach(a => {
+			const href = a.getAttribute('data-href');
+			const uri = href ? URI.parse(href) : undefined;
+			if (uri?.scheme) {
+				const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
+				this._register(this.chatMarkdownAnchorService.register(widget));
+			}
+		});
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

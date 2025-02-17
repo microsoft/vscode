@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createTrustedTypesPolicy } from '../../../../../../base/browser/trustedTypes.js';
+import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { createHotClass } from '../../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, autorunWithStore, constObservable, derived, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
-import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../browser/editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IViewZoneChangeAccessor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
 import { OffsetEdit, SingleOffsetEdit } from '../../../../../common/core/offsetEdit.js';
 import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
+import { IconPath } from '../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from '../../../../../common/model.js';
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
@@ -24,17 +28,30 @@ import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayou
 import { InlineDecorationType } from '../../../../../common/viewModel.js';
 import { GhostText, GhostTextReplacement } from '../../model/ghostText.js';
 import { ColumnRange } from '../../utils.js';
+import { n } from '../../../../../../base/browser/dom.js';
 import './ghostTextView.css';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
 	readonly ghostText: IObservable<GhostText | GhostTextReplacement | undefined>;
+	readonly warning: IObservable<{ icon: IconPath | undefined } | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
 }
+
+const USE_SQUIGGLES_FOR_WARNING = true;
 
 export class GhostTextView extends Disposable {
 	private readonly _isDisposed = observableValue(this, false);
 	private readonly _editorObs = observableCodeEditor(this._editor);
+	public static hot = createHotClass(GhostTextView);
+
+	private _warningState = derived(reader => {
+		const gt = this._model.ghostText.read(reader);
+		if (!gt) { return undefined; }
+		const warning = this._model.warning.read(reader);
+		if (!warning) { return undefined; }
+		return { lineNumber: gt.lineNumber, position: new Position(gt.lineNumber, gt.parts[0].column), icon: warning.icon };
+	});
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -43,12 +60,69 @@ export class GhostTextView extends Disposable {
 			extraClasses?: string[];
 			syntaxHighlightingEnabled: boolean;
 		}>,
+		private readonly _shouldKeepCursorStable: boolean,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
 
 		this._register(toDisposable(() => { this._isDisposed.set(true, undefined); }));
 		this._register(this._editorObs.setDecorations(this.decorations));
+
+		this._register(autorunWithStore((reader, store) => {
+			if (USE_SQUIGGLES_FOR_WARNING) {
+				return;
+			}
+
+			const state = this._warningState.read(reader);
+			if (!state) {
+				return;
+			}
+
+			const lineHeight = this._editorObs.getOption(EditorOption.lineHeight);
+			store.add(this._editorObs.createContentWidget({
+				position: constObservable<IContentWidgetPosition>({
+					position: new Position(state.lineNumber, Number.MAX_SAFE_INTEGER),
+					preference: [ContentWidgetPositionPreference.EXACT],
+					positionAffinity: PositionAffinity.Right,
+				}),
+				allowEditorOverflow: false,
+				domNode: n.div({
+					class: 'ghost-text-view-warning-widget',
+					style: {
+						width: lineHeight,
+						height: lineHeight,
+						marginLeft: 4,
+						color: 'orange',
+					},
+					ref: (dom) => {
+						(dom as any as WidgetDomElement).ghostTextViewWarningWidgetData = { range: Range.fromPositions(state.position) };
+					}
+				}, [
+					n.div({
+						class: 'ghost-text-view-warning-widget-icon',
+						style: {
+							width: '100%',
+							height: '100%',
+							display: 'flex',
+							alignContent: 'center',
+							alignItems: 'center',
+						}
+					}, [
+						renderIcon((state.icon && 'id' in state.icon) ? state.icon : Codicon.warning),
+					])
+				]).keepUpdated(store).element,
+			}));
+		}));
+	}
+
+	public static getWarningWidgetContext(domNode: HTMLElement): { range: Range } | undefined {
+		const data = (domNode as any as WidgetDomElement).ghostTextViewWarningWidgetData;
+		if (data) {
+			return data;
+		} else if (domNode.parentElement) {
+			return this.getWarningWidgetContext(domNode.parentElement);
+		}
+		return undefined;
 	}
 
 	private readonly _useSyntaxHighlighting = this._options.map(o => o.syntaxHighlightingEnabled);
@@ -57,6 +131,9 @@ export class GhostTextView extends Disposable {
 		const extraClasses = [...this._options.read(reader).extraClasses ?? []];
 		if (this._useSyntaxHighlighting.read(reader)) {
 			extraClasses.push('syntax-highlighted');
+		}
+		if (USE_SQUIGGLES_FOR_WARNING && this._warningState.read(reader)) {
+			extraClasses.push('warning');
 		}
 		const extraClassNames = extraClasses.map(c => ` ${c}`).join('');
 		return extraClassNames;
@@ -129,7 +206,7 @@ export class GhostTextView extends Disposable {
 						content: p.text,
 						tokens: p.tokens,
 						inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' + extraClassNames,
-						cursorStops: InjectedTextCursorStops.Left
+						cursorStops: InjectedTextCursorStops.Left,
 					},
 					showIfCollapsed: true,
 				}
@@ -151,7 +228,8 @@ export class GhostTextView extends Disposable {
 					minReservedLineCount: uiState.additionalReservedLineCount,
 					targetTextModel: uiState.targetTextModel,
 				} : undefined;
-			})
+			}),
+			this._shouldKeepCursorStable
 		)
 	);
 
@@ -163,6 +241,12 @@ export class GhostTextView extends Disposable {
 	public ownsViewZone(viewZoneId: string): boolean {
 		return this.additionalLinesWidget.viewZoneId === viewZoneId;
 	}
+}
+
+interface WidgetDomElement {
+	ghostTextViewWarningWidgetData?: {
+		range: Range;
+	};
 }
 
 function computeGhostTextViewData(ghostText: GhostText | GhostTextReplacement, textModel: ITextModel, ghostTextClassName: string) {
@@ -257,7 +341,8 @@ export class AdditionalLinesWidget extends Disposable {
 			lineNumber: number;
 			additionalLines: LineData[];
 			minReservedLineCount: number;
-		} | undefined>
+		} | undefined>,
+		private readonly shouldKeepCursorStable: boolean
 	) {
 		super();
 
@@ -334,6 +419,10 @@ export class AdditionalLinesWidget extends Disposable {
 	}
 
 	private keepCursorStable(lineNumber: number, heightInLines: number): void {
+		if (!this.shouldKeepCursorStable) {
+			return;
+		}
+
 		const cursorLineNumber = this.editor.getSelection()?.getStartPosition()?.lineNumber;
 		if (cursorLineNumber !== undefined && lineNumber < cursorLineNumber) {
 			this.editor.setScrollTop(this.editor.getScrollTop() + heightInLines * this.editor.getOption(EditorOption.lineHeight));

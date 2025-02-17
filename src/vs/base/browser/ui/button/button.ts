@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextMenuProvider } from '../../contextmenu.js';
-import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus } from '../../dom.js';
+import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus, $ } from '../../dom.js';
 import dompurify from '../../dompurify/dompurify.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { renderMarkdown, renderStringAsPlaintext } from '../../markdownRenderer.js';
@@ -183,7 +183,7 @@ export class Button extends Disposable implements IButton {
 		this._element.remove();
 	}
 
-	private getContentElements(content: string): HTMLElement[] {
+	protected getContentElements(content: string): HTMLElement[] {
 		const elements: HTMLSpanElement[] = [];
 		for (let segment of renderLabelWithIcons(content)) {
 			if (typeof (segment) === 'string') {
@@ -285,7 +285,7 @@ export class Button extends Disposable implements IButton {
 		}
 	}
 
-	private _setAriaLabel(): void {
+	protected _setAriaLabel(): void {
 		if (typeof this.options.ariaLabel === 'string') {
 			this._element.setAttribute('aria-label', this.options.ariaLabel);
 		} else if (typeof this.options.title === 'string') {
@@ -587,5 +587,74 @@ export class ButtonBar {
 			}
 
 		}));
+	}
+}
+
+/**
+ * This is a Button that supports an icon to the left, and markdown to the right, with proper separation and wrapping the markdown label, which Button doesn't do.
+ */
+export class ButtonWithIcon extends Button {
+	private _iconElement: HTMLElement;
+	private _mdlabelElement: HTMLElement;
+
+	constructor(container: HTMLElement, options: IButtonOptions) {
+		super(container, options);
+
+		if (options.supportShortLabel) {
+			throw new Error('ButtonWithIcon does not support short labels');
+		}
+
+		this._element.classList.add('monaco-icon-button');
+		this._iconElement = $('');
+		this._mdlabelElement = $('.monaco-button-mdlabel');
+		this._element.append(this._iconElement, this._mdlabelElement);
+	}
+
+	override set label(value: IMarkdownString | string) {
+		if (this._label === value) {
+			return;
+		}
+
+		if (isMarkdownString(this._label) && isMarkdownString(value) && markdownStringEqual(this._label, value)) {
+			return;
+		}
+
+		this._element.classList.add('monaco-text-button');
+		if (isMarkdownString(value)) {
+			const rendered = renderMarkdown(value, { inline: true });
+			rendered.dispose();
+
+			const root = rendered.element.querySelector('p')?.innerHTML;
+			if (root) {
+				// Only allow a very limited set of inline html tags
+				const sanitized = dompurify.sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
+				this._mdlabelElement.innerHTML = sanitized as unknown as string;
+			} else {
+				reset(this._mdlabelElement);
+			}
+		} else {
+			if (this.options.supportIcons) {
+				reset(this._mdlabelElement, ...this.getContentElements(value));
+			} else {
+				this._mdlabelElement.textContent = value;
+			}
+		}
+
+		let title: string = '';
+		if (typeof this.options.title === 'string') {
+			title = this.options.title;
+		} else if (this.options.title) {
+			title = renderStringAsPlaintext(value);
+		}
+
+		this.setTitle(title);
+		this._setAriaLabel();
+		this._label = value;
+	}
+
+	override set icon(icon: ThemeIcon) {
+		this._iconElement.classList.value = '';
+		this._iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		this._setAriaLabel();
 	}
 }

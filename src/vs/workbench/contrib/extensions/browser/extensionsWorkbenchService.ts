@@ -1922,9 +1922,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		let targetPlatform = galleryExtension.properties.targetPlatform;
 		const options = [];
 		for (const targetPlatform of galleryExtension.allTargetPlatforms) {
-			if (targetPlatform !== TargetPlatform.UNDEFINED && targetPlatform !== TargetPlatform.UNKNOWN && targetPlatform !== TargetPlatform.UNIVERSAL) {
+			if (targetPlatform !== TargetPlatform.UNKNOWN && targetPlatform !== TargetPlatform.UNIVERSAL) {
 				options.push({
-					label: TargetPlatformToString(targetPlatform),
+					label: targetPlatform === TargetPlatform.UNDEFINED ? nls.localize('allplatforms', "All Platforms") : TargetPlatformToString(targetPlatform),
 					id: targetPlatform
 				});
 			}

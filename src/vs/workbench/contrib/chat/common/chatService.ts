@@ -14,13 +14,14 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
 import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolConfirmationMessages } from './languageModelToolsService.js';
+import { IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -105,12 +106,6 @@ export interface IChatContentInlineReference {
 	kind: 'inlineReference';
 }
 
-export interface IChatAgentDetection {
-	agentId: string;
-	command?: IChatAgentCommand;
-	kind: 'agentDetection';
-}
-
 export interface IChatMarkdownContent {
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
@@ -136,6 +131,11 @@ export interface IChatTask extends IChatTaskDto {
 	complete: (result: string | void) => void;
 	task: () => Promise<string | void>;
 	isSettled: () => boolean;
+}
+
+export interface IChatUndoStop {
+	kind: 'undoStop';
+	id: string;
 }
 
 export interface IChatTaskDto {
@@ -187,6 +187,13 @@ export interface IChatTextEdit {
 	done?: boolean;
 }
 
+export interface IChatNotebookEdit {
+	uri: URI;
+	edits: ICellEditOperation[];
+	kind: 'notebookEdit';
+	done?: boolean;
+}
+
 export interface IChatConfirmation {
 	title: string;
 	message: string;
@@ -205,9 +212,11 @@ export interface IChatToolInvocation {
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	tooltip: string | IMarkdownString | undefined;
+	resultDetails: IToolResult['toolResultDetails'];
 
+	isCompletePromise: Promise<void>;
 	isComplete: boolean;
-	isCompleteDeferred: DeferredPromise<void>;
+	complete(result: IToolResult): void;
 	kind: 'toolInvocation';
 }
 
@@ -217,6 +226,7 @@ export interface IChatToolInvocation {
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
+	resultDetails: IToolResult['toolResultDetails'];
 	tooltip: string | IMarkdownString | undefined;
 	isConfirmed: boolean;
 	isComplete: boolean;
@@ -231,18 +241,19 @@ export type IChatProgress =
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatCodeCitation
-	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatTask
 	| IChatTaskResult
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatNotebookEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
 	| IChatToolInvocation
-	| IChatToolInvocationSerialized;
+	| IChatToolInvocationSerialized
+	| IChatUndoStop;
 
 export interface IChatFollowup {
 	kind: 'reply';

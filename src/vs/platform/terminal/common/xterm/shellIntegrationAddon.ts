@@ -240,6 +240,15 @@ const enum VSCodeOscPt {
 	EnvJson = 'EnvJson',
 
 	/**
+	 * Delete a single environment variable from cached environment.
+	 *
+	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> ; <Nonce>`
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvSingleDelete = 'EnvSingleDelete',
+
+	/**
 	 * The start of the collecting user's environment variables individually.
 	 * Clears any environment residuals in previous sessions.
 	 *
@@ -478,6 +487,17 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === this._nonce);
 				return true;
 			}
+			case VSCodeOscPt.EnvSingleDelete: {
+				const arg0 = args[0];
+
+				const arg1 = args[1];
+				const arg2 = args[2];
+				if (arg0 !== undefined && arg1 !== undefined) {
+					const env = deserializeMessage(arg1);
+					this._createOrGetShellEnvDetection().deleteEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
+				}
+				return true;
+			}
 			case VSCodeOscPt.EnvSingleEntry: {
 				const arg0 = args[0];
 				const arg1 = args[1];
@@ -659,7 +679,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._terminal) {
 			throw new Error('Cannot restore commands before addon is activated');
 		}
-		this._createOrGetCommandDetection(this._terminal).deserialize(serialized);
+		const commandDetection = this._createOrGetCommandDetection(this._terminal);
+		commandDetection.deserialize(serialized);
+		if (commandDetection.cwd) {
+			// Cwd gets set when the command is deserialized, so we need to update it here
+			this._updateCwd(commandDetection.cwd);
+		}
 	}
 
 	protected _createOrGetCwdDetection(): ICwdDetectionCapability {

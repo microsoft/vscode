@@ -121,6 +121,7 @@ export interface NotebookCellMetadata {
 }
 
 export interface NotebookCellInternalMetadata {
+	cellId?: string;
 	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;

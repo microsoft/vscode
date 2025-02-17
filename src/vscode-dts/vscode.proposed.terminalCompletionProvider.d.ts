@@ -61,7 +61,8 @@ declare module 'vscode' {
 		Folder = 1,
 		Flag = 2,
 		Method = 3,
-		Argument = 4
+		Argument = 4,
+		Alias = 5,
 	}
 
 	export interface TerminalCompletionContext {
@@ -124,10 +125,6 @@ declare module 'vscode' {
 		 * If no cwd is provided, no resources will be shown as completions.
 		 */
 		cwd?: Uri;
-		/**
-		 * The path separator to use when constructing paths.
-		 */
-		pathSeparator: string;
 		/**
 		 * Environment variables to use when constructing paths.
 		 */

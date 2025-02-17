@@ -491,6 +491,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.deleteRemoteBranch",
+        "title": "%command.deleteRemoteBranch%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.renameBranch",
         "title": "%command.renameBranch%",
         "category": "Git",
@@ -1222,6 +1228,10 @@
         },
         {
           "command": "git.deleteBranch",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.deleteRemoteBranch",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -2066,7 +2076,7 @@
         },
         {
           "command": "git.graph.deleteBranch",
-          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\//",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\/|^refs\\/remotes\\//",
           "group": "2_branch@2"
         },
         {
@@ -2436,6 +2446,10 @@
         {
           "command": "git.deleteBranch",
           "group": "3_modify@2"
+        },
+        {
+          "command": "git.deleteRemoteBranch",
+          "group": "3_modify@3"
         },
         {
           "command": "git.publish",
@@ -3283,6 +3297,35 @@
           "maximum": 40,
           "markdownDescription": "%config.commitShortHashLength%",
           "scope": "resource"
+        },
+        "git.diagnosticsCommitHook.Enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.diagnosticsCommitHook.Enabled%",
+          "scope": "resource"
+        },
+        "git.diagnosticsCommitHook.Sources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "information",
+              "hint",
+              "none"
+            ]
+          },
+          "default": {
+            "*": "error"
+          },
+          "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
+          "scope": "resource"
+        },
+        "git.untrackedChangesSoftDelete": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.untrackedChangesSoftDelete%"
         }
       }
     },

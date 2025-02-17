@@ -1234,6 +1234,10 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		}
 	}
 
+	disposeElement(element: ITreeNode<TreeElement, FuzzyScore>, index: number, templateData: TimelineElementTemplate, height: number | undefined): void {
+		templateData.actionBar.actionRunner.dispose();
+	}
+
 	disposeTemplate(template: TimelineElementTemplate): void {
 		template.dispose();
 	}

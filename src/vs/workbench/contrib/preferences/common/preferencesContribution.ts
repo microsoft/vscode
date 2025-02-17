@@ -129,9 +129,9 @@ registry.registerConfiguration({
 		'workbench.settings.useWeightedKeySearch': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('useWeightedKeySearch', "Controls whether to use a new weight calculation algorithm to order certain search results in the Settings editor. The only search results that will be affected are those where the search query has been determined to match the setting key, and the weights will be calculated in a way that places settings with more matched words and shorter names to the top of the search results."),
+			'description': nls.localize('useWeightedKeySearch', "Controls whether to use an experimental ranking algorithm for search results in the Settings editor. The newer algorithm is still in development and aims to show fewer and more relevant results."),
 			'scope': ConfigurationScope.WINDOW,
-			'tags': ['preview']
+			'tags': ['experimental']
 		}
 	}
 });

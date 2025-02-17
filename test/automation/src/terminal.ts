@@ -210,7 +210,7 @@ export class Terminal {
 				name: title.textContent.replace(/^[├┌└]\s*/, ''),
 				description: description?.textContent
 			};
-			// It's a new group if the the tab does not start with ├ or └
+			// It's a new group if the tab does not start with ├ or └
 			if (title.textContent.match(/^[├└]/)) {
 				groups[groups.length - 1].push(label);
 			} else {

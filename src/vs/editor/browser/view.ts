@@ -42,7 +42,7 @@ import { ViewCursors } from './viewParts/viewCursors/viewCursors.js';
 import { ViewZones } from './viewParts/viewZones/viewZones.js';
 import { WhitespaceOverlay } from './viewParts/whitespace/whitespace.js';
 import { IEditorConfiguration } from '../common/config/editorConfiguration.js';
-import { EditorOption } from '../common/config/editorOptions.js';
+import { EditorOption, IComputedEditorOptions } from '../common/config/editorOptions.js';
 import { Position } from '../common/core/position.js';
 import { Range } from '../common/core/range.js';
 import { Selection } from '../common/core/selection.js';
@@ -148,7 +148,7 @@ export class View extends ViewEventHandler {
 		// Keyboard handler
 		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
 		this._accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
-		this._editContext = this._instantiateEditContext(this._experimentalEditContextEnabled, this._accessibilitySupport);
+		this._editContext = this._instantiateEditContext();
 
 		this._viewParts.push(this._editContext);
 
@@ -256,7 +256,6 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		if (this._viewGpuContext) {
 			this._overflowGuardContainer.appendChild(this._viewGpuContext.canvas);
-			this._linesContent.appendChild(this._viewGpuContext.scrollWidthElement);
 		}
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
@@ -278,10 +277,9 @@ export class View extends ViewEventHandler {
 		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper()));
 	}
 
-	private _instantiateEditContext(experimentalEditContextEnabled: boolean, accessibilitySupport: AccessibilitySupport): AbstractEditContext {
-		const domNode = dom.getWindow(this._overflowGuardContainer.domNode);
-		const isEditContextSupported = EditContext.supported(domNode);
-		if (experimentalEditContextEnabled && isEditContextSupported && accessibilitySupport !== AccessibilitySupport.Enabled) {
+	private _instantiateEditContext(): AbstractEditContext {
+		const usingExperimentalEditContext = useExperimentalEditContext(dom.getWindow(this._overflowGuardContainer.domNode), this._context.configuration.options);
+		if (usingExperimentalEditContext) {
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
 			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
@@ -299,7 +297,7 @@ export class View extends ViewEventHandler {
 		const isEditContextFocused = this._editContext.isFocused();
 		const indexOfEditContext = this._viewParts.indexOf(this._editContext);
 		this._editContext.dispose();
-		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled, accessibilitySupport);
+		this._editContext = this._instantiateEditContext();
 		if (isEditContextFocused) {
 			this._editContext.focus();
 		}
@@ -852,4 +850,11 @@ class EditorRenderingCoordinator {
 			safeInvokeNoArg(() => rendering.render(viewParts, ctx));
 		}
 	}
+}
+
+export function useExperimentalEditContext(activeWindow: CodeWindow, options: IComputedEditorOptions): boolean {
+	const isEditContextSupported = EditContext.supported(activeWindow);
+	const experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
+	const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+	return experimentalEditContextEnabled && isEditContextSupported && accessibilitySupport !== AccessibilitySupport.Enabled;
 }

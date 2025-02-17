@@ -241,7 +241,7 @@ export class SettingMatches {
 		}
 
 		// Description search
-		if (this.searchDescription && this.matchType !== SettingMatchType.None) {
+		if (this.searchDescription && this.matchType === SettingMatchType.None) {
 			for (const word of queryWords) {
 				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './hover.css';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -165,7 +165,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
 			);
 
-			const { element } = mdRenderer.render(markdown, {
+			const { element, dispose } = mdRenderer.render(markdown, {
 				actionHandler: {
 					callback: (content) => this._linkHandler(content),
 					disposables: this._messageListeners
@@ -178,6 +178,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				}
 			});
 			contentsElement.appendChild(element);
+			this._register(toDisposable(dispose));
 		}
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);
@@ -188,7 +189,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			options.actions.forEach(action => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-				HoverAction.render(actionsElement, {
+				this._register(HoverAction.render(actionsElement, {
 					label: action.label,
 					commandId: action.commandId,
 					run: e => {
@@ -196,7 +197,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 						this.dispose();
 					},
 					iconClass: action.iconClass
-				}, keybindingLabel);
+				}, keybindingLabel));
 			});
 			statusBarElement.appendChild(actionsElement);
 			this._hover.containerDomNode.appendChild(statusBarElement);

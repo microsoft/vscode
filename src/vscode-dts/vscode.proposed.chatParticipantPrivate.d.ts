@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
+// version: 3
 
 declare module 'vscode' {
 
@@ -81,11 +81,6 @@ declare module 'vscode' {
 
 	export interface ChatParticipant {
 		supportIssueReporting?: boolean;
-
-		/**
-		 * Temp, support references that are slow to resolve and should be tools rather than references.
-		 */
-		supportsSlowReferences?: boolean;
 	}
 
 	export interface ChatErrorDetails {
@@ -127,4 +122,32 @@ declare module 'vscode' {
 		pastTenseMessage?: string | MarkdownString;
 		tooltip?: string | MarkdownString;
 	}
+
+	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+		toolResultMessage?: string | MarkdownString;
+		toolResultDetails?: Array<Uri | Location>;
+	}
+
+	// #region Chat participant detection
+
+	export interface ChatParticipantMetadata {
+		participant: string;
+		command?: string;
+		disambiguation: { category: string; description: string; examples: string[] }[];
+	}
+
+	export interface ChatParticipantDetectionResult {
+		participant: string;
+		command?: string;
+	}
+
+	export interface ChatParticipantDetectionProvider {
+		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
+	}
+
+	export namespace chat {
+		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
+	}
+
+	// #endregion
 }

@@ -49,7 +49,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	private _initViewportData?: ViewportData[];
 	private _lastViewportData?: ViewportData;
 	private _lastViewLineOptions?: ViewLineOptions;
-	private _maxLocalContentWidthSoFar = 0;
 
 	private _device!: GPUDevice;
 	private _renderPassDescriptor!: GPURenderPassDescriptor;
@@ -430,6 +429,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean { return true; }
 	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
 	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
+
 	override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean { return true; }
 	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean { return true; }
 	override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean { return true; }
@@ -473,14 +473,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const options = new ViewLineOptions(this._context.configuration, this._context.theme.type);
 
-		const { localContentWidth } = this._renderStrategy.value!.update(viewportData, options);
-
-		// Track the largest local content width so far in this session and use it as the scroll
-		// width. This is how the DOM renderer works as well, so you may not be able to scroll to
-		// the right in a file with long lines until you scroll down.
-		this._maxLocalContentWidthSoFar = Math.max(this._maxLocalContentWidthSoFar, localContentWidth / this._viewGpuContext.devicePixelRatio.get());
-		this._context.viewModel.viewLayout.setMaxLineWidth(this._maxLocalContentWidthSoFar);
-		this._viewGpuContext.scrollWidthElement.setWidth(this._context.viewLayout.getScrollWidth());
+		this._renderStrategy.value!.update(viewportData, options);
 
 		this._updateAtlasStorageBufferAndTexture();
 
