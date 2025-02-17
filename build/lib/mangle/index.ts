@@ -407,7 +407,7 @@ export class Mangler {
 	) {
 
 		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
-			maxWorkers: 4,
+			maxWorkers: 8,
 			minWorkers: 'max'
 		});
 	}
