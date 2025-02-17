@@ -1949,6 +1949,17 @@ export class CommandCenter {
 			return;
 		}
 
+		const repository = this.model.getRepository(modifiedUri);
+		if (!repository) {
+			return;
+		}
+
+		const resource = repository.indexGroup.resourceStates
+			.find(r => pathEquals(r.resourceUri.fsPath, modifiedUri.fsPath));
+		if (!resource) {
+			return;
+		}
+
 		const indexDiffInformation = getIndexDiffInformation(textEditor);
 		if (!indexDiffInformation) {
 			return;
@@ -1960,7 +1971,7 @@ export class CommandCenter {
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation: ${JSON.stringify(indexDiffInformation)}`);
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes: ${JSON.stringify(indexLineChanges)}`);
 
-		const originalUri = toGitUri(modifiedUri, 'HEAD');
+		const originalUri = toGitUri(resource.original, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 		const selectedDiffs = indexLineChanges
@@ -1978,7 +1989,7 @@ export class CommandCenter {
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
 		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
-		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
+		await repository.stage(modifiedUri, result);
 	}
 
 	@command('git.unstageFile')
