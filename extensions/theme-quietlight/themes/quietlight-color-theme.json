@@ -496,7 +496,6 @@
 		"editor.selectionBackground": "#C9D0D9",
 		"minimap.selectionHighlight": "#C9D0D9",
 		"panel.background": "#F5F5F5",
-		"panelTitleBadge.background": "#705697",
 		"sideBar.background": "#F2F2F2",
 		"sideBarSectionHeader.background": "#ede8ef",
 		"editorLineNumber.foreground": "#6D705B",

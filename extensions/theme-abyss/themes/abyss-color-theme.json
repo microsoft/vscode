@@ -396,8 +396,6 @@
 		// "panelTitle.activeBorder": "",
 		// "panelTitle.activeForeground": "",
 		// "panelTitle.inactiveForeground": "",
-		// "panelTitleBadge.background": "",
-		// "panelTitleBadge.foreground": "",
 		// Workbench: Side Bar
 		"sideBar.background": "#060621",
 		// "sideBarTitle.foreground": "",
