@@ -685,6 +685,10 @@ export interface IEditorOptions {
 	 */
 	useTabStops?: boolean;
 	/**
+	 * Allow the cursor to sit outside the line contents.
+	 */
+	virtualSpace?: boolean;
+	/**
 	 * The font family
 	 */
 	fontFamily?: string;
@@ -5564,6 +5568,7 @@ export const enum EditorOption {
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
+	virtualSpace,
 	wordBreak,
 	wordSegmenterLocales,
 	wordSeparators,
@@ -6310,6 +6315,10 @@ export const EditorOptions = {
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
 		{ description: nls.localize('useTabStops', "Spaces and tabs are inserted and deleted in alignment with tab stops.") }
+	)),
+	virtualSpace: register(new EditorBooleanOption(
+		EditorOption.virtualSpace, 'virtualSpace', false,
+		{ description: nls.localize('virtualSpace', "Allow the cursor to sit outside of the line contents.") }
 	)),
 	wordBreak: register(new EditorStringEnumOption(
 		EditorOption.wordBreak, 'wordBreak',

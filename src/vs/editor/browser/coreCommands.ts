@@ -19,7 +19,7 @@ import { CursorMove as CursorMove_, CursorMoveCommands } from '../common/cursor/
 import { TypeOperations } from '../common/cursor/cursorTypeOperations.js';
 import { IPosition, Position } from '../common/core/position.js';
 import { Range } from '../common/core/range.js';
-import { Handler, ScrollType } from '../common/editorCommon.js';
+import { Handler, ICommand, ScrollType } from '../common/editorCommon.js';
 import { EditorContextKeys } from '../common/editorContextKeys.js';
 import { VerticalRevealType } from '../common/viewEvents.js';
 import { ICommandMetadata } from '../../platform/commands/common/commands.js';
@@ -31,6 +31,7 @@ import { IViewModel } from '../common/viewModel.js';
 import { ISelection } from '../common/core/selection.js';
 import { getActiveElement, isEditableElement } from '../../base/browser/dom.js';
 import { EnterOperation } from '../common/cursor/cursorTypeEditOperations.js';
+import { ReplaceCommand } from '../common/commands/replaceCommand.js';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -1046,7 +1047,7 @@ export namespace CoreNavigationCommands {
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
-				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, 1, 0));
+				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, 1, 0, null));
 			}
 			return result;
 		}
@@ -1183,7 +1184,7 @@ export namespace CoreNavigationCommands {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
 				const maxColumn = viewModel.model.getLineMaxColumn(lineNumber);
-				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, maxColumn, 0));
+				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, maxColumn, 0, null));
 			}
 			return result;
 		}
@@ -1679,7 +1680,7 @@ export namespace CoreNavigationCommands {
 			const states = viewModel.getCursorStates();
 			const newStates: PartialCursorState[] = states.slice(0);
 			const lastAddedState = states[lastAddedCursorIndex];
-			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(viewModel, lastAddedState, lastAddedState.modelState.hasSelection(), args.position);
+			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(viewModel, lastAddedState, lastAddedState.viewState.hasSelection(), args.position);
 
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
@@ -1988,6 +1989,9 @@ export namespace CoreEditingCommands {
 		}
 
 		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: unknown): void {
+			if (fillInVirtualSpace(this.id, editor, viewModel)) {
+				return;
+			}
 			editor.pushUndoStop();
 			editor.executeCommands(this.id, EnterOperation.lineBreakInsert(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection)));
 		}
@@ -2010,6 +2014,9 @@ export namespace CoreEditingCommands {
 		}
 
 		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: unknown): void {
+			if (fillInVirtualSpace(this.id, editor, viewModel)) {
+				return;
+			}
 			editor.pushUndoStop();
 			editor.executeCommands(this.id, TypeOperations.outdent(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection)));
 			editor.pushUndoStop();
@@ -2033,6 +2040,9 @@ export namespace CoreEditingCommands {
 		}
 
 		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: unknown): void {
+			if (fillInVirtualSpace(this.id, editor, viewModel)) {
+				return;
+			}
 			editor.pushUndoStop();
 			editor.executeCommands(this.id, TypeOperations.tab(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection)));
 			editor.pushUndoStop();
@@ -2055,6 +2065,9 @@ export namespace CoreEditingCommands {
 		}
 
 		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: unknown): void {
+			if (fillInVirtualSpace(this.id, editor, viewModel)) {
+				return;
+			}
 			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection), viewModel.getCursorAutoClosedCharacters());
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
@@ -2079,6 +2092,9 @@ export namespace CoreEditingCommands {
 		}
 
 		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: unknown): void {
+			if (fillInVirtualSpace(this.id, editor, viewModel)) {
+				return;
+			}
 			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection));
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
@@ -2117,6 +2133,26 @@ export namespace CoreEditingCommands {
 			return editor.getModel().redo();
 		}
 	}();
+
+	function fillInVirtualSpace(id: string, editor: ICodeEditor, viewModel: IViewModel): boolean {
+		const virtualSpaceSelections = viewModel.getCursorStates().map(s => s.getVirtualSpaceSelection(viewModel));
+		const hasVirtualSpace = virtualSpaceSelections.some(s => s.virtualSpaces.length > 0);
+		if (!hasVirtualSpace) {
+			return false;
+		}
+
+		const commands: ICommand[] = [];
+		for (let i = 0, len = virtualSpaceSelections.length; i < len; i++) {
+			const virtualSpaceSelection = virtualSpaceSelections[i];
+			const selection = virtualSpaceSelection.selection;
+			commands[i] = new ReplaceCommand(selection, virtualSpaceSelection.virtualSpaces);
+		}
+
+		editor.pushUndoStop();
+		editor.executeCommands(id, commands);
+		editor.pushUndoStop();
+		return true;
+	}
 }
 
 /**

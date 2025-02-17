@@ -106,6 +106,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 	// --- config
 	private _lineHeight: number;
+	private _virtualSpace: boolean;
 	private _typicalHalfwidthCharacterWidth: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
@@ -135,6 +136,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._virtualSpace = options.get(EditorOption.virtualSpace);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
@@ -195,6 +197,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._virtualSpace = options.get(EditorOption.virtualSpace);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
@@ -421,7 +424,13 @@ export class ViewLines extends ViewPart implements IViewLines {
 		}
 
 		const originalEndLineNumber = _range.endLineNumber;
-		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
+		const _visibleRange = this._lastRenderedData.getCurrentVisibleRange();
+		// With virtual space, the visible range is not limited by line length
+		const visibleRange = {
+			startLineNumber: _visibleRange.startLineNumber, startColumn: _visibleRange.startColumn,
+			endLineNumber: _visibleRange.endLineNumber, endColumn: Constants.MAX_SAFE_SMALL_INTEGER,
+		};
+		const range = Range.intersectRanges(_range, visibleRange);
 		if (!range) {
 			return null;
 		}
@@ -445,7 +454,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			const continuesInNextLine = lineNumber !== range.endLineNumber;
-			const endColumn = continuesInNextLine ? this._context.viewModel.getLineMaxColumn(lineNumber) : range.endColumn;
+			const endColumn = continuesInNextLine ? Math.max(startColumn, this._context.viewModel.getLineMaxColumn(lineNumber)) : range.endColumn;
 			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
 
 			if (!visibleRangesForLine) {
@@ -628,7 +637,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 				const newScrollLeft = this._computeScrollLeftToReveal(horizontalRevealRequest);
 
 				if (newScrollLeft) {
-					if (!this._isViewportWrapping) {
+					if (!this._isViewportWrapping || this._virtualSpace) {
 						// ensure `scrollWidth` is large enough
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}

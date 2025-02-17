@@ -258,8 +258,8 @@ export class ViewLine implements IVisibleLine {
 			return null;
 		}
 
-		startColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, startColumn));
-		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
+		startColumn = Math.max(1, startColumn);
+		endColumn = Math.max(1, endColumn);
 
 		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter;
 
@@ -534,28 +534,35 @@ class RenderedViewLine implements IRenderedViewLine {
 	}
 
 	protected _readPixelOffset(domNode: FastDomNode<HTMLElement>, lineNumber: number, column: number, context: DomReadingContext): number {
+		const spaceWidth = this.input.spaceWidth;
+
 		if (this._characterMapping.length === 0) {
 			// This line has no content
 			if (this._containsForeignElements === ForeignElementType.None) {
 				// We can assume the line is really empty
-				return 0;
+				return (column - 1) * spaceWidth;
 			}
 			if (this._containsForeignElements === ForeignElementType.After) {
 				// We have foreign elements after the (empty) line
-				return 0;
+				return (column - 1) * spaceWidth;
 			}
 			if (this._containsForeignElements === ForeignElementType.Before) {
 				// We have foreign elements before the (empty) line
-				return this.getWidth(context);
+				return this.getWidth(context) + (column - 1) * spaceWidth;
 			}
 			// We have foreign elements before & after the (empty) line
 			const readingTarget = this._getReadingTarget(domNode);
 			if (readingTarget.firstChild) {
 				context.markDidDomLayout();
-				return (<HTMLSpanElement>readingTarget.firstChild).offsetWidth;
+				return (<HTMLSpanElement>readingTarget.firstChild).offsetWidth + (column - 1) * spaceWidth;
 			} else {
-				return 0;
+				return (column - 1) * spaceWidth;
 			}
+		}
+
+		if (column > this._characterMapping.length) {
+			const last = this._readPixelOffset(domNode, lineNumber, this._characterMapping.length, context);
+			return last + spaceWidth * (column - this._characterMapping.length);
 		}
 
 		if (this._pixelOffsetCache !== null) {

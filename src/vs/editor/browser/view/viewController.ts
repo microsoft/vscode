@@ -212,9 +212,14 @@ export class ViewController {
 
 	private _usualArgs(viewPosition: Position, revealType: NavigationCommandRevealType): CoreNavigationCommands.MoveCommandOptions {
 		viewPosition = this._validateViewColumn(viewPosition);
+		let position = this._convertViewToModelPosition(viewPosition);
+		const maxViewColumn = this.viewModel.getLineMaxColumn(viewPosition.lineNumber);
+		if (viewPosition.column > maxViewColumn) {
+			position = position.delta(0, viewPosition.column - maxViewColumn);
+		}
 		return {
 			source: 'mouse',
-			position: this._convertViewToModelPosition(viewPosition),
+			position,
 			viewPosition,
 			revealType
 		};

@@ -3744,6 +3744,10 @@ declare namespace monaco.editor {
 		 */
 		useTabStops?: boolean;
 		/**
+		 * Allow the cursor to sit outside the line contents.
+		 */
+		virtualSpace?: boolean;
+		/**
 		 * The font family
 		 */
 		fontFamily?: string;
@@ -5025,28 +5029,29 @@ declare namespace monaco.editor {
 		unusualLineTerminators = 131,
 		useShadowDOM = 132,
 		useTabStops = 133,
-		wordBreak = 134,
-		wordSegmenterLocales = 135,
-		wordSeparators = 136,
-		wordWrap = 137,
-		wordWrapBreakAfterCharacters = 138,
-		wordWrapBreakBeforeCharacters = 139,
-		wordWrapColumn = 140,
-		wordWrapOverride1 = 141,
-		wordWrapOverride2 = 142,
-		wrappingIndent = 143,
-		wrappingStrategy = 144,
-		showDeprecated = 145,
-		inlayHints = 146,
-		effectiveCursorStyle = 147,
-		editorClassName = 148,
-		pixelRatio = 149,
-		tabFocusMode = 150,
-		layoutInfo = 151,
-		wrappingInfo = 152,
-		defaultColorDecorators = 153,
-		colorDecoratorsActivatedOn = 154,
-		inlineCompletionsAccessibilityVerbose = 155
+		virtualSpace = 134,
+		wordBreak = 135,
+		wordSegmenterLocales = 136,
+		wordSeparators = 137,
+		wordWrap = 138,
+		wordWrapBreakAfterCharacters = 139,
+		wordWrapBreakBeforeCharacters = 140,
+		wordWrapColumn = 141,
+		wordWrapOverride1 = 142,
+		wordWrapOverride2 = 143,
+		wrappingIndent = 144,
+		wrappingStrategy = 145,
+		showDeprecated = 146,
+		inlayHints = 147,
+		effectiveCursorStyle = 148,
+		editorClassName = 149,
+		pixelRatio = 150,
+		tabFocusMode = 151,
+		layoutInfo = 152,
+		wrappingInfo = 153,
+		defaultColorDecorators = 154,
+		colorDecoratorsActivatedOn = 155,
+		inlineCompletionsAccessibilityVerbose = 156
 	}
 
 	export const EditorOptions: {
@@ -5188,6 +5193,7 @@ declare namespace monaco.editor {
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'auto' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
+		virtualSpace: IEditorOption<EditorOption.virtualSpace, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, {}>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
@@ -5613,6 +5619,14 @@ declare namespace monaco.editor {
 		 * The 'approximate' editor position
 		 */
 		readonly position: Position | null;
+		/**
+		 * If position is in virtual space, this will contain how far beyond the end of the line the position is.
+		 * Note that for view model, `position` is not clipped to line length, so there is no need
+		 * to add `leftoverVisibleColumns` to `position.column`.
+		 * When converting to model target, `position` will be clipped and `leftoverVisibleColumns`
+		 * can be used to recover the virtual space position.
+		 */
+		readonly leftoverVisibleColumns: number;
 		/**
 		 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 		 */

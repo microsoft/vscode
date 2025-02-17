@@ -56,6 +56,7 @@ export class CursorConfiguration {
 	public readonly indentSize: number;
 	public readonly insertSpaces: boolean;
 	public readonly stickyTabStops: boolean;
+	public readonly virtualSpace: boolean;
 	public readonly pageSize: number;
 	public readonly lineHeight: number;
 	public readonly typicalHalfwidthCharacterWidth: number;
@@ -122,6 +123,7 @@ export class CursorConfiguration {
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
+		this.virtualSpace = options.get(EditorOption.virtualSpace);
 		this.lineHeight = fontInfo.lineHeight;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
@@ -235,9 +237,12 @@ export class CursorConfiguration {
 			return minColumn;
 		}
 
-		const maxColumn = model.getLineMaxColumn(lineNumber);
-		if (result > maxColumn) {
-			return maxColumn;
+		// TODO: where is this used?
+		if (!this.virtualSpace) {
+			const maxColumn = model.getLineMaxColumn(lineNumber);
+			if (result > maxColumn) {
+				return maxColumn;
+			}
 		}
 
 		return result;
@@ -281,7 +286,8 @@ export class CursorState {
 		const modelState = new SingleCursorState(
 			Range.fromPositions(selection.getSelectionStart()),
 			SelectionStartKind.Simple, 0,
-			selection.getPosition(), 0
+			selection.getPosition(), 0,
+			null
 		);
 		return CursorState.fromModelState(modelState);
 	}
@@ -304,6 +310,13 @@ export class CursorState {
 
 	public equals(other: CursorState): boolean {
 		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
+	}
+
+	public getVirtualSpaceSelection(viewModel: ICursorSimpleModel): VirtualSpaceSelection {
+		const viewSelectionStart = this.viewState.selectionStart.getStartPosition();
+		const lineMaxColumn = viewModel.getLineMaxColumn(viewSelectionStart.lineNumber);
+		const virtualSpacesCount = Math.max(0, viewSelectionStart.column - lineMaxColumn);
+		return new VirtualSpaceSelection(virtualSpacesCount, this.modelState.selection);
 	}
 }
 
@@ -341,12 +354,30 @@ export class SingleCursorState {
 
 	public readonly selection: Selection;
 
+	// For view model, all positions are the way the user sees them. So if virtual space is turned on,
+	// column might be in virtual space.
+	//
+	// For model, positions are clipped at line length and any excess columns are stored in leftoverVisibleColumns.
+	// So code that hasn't been updated for virtual space will never see virtual space model positions.
+	//
+	// Code that's ready for virtual space can use positionInVirtualSpace() and selectionInVirtualSpace()
+	// to get model positions in virtual space.
+	//
+	// columnHint is used to preserve column during vertical movements.
+	// Without virtual space, it helps to recover from short lines.
+	// With virtual space, it helps when going through inlay hints.
+	//
+	// When converting between model and view model, we convert positions in virtual space
+	// to leftoverVisibleColumns and back.
+	// Column hint is not easy to convert, so it is dropped during conversions.
+
 	constructor(
 		public readonly selectionStart: Range,
 		public readonly selectionStartKind: SelectionStartKind,
 		public readonly selectionStartLeftoverVisibleColumns: number,
 		public readonly position: Position,
 		public readonly leftoverVisibleColumns: number,
+		public readonly columnHint: number | null,
 	) {
 		this.selection = SingleCursorState._computeSelection(this.selectionStart, this.position);
 	}
@@ -355,6 +386,7 @@ export class SingleCursorState {
 		return (
 			this.selectionStartLeftoverVisibleColumns === other.selectionStartLeftoverVisibleColumns
 			&& this.leftoverVisibleColumns === other.leftoverVisibleColumns
+			&& this.columnHint === other.columnHint
 			&& this.selectionStartKind === other.selectionStartKind
 			&& this.position.equals(other.position)
 			&& this.selectionStart.equalsRange(other.selectionStart)
@@ -365,7 +397,7 @@ export class SingleCursorState {
 		return (!this.selection.isEmpty() || !this.selectionStart.isEmpty());
 	}
 
-	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number): SingleCursorState {
+	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number, columnHint: number | null): SingleCursorState {
 		if (inSelectionMode) {
 			// move just position
 			return new SingleCursorState(
@@ -373,7 +405,8 @@ export class SingleCursorState {
 				this.selectionStartKind,
 				this.selectionStartLeftoverVisibleColumns,
 				new Position(lineNumber, column),
-				leftoverVisibleColumns
+				leftoverVisibleColumns,
+				columnHint,
 			);
 		} else {
 			// move everything
@@ -382,9 +415,28 @@ export class SingleCursorState {
 				SelectionStartKind.Simple,
 				leftoverVisibleColumns,
 				new Position(lineNumber, column),
-				leftoverVisibleColumns
+				leftoverVisibleColumns,
+				columnHint,
 			);
 		}
+	}
+
+	public selectionStartInVirtualSpace(): Position {
+		return new Position(
+			this.selection.selectionStartLineNumber,
+			this.selection.selectionStartColumn + this.selectionStartLeftoverVisibleColumns,
+		);
+	}
+
+	public positionInVirtualSpace(): Position {
+		return new Position(
+			this.position.lineNumber,
+			this.position.column + this.leftoverVisibleColumns,
+		);
+	}
+
+	public selectionInVirtualSpace(): Selection {
+		return Selection.fromPositions(this.selectionStartInVirtualSpace(), this.positionInVirtualSpace());
 	}
 
 	private static _computeSelection(selectionStart: Range, position: Position): Selection {
@@ -417,6 +469,28 @@ export class EditOperationResult {
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
 	}
+}
+
+export class VirtualSpaceSelection {
+
+	public static selectionWithoutVirtualSpace(arr: VirtualSpaceSelection[]): Selection[] {
+		return arr.map(s => s.selection);
+	}
+
+	public get virtualSpaces(): string {
+		if (!this.virtualSpaceCount) {
+			return '';
+		}
+		return ' '.repeat(this.virtualSpaceCount);
+	}
+
+	constructor(
+		/**
+		 * number of spaces that should be filled in.
+		 */
+		private readonly virtualSpaceCount: number,
+		readonly selection: Selection
+	) { }
 }
 
 export function isQuote(ch: string): boolean {

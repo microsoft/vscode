@@ -88,7 +88,9 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-			this._lines = new ViewModelLinesFromModelAsIs(this.model);
+			const options = this._configuration.options;
+			const virtualSpace = options.get(EditorOption.virtualSpace);
+			this._lines = new ViewModelLinesFromModelAsIs(this.model, virtualSpace);
 
 		} else {
 			const options = this._configuration.options;
@@ -97,6 +99,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
+			const virtualSpace = options.get(EditorOption.virtualSpace);
 
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
@@ -105,6 +108,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				monospaceLineBreaksComputerFactory,
 				fontInfo,
 				this.model.getOptions().tabSize,
+				virtualSpace,
 				wrappingStrategy,
 				wrappingInfo.wrappingColumn,
 				wrappingIndent,
@@ -243,6 +247,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 		const wordBreak = options.get(EditorOption.wordBreak);
+
+		this._lines.setVirtualSpace(options.get(EditorOption.virtualSpace));
 
 		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent, wordBreak)) {
 			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());

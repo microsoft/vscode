@@ -1490,7 +1490,7 @@ suite('Auto Indent On Type - PHP', () => {
 				]
 			];
 			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
-			editor.setSelection(new Selection(1, 54, 1, 54));
+			editor.setSelection(new Selection(1, 19, 1, 19));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
 				"preg_replace('{');",

@@ -15,18 +15,36 @@ import { PositionAffinity } from '../model.js';
 export class CursorPosition {
 	_cursorPositionBrand: void = undefined;
 
-	public readonly lineNumber: number;
-	public readonly column: number;
-	public readonly leftoverVisibleColumns: number;
-
-	constructor(lineNumber: number, column: number, leftoverVisibleColumns: number) {
-		this.lineNumber = lineNumber;
-		this.column = column;
-		this.leftoverVisibleColumns = leftoverVisibleColumns;
-	}
+	constructor(
+		public readonly lineNumber: number,
+		public readonly column: number,
+		public readonly columnHint: number | null,
+	) { }
 }
 
 export class MoveOperations {
+	// Operations in this class can handle both model and view model cursor states.
+	// However, model states may have their column clipped to the line length.
+	// If this happens, this function will unclip them.
+	private static toVirtualSpace(cursor: SingleCursorState): SingleCursorState {
+		const selectionStartLeftoverVisibleColumns = cursor.selectionStartLeftoverVisibleColumns;
+		const leftoverVisibleColumns = cursor.leftoverVisibleColumns;
+		if (selectionStartLeftoverVisibleColumns === 0 && leftoverVisibleColumns === 0) {
+			// fast path
+			return cursor;
+		}
+
+		let selectionStart = cursor.selectionStart;
+		let selectionStartKind = cursor.selectionStartKind;
+		if (selectionStartLeftoverVisibleColumns > 0) {
+			const startPosition = cursor.selection.getSelectionStart().delta(0, cursor.selectionStartLeftoverVisibleColumns);
+			selectionStart = new Range(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column);
+			selectionStartKind = SelectionStartKind.Simple;
+		}
+		const position = cursor.position.delta(0, cursor.leftoverVisibleColumns);
+		return new SingleCursorState(selectionStart, selectionStartKind, 0, position, 0, null);
+	}
+
 	public static leftPosition(model: ICursorSimpleModel, position: Position): Position {
 		if (position.column > model.getLineMinColumn(position.lineNumber)) {
 			return position.delta(undefined, -strings.prevCharLength(model.getLineContent(position.lineNumber), position.column - 1));
@@ -50,11 +68,10 @@ export class MoveOperations {
 		return this.leftPosition(model, position);
 	}
 
-	private static left(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
-		const pos = config.stickyTabStops
+	private static left(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): Position {
+		return config.stickyTabStops
 			? MoveOperations.leftPositionAtomicSoftTabs(model, position, config.tabSize)
 			: MoveOperations.leftPosition(model, position);
-		return new CursorPosition(pos.lineNumber, pos.column, 0);
 	}
 
 	/**
@@ -62,6 +79,11 @@ export class MoveOperations {
 	 * or `Math.round(viewModel.getLineContent(viewLineNumber).length / 2)` (for half lines).
 	*/
 	public static moveLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleCursorState {
+		const virtualSpace = config.virtualSpace;
+		if (virtualSpace) {
+			cursor = MoveOperations.toVirtualSpace(cursor);
+		}
+
 		let lineNumber: number,
 			column: number;
 
@@ -74,26 +96,36 @@ export class MoveOperations {
 			// This has no effect if noOfColumns === 1.
 			// It is ok to do so in the half-line scenario.
 			const pos = cursor.position.delta(undefined, -(noOfColumns - 1));
+			const minColumn = model.getLineMinColumn(pos.lineNumber);
+			const maxColumn = model.getLineMaxColumn(pos.lineNumber);
 			// We clip the position before normalization, as normalization is not defined
 			// for possibly negative columns.
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Left);
-			const p = MoveOperations.left(config, model, normalizedPos);
-
-			lineNumber = p.lineNumber;
-			column = p.column;
+			const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
+			const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Left);
+			const sameLine = clippedPos.lineNumber === normalizedPos.lineNumber;
+			if (virtualSpace && pos.column > maxColumn) { // Are we in virtual space?
+				lineNumber = pos.lineNumber;
+				column = pos.column - 1;
+			} else if (virtualSpace && sameLine && normalizedPos.column <= minColumn) { // Are we at the beginning of a line?
+				lineNumber = pos.lineNumber;
+				column = minColumn;
+			} else {
+				const p = MoveOperations.left(config, model, normalizedPos);
+				lineNumber = p.lineNumber;
+				column = p.column;
+			}
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, column, 0);
+		return cursor.move(inSelectionMode, lineNumber, column, 0, null);
 	}
 
 	/**
 	 * Adjusts the column so that it is within min/max of the line.
 	*/
-	private static clipPositionColumn(position: Position, model: ICursorSimpleModel): Position {
+	private static clipPositionColumn(position: Position, min: number, max: number): Position {
 		return new Position(
 			position.lineNumber,
-			MoveOperations.clipRange(position.column, model.getLineMinColumn(position.lineNumber),
-				model.getLineMaxColumn(position.lineNumber))
+			MoveOperations.clipRange(position.column, min, max)
 		);
 	}
 
@@ -128,14 +160,18 @@ export class MoveOperations {
 		return this.rightPosition(model, lineNumber, column);
 	}
 
-	public static right(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
-		const pos = config.stickyTabStops
+	public static right(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): Position {
+		return config.stickyTabStops
 			? MoveOperations.rightPositionAtomicSoftTabs(model, position.lineNumber, position.column, config.tabSize, config.indentSize)
 			: MoveOperations.rightPosition(model, position.lineNumber, position.column);
-		return new CursorPosition(pos.lineNumber, pos.column, 0);
 	}
 
 	public static moveRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleCursorState {
+		const virtualSpace = config.virtualSpace;
+		if (virtualSpace) {
+			cursor = MoveOperations.toVirtualSpace(cursor);
+		}
+
 		let lineNumber: number,
 			column: number;
 
@@ -145,137 +181,235 @@ export class MoveOperations {
 			column = cursor.selection.endColumn;
 		} else {
 			const pos = cursor.position.delta(undefined, noOfColumns - 1);
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Right);
-			const r = MoveOperations.right(config, model, normalizedPos);
-			lineNumber = r.lineNumber;
-			column = r.column;
+			const minColumn = model.getLineMinColumn(pos.lineNumber);
+			const maxColumn = model.getLineMaxColumn(pos.lineNumber);
+			const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
+			const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Right);
+			// If normalization moves us to the next line, we're on a wrapped line and not the last segment, so we cannot use virtual space
+			const sameLine = clippedPos.lineNumber === normalizedPos.lineNumber;
+			if (virtualSpace && sameLine && normalizedPos.column >= maxColumn) {
+				lineNumber = normalizedPos.lineNumber;
+				column = Math.max(pos.column, normalizedPos.column) + 1;
+			} else if (virtualSpace && !sameLine && normalizedPos.column === model.getLineMaxColumn(normalizedPos.lineNumber)) {
+				lineNumber = normalizedPos.lineNumber;
+				column = normalizedPos.column + 1;
+			} else {
+				const r = MoveOperations.right(config, model, normalizedPos);
+				lineNumber = r.lineNumber;
+				column = r.column;
+			}
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, column, 0);
+		return cursor.move(inSelectionMode, lineNumber, column, 0, null);
 	}
 
-	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, newLineNumber: number, allowMoveOnEdgeLine: boolean, normalizationAffinity?: PositionAffinity): CursorPosition {
-		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
+	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, newLineNumber: number, allowMoveOnEdgeLine: boolean): CursorPosition {
+		const virtualSpace = config.virtualSpace;
+
+		let currentVisibleColumn;
+		if (columnHint !== null) {
+			currentVisibleColumn = columnHint;
+		} else {
+			currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+			columnHint = currentVisibleColumn;
+		}
+
 		const lineCount = model.getLineCount();
-		const wasOnFirstPosition = (lineNumber === 1 && column === 1);
-		const wasOnLastPosition = (lineNumber === lineCount && column === model.getLineMaxColumn(lineNumber));
-		const wasAtEdgePosition = (newLineNumber < lineNumber ? wasOnFirstPosition : wasOnLastPosition);
-
 		lineNumber = newLineNumber;
-		if (lineNumber < 1) {
-			lineNumber = 1;
-			if (allowMoveOnEdgeLine) {
-				column = model.getLineMinColumn(lineNumber);
-			} else {
-				column = Math.min(model.getLineMaxColumn(lineNumber), column);
-			}
-		} else if (lineNumber > lineCount) {
-			lineNumber = lineCount;
-			if (allowMoveOnEdgeLine) {
-				column = model.getLineMaxColumn(lineNumber);
-			} else {
-				column = Math.min(model.getLineMaxColumn(lineNumber), column);
-			}
-		} else {
+		if (virtualSpace) {
+			lineNumber = Math.max(1, Math.min(lineCount, lineNumber));
 			column = config.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
-		}
-
-		if (wasAtEdgePosition) {
-			leftoverVisibleColumns = 0;
 		} else {
-			leftoverVisibleColumns = currentVisibleColumn - CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+			const wasOnFirstPosition = (lineNumber === 1 && column === 1);
+			const wasOnLastPosition = (lineNumber === lineCount && column === model.getLineMaxColumn(lineNumber));
+			const wasAtEdgePosition = (newLineNumber < lineNumber ? wasOnFirstPosition : wasOnLastPosition);
+
+			if (lineNumber < 1) {
+				lineNumber = 1;
+				if (allowMoveOnEdgeLine) {
+					const firstColumn = model.getLineMinColumn(lineNumber);
+					if (column === firstColumn) {
+						columnHint = null;
+					}
+					column = firstColumn;
+				} else {
+					column = Math.min(model.getLineMaxColumn(lineNumber), column);
+				}
+			} else if (lineNumber > lineCount) {
+				lineNumber = lineCount;
+				if (allowMoveOnEdgeLine) {
+					const lastColumn = model.getLineMaxColumn(lineNumber);
+					if (column === lastColumn) {
+						columnHint = null;
+					}
+					column = lastColumn;
+				} else {
+					column = Math.min(model.getLineMaxColumn(lineNumber), column);
+				}
+			} else {
+				column = config.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
+			}
+
+			if (wasAtEdgePosition) {
+				columnHint = null;
+			}
 		}
 
-		if (normalizationAffinity !== undefined) {
-			const position = new Position(lineNumber, column);
-			const newPosition = model.normalizePosition(position, normalizationAffinity);
-			leftoverVisibleColumns = leftoverVisibleColumns + (column - newPosition.column);
-			lineNumber = newPosition.lineNumber;
-			column = newPosition.column;
-		}
-		return new CursorPosition(lineNumber, column, leftoverVisibleColumns);
+		return new CursorPosition(lineNumber, column, columnHint);
 	}
 
-	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnLastLine: boolean): CursorPosition {
-		return this.vertical(config, model, lineNumber, column, leftoverVisibleColumns, lineNumber + count, allowMoveOnLastLine, PositionAffinity.RightOfInjectedText);
+	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, count: number, allowMoveOnLastLine: boolean): CursorPosition {
+		let pos = this.vertical(config, model, lineNumber, column, columnHint, lineNumber + count, allowMoveOnLastLine);
+		let clippedColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column);
+		let left = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.LeftOfInjectedText);
+		let right = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.RightOfInjectedText);
+
+		// If left pos took us back to the starting position and right pos is at the end of its line, we may be looking at injected copilot hint and need to skip it.
+		if (
+			left.lineNumber === lineNumber && left.column === column
+			&& right.column >= model.getLineMaxColumn(right.lineNumber)
+		) {
+			pos = this.vertical(config, model, right.lineNumber, right.column, pos.columnHint, right.lineNumber + 1, false);
+			clippedColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column);
+			left = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.LeftOfInjectedText);
+			right = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.RightOfInjectedText);
+		}
+
+		if (
+			right.lineNumber === pos.lineNumber
+			&& (left.lineNumber !== pos.lineNumber || left.column !== pos.column)
+		) {
+			// If right norm didn't take us to the next line, we're done. This is the fast path.
+			return new CursorPosition(pos.lineNumber, Math.max(pos.column, right.column), pos.columnHint);
+		} else if (left.lineNumber === pos.lineNumber) {
+			// Right norm took us to the next line, but left norm stayed. Try to keep the line and go with the left norm.
+			return new CursorPosition(left.lineNumber, left.column, pos.columnHint);
+		} else {
+			// Both norms change line. Go to right.lineNumber and try to preserve the column
+			const column = pos.columnHint || 0;
+			if (column <= right.column) {
+				return new CursorPosition(right.lineNumber, right.column, pos.columnHint);
+			}
+			const newRight = model.normalizePosition(new Position(right.lineNumber, column), PositionAffinity.RightOfInjectedText);
+			if (newRight.lineNumber === right.lineNumber) {
+				return new CursorPosition(newRight.lineNumber, newRight.column, pos.columnHint);
+			} else {
+				const newLeft = model.normalizePosition(new Position(right.lineNumber, column), PositionAffinity.LeftOfInjectedText);
+				return new CursorPosition(newLeft.lineNumber, newLeft.column, pos.columnHint);
+			}
+		}
 	}
 
 	public static moveDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {
+		// For vertical movements, let's unclip the cursor even if not using virtual space.
+		// This will help set the currect column hint.
+		cursor = MoveOperations.toVirtualSpace(cursor);
+
 		let lineNumber: number,
 			column: number;
+		let columnHint: number | null;
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move down acts relative to the end of selection
 			lineNumber = cursor.selection.endLineNumber;
 			column = cursor.selection.endColumn;
+			columnHint = null;
 		} else {
 			lineNumber = cursor.position.lineNumber;
 			column = cursor.position.column;
+			columnHint = cursor.columnHint;
 		}
 
-		let i = 0;
-		let r: CursorPosition;
-		do {
-			r = MoveOperations.down(config, model, lineNumber + i, column, cursor.leftoverVisibleColumns, linesCount, true);
-			const np = model.normalizePosition(new Position(r.lineNumber, r.column), PositionAffinity.None);
-			if (np.lineNumber > lineNumber) {
-				break;
-			}
-		} while (i++ < 10 && lineNumber + i < model.getLineCount());
-
-		return cursor.move(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns);
+		const r = MoveOperations.down(config, model, lineNumber, column, columnHint, linesCount, true);
+		return cursor.move(inSelectionMode, r.lineNumber, r.column, 0, r.columnHint);
 	}
 
 	public static translateDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleCursorState {
+		cursor = MoveOperations.toVirtualSpace(cursor);
+
+		const columnHint = cursor.columnHint;
 		const selection = cursor.selection;
 
-		const selectionStart = MoveOperations.down(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
-		const position = MoveOperations.down(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
+		const selectionStart = MoveOperations.down(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, columnHint, 1, false);
+		const position = MoveOperations.down(config, model, selection.positionLineNumber, selection.positionColumn, columnHint, 1, false);
 
 		return new SingleCursorState(
 			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
-			SelectionStartKind.Simple,
-			selectionStart.leftoverVisibleColumns,
-			new Position(position.lineNumber, position.column),
-			position.leftoverVisibleColumns
+			SelectionStartKind.Simple, 0,
+			new Position(position.lineNumber, position.column), 0, columnHint,
 		);
 	}
 
-	public static up(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, count: number, allowMoveOnFirstLine: boolean): CursorPosition {
-		return this.vertical(config, model, lineNumber, column, leftoverVisibleColumns, lineNumber - count, allowMoveOnFirstLine, PositionAffinity.LeftOfInjectedText);
+	public static up(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, count: number, allowMoveOnFirstLine: boolean): CursorPosition {
+		const pos = this.vertical(config, model, lineNumber, column, columnHint, lineNumber - count, allowMoveOnFirstLine);
+		const clippedColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column);
+		const left = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.LeftOfInjectedText);
+		const right = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.RightOfInjectedText);
+
+		if (
+			// When going up, preferentially use the left norm. Unless it would change line, or the right norm is exact match.
+			left.lineNumber === pos.lineNumber
+			&& (right.lineNumber !== pos.lineNumber || right.column !== pos.column)
+		) {
+			if (right.lineNumber === pos.lineNumber && pos.column > right.column) {
+				// If right norm didn't change line either and pos is after right, we're in virtual space.
+				return pos;
+			} else {
+				return new CursorPosition(left.lineNumber, left.column, pos.columnHint);
+			}
+		} else if (right.lineNumber === pos.lineNumber) {
+			return new CursorPosition(pos.lineNumber, Math.max(pos.column, right.column), pos.columnHint);
+		} else {
+			// Both norms change line. Go to left.lineNumber and try to preserve the column
+			const column = pos.columnHint || 0;
+			if (column >= left.column) {
+				return new CursorPosition(left.lineNumber, left.column, pos.columnHint);
+			}
+			const newLeft = model.normalizePosition(new Position(left.lineNumber, column), PositionAffinity.LeftOfInjectedText);
+			if (newLeft.lineNumber === left.lineNumber) {
+				return new CursorPosition(newLeft.lineNumber, newLeft.column, pos.columnHint);
+			} else {
+				const newRight = model.normalizePosition(new Position(left.lineNumber, column), PositionAffinity.RightOfInjectedText);
+				return new CursorPosition(newRight.lineNumber, newRight.column, pos.columnHint);
+			}
+		}
 	}
 
 	public static moveUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {
+		cursor = MoveOperations.toVirtualSpace(cursor);
+
 		let lineNumber: number,
 			column: number;
+		let columnHint: number | null;
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move up acts relative to the beginning of selection
 			lineNumber = cursor.selection.startLineNumber;
 			column = cursor.selection.startColumn;
+			columnHint = null;
 		} else {
 			lineNumber = cursor.position.lineNumber;
 			column = cursor.position.column;
+			columnHint = cursor.columnHint;
 		}
 
-		const r = MoveOperations.up(config, model, lineNumber, column, cursor.leftoverVisibleColumns, linesCount, true);
-
-		return cursor.move(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns);
+		const r = MoveOperations.up(config, model, lineNumber, column, columnHint, linesCount, true);
+		return cursor.move(inSelectionMode, r.lineNumber, r.column, 0, r.columnHint);
 	}
 
 	public static translateUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): SingleCursorState {
+		cursor = MoveOperations.toVirtualSpace(cursor);
 
+		const columnHint = cursor.columnHint;
 		const selection = cursor.selection;
 
-		const selectionStart = MoveOperations.up(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.selectionStartLeftoverVisibleColumns, 1, false);
-		const position = MoveOperations.up(config, model, selection.positionLineNumber, selection.positionColumn, cursor.leftoverVisibleColumns, 1, false);
+		const selectionStart = MoveOperations.up(config, model, selection.selectionStartLineNumber, selection.selectionStartColumn, columnHint, 1, false);
+		const position = MoveOperations.up(config, model, selection.positionLineNumber, selection.positionColumn, columnHint, 1, false);
 
 		return new SingleCursorState(
 			new Range(selectionStart.lineNumber, selectionStart.column, selectionStart.lineNumber, selectionStart.column),
-			SelectionStartKind.Simple,
-			selectionStart.leftoverVisibleColumns,
-			new Position(position.lineNumber, position.column),
-			position.leftoverVisibleColumns
+			SelectionStartKind.Simple, 0,
+			new Position(position.lineNumber, position.column), 0, columnHint,
 		);
 	}
 
@@ -300,7 +434,7 @@ export class MoveOperations {
 			lineNumber--;
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0);
+		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0, null);
 	}
 
 	public static moveToNextBlankLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
@@ -317,7 +451,7 @@ export class MoveOperations {
 			lineNumber++;
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0);
+		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0, null);
 	}
 
 	public static moveToBeginningOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
@@ -334,23 +468,23 @@ export class MoveOperations {
 			column = firstNonBlankColumn;
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, column, 0);
+		return cursor.move(inSelectionMode, lineNumber, column, 0, null);
 	}
 
 	public static moveToEndOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, sticky: boolean): SingleCursorState {
 		const lineNumber = cursor.position.lineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
-		return cursor.move(inSelectionMode, lineNumber, maxColumn, sticky ? Constants.MAX_SAFE_SMALL_INTEGER - maxColumn : 0);
+		return cursor.move(inSelectionMode, lineNumber, maxColumn, sticky ? Constants.MAX_SAFE_SMALL_INTEGER - maxColumn : 0, null);
 	}
 
 	public static moveToBeginningOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
-		return cursor.move(inSelectionMode, 1, 1, 0);
+		return cursor.move(inSelectionMode, 1, 1, 0, null);
 	}
 
 	public static moveToEndOfBuffer(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
 		const lastLineNumber = model.getLineCount();
 		const lastColumn = model.getLineMaxColumn(lastLineNumber);
 
-		return cursor.move(inSelectionMode, lastLineNumber, lastColumn, 0);
+		return cursor.move(inSelectionMode, lastLineNumber, lastColumn, 0, null);
 	}
 }

@@ -60,6 +60,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { calcLeftoverVisibleColumns } from '../../../common/virtualSpaceSupport.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -617,7 +618,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const position = this._modelData.model.validatePosition(rawPosition);
 		const tabSize = this._modelData.model.getOptions().tabSize;
 
-		return CursorColumns.toStatusbarColumn(this._modelData.model.getLineContent(position.lineNumber), position.column, tabSize);
+		return (
+			CursorColumns.toStatusbarColumn(this._modelData.model.getLineContent(position.lineNumber), position.column, tabSize)
+			+ calcLeftoverVisibleColumns(rawPosition, position)
+		);
 	}
 
 	public getPosition(): Position | null {

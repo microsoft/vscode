@@ -452,7 +452,7 @@ class MouseDownOperation extends Disposable {
 			&& e.detail < 2 // only single click on a selection can work
 			&& !this._isActive // the mouse is not down yet
 			&& !this._currentSelection.isEmpty() // we don't drag single cursor
-			&& (position.type === MouseTargetType.CONTENT_TEXT) // single click on text
+			&& (position.type === MouseTargetType.CONTENT_TEXT || position.type === MouseTargetType.CONTENT_EMPTY) // single click on text
 			&& position.position && this._currentSelection.containsPosition(position.position) // single click on a selection
 		) {
 			this._mouseState.isDragAndDrop = true;
@@ -529,12 +529,12 @@ class MouseDownOperation extends Disposable {
 			if (viewZoneData) {
 				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
 				if (newPosition) {
-					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 'above', outsideDistance);
+					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 0, 'above', outsideDistance);
 				}
 			}
 
 			const aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(aboveLineNumber, 1), 'above', outsideDistance);
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(aboveLineNumber, 1), 0, 'above', outsideDistance);
 		}
 
 		if (e.posy > editorContent.y + editorContent.height) {
@@ -544,24 +544,24 @@ class MouseDownOperation extends Disposable {
 			if (viewZoneData) {
 				const newPosition = this._helpPositionJumpOverViewZone(viewZoneData);
 				if (newPosition) {
-					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 'below', outsideDistance);
+					return MouseTarget.createOutsideEditor(mouseColumn, newPosition, 0, 'below', outsideDistance);
 				}
 			}
 
 			const belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(verticalOffset);
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)), 'below', outsideDistance);
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)), 0, 'below', outsideDistance);
 		}
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
 		if (e.posx < editorContent.x) {
 			const outsideDistance = editorContent.x - e.posx;
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 0, 'left', outsideDistance);
 		}
 
 		if (e.posx > editorContent.x + editorContent.width) {
 			const outsideDistance = e.posx - editorContent.x - editorContent.width;
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 0, 'right', outsideDistance);
 		}
 
 		return null;
@@ -582,7 +582,7 @@ class MouseDownOperation extends Disposable {
 		if (t.type === MouseTargetType.CONTENT_VIEW_ZONE || t.type === MouseTargetType.GUTTER_VIEW_ZONE) {
 			const newPosition = this._helpPositionJumpOverViewZone(t.detail);
 			if (newPosition) {
-				return MouseTarget.createViewZone(t.type, t.element, t.mouseColumn, newPosition, t.detail);
+				return MouseTarget.createViewZone(t.type, t.element, t.mouseColumn, newPosition, 0, t.detail);
 			}
 		}
 
@@ -748,9 +748,9 @@ class TopBottomDragScrollingOperation extends Disposable {
 		}
 		if (!mouseTarget.position || mouseTarget.position.lineNumber !== edgeLineNumber) {
 			if (this._position.outsidePosition === 'above') {
-				mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, 1), 'above', this._position.outsideDistance);
+				mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, 1), 0, 'above', this._position.outsideDistance);
 			} else {
-				mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._context.viewModel.getLineMaxColumn(edgeLineNumber)), 'below', this._position.outsideDistance);
+				mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._context.viewModel.getLineMaxColumn(edgeLineNumber)), 0, 'below', this._position.outsideDistance);
 			}
 		}
 

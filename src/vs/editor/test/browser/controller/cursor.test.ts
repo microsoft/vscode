@@ -496,6 +496,60 @@ suite('Editor Controller - Cursor', () => {
 		model.dispose();
 	});
 
+	test('Virtual Space', () => {
+		const model = createTextModel(
+			[
+				'Word1 Word2 Word3 Word4',
+				'Word5',
+				'Word6 Word7 Word',
+				'Word9 Word10',
+			].join('\n'),
+		);
+
+		withTestCodeEditor(model, { virtualSpace: true }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 17, 1, 17)]);
+
+			const cursorPositions: any[] = [];
+			function reportCursorPosition() {
+				cursorPositions.push(viewModel.getCursorStates()[0].viewState.position.toString());
+			}
+
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+
+			reportCursorPosition();
+
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+
+			assert.deepStrictEqual(cursorPositions, [
+				'(1,17)',
+				'(2,17)',
+				'(3,17)',
+				'(4,17)',
+				'(4,17)',
+				'(3,17)',
+				'(2,17)',
+				'(1,17)',
+				'(1,17)',
+			]);
+		});
+
+		model.dispose();
+	});
+
 	test('issue #140195: Cursor up/down makes progress', () => {
 		const model = createTextModel(
 			[
@@ -552,8 +606,8 @@ suite('Editor Controller - Cursor', () => {
 				'(6,1)',
 				'(7,5)',
 				'(6,1)',
-				'(2,8)',
-				'(1,1)',
+				'(5,19)',
+				'(2,5)',
 				'(1,1)',
 			]);
 		});

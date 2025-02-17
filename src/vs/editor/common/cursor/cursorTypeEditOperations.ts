@@ -9,7 +9,7 @@ import * as strings from '../../../base/common/strings.js';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, ReplaceOvertypeCommandOnCompositionEnd } from '../commands/replaceCommand.js';
 import { ShiftCommand } from '../commands/shiftCommand.js';
 import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
-import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
+import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote, VirtualSpaceSelection } from '../cursorCommon.js';
 import { WordCharacterClass, getMapForWordSeparators } from '../core/wordCharacterClassifier.js';
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
@@ -499,12 +499,16 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(config: CursorConfiguration, prevEditOperationType: EditOperationType, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult {
+	public static getEdits(config: CursorConfiguration, prevEditOperationType: EditOperationType, virtualSpaceSelections: VirtualSpaceSelection[], ch: string, isDoingComposition: boolean): EditOperationResult {
 		// A simple character type
 		const commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const ChosenReplaceCommand = config.inputMode === 'overtype' && !isDoingComposition ? ReplaceOvertypeCommand : ReplaceCommand;
-			commands[i] = new ChosenReplaceCommand(selections[i], ch);
+		for (let i = 0, len = virtualSpaceSelections.length; i < len; i++) {
+			const virtualSpaceSelection = virtualSpaceSelections[i];
+			if (config.inputMode === 'overtype' && !isDoingComposition) {
+				commands[i] = new ReplaceOvertypeCommand(virtualSpaceSelection.selection, ch);
+			} else {
+				commands[i] = new ReplaceCommand(virtualSpaceSelection.selection, virtualSpaceSelection.virtualSpaces + ch);
+			}
 		}
 
 		const opType = getTypingOperation(ch, prevEditOperationType);
@@ -759,10 +763,11 @@ export class CompositionOperation {
 
 export class TypeWithoutInterceptorsOperation {
 
-	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], str: string): EditOperationResult {
+	public static getEdits(prevEditOperationType: EditOperationType, virtualSpaceSelections: VirtualSpaceSelection[], str: string): EditOperationResult {
 		const commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ReplaceCommand(selections[i], str);
+		for (let i = 0, len = virtualSpaceSelections.length; i < len; i++) {
+			const virtualSpaceSelection = virtualSpaceSelections[i];
+			commands[i] = new ReplaceCommand(virtualSpaceSelection.selection, virtualSpaceSelection.virtualSpaces + str);
 		}
 		const opType = getTypingOperation(str, prevEditOperationType);
 		return new EditOperationResult(opType, commands, {

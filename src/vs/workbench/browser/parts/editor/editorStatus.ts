@@ -833,6 +833,7 @@ class EditorStatus extends Disposable {
 		if (editorWidget) {
 
 			// Compute selection(s)
+			// TODO!
 			info.selections = editorWidget.getSelections() || [];
 
 			// Compute selection length
@@ -850,13 +851,11 @@ class EditorStatus extends Disposable {
 
 			// Compute the visible column for one selection. This will properly handle tabs and their configured widths
 			if (info.selections.length === 1) {
-				const editorPosition = editorWidget.getPosition();
-
 				const selectionClone = new Selection(
 					info.selections[0].selectionStartLineNumber,
 					info.selections[0].selectionStartColumn,
 					info.selections[0].positionLineNumber,
-					editorPosition ? editorWidget.getStatusbarColumn(editorPosition) : info.selections[0].positionColumn
+					editorWidget.getStatusbarColumn(info.selections[0].getPosition())
 				);
 
 				info.selections[0] = selectionClone;

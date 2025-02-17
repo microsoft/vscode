@@ -90,6 +90,15 @@ export class CursorCollection {
 		return this.cursors.map(c => c.modelState.selection);
 	}
 
+	public getSelectionsInVirtualSpace(): Selection[] {
+		return this.cursors.map(c => new Selection(
+			c.modelState.selection.selectionStartLineNumber,
+			c.modelState.selection.selectionStartColumn + c.modelState.selectionStartLeftoverVisibleColumns,
+			c.modelState.selection.positionLineNumber,
+			c.modelState.selection.positionColumn + c.modelState.leftoverVisibleColumns,
+		));
+	}
+
 	public getViewSelections(): Selection[] {
 		return this.cursors.map(c => c.viewState.selection);
 	}
@@ -172,7 +181,7 @@ export class CursorCollection {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			sortedCursors.push({
 				index: i,
-				selection: cursors[i].modelState.selection,
+				selection: cursors[i].modelState.selectionInVirtualSpace()
 			});
 		}
 

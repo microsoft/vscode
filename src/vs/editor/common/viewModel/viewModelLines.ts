@@ -23,6 +23,7 @@ export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
 	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean;
+	setVirtualSpace(virtualSpace: boolean): unknown;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
@@ -58,20 +59,7 @@ export interface IViewModelLines extends IDisposable {
 }
 
 export class ViewModelLinesFromProjectedModel implements IViewModelLines {
-	private readonly _editorId: number;
-	private readonly model: ITextModel;
 	private _validModelVersionId: number;
-
-	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
-	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
-
-	private fontInfo: FontInfo;
-	private tabSize: number;
-	private wrappingColumn: number;
-	private wrappingIndent: WrappingIndent;
-	private wordBreak: 'normal' | 'keepAll';
-	private wrappingStrategy: 'simple' | 'advanced';
-
 	private modelLineProjections!: IModelLineProjection[];
 
 	/**
@@ -82,28 +70,19 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private hiddenAreasDecorationIds!: string[];
 
 	constructor(
-		editorId: number,
-		model: ITextModel,
-		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		fontInfo: FontInfo,
-		tabSize: number,
-		wrappingStrategy: 'simple' | 'advanced',
-		wrappingColumn: number,
-		wrappingIndent: WrappingIndent,
-		wordBreak: 'normal' | 'keepAll'
+		private readonly _editorId: number,
+		private readonly model: ITextModel,
+		private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		private fontInfo: FontInfo,
+		private tabSize: number,
+		private virtualSpace: boolean,
+		private wrappingStrategy: 'simple' | 'advanced',
+		private wrappingColumn: number,
+		private wrappingIndent: WrappingIndent,
+		private wordBreak: 'normal' | 'keepAll'
 	) {
-		this._editorId = editorId;
-		this.model = model;
 		this._validModelVersionId = -1;
-		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
-		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
-		this.fontInfo = fontInfo;
-		this.tabSize = tabSize;
-		this.wrappingStrategy = wrappingStrategy;
-		this.wrappingColumn = wrappingColumn;
-		this.wrappingIndent = wrappingIndent;
-		this.wordBreak = wordBreak;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -301,6 +280,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this._constructLines(/*resetHiddenAreas*/false, previousLineBreaks);
 
 		return true;
+	}
+
+	public setVirtualSpace(virtualSpace: boolean): void {
+		this.virtualSpace = virtualSpace;
 	}
 
 	public createLineBreaksComputer(): ILineBreaksComputer {
@@ -783,6 +766,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public validateViewPosition(viewLineNumber: number, viewColumn: number, expectedModelPosition: Position): Position {
+		const initialViewColumn = viewColumn;
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 
 		const r = this.projectedModelLineLineCounts.getIndexOf(viewLineNumber - 1);
@@ -804,6 +788,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const computedModelPosition = this.model.validatePosition(new Position(lineIndex + 1, computedModelColumn));
 
 		if (computedModelPosition.equals(expectedModelPosition)) {
+			if (this.virtualSpace) {
+				// When virtual space is on, allow the column to go beyond the max column
+				viewColumn = Math.max(viewColumn, initialViewColumn);
+			}
 			return new Position(viewLineNumber, viewColumn);
 		}
 
@@ -1110,11 +1098,11 @@ const enum IndentGuideRepeatOption {
 }
 
 export class ViewModelLinesFromModelAsIs implements IViewModelLines {
-	public readonly model: ITextModel;
 
-	constructor(model: ITextModel) {
-		this.model = model;
-	}
+	constructor(
+		public readonly model: ITextModel,
+		private virtualSpace: boolean
+	) { }
 
 	public dispose(): void {
 	}
@@ -1137,6 +1125,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public setWrappingSettings(_fontInfo: FontInfo, _wrappingStrategy: 'simple' | 'advanced', _wrappingColumn: number, _wrappingIndent: WrappingIndent): boolean {
 		return false;
+	}
+
+	public setVirtualSpace(virtualSpace: boolean): void {
+		this.virtualSpace = virtualSpace;
 	}
 
 	public createLineBreaksComputer(): ILineBreaksComputer {
@@ -1238,6 +1230,24 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		return result;
 	}
 
+	public validateViewPosition(viewLineNumber: number, viewColumn: number, expectedModelPosition: Position): Position {
+		const initialViewColumn = viewColumn;
+		const result = this.model.validatePosition(new Position(viewLineNumber, viewColumn));
+		viewLineNumber = result.lineNumber;
+		viewColumn = result.column;
+		if (this.virtualSpace) {
+			// When virtual space is on, allow the column to go beyond the max column
+			viewColumn = Math.max(viewColumn, initialViewColumn);
+		}
+		return new Position(viewLineNumber, viewColumn);
+	}
+
+	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+		const validViewStart = this.validateViewPosition(viewRange.startLineNumber, viewRange.startColumn, expectedModelRange.getStartPosition());
+		const validViewEnd = this.validateViewPosition(viewRange.endLineNumber, viewRange.endColumn, expectedModelRange.getEndPosition());
+		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
+	}
+
 	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
 		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation, onlyMinimapDecorations, onlyMarginDecorations);
 	}
@@ -1281,12 +1291,12 @@ class IdentityCoordinatesConverter implements ICoordinatesConverter {
 		return this._validRange(viewRange);
 	}
 
-	public validateViewPosition(_viewPosition: Position, expectedModelPosition: Position): Position {
-		return this._validPosition(expectedModelPosition);
+	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
+		return this._lines.validateViewPosition(viewPosition.lineNumber, viewPosition.column, expectedModelPosition);
 	}
 
-	public validateViewRange(_viewRange: Range, expectedModelRange: Range): Range {
-		return this._validRange(expectedModelRange);
+	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+		return this._lines.validateViewRange(viewRange, expectedModelRange);
 	}
 
 	// Model -> View conversion and related methods
