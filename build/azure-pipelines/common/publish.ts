@@ -16,7 +16,7 @@ import cp from 'child_process';
 import os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
-import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';
+import { BlobClient, BlobSASPermissions, BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';
 import jws from 'jws';
 import { clearInterval, setInterval } from 'node:timers';
 
@@ -411,6 +411,10 @@ class ESRPReleaseService {
 	): Promise<ReleaseSubmitResponse> {
 		const size = fs.statSync(filePath).size;
 		const hash = await hashStream('sha256', fs.createReadStream(filePath));
+		const sasUrl = await blobClient.generateSasUrl({
+			permissions: BlobSASPermissions.from({ read: true }),
+			expiresOn: new Date(Date.now() + (60 * 60 * 1000))
+		});
 
 		const message: ReleaseRequestMessage = {
 			customerCorrelationId: correlationId,
@@ -447,7 +451,7 @@ class ESRPReleaseService {
 				tenantFileLocationType: 'AzureBlob',
 				sourceLocation: {
 					type: 'azureBlob',
-					blobUrl: blobClient.url
+					blobUrl: sasUrl
 				},
 				hashType: 'sha256',
 				hash: Array.from(hash),

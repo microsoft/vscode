@@ -166,6 +166,10 @@ class ESRPReleaseService {
     async submitRelease(version, filePath, friendlyFileName, correlationId, blobClient) {
         const size = fs_1.default.statSync(filePath).size;
         const hash = await hashStream('sha256', fs_1.default.createReadStream(filePath));
+        const sasUrl = await blobClient.generateSasUrl({
+            permissions: storage_blob_1.BlobSASPermissions.from({ read: true }),
+            expiresOn: new Date(Date.now() + (60 * 60 * 1000))
+        });
         const message = {
             customerCorrelationId: correlationId,
             esrpCorrelationId: correlationId,
@@ -201,7 +205,7 @@ class ESRPReleaseService {
                     tenantFileLocationType: 'AzureBlob',
                     sourceLocation: {
                         type: 'azureBlob',
-                        blobUrl: blobClient.url
+                        blobUrl: sasUrl
                     },
                     hashType: 'sha256',
                     hash: Array.from(hash),
