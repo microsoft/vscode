@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor } from './descriptors';
+import { ServiceIdentifier } from './instantiation.js';
+import { SyncDescriptor } from './descriptors.js';
 
 export class ServiceCollection {
 

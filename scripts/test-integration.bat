@@ -25,7 +25,7 @@ echo Storing crash reports into '%VSCODECRASHDIR%'.
 echo Storing log files into '%VSCODELOGSDIR%'.
 
 
-:: Tests standalone (AMD)
+:: Unit tests
 
 echo.
 echo ### node.js integration tests
@@ -49,7 +49,12 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Colorize tests
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-colorize-tests\test --extensionDevelopmentPath=%~dp0\..\extensions\vscode-colorize-tests --extensionTestsPath=%~dp0\..\extensions\vscode-colorize-tests\out %API_TESTS_EXTRA_ARGS%
+call npm run test-extension -- -l vscode-colorize-tests
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### Terminal Suggest tests
+call npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
@@ -59,7 +64,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Markdown tests
-call yarn test-extension -l markdown-language-features
+call npm run test-extension -- -l markdown-language-features
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
@@ -77,24 +82,24 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Ipynb tests
-call yarn test-extension -l ipynb
+call npm run test-extension -- -l ipynb
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Notebook Output tests
-call yarn test-extension -l notebook-renderers
+call npm run test-extension -- -l notebook-renderers
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Configuration editing tests
 set CFWORKSPACE=%TEMPDIR%\cf-%RANDOM%
 mkdir %CFWORKSPACE%
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %CFWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\configuration-editing --extensionTestsPath=%~dp0\..\extensions\configuration-editing\out\test %API_TESTS_EXTRA_ARGS%
+call npm run test-extension -- -l configuration-editing
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### GitHub Authentication tests
-call yarn test-extension -l github-authentication
+call npm run test-extension -- -l github-authentication
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests standalone (CommonJS)

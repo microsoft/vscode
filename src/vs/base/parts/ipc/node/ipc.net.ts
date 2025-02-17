@@ -7,15 +7,24 @@ import { createHash } from 'crypto';
 import { Server as NetServer, Socket, createServer, createConnection } from 'net';
 import { tmpdir } from 'os';
 import { createDeflateRaw, ZlibOptions, InflateRaw, DeflateRaw, createInflateRaw } from 'zlib';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { Platform, platform } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { VSBuffer } from '../../../common/buffer.js';
+import { onUnexpectedError } from '../../../common/errors.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Disposable, IDisposable } from '../../../common/lifecycle.js';
+import { join } from '../../../common/path.js';
+import { Platform, platform } from '../../../common/platform.js';
+import { generateUuid } from '../../../common/uuid.js';
+import { ClientConnectionEvent, IPCServer } from '../common/ipc.js';
+import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from '../common/ipc.net.js';
+
+/**
+ * Maximum time to wait for a 'close' event to fire after the socket stream
+ * ends. For unix domain sockets, the close event may not fire consistently
+ * due to what appears to be a Node.js bug.
+ *
+ * @see https://github.com/microsoft/vscode/issues/211462#issuecomment-2155471996
+ */
+const socketEndTimeoutMs = 30_000;
 
 export class NodeSocket implements ISocket {
 
@@ -51,15 +60,20 @@ export class NodeSocket implements ISocket {
 		};
 		this.socket.on('error', this._errorListener);
 
+		let endTimeoutHandle: NodeJS.Timeout | undefined;
 		this._closeListener = (hadError: boolean) => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
 			this._canWrite = false;
+			if (endTimeoutHandle) {
+				clearTimeout(endTimeoutHandle);
+			}
 		};
 		this.socket.on('close', this._closeListener);
 
 		this._endListener = () => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
 			this._canWrite = false;
+			endTimeoutHandle = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
 		};
 		this.socket.on('end', this._endListener);
 	}
@@ -785,11 +799,12 @@ export function createRandomIPCHandle(): string {
 }
 
 export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
-	const scope = createHash('md5').update(directoryPath).digest('hex');
+	const scope = createHash('sha256').update(directoryPath).digest('hex');
+	const scopeForSocket = scope.substr(0, 8);
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${scope}-${version}-${type}-sock`;
+		return `\\\\.\\pipe\\${scopeForSocket}-${version}-${type}-sock`;
 	}
 
 	// Mac & Unix: Use socket file
@@ -799,7 +814,6 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 
 	const versionForSocket = version.substr(0, 4);
 	const typeForSocket = type.substr(0, 6);
-	const scopeForSocket = scope.substr(0, 8);
 
 	let result: string;
 	if (process.platform !== 'darwin' && XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {

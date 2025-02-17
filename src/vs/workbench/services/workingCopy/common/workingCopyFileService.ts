@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
-import { Promises } from 'vs/base/common/async';
-import { insert } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileService, FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { StoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopySaveParticipant';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Event, AsyncEmitter, IWaitUntil } from '../../../../base/common/event.js';
+import { Promises } from '../../../../base/common/async.js';
+import { insert } from '../../../../base/common/arrays.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IFileService, FileOperation, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IWorkingCopyService } from './workingCopyService.js';
+import { IWorkingCopy } from './workingCopy.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { WorkingCopyFileOperationParticipant } from './workingCopyFileOperationParticipant.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { SaveReason } from '../../../common/editor.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+import { StoredFileWorkingCopySaveParticipant } from './storedFileWorkingCopySaveParticipant.js';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from './storedFileWorkingCopy.js';
 
 export const IWorkingCopyFileService = createDecorator<IWorkingCopyFileService>('workingCopyFileService');
 
@@ -84,7 +84,28 @@ export interface IWorkingCopyFileOperationParticipant {
 	): Promise<void>;
 }
 
+export interface IStoredFileWorkingCopySaveParticipantContext {
+	/**
+	 * The reason why the save was triggered.
+	 */
+	readonly reason: SaveReason;
+
+	/**
+	 * Only applies to when a text file was saved as, for
+	 * example when starting with untitled and saving. This
+	 * provides access to the initial resource the text
+	 * file had before.
+	 */
+	readonly savedFrom?: URI;
+}
+
 export interface IStoredFileWorkingCopySaveParticipant {
+
+	/**
+	 * The ordinal number which determines the order of participation.
+	 * Lower values mean to participant sooner
+	 */
+	readonly ordinal?: number;
 
 	/**
 	 * Participate in a save operation of file stored working copies.
@@ -92,7 +113,7 @@ export interface IStoredFileWorkingCopySaveParticipant {
 	 */
 	participate(
 		workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>,
-		context: { reason: SaveReason },
+		context: IStoredFileWorkingCopySaveParticipantContext,
 		progress: IProgress<IProgressStep>,
 		token: CancellationToken
 	): Promise<void>;
@@ -191,7 +212,7 @@ export interface IWorkingCopyFileService {
 	/**
 	 * Runs all available save participants for stored file working copies.
 	 */
-	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, token: CancellationToken): Promise<void>;
+	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void>;
 
 	//#endregion
 
@@ -492,8 +513,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
-		return this.saveParticipants.participate(workingCopy, context, token);
+	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+		return this.saveParticipants.participate(workingCopy, context, progress, token);
 	}
 
 	//#endregion

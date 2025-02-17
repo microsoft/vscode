@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { addMatchMediaChangeListener } from 'vs/base/browser/browser';
-import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { hc_black, hc_light, vs, vs_dark } from 'vs/editor/standalone/common/themes';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ColorScheme, isDark, isHighContrast } from 'vs/platform/theme/common/theme';
-import { getIconsStyleSheet, UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { mainWindow } from 'vs/base/browser/window';
+import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
+import { addMatchMediaChangeListener } from '../../../base/browser/browser.js';
+import { Color } from '../../../base/common/color.js';
+import { Emitter } from '../../../base/common/event.js';
+import { TokenizationRegistry } from '../../common/languages.js';
+import { FontStyle, TokenMetadata } from '../../common/encodedTokenAttributes.js';
+import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from '../../common/languages/supports/tokenization.js';
+import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from '../common/standaloneTheme.js';
+import { hc_black, hc_light, vs, vs_dark } from '../common/themes.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from '../../../platform/theme/common/colorRegistry.js';
+import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from '../../../platform/theme/common/themeService.js';
+import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
+import { ColorScheme, isDark, isHighContrast } from '../../../platform/theme/common/theme.js';
+import { getIconsStyleSheet, UnthemedProductIconTheme } from '../../../platform/theme/browser/iconsStyleSheet.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 export const VS_LIGHT_THEME_NAME = 'vs';
 export const VS_DARK_THEME_NAME = 'vs-dark';
@@ -261,7 +262,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 			this._updateCSS();
 		}));
 
-		addMatchMediaChangeListener('(forced-colors: active)', () => {
+		addMatchMediaChangeListener(mainWindow, '(forced-colors: active)', () => {
 			this._onOSSchemeChanged();
 		});
 	}
@@ -275,7 +276,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _registerRegularEditorContainer(): IDisposable {
 		if (!this._globalStyleElement) {
-			this._globalStyleElement = dom.createStyleSheet(undefined, style => {
+			this._globalStyleElement = domStylesheetsJs.createStyleSheet(undefined, style => {
 				style.className = 'monaco-colors';
 				style.textContent = this._allCSS;
 			});
@@ -285,7 +286,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	}
 
 	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-		const styleElement = dom.createStyleSheet(domNode, style => {
+		const styleElement = domStylesheetsJs.createStyleSheet(domNode, style => {
 			style.className = 'monaco-colors';
 			style.textContent = this._allCSS;
 		});
@@ -393,7 +394,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 				colorVariables.push(`${asCssVariableName(item.id)}: ${color.toString()};`);
 			}
 		}
-		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor { ${colorVariables.join('\n')} }`);
+		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { ${colorVariables.join('\n')} }`);
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));

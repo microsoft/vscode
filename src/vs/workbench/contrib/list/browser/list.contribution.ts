@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ListResizeColumnAction } from './listResizeColumnAction.js';
 
 export class ListContext implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.listContext';
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService
@@ -20,4 +22,6 @@ export class ListContext implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ListContext, LifecyclePhase.Starting);
+registerWorkbenchContribution2(ListContext.ID, ListContext, WorkbenchPhase.BlockStartup);
+registerAction2(ListResizeColumnAction);
+

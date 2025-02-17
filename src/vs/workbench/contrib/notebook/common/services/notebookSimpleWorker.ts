@@ -2,98 +2,78 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { doHash, hash, numberHash } from 'vs/base/common/hash';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import * as model from 'vs/editor/common/model';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-
-function bufferHash(buffer: VSBuffer): number {
-	let initialHashVal = numberHash(104579, 0);
-	for (let k = 0; k < buffer.buffer.length; k++) {
-		initialHashVal = doHash(buffer.buffer[k], initialHashVal);
-	}
-
-	return initialHashVal;
-}
+import { IDiffResult, ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { doHash, numberHash } from '../../../../../base/common/hash.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IRequestHandler, IWorkerServer } from '../../../../../base/common/worker/simpleWorker.js';
+import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
+import { CellKind, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookDocumentMetadata, TransientDocumentMetadata } from '../notebookCommon.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
+import { MirrorModel } from '../../../../../editor/common/services/textModelSync/textModelSync.impl.js';
+import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
+import { IModelChangedEvent } from '../../../../../editor/common/model/mirrorTextModel.js';
+import { filter } from '../../../../../base/common/objects.js';
 
 class MirrorCell {
-	private _textBuffer!: model.IReadonlyTextBuffer;
-
-	get textBuffer() {
-		if (this._textBuffer) {
-			return this._textBuffer;
-		}
-
-		const builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(Array.isArray(this._source) ? this._source.join('\n') : this._source);
-		const bufferFactory = builder.finish(true);
-		this._textBuffer = bufferFactory.create(model.DefaultEndOfLine.LF).textBuffer;
-
-		return this._textBuffer;
+	private readonly textModel: MirrorModel;
+	private _hash?: Promise<number>;
+	public get eol() {
+		return this._eol === '\r\n' ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF;
 	}
-
-	private _primaryKey?: number | null = null;
-	primaryKey(): number | null {
-		if (this._primaryKey === undefined) {
-			this._primaryKey = hash(this.getValue());
-		}
-
-		return this._primaryKey;
-	}
-
-	private _hash: number | null = null;
-
 	constructor(
-		readonly handle: number,
-		private _source: string | string[],
+		public readonly handle: number,
+		uri: URI,
+		source: string[],
+		private readonly _eol: string,
+		versionId: number,
 		public language: string,
 		public cellKind: CellKind,
 		public outputs: IOutputDto[],
 		public metadata?: NotebookCellMetadata,
 		public internalMetadata?: NotebookCellInternalMetadata,
 
-	) { }
-
-	getFullModelRange() {
-		const lineCount = this.textBuffer.getLineCount();
-		return new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
+	) {
+		this.textModel = new MirrorModel(uri, source, _eol, versionId);
 	}
 
+	onEvents(e: IModelChangedEvent) {
+		this.textModel.onEvents(e);
+		this._hash = undefined;
+	}
 	getValue(): string {
-		const fullRange = this.getFullModelRange();
-		return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
+		return this.textModel.getValue();
 	}
 
-	getComparisonValue(): number {
-		if (this._primaryKey !== null) {
-			return this._primaryKey!;
-		}
-
-		this._hash = hash([hash(this.language), hash(this.getValue()), this.metadata, this.internalMetadata, this.outputs.map(op => ({
-			outputs: op.outputs.map(output => ({
-				mime: output.mime,
-				data: bufferHash(output.data)
-			})),
-			metadata: op.metadata
-		}))]);
-		return this._hash;
+	async getComparisonValue(): Promise<number> {
+		return this._hash ??= this._getHash();
 	}
 
-	getHashValue() {
-		if (this._hash !== null) {
-			return this._hash;
+	private async _getHash() {
+		let hashValue = numberHash(104579, 0);
+
+		hashValue = doHash(this.language, hashValue);
+		hashValue = doHash(this.getValue(), hashValue);
+		hashValue = doHash(this.metadata, hashValue);
+		hashValue = doHash({ ...this.internalMetadata, 'cellId': '' }, hashValue);
+		for (const op of this.outputs) {
+			hashValue = doHash(op.metadata, hashValue);
+			for (const output of op.outputs) {
+				hashValue = doHash(output.mime, hashValue);
+			}
 		}
 
-		this._hash = hash([hash(this.getValue()), this.language, this.metadata, this.internalMetadata]);
-		return this._hash;
+		// note: hash has not updated within the Promise.all since we must retain order
+		const digests = await Promise.all(this.outputs.flatMap(op =>
+			op.outputs.map(o => crypto.subtle.digest('sha-1', o.data.buffer))
+		));
+		for (const digest of digests) {
+			hashValue = numberHash(new Int32Array(digest)[0], hashValue);
+		}
+
+
+		return hashValue;
 	}
 }
 
@@ -102,6 +82,7 @@ class MirrorNotebookDocument {
 		readonly uri: URI,
 		public cells: MirrorCell[],
 		public metadata: NotebookDocumentMetadata,
+		public transientDocumentMetadata: TransientDocumentMetadata,
 	) {
 	}
 
@@ -130,6 +111,8 @@ class MirrorNotebookDocument {
 				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.internalMetadata = e.internalMetadata;
+			} else if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
+				this.metadata = e.metadata;
 			}
 		});
 	}
@@ -145,12 +128,15 @@ class MirrorNotebookDocument {
 			const cellDtos = splice[2];
 			const newCells = cellDtos.map(cell => {
 				return new MirrorCell(
-					(cell as unknown as IMainCellDto).handle,
+					cell.handle,
+					URI.parse(cell.url),
 					cell.source,
+					cell.eol,
+					cell.versionId,
 					cell.language,
 					cell.cellKind,
 					cell.outputs,
-					cell.metadata
+					cell.metadata,
 				);
 			});
 
@@ -161,22 +147,28 @@ class MirrorNotebookDocument {
 
 class CellSequence implements ISequence {
 
-	constructor(readonly textModel: MirrorNotebookDocument) {
+	static async create(textModel: MirrorNotebookDocument) {
+		const hashValue = new Int32Array(textModel.cells.length);
+		await Promise.all(textModel.cells.map(async (c, i) => {
+			hashValue[i] = await c.getComparisonValue();
+		}));
+		return new CellSequence(hashValue);
 	}
 
-	getElements(): string[] | number[] | Int32Array {
-		const hashValue = new Int32Array(this.textModel.cells.length);
-		for (let i = 0; i < this.textModel.cells.length; i++) {
-			hashValue[i] = this.textModel.cells[i].getComparisonValue();
-		}
-
+	static async createWithCellId(textModel: MirrorNotebookDocument): Promise<Map<string, number>> {
+		const hashValue = new Map<string, number>();
+		await Promise.all(textModel.cells.map(async (c, i) => {
+			const value = await c.getComparisonValue();
+			const id: string = (c.metadata?.id || '') as string;
+			hashValue.set(id, value);
+		}));
 		return hashValue;
 	}
 
-	getCellHash(cell: ICellDto2) {
-		const source = Array.isArray(cell.source) ? cell.source.join('\n') : cell.source;
-		const hashVal = hash([hash(source), cell.metadata]);
-		return hashVal;
+	constructor(readonly hashValue: Int32Array) { }
+
+	getElements(): string[] | number[] | Int32Array {
+		return this.hashValue;
 	}
 }
 
@@ -191,92 +183,142 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	dispose(): void {
 	}
 
-	public acceptNewModel(uri: string, data: NotebookData): void {
-		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), data.cells.map(dto => new MirrorCell(
-			(dto as unknown as IMainCellDto).handle,
+	public $acceptNewModel(uri: string, metadata: NotebookDocumentMetadata, transientDocumentMetadata: TransientDocumentMetadata, cells: IMainCellDto[]): void {
+		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), cells.map(dto => new MirrorCell(
+			dto.handle,
+			URI.parse(dto.url),
 			dto.source,
+			dto.eol,
+			dto.versionId,
 			dto.language,
 			dto.cellKind,
 			dto.outputs,
-			dto.metadata
-		)), data.metadata);
+			dto.metadata,
+			dto.internalMetadata
+		)), metadata, transientDocumentMetadata);
 	}
 
-	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
+	public $acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
 		const model = this._models[strURL];
 		model?.acceptModelChanged(event);
 	}
 
-	public acceptRemovedModel(strURL: string): void {
+	public $acceptCellModelChanged(strURL: string, handle: number, event: IModelChangedEvent) {
+		const model = this._models[strURL];
+		model.cells.find(cell => cell.handle === handle)?.onEvents(event);
+	}
+
+	public $acceptRemovedModel(strURL: string): void {
 		if (!this._models[strURL]) {
 			return;
 		}
 		delete this._models[strURL];
 	}
 
-	computeDiff(originalUrl: string, modifiedUrl: string): INotebookDiffResult {
+	async $computeDiff(originalUrl: string, modifiedUrl: string): Promise<INotebookDiffResult> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 
-		const diff = new LcsDiff(new CellSequence(original), new CellSequence(modified));
+		const [originalSeq, modifiedSeq] = await Promise.all([
+			CellSequence.create(original),
+			CellSequence.create(modified),
+		]);
+
+		const diff = new LcsDiff(originalSeq, modifiedSeq);
 		const diffResult = diff.ComputeDiff(false);
 
-		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[] }[] = [];
-
-		diffResult.changes.forEach(change => {
-			if (change.modifiedLength === 0) {
-				// deletion ...
-				return;
-			}
-
-			if (change.originalLength === 0) {
-				// insertion
-				return;
-			}
-
-			for (let i = 0, len = Math.min(change.modifiedLength, change.originalLength); i < len; i++) {
-				let originalIndex = change.originalStart + i;
-				let modifiedIndex = change.modifiedStart + i;
-
-				const originalCell = original.cells[originalIndex];
-				const modifiedCell = modified.cells[modifiedIndex];
-
-				if (originalCell.getValue() !== modifiedCell.getValue()) {
-					// console.log(`original cell ${originalIndex} content change`);
-					const originalLines = originalCell.textBuffer.getLinesContent();
-					const modifiedLines = modifiedCell.textBuffer.getLinesContent();
-					const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-						shouldComputeCharChanges: true,
-						shouldPostProcessCharChanges: true,
-						shouldIgnoreTrimWhitespace: false,
-						shouldMakePrettyDiff: true,
-						maxComputationTime: 5000
-					});
-
-					const lineChanges = diffComputer.computeDiff().changes;
-
-					cellLineChanges.push({
-						originalCellhandle: originalCell.handle,
-						modifiedCellhandle: modifiedCell.handle,
-						lineChanges
-					});
-
-					// console.log(lineDecorations);
-
-				} else {
-					// console.log(`original cell ${originalIndex} metadata change`);
-				}
-
-			}
-		});
- */
+		const originalMetadata = filter(original.metadata, key => !original.transientDocumentMetadata[key]);
+		const modifiedMetadata = filter(modified.metadata, key => !modified.transientDocumentMetadata[key]);
 		return {
-			cellsDiff: diffResult,
+			metadataChanged: JSON.stringify(originalMetadata) !== JSON.stringify(modifiedMetadata),
+			cellsDiff: await this.$computeDiffWithCellIds(original, modified) || diffResult,
 			// linesDiff: cellLineChanges
 		};
 	}
 
-	canPromptRecommendation(modelUrl: string): boolean {
+	async $computeDiffWithCellIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): Promise<IDiffResult | undefined> {
+		const originalCellIndexIds = original.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		const modifiedCellIndexIds = modified.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		const originalCellIds = originalCellIndexIds.map(c => c.id);
+		const modifiedCellIds = modifiedCellIndexIds.map(c => c.id);
+		const orderOrOriginalCellIds = originalCellIds.filter(id => modifiedCellIds.includes(id)).join(',');
+		const orderOrModifiedCellIds = modifiedCellIds.filter(id => originalCellIds.includes(id)).join(',');
+		if (originalCellIndexIds.some(c => !c.id) || modifiedCellIndexIds.some(c => !c.id) || orderOrOriginalCellIds !== orderOrModifiedCellIds) {
+			return;
+		}
+
+		const diffResult: IDiffResult = { changes: [], quitEarly: false, };
+
+		const computeCellHashesById = async (notebook: MirrorNotebookDocument) => {
+			const hashValue = new Map<string, number>();
+			await Promise.all(notebook.cells.map(async (c, i) => {
+				const value = await c.getComparisonValue();
+				// Verified earlier that these cannot be empty.
+				const id: string = (c.metadata?.id || '') as string;
+				hashValue.set(id, value);
+			}));
+			return hashValue;
+		};
+
+		const [originalSeq, modifiedSeq] = await Promise.all([computeCellHashesById(original), computeCellHashesById(modified)]);
+
+		while (modifiedCellIndexIds.length) {
+			const modifiedCell = modifiedCellIndexIds.shift()!;
+			const originalCell = originalCellIndexIds.find(c => c.id === modifiedCell.id);
+			if (originalCell) {
+				// Everything before this cell is a deletion
+				const index = originalCellIndexIds.indexOf(originalCell);
+				const deletedFromOriginal = originalCellIndexIds.splice(0, index + 1);
+
+				if (deletedFromOriginal.length === 1) {
+					if (originalSeq.get(originalCell.id) === modifiedSeq.get(originalCell.id)) {
+						// Cell contents are the same.
+						// No changes, hence ignore this cell.
+					}
+					else {
+						diffResult.changes.push({
+							originalStart: originalCell.index,
+							originalLength: 1,
+							modifiedStart: modifiedCell.index,
+							modifiedLength: 1
+						});
+					}
+				} else {
+					// This means we have some cells before this and they were removed.
+					diffResult.changes.push({
+						originalStart: deletedFromOriginal[0].index,
+						originalLength: deletedFromOriginal.length - 1,
+						modifiedStart: modifiedCell.index,
+						modifiedLength: 0
+					});
+				}
+				continue;
+			}
+			else {
+				// This is a new cell.
+				diffResult.changes.push({
+					originalStart: originalCellIndexIds.length ? originalCellIndexIds[0].index : original.cells.length,
+					originalLength: 0,
+					modifiedStart: modifiedCell.index,
+					modifiedLength: 1
+				});
+			}
+		}
+
+		// If we still have some original cells, then those have been removed.
+		if (originalCellIndexIds.length) {
+			diffResult.changes.push({
+				originalStart: originalCellIndexIds[0].index,
+				originalLength: originalCellIndexIds.length,
+				modifiedStart: modifiedCellIndexIds.length,
+				modifiedLength: 0
+			});
+		}
+
+		return diffResult;
+	}
+
+	$canPromptRecommendation(modelUrl: string): boolean {
 		const model = this._getModel(modelUrl);
 		const cells = model.cells;
 
@@ -290,9 +332,6 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 				continue;
 			}
 
-			const lineCount = cell.textBuffer.getLineCount();
-			const maxLineCount = Math.min(lineCount, 20);
-			const range = new Range(1, 1, maxLineCount, cell.textBuffer.getLineLength(maxLineCount) + 1);
 			const searchParams = new SearchParams('import\\s*pandas|from\\s*pandas', true, false, null);
 			const searchData = searchParams.parseSearchRequest();
 
@@ -300,7 +339,15 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 				continue;
 			}
 
-			const cellMatches = cell.textBuffer.findMatchesLineByLine(range, searchData, true, 1);
+			const builder = new PieceTreeTextBufferBuilder();
+			builder.acceptChunk(cell.getValue());
+			const bufferFactory = builder.finish(true);
+			const textBuffer = bufferFactory.create(cell.eol).textBuffer;
+
+			const lineCount = textBuffer.getLineCount();
+			const maxLineCount = Math.min(lineCount, 20);
+			const range = new Range(1, 1, maxLineCount, textBuffer.getLineLength(maxLineCount) + 1);
+			const cellMatches = textBuffer.findMatchesLineByLine(range, searchData, true, 1);
 			if (cellMatches.length > 0) {
 				return true;
 			}
@@ -315,9 +362,9 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 }
 
 /**
- * Called on the worker side
- * @internal
+ * Defines the worker entry point. Must be exported and named `create`.
+ * @skipMangle
  */
-export function create(host: INotebookWorkerHost): IRequestHandler {
+export function create(workerServer: IWorkerServer): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }

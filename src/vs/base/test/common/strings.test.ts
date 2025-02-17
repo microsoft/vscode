@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as strings from 'vs/base/common/strings';
+import assert from 'assert';
+import * as strings from '../../common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', () => {
@@ -132,8 +133,44 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('foo bar', 5), 'foo bar');
 		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3), '2.3');
 
+		assert.strictEqual(strings.lcut('foo bar', 0, '…'), '…');
+		assert.strictEqual(strings.lcut('foo bar', 1, '…'), '…bar');
+		assert.strictEqual(strings.lcut('foo bar', 3, '…'), '…bar');
+		assert.strictEqual(strings.lcut('foo bar', 4, '…'), '…bar'); // Leading whitespace trimmed
+		assert.strictEqual(strings.lcut('foo bar', 5, '…'), 'foo bar');
+		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3, '…'), '…2.3');
+
 		assert.strictEqual(strings.lcut('', 10), '');
 		assert.strictEqual(strings.lcut('a', 10), 'a');
+		assert.strictEqual(strings.lcut(' a', 10), 'a');
+		assert.strictEqual(strings.lcut('            a', 10), 'a');
+		assert.strictEqual(strings.lcut(' bbbb       a', 10), 'bbbb       a');
+		assert.strictEqual(strings.lcut('............a', 10), '............a');
+
+		assert.strictEqual(strings.lcut('', 10, '…'), '');
+		assert.strictEqual(strings.lcut('a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut(' a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut('            a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut(' bbbb       a', 10, '…'), 'bbbb       a');
+		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
+	});
+
+	suite('rcut', () => {
+		test('basic truncation', () => {
+			assert.strictEqual(strings.rcut('foo bar', 0), 'foo');
+			assert.strictEqual(strings.rcut('foo bar', 1), 'foo');
+			assert.strictEqual(strings.rcut('foo bar', 4), 'foo');
+			assert.strictEqual(strings.rcut('foo bar', 7), 'foo bar');
+			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3), 'test');
+		});
+
+		test('truncation with suffix', () => {
+			assert.strictEqual(strings.rcut('foo bar', 0, '…'), 'foo…');
+			assert.strictEqual(strings.rcut('foo bar', 1, '…'), 'foo…');
+			assert.strictEqual(strings.rcut('foo bar', 4, '…'), 'foo…');
+			assert.strictEqual(strings.rcut('foo bar', 7, '…'), 'foo bar');
+			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3, '…'), 'test…');
+		});
 	});
 
 	test('escape', () => {
@@ -371,6 +408,11 @@ suite('Strings', () => {
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
 	});
 
+	test('truncateMiddle', () => {
+		assert.strictEqual('hello world', strings.truncateMiddle('hello world', 100));
+		assert.strictEqual('he…ld', strings.truncateMiddle('hello world', 5));
+	});
+
 	test('replaceAsync', async () => {
 		let i = 0;
 		assert.strictEqual(await strings.replaceAsync('abcabcabcabc', /b(.)/g, async (match, after) => {
@@ -504,5 +546,61 @@ suite('Strings', () => {
 		for (const sequence of sequences) {
 			assert.strictEqual(strings.removeAnsiEscapeCodes(`hello${sequence}world`), 'helloworld', `expect to remove ${JSON.stringify(sequence)}`);
 		}
+
+		for (const sequence of sequences) {
+			assert.deepStrictEqual(
+				[...strings.forAnsiStringParts(`hello${sequence}world`)],
+				[{ isCode: false, str: 'hello' }, { isCode: true, str: sequence }, { isCode: false, str: 'world' }],
+				`expect to forAnsiStringParts ${JSON.stringify(sequence)}`
+			);
+		}
+
+		// #209937
+		assert.strictEqual(
+			strings.removeAnsiEscapeCodes(`localhost:\x1b[31m1234`),
+			'localhost:1234',);
 	});
+
+	test('removeAnsiEscapeCodesFromPrompt', () => {
+		assert.strictEqual(strings.removeAnsiEscapeCodesFromPrompt('\u001b[31m$ \u001b[0m'), '$ ');
+		assert.strictEqual(strings.removeAnsiEscapeCodesFromPrompt('\n\\[\u001b[01;34m\\]\\w\\[\u001b[00m\\]\n\\[\u001b[1;32m\\]> \\[\u001b[0m\\]'), '\n\\w\n> ');
+	});
+
+	test('count', () => {
+		assert.strictEqual(strings.count('hello world', 'o'), 2);
+		assert.strictEqual(strings.count('hello world', 'l'), 3);
+		assert.strictEqual(strings.count('hello world', 'z'), 0);
+		assert.strictEqual(strings.count('hello world', 'hello'), 1);
+		assert.strictEqual(strings.count('hello world', 'world'), 1);
+		assert.strictEqual(strings.count('hello world', 'hello world'), 1);
+		assert.strictEqual(strings.count('hello world', 'foo'), 0);
+	});
+
+	test('containsAmbiguousCharacter', () => {
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('abcd'), false);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('üå'), false);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('(*&^)'), false);
+
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('ο'), true);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('abɡc'), true);
+	});
+
+	test('containsInvisibleCharacter', () => {
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('abcd'), false);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter(' '), true);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e004e}b'), true);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e015a}\u000bb'), true);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+test('htmlAttributeEncodeValue', () => {
+	assert.strictEqual(strings.htmlAttributeEncodeValue(''), '');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('abc'), 'abc');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('<script>alert("Hello")</script>'), '&lt;script&gt;alert(&quot;Hello&quot;)&lt;/script&gt;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('Hello & World'), 'Hello &amp; World');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('"Hello"'), '&quot;Hello&quot;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('\'Hello\''), '&apos;Hello&apos;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('<>&\'"'), '&lt;&gt;&amp;&apos;&quot;');
 });

@@ -10,7 +10,6 @@ import * as path from 'path';
 import * as os from 'os';
 import * as minimist from 'minimist';
 import * as rimraf from 'rimraf';
-import * as mkdirp from 'mkdirp';
 import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion } from '../../automation';
@@ -105,7 +104,7 @@ function createLogger(): Logger {
 
 	// Prepare logs rot path
 	fs.rmSync(logsRootPath, { recursive: true, force: true, maxRetries: 3 });
-	mkdirp.sync(logsRootPath);
+	fs.mkdirSync(logsRootPath, { recursive: true });
 
 	// Always log to log file
 	loggers.push(new FileLogger(path.join(logsRootPath, 'smoke-test-runner.log')));
@@ -123,7 +122,7 @@ const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
 	rimraf.sync(testDataPath);
 }
-mkdirp.sync(testDataPath);
+fs.mkdirSync(testDataPath, { recursive: true });
 process.once('exit', () => {
 	try {
 		rimraf.sync(testDataPath);
@@ -135,7 +134,7 @@ process.once('exit', () => {
 const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
 const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
-mkdirp.sync(extensionsPath);
+fs.mkdirSync(extensionsPath, { recursive: true });
 
 function fail(errorMessage): void {
 	logger.log(errorMessage);
@@ -179,7 +178,7 @@ function parseQuality(): Quality {
 //
 if (!opts.web) {
 	let testCodePath = opts.build;
-	let electronPath: string;
+	let electronPath: string | undefined;
 
 	if (testCodePath) {
 		electronPath = getBuildElectronPath(testCodePath);
@@ -193,7 +192,7 @@ if (!opts.web) {
 	}
 
 	if (!fs.existsSync(electronPath || '')) {
-		fail(`Can't find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
+		fail(`Cannot find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
 	}
 
 	quality = parseQuality();
@@ -213,7 +212,7 @@ else {
 
 	if (typeof testCodeServerPath === 'string') {
 		if (!fs.existsSync(testCodeServerPath)) {
-			fail(`Can't find Code server at ${testCodeServerPath}.`);
+			fail(`Cannot find Code server at ${testCodeServerPath}.`);
 		} else {
 			logger.log(`Running web smoke tests against ${testCodeServerPath}`);
 		}
@@ -326,7 +325,7 @@ async function ensureStableCode(): Promise<void> {
 	}
 
 	if (!fs.existsSync(stableCodePath)) {
-		throw new Error(`Can't find Stable VSCode at ${stableCodePath}.`);
+		throw new Error(`Cannot find Stable VSCode at ${stableCodePath}.`);
 	}
 
 	logger.log(`Using stable build ${stableCodePath} for migration tests`);
@@ -400,9 +399,9 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => opts['stable-build'] /* Do not change, deferred for a reason! */, logger); }
 	setupPreferencesTests(logger);
 	setupSearchTests(logger);
-	setupNotebookTests(logger);
+	if (!opts.web) { setupNotebookTests(logger); }
 	setupLanguagesTests(logger);
-	if (opts.web) { setupTerminalTests(logger); } // Not stable on desktop/remote https://github.com/microsoft/vscode/issues/146811
+	setupTerminalTests(logger);
 	setupTaskTests(logger);
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }

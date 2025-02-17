@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getRandomElement } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { memoize } from 'vs/base/common/decorators';
-import { CancellationError, ErrorNoTelemetry } from 'vs/base/common/errors';
-import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import * as strings from 'vs/base/common/strings';
-import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
+import { getRandomElement } from '../../../common/arrays.js';
+import { CancelablePromise, createCancelablePromise, timeout } from '../../../common/async.js';
+import { VSBuffer } from '../../../common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../common/cancellation.js';
+import { memoize } from '../../../common/decorators.js';
+import { CancellationError, ErrorNoTelemetry } from '../../../common/errors.js';
+import { Emitter, Event, EventMultiplexer, Relay } from '../../../common/event.js';
+import { createSingleCallFunction } from '../../../common/functional.js';
+import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { revive } from '../../../common/marshalling.js';
+import * as strings from '../../../common/strings.js';
+import { isFunction, isUndefinedOrNull } from '../../../common/types.js';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -426,18 +427,18 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		const id = request.id;
 
 		promise.then(data => {
-			this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.PromiseSuccess });
+			this.sendResponse({ id, data, type: ResponseType.PromiseSuccess });
 		}, err => {
 			if (err instanceof Error) {
-				this.sendResponse(<IRawResponse>{
+				this.sendResponse({
 					id, data: {
 						message: err.message,
 						name: err.name,
-						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : undefined
+						stack: err.stack ? err.stack.split('\n') : undefined
 					}, type: ResponseType.PromiseError
 				});
 			} else {
-				this.sendResponse(<IRawResponse>{ id, data: err, type: ResponseType.PromiseErrorObj });
+				this.sendResponse({ id, data: err, type: ResponseType.PromiseErrorObj });
 			}
 		}).finally(() => {
 			disposable.dispose();
@@ -458,7 +459,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 		const id = request.id;
 		const event = channel.listen(this.ctx, request.name, request.arg);
-		const disposable = event(data => this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.EventFire }));
+		const disposable = event(data => this.sendResponse({ id, data, type: ResponseType.EventFire }));
 
 		this.activeRequests.set(request.id, disposable);
 	}
@@ -484,7 +485,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 			console.error(`Unknown channel: ${request.channelName}`);
 
 			if (request.type === RequestType.Promise) {
-				this.sendResponse(<IRawResponse>{
+				this.sendResponse({
 					id: request.id,
 					data: { name: 'Unknown channel', message: `Channel name '${request.channelName}' timed out after ${this.timeoutDelay}ms`, stack: undefined },
 					type: ResponseType.PromiseError
@@ -553,6 +554,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	getChannel<T extends IChannel>(channelName: string): T {
 		const that = this;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
 				if (that.isDisposed) {
@@ -569,7 +571,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<any> {
+	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<unknown> {
 		const id = this.lastRequestId++;
 		const type = RequestType.Promise;
 		const request: IRawRequest = { id, type, channelName, name, arg };
@@ -579,6 +581,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 
 		let disposable: IDisposable;
+		let disposableWithRequestCancel: IDisposable;
 
 		const result = new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
@@ -634,14 +637,20 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				e(new CancellationError());
 			};
 
-			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
-			disposable = combinedDisposable(toDisposable(cancel), cancellationTokenListener);
-			this.activeRequests.add(disposable);
+			disposable = cancellationToken.onCancellationRequested(cancel);
+			disposableWithRequestCancel = {
+				dispose: createSingleCallFunction(() => {
+					cancel();
+					disposable.dispose();
+				})
+			};
+
+			this.activeRequests.add(disposableWithRequestCancel);
 		});
 
 		return result.finally(() => {
-			disposable.dispose();
-			this.activeRequests.delete(disposable);
+			disposable?.dispose(); // Seen as undefined in tests.
+			this.activeRequests.delete(disposableWithRequestCancel);
 		});
 	}
 
@@ -654,12 +663,19 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		const emitter = new Emitter<any>({
 			onWillAddFirstListener: () => {
-				uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
-				uninitializedPromise.then(() => {
-					uninitializedPromise = null;
+				const doRequest = () => {
 					this.activeRequests.add(emitter);
 					this.sendRequest(request);
-				});
+				};
+				if (this.state === State.Idle) {
+					doRequest();
+				} else {
+					uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
+					uninitializedPromise.then(() => {
+						uninitializedPromise = null;
+						doRequest();
+					});
+				}
 			},
 			onDidRemoveLastListener: () => {
 				if (uninitializedPromise) {
@@ -806,7 +822,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		return result;
 	}
 
-	constructor(onDidClientConnect: Event<ClientConnectionEvent>) {
+	constructor(onDidClientConnect: Event<ClientConnectionEvent>, ipcLogger?: IIPCLogger | null, timeoutDelay?: number) {
 		this.disposables.add(onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
 			const onFirstMessage = Event.once(protocol.onMessage);
 
@@ -814,8 +830,8 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				const reader = new BufferReader(msg);
 				const ctx = deserialize(reader) as TContext;
 
-				const channelServer = new ChannelServer(protocol, ctx);
-				const channelClient = new ChannelClient(protocol);
+				const channelServer = new ChannelServer(protocol, ctx, ipcLogger, timeoutDelay);
+				const channelClient = new ChannelClient(protocol, ipcLogger);
 
 				this.channels.forEach((channel, name) => channelServer.registerChannel(name, channel));
 
@@ -845,6 +861,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	getChannel<T extends IChannel>(channelName: string, routerOrClientFilter: IClientRouter<TContext> | ((client: Client<TContext>) => boolean)): T {
 		const that = this;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 				let connectionPromise: Promise<Client<TContext>>;
@@ -931,6 +948,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				disposables = undefined;
 			}
 		});
+		that.disposables.add(emitter);
 
 		return emitter.event;
 	}
@@ -994,6 +1012,7 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 }
 
 export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	return {
 		call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 			return promise.then(c => c.call<T>(command, arg, cancellationToken));
@@ -1010,6 +1029,7 @@ export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
 export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	let didTick = false;
 
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	return {
 		call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 			if (didTick) {
@@ -1093,6 +1113,9 @@ export namespace ProxyChannel {
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
+		// However, this will not work for services that
+		// are lazy and use a Proxy within. For that we
+		// still need to check later (see below).
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
@@ -1108,10 +1131,16 @@ export namespace ProxyChannel {
 					return eventImpl as Event<T>;
 				}
 
-				if (propertyIsDynamicEvent(event)) {
-					const target = handler[event];
-					if (typeof target === 'function') {
+				const target = handler[event];
+				if (typeof target === 'function') {
+					if (propertyIsDynamicEvent(event)) {
 						return target.call(handler, arg);
+					}
+
+					if (propertyIsEvent(event)) {
+						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, true, undefined, disposables));
+
+						return mapEventNameToEvent.get(event) as Event<T>;
 					}
 				}
 

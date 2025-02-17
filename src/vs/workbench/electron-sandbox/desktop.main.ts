@@ -3,64 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import product from 'vs/platform/product/common/product';
-import { INativeWindowConfiguration, IWindowsConfiguration } from 'vs/platform/window/common/window';
-import { Workbench } from 'vs/workbench/browser/workbench';
-import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
-import { setFullscreen } from 'vs/base/browser/browser';
-import { domContentLoaded } from 'vs/base/browser/dom';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { NativeWorkbenchStorageService } from 'vs/workbench/services/storage/electron-sandbox/storageService';
-import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { SharedProcessService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessService';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
-import { IRemoteAuthorityResolverService, RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { RemoteFileSystemProviderClient } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { INativeKeyboardLayoutService, NativeKeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayoutService';
-import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
-import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { safeStringify } from 'vs/base/common/objects';
-import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
-import { isCI, isMacintosh } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
-import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
-import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
-import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { RemoteSocketFactoryService, IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
-import { ElectronRemoteResourceLoader } from 'vs/platform/remote/electron-sandbox/electronRemoteResourceLoader';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { mainWindow } from 'vs/base/browser/window';
+import { localize } from '../../nls.js';
+import product from '../../platform/product/common/product.js';
+import { INativeWindowConfiguration, IWindowsConfiguration } from '../../platform/window/common/window.js';
+import { Workbench } from '../browser/workbench.js';
+import { NativeWindow } from './window.js';
+import { setFullscreen } from '../../base/browser/browser.js';
+import { domContentLoaded } from '../../base/browser/dom.js';
+import { onUnexpectedError } from '../../base/common/errors.js';
+import { URI } from '../../base/common/uri.js';
+import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
+import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from '../services/environment/electron-sandbox/environmentService.js';
+import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
+import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
+import { NativeWorkbenchStorageService } from '../services/storage/electron-sandbox/storageService.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier, toWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
+import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
+import { IStorageService } from '../../platform/storage/common/storage.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { ISharedProcessService } from '../../platform/ipc/electron-sandbox/services.js';
+import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
+import { SharedProcessService } from '../services/sharedProcess/electron-sandbox/sharedProcessService.js';
+import { RemoteAuthorityResolverService } from '../../platform/remote/electron-sandbox/remoteAuthorityResolverService.js';
+import { IRemoteAuthorityResolverService, RemoteConnectionType } from '../../platform/remote/common/remoteAuthorityResolver.js';
+import { RemoteAgentService } from '../services/remote/electron-sandbox/remoteAgentService.js';
+import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
+import { FileService } from '../../platform/files/common/fileService.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { RemoteFileSystemProviderClient } from '../services/remote/common/remoteFileSystemProviderClient.js';
+import { ConfigurationCache } from '../services/configuration/common/configurationCache.js';
+import { ISignService } from '../../platform/sign/common/sign.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
+import { INativeKeyboardLayoutService, NativeKeyboardLayoutService } from '../services/keybinding/electron-sandbox/nativeKeyboardLayoutService.js';
+import { ElectronIPCMainProcessService } from '../../platform/ipc/electron-sandbox/mainProcessService.js';
+import { LoggerChannelClient } from '../../platform/log/common/logIpc.js';
+import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
+import { NativeLogService } from '../services/log/electron-sandbox/logService.js';
+import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from '../services/workspaces/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
+import { safeStringify } from '../../base/common/objects.js';
+import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
+import { isBigSurOrNewer, isCI, isLinux, isMacintosh } from '../../base/common/platform.js';
+import { Schemas } from '../../base/common/network.js';
+import { DiskFileSystemProvider } from '../services/files/electron-sandbox/diskFileSystemProvider.js';
+import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
+import { IUserDataProfilesService, reviveProfile } from '../../platform/userDataProfile/common/userDataProfile.js';
+import { UserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
+import { PolicyChannelClient } from '../../platform/policy/common/policyIpc.js';
+import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
+import { UserDataProfileService } from '../services/userDataProfile/common/userDataProfileService.js';
+import { IUserDataProfileService } from '../services/userDataProfile/common/userDataProfile.js';
+import { BrowserSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
+import { RemoteSocketFactoryService, IRemoteSocketFactoryService } from '../../platform/remote/common/remoteSocketFactoryService.js';
+import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-sandbox/electronRemoteResourceLoader.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { applyZoom } from '../../platform/window/electron-sandbox/window.js';
+import { mainWindow } from '../../base/browser/window.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions } from '../../platform/configuration/common/configurationRegistry.js';
 
 export class DesktopMain extends Disposable {
 
@@ -78,7 +80,18 @@ export class DesktopMain extends Disposable {
 		this.reviveUris();
 
 		// Apply fullscreen early if configured
-		setFullscreen(!!this.configuration.fullscreen);
+		setFullscreen(!!this.configuration.fullscreen, mainWindow);
+
+		// Apply custom title override to defaults if any
+		if (isLinux && product.quality === 'stable' && this.configuration.overrideDefaultTitlebarStyle === 'custom') {
+			const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+			configurationRegistry.registerDefaultConfigurations([{
+				overrides: {
+					'window.titleBarStyle': 'custom',
+					'window.customTitleBarVisibility': 'auto'
+				}
+			}]);
+		}
 	}
 
 	private reviveUris() {
@@ -116,11 +129,13 @@ export class DesktopMain extends Disposable {
 		// and before the workbench is created to prevent flickering.
 		// We also need to respect that zoom level can be configured per
 		// workspace, so we need the resolved configuration service.
+		// Finally, it is possible for the window to have a custom
+		// zoom level that is not derived from settings.
 		// (fixes https://github.com/microsoft/vscode/issues/187982)
-		this.applyConfiguredWindowZoomLevel(services.configurationService);
+		this.applyWindowZoomLevel(services.configurationService);
 
 		// Create Workbench
-		const workbench = new Workbench(document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
+		const workbench = new Workbench(mainWindow.document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
 
 		// Listeners
 		this.registerListeners(workbench, services.storageService);
@@ -132,18 +147,21 @@ export class DesktopMain extends Disposable {
 		this._register(instantiationService.createInstance(NativeWindow));
 	}
 
-	private applyConfiguredWindowZoomLevel(configurationService: IConfigurationService) {
-		const windowConfig = configurationService.getValue<IWindowsConfiguration>();
-		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+	private applyWindowZoomLevel(configurationService: IConfigurationService) {
+		let zoomLevel: number | undefined = undefined;
+		if (this.configuration.isCustomZoomLevel && typeof this.configuration.zoomLevel === 'number') {
+			zoomLevel = this.configuration.zoomLevel;
+		} else {
+			const windowConfig = configurationService.getValue<IWindowsConfiguration>();
+			zoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+		}
 
-		applyZoom(windowZoomLevel);
+		applyZoom(zoomLevel, mainWindow);
 	}
 
 	private getExtraClasses(): string[] {
-		if (isMacintosh) {
-			if (this.configuration.os.release > '20.0.0') {
-				return ['macos-bigsur-or-newer'];
-			}
+		if (isMacintosh && isBigSurOrNewer(this.configuration.os.release)) {
+			return ['macos-bigsur-or-newer'];
 		}
 
 		return [];
@@ -187,10 +205,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(INativeWorkbenchEnvironmentService, environmentService);
 
 		// Logger
-		const loggers = [
-			...this.configuration.loggers.global.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })),
-			...this.configuration.loggers.window.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource), hidden: true })),
-		];
+		const loggers = this.configuration.loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) }));
 		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, environmentService.windowLogsPath, loggers, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
@@ -201,7 +216,7 @@ export class DesktopMain extends Disposable {
 			logService.info('workbench#open()'); // marking workbench open helps to diagnose flaky integration/smoke tests
 		}
 		if (logService.getLevel() === LogLevel.Trace) {
-			logService.trace('workbench#open(): with configuration', safeStringify(this.configuration));
+			logService.trace('workbench#open(): with configuration', safeStringify({ ...this.configuration, nls: undefined /* exclude large property */ }));
 		}
 
 		// Shared Process
@@ -235,7 +250,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Local Files
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(mainProcessService, utilityProcessWorkerWorkbenchService, logService));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(mainProcessService, utilityProcessWorkerWorkbenchService, logService, loggerService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// URI Identity
@@ -390,6 +405,10 @@ export class DesktopMain extends Disposable {
 			return keyboardLayoutService;
 		}
 	}
+}
+
+export interface IDesktopMain {
+	main(configuration: INativeWindowConfiguration): Promise<void>;
 }
 
 export function main(configuration: INativeWindowConfiguration): Promise<void> {

@@ -3,39 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./outlinePane';
-import * as dom from 'vs/base/browser/dom';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { basename } from 'vs/base/common/resources';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { OutlineViewState } from './outlineViewState';
-import { IOutline, IOutlineComparator, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { EditorResourceAccessor, IEditorPane } from 'vs/workbench/common/editor';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
-import { URI } from 'vs/base/common/uri';
-import { ctxAllCollapsed, ctxFilterOnType, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from 'vs/workbench/contrib/outline/browser/outline';
-import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import './outlinePane.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { TimeoutTimer, timeout } from '../../../../base/common/async.js';
+import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../base/common/map.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { WorkbenchDataTree } from '../../../../platform/list/browser/listService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
+import { basename } from '../../../../base/common/resources.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { OutlineViewState } from './outlineViewState.js';
+import { IOutline, IOutlineComparator, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
+import { EditorResourceAccessor, IEditorPane } from '../../../common/editor.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
+import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ctxAllCollapsed, ctxFilterOnType, ctxFocused, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from './outline.js';
+import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
@@ -94,8 +95,9 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService, hoverService);
 		this._outlineViewState.restore(this._storageService);
 		this._disposables.add(this._outlineViewState);
 
@@ -124,8 +126,10 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	}
 
 	override focus(): void {
-		super.focus();
-		this._tree?.domFocus();
+		this._editorControlChangePromise.then(() => {
+			super.focus();
+			this._tree?.domFocus();
+		});
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -195,17 +199,18 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		return false;
 	}
 
+	private _editorControlChangePromise: Promise<void> = Promise.resolve();
 	private _handleEditorChanged(pane: IEditorPane | undefined): void {
 		this._editorPaneDisposables.clear();
 
 		if (pane) {
 			// react to control changes from within pane (https://github.com/microsoft/vscode/issues/134008)
 			this._editorPaneDisposables.add(pane.onDidChangeControl(() => {
-				this._handleEditorControlChanged(pane);
+				this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 			}));
 		}
 
-		this._handleEditorControlChanged(pane);
+		this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 	}
 
 	private async _handleEditorControlChanged(pane: IEditorPane | undefined): Promise<void> {
@@ -249,8 +254,8 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 		const sorter = new OutlineTreeSorter(newOutline.config.comparator, this._outlineViewState.sortBy);
 
-		const tree = <WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>>this._instantiationService.createInstance(
-			WorkbenchDataTree,
+		const tree = this._instantiationService.createInstance(
+			WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>,
 			'OutlinePane',
 			this._treeContainer,
 			newOutline.config.delegate,
@@ -264,9 +269,11 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
 				defaultFindMode: this._outlineViewState.filterOnType ? TreeFindMode.Filter : TreeFindMode.Highlight,
-				overrideStyles: { listBackground: this.getBackgroundColor() }
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
+
+		ctxFocused.bindTo(tree.contextKeyService);
 
 		// update tree, listen to changes
 		const updateTree = () => {
@@ -295,7 +302,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		// feature: apply panel background to tree
 		this._editorControlDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === this.id)) {
-				tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
+				tree.updateOptions({ overrideStyles: this.getLocationBasedColors().listOverrideStyles });
 			}
 		}));
 
@@ -304,7 +311,19 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorControlDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
+		let idPool = 0;
+		this._editorControlDisposables.add(tree.onDidOpen(async e => {
+			const myId = ++idPool;
+			const isDoubleClick = e.browserEvent?.type === 'dblclick';
+			if (!isDoubleClick) {
+				// workaround for https://github.com/microsoft/vscode/issues/206424
+				await timeout(150);
+				if (myId !== idPool) {
+					return;
+				}
+			}
+			await newOutline.reveal(e.element, e.editorOptions, e.sideBySide, isDoubleClick);
+		}));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
 			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {

@@ -4,35 +4,152 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { TerminalLabelComputer, parseExitResult } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { IWorkspaceContextService, IWorkspaceFolder, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { fixPath, getUri } from 'vs/workbench/services/search/test/browser/queryBuilder.test';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
-import { URI } from 'vs/base/common/uri';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { Schemas } from 'vs/base/common/network';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile } from '../../../../../platform/terminal/common/terminal.js';
+import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
+import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService } from '../../browser/terminal.js';
+import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
+import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
+import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
+import { ITerminalProfileResolverService, ProcessState } from '../../common/terminal.js';
+import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
+import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
+import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
 const root2 = '/foo/root2';
 const ROOT_2 = fixPath(root2);
-const emptyRoot = '/foo';
-const ROOT_EMPTY = fixPath(emptyRoot);
+
+class MockTerminalProfileResolverService extends TestTerminalProfileResolverService {
+	override async getDefaultProfile(): Promise<ITerminalProfile> {
+		return {
+			profileName: "my-sh",
+			path: "/usr/bin/zsh",
+			env: {
+				TEST: "TEST",
+			},
+			isDefault: true,
+			isUnsafePath: false,
+			isFromPath: true,
+			icon: {
+				id: "terminal-linux",
+			},
+			color: "terminal.ansiYellow",
+		};
+	}
+}
+
+const terminalShellTypeContextKey = {
+	set: () => { },
+	reset: () => { },
+	get: () => undefined
+};
+
+class TestTerminalChildProcess extends Disposable implements ITerminalChildProcess {
+	id: number = 0;
+	get capabilities() { return []; }
+	constructor(
+		readonly shouldPersist: boolean
+	) {
+		super();
+	}
+	updateProperty(property: any, value: any): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	onProcessOverrideDimensions?: Event<any> | undefined;
+	onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
+	onDidChangeHasChildProcesses?: Event<any> | undefined;
+
+	onDidChangeProperty = Event.None;
+	onProcessData = Event.None;
+	onProcessExit = Event.None;
+	onProcessReady = Event.None;
+	onProcessTitleChanged = Event.None;
+	onProcessShellTypeChanged = Event.None;
+	async start(): Promise<undefined> { return undefined; }
+	shutdown(immediate: boolean): void { }
+	input(data: string): void { }
+	resize(cols: number, rows: number): void { }
+	clearBuffer(): void { }
+	acknowledgeDataEvent(charCount: number): void { }
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
+	async getInitialCwd(): Promise<string> { return ''; }
+	async getCwd(): Promise<string> { return ''; }
+	async processBinary(data: string): Promise<void> { }
+	refreshProperty(property: any): Promise<any> { return Promise.resolve(''); }
+}
+
+class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
+	getBackend() {
+		return {
+			onPtyHostExit: Event.None,
+			onPtyHostUnresponsive: Event.None,
+			onPtyHostResponsive: Event.None,
+			onPtyHostRestart: Event.None,
+			onDidMoveWindowInstance: Event.None,
+			onDidRequestDetach: Event.None,
+			createProcess: (
+				shellLaunchConfig: any,
+				cwd: string,
+				cols: number,
+				rows: number,
+				unicodeVersion: '6' | '11',
+				env: any,
+				windowsEnableConpty: boolean,
+				shouldPersist: boolean
+			) => this._register(new TestTerminalChildProcess(shouldPersist)),
+			getLatency: () => Promise.resolve([])
+		} as any;
+	}
+}
 
 suite('Workbench - TerminalInstance', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('TerminalInstance', () => {
+		let terminalInstance: ITerminalInstance;
+		test('should create an instance of TerminalInstance with env from default profile', async () => {
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							shellIntegration: {
+								enabled: true
+							}
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+			// //Wait for the teminalInstance._xtermReadyPromise to resolve
+			await new Promise(resolve => setTimeout(resolve, 100));
+			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
+		});
+	});
 	suite('parseExitResult', () => {
 		test('should return no message for exit code = undefined', () => {
 			deepStrictEqual(
@@ -140,26 +257,17 @@ suite('Workbench - TerminalInstance', () => {
 		});
 	});
 	suite('TerminalLabelComputer', () => {
-		let store: DisposableStore;
-		let configurationService: TestConfigurationService;
-		let terminalLabelComputer: TerminalLabelComputer;
 		let instantiationService: TestInstantiationService;
-		let mockContextService: TestContextService;
-		let mockMultiRootContextService: TestContextService;
-		let emptyContextService: TestContextService;
-		let mockWorkspace: Workspace;
-		let mockMultiRootWorkspace: Workspace;
-		let emptyWorkspace: Workspace;
 		let capabilities: TerminalCapabilityStore;
-		let configHelper: TerminalConfigHelper;
 
-		function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
+		function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
 			const capabilities = store.add(new TerminalCapabilityStore());
 			if (!isWindows) {
 				capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 			}
 			return {
 				shellLaunchConfig: {},
+				shellType: GeneralShellType.PowerShell,
 				cwd: 'cwd',
 				initialCwd: undefined,
 				processName: '',
@@ -175,36 +283,21 @@ suite('Workbench - TerminalInstance', () => {
 		}
 
 		setup(async () => {
-			store = new DisposableStore();
-			instantiationService = store.add(new TestInstantiationService());
-			instantiationService.stub(IWorkspaceContextService, new TestContextService());
+			instantiationService = workbenchInstantiationService(undefined, store);
 			capabilities = store.add(new TerminalCapabilityStore());
 			if (!isWindows) {
 				capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 			}
-
-			const ROOT_1_URI = getUri(ROOT_1);
-			mockContextService = new TestContextService();
-			mockWorkspace = new Workspace('workspace', [toWorkspaceFolder(ROOT_1_URI)]);
-			mockContextService.setWorkspace(mockWorkspace);
-
-			const ROOT_2_URI = getUri(ROOT_2);
-			mockMultiRootContextService = new TestContextService();
-			mockMultiRootWorkspace = new Workspace('multi-root-workspace', [toWorkspaceFolder(ROOT_1_URI), toWorkspaceFolder(ROOT_2_URI)]);
-			mockMultiRootContextService.setWorkspace(mockMultiRootWorkspace);
-
-			const ROOT_EMPTY_URI = getUri(ROOT_EMPTY);
-			emptyContextService = new TestContextService();
-			emptyWorkspace = new Workspace('empty workspace', [], ROOT_EMPTY_URI);
-			emptyContextService.setWorkspace(emptyWorkspace);
 		});
 
-		teardown(() => store.dispose());
+		function createLabelComputer(configuration: any) {
+			instantiationService.set(IConfigurationService, new TestConfigurationService(configuration));
+			instantiationService.set(ITerminalConfigurationService, store.add(instantiationService.createInstance(TerminalConfigurationService)));
+			return store.add(instantiationService.createInstance(TerminalLabelComputer));
+		}
 
 		test('should resolve to "" when the template variables are empty', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '', description: '' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '', description: '' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: '' }));
 			// TODO:
 			// terminalLabelComputer.onLabelChanged(e => {
@@ -215,81 +308,60 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(terminalLabelComputer.description, '');
 		});
 		test('should resolve cwd', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, cwd: ROOT_1 }));
 			strictEqual(terminalLabelComputer.title, ROOT_1);
 			strictEqual(terminalLabelComputer.description, ROOT_1);
 		});
 		test('should resolve workspaceFolder', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${workspaceFolder}', description: '${workspaceFolder}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${workspaceFolder}', description: '${workspaceFolder}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', workspaceFolder: { uri: URI.from({ scheme: Schemas.file, path: 'folder' }) } as IWorkspaceFolder }));
 			strictEqual(terminalLabelComputer.title, 'folder');
 			strictEqual(terminalLabelComputer.description, 'folder');
 		});
 		test('should resolve local', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${local}', description: '${local}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${local}', description: '${local}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Local' } }));
 			strictEqual(terminalLabelComputer.title, 'Local');
 			strictEqual(terminalLabelComputer.description, 'Local');
 		});
 		test('should resolve process', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${process}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${process}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh' }));
 			strictEqual(terminalLabelComputer.title, 'zsh');
 			strictEqual(terminalLabelComputer.description, 'zsh');
 		});
 		test('should resolve sequence', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${sequence}', description: '${sequence}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${sequence}', description: '${sequence}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, sequence: 'sequence' }));
 			strictEqual(terminalLabelComputer.title, 'sequence');
 			strictEqual(terminalLabelComputer.description, 'sequence');
 		});
 		test('should resolve task', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${task}', description: '${task}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${task}', description: '${task}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Task' } }));
 			strictEqual(terminalLabelComputer.title, 'zsh ~ Task');
 			strictEqual(terminalLabelComputer.description, 'Task');
 		});
 		test('should resolve separator', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${separator}', description: '${separator}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${separator}', description: '${separator}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Task' } }));
 			strictEqual(terminalLabelComputer.title, 'zsh');
 			strictEqual(terminalLabelComputer.description, '');
 		});
 		test('should always return static title when specified', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}', description: '${workspaceFolder}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}', description: '${workspaceFolder}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'process', workspaceFolder: { uri: URI.from({ scheme: Schemas.file, path: 'folder' }) } as IWorkspaceFolder, staticTitle: 'my-title' }));
 			strictEqual(terminalLabelComputer.title, 'my-title');
 			strictEqual(terminalLabelComputer.description, 'folder');
 		});
 		test('should provide cwdFolder for all cwds only when in multi-root', () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'process', workspaceFolder: { uri: URI.from({ scheme: Schemas.file, path: ROOT_1 }) } as IWorkspaceFolder, cwd: ROOT_1 }));
 			// single-root, cwd is same as root
 			strictEqual(terminalLabelComputer.title, 'process');
 			strictEqual(terminalLabelComputer.description, '');
 			// multi-root
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockMultiRootContextService));
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'process', workspaceFolder: { uri: URI.from({ scheme: Schemas.file, path: ROOT_1 }) } as IWorkspaceFolder, cwd: ROOT_2 }));
 			if (isWindows) {
 				strictEqual(terminalLabelComputer.title, 'process');
@@ -300,14 +372,12 @@ suite('Workbench - TerminalInstance', () => {
 			}
 		});
 		test('should hide cwdFolder in single folder workspaces when cwd matches the workspace\'s default cwd even when slashes differ', async () => {
-			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });
-			configHelper = store.add(new TerminalConfigHelper(configurationService, null!, null!, null!, null!));
-			terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+			let terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'process', workspaceFolder: { uri: URI.from({ scheme: Schemas.file, path: ROOT_1 }) } as IWorkspaceFolder, cwd: ROOT_1 }));
 			strictEqual(terminalLabelComputer.title, 'process');
 			strictEqual(terminalLabelComputer.description, '');
 			if (!isWindows) {
-				terminalLabelComputer = store.add(new TerminalLabelComputer(configHelper, new TestFileService(), mockContextService));
+				terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });
 				terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'process', workspaceFolder: { uri: URI.from({ scheme: Schemas.file, path: ROOT_1 }) } as IWorkspaceFolder, cwd: ROOT_2 }));
 				strictEqual(terminalLabelComputer.title, 'process ~ root2');
 				strictEqual(terminalLabelComputer.description, 'root2');

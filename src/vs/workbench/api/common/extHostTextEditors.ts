@@ -3,30 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
+import * as arrays from '../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorDiffInformation, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from './extHost.protocol.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import { ExtHostTextEditor, TextEditorDecorationType } from './extHostTextEditor.js';
+import * as TypeConverters from './extHostTypeConverters.js';
+import { TextEditorSelectionChangeKind, TextEditorChangeKind } from './extHostTypes.js';
 import * as vscode from 'vscode';
 
-export class ExtHostEditors implements ExtHostEditorsShape {
+export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 
-	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeTextEditorVisibleRanges = new Emitter<vscode.TextEditorVisibleRangesChangeEvent>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
+	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
+	private readonly _onDidChangeTextEditorVisibleRanges = new Emitter<vscode.TextEditorVisibleRangesChangeEvent>();
+	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
+	private readonly _onDidChangeTextEditorDiffInformation = new Emitter<vscode.TextEditorDiffInformationChangeEvent>();
+	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
+	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>();
 
 	readonly onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent> = this._onDidChangeTextEditorSelection.event;
 	readonly onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent> = this._onDidChangeTextEditorOptions.event;
 	readonly onDidChangeTextEditorVisibleRanges: Event<vscode.TextEditorVisibleRangesChangeEvent> = this._onDidChangeTextEditorVisibleRanges.event;
 	readonly onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent> = this._onDidChangeTextEditorViewColumn.event;
+	readonly onDidChangeTextEditorDiffInformation: Event<vscode.TextEditorDiffInformationChangeEvent> = this._onDidChangeTextEditorDiffInformation.event;
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 	readonly onDidChangeVisibleTextEditors: Event<readonly vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 
@@ -36,11 +39,11 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		mainContext: IMainContext,
 		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
+		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTextEditors);
 
-
-		this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e));
-		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
+		this._register(this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e)));
+		this._register(this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e)));
 	}
 
 	getActiveTextEditor(): vscode.TextEditor | undefined {
@@ -155,6 +158,70 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 				this._onDidChangeTextEditorViewColumn.fire({ textEditor: textEditor.value, viewColumn });
 			}
 		}
+	}
+
+	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation[] | undefined): void {
+		const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
+		if (!textEditor) {
+			throw new Error('unknown text editor');
+		}
+
+		if (!diffInformation) {
+			textEditor._acceptDiffInformation(undefined);
+			this._onDidChangeTextEditorDiffInformation.fire({
+				textEditor: textEditor.value,
+				diffInformation: undefined
+			});
+			return;
+		}
+
+		const that = this;
+		const result = diffInformation.map(diff => {
+			const original = URI.revive(diff.original);
+			const modified = URI.revive(diff.modified);
+
+			const changes = diff.changes.map(change => {
+				const [originalStartLineNumber, originalEndLineNumberExclusive, modifiedStartLineNumber, modifiedEndLineNumberExclusive] = change;
+
+				let kind: vscode.TextEditorChangeKind;
+				if (originalStartLineNumber === originalEndLineNumberExclusive) {
+					kind = TextEditorChangeKind.Addition;
+				} else if (modifiedStartLineNumber === modifiedEndLineNumberExclusive) {
+					kind = TextEditorChangeKind.Deletion;
+				} else {
+					kind = TextEditorChangeKind.Modification;
+				}
+
+				return {
+					original: {
+						startLineNumber: originalStartLineNumber,
+						endLineNumberExclusive: originalEndLineNumberExclusive
+					},
+					modified: {
+						startLineNumber: modifiedStartLineNumber,
+						endLineNumberExclusive: modifiedEndLineNumberExclusive
+					},
+					kind
+				} satisfies vscode.TextEditorChange;
+			});
+
+			return Object.freeze({
+				documentVersion: diff.documentVersion,
+				original,
+				modified,
+				changes,
+				get isStale(): boolean {
+					const document = that._extHostDocumentsAndEditors.getDocument(modified);
+					return document?.version !== diff.documentVersion;
+				}
+			});
+		});
+
+		textEditor._acceptDiffInformation(result);
+		this._onDidChangeTextEditorDiffInformation.fire({
+			textEditor: textEditor.value,
+			diffInformation: result
+		});
 	}
 
 	getDiffInformation(id: string): Promise<vscode.LineChange[]> {

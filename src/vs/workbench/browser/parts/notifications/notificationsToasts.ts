@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsToasts';
-import { localize } from 'vs/nls';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { INotificationsToastController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Severity, NotificationsFilter, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IntervalCounter } from 'vs/base/common/async';
-import { assertIsDefined } from 'vs/base/common/types';
-import { NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
+import './media/notificationsToasts.css';
+import { localize } from '../../../../nls.js';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
+import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow } from '../../../../base/browser/dom.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { NotificationsList } from './notificationsList.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { INotificationsToastController } from './notificationsCommands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IntervalCounter } from '../../../../base/common/async.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -54,7 +55,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		// Count for the number of notifications over 800ms...
 		interval: 800,
 		// ...and ensure we are not showing more than MAX_NOTIFICATIONS
-		limit: NotificationsToasts.MAX_NOTIFICATIONS
+		limit: this.MAX_NOTIFICATIONS
 	};
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
@@ -107,9 +108,15 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		});
 
 		// Filter
-		this._register(this.model.onDidChangeFilter(filter => {
-			if (filter === NotificationsFilter.SILENT || filter === NotificationsFilter.ERROR) {
+		this._register(this.model.onDidChangeFilter(({ global, sources }) => {
+			if (global === NotificationsFilter.ERROR) {
 				this.hide();
+			} else if (sources) {
+				for (const [notification] of this.mapNotificationToToast) {
+					if (typeof notification.sourceId === 'string' && sources.get(notification.sourceId) === NotificationsFilter.ERROR && notification.severity !== Severity.Error && notification.priority !== NotificationPriority.URGENT) {
+						this.removeToast(notification);
+					}
+				}
 			}
 		}));
 	}
@@ -150,7 +157,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		// (see also https://github.com/microsoft/vscode/issues/107935)
 		const itemDisposables = new DisposableStore();
 		this.mapNotificationToDisposable.set(item, itemDisposables);
-		itemDisposables.add(scheduleAtNextAnimationFrame(() => this.doAddToast(item, itemDisposables), getWindow(this.container)));
+		itemDisposables.add(scheduleAtNextAnimationFrame(getWindow(this.container), () => this.doAddToast(item, itemDisposables)));
 	}
 
 	private doAddToast(item: INotificationViewItem, itemDisposables: DisposableStore): void {
@@ -536,11 +543,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 			// Make sure notifications are not exceeding available height
 			availableHeight = this.workbenchDimensions.height;
-			if (this.layoutService.isVisible(Parts.STATUSBAR_PART)) {
+			if (this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow)) {
 				availableHeight -= 22; // adjust for status bar
 			}
 
-			if (this.layoutService.isVisible(Parts.TITLEBAR_PART)) {
+			if (this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 				availableHeight -= 22; // adjust for title bar
 			}
 
@@ -595,7 +602,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		if (visible) {
 			notificationsToastsContainer.appendChild(toast.container);
 		} else {
-			notificationsToastsContainer.removeChild(toast.container);
+			toast.container.remove();
 		}
 
 		// Update visibility in model

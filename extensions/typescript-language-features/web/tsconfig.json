@@ -8,7 +8,7 @@
 			"node"
 		]
 	},
-	"files": [
-		"webServer.ts"
+	"include": [
+		"src/**/*.ts"
 	]
 }

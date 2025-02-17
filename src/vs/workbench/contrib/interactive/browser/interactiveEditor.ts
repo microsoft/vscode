@@ -3,66 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/interactive';
-import * as nls from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { ICodeEditorViewState, IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction } from 'vs/base/common/actions';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ParameterHintsController } from 'vs/editor/contrib/parameterHints/browser/parameterHints';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
-import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ITextEditorOptions, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { isEqual } from 'vs/base/common/resources';
-import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
-import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import 'vs/css!./interactiveEditor';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { deepClone } from 'vs/base/common/objects';
+import './media/interactive.css';
+import * as DOM from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditorViewState, ICompositeCodeEditor } from '../../../../editor/common/editorCommon.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling } from '../../../common/editor.js';
+import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
+import { InteractiveEditorInput } from './interactiveEditorInput.js';
+import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from '../../notebook/browser/notebookBrowser.js';
+import { NotebookEditorExtensionsRegistry } from '../../notebook/browser/notebookEditorExtensions.js';
+import { IBorrowValue, INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
+import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from '../../notebook/browser/contrib/cellStatusBar/executionStatusBarItemController.js';
+import { INotebookKernelService } from '../../notebook/common/notebookKernelService.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ReplEditorSettings, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { NotebookOptions } from '../../notebook/browser/notebookOptions.js';
+import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { createActionViewItem, getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
+import { ParameterHintsController } from '../../../../editor/contrib/parameterHints/browser/parameterHints.js';
+import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
+import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
+import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { TabCompletionController } from '../../snippets/browser/tabCompletion.js';
+import { MarkerController } from '../../../../editor/contrib/gotoError/browser/gotoError.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ITextEditorOptions, TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
+import { INotebookExecutionStateService, NotebookExecutionType } from '../../notebook/common/notebookExecutionStateService.js';
+import { NOTEBOOK_KERNEL } from '../../notebook/common/notebookContextKeys.js';
+import { ICursorPositionChangedEvent } from '../../../../editor/common/cursorEvents.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { NotebookFindContrib } from '../../notebook/browser/contrib/find/notebookFindWidget.js';
+import { INTERACTIVE_WINDOW_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
+import './interactiveEditor.css';
+import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { ReplInputHintContentWidget } from './replInputHintContentWidget.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { INLINE_CHAT_ID } from '../../inlineChat/common/inlineChat.js';
+import { ReplEditorControl } from '../../replNotebook/browser/replEditor.js';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -70,6 +73,7 @@ const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState
 const INPUT_CELL_VERTICAL_PADDING = 8;
 const INPUT_CELL_HORIZONTAL_PADDING_RIGHT = 10;
 const INPUT_EDITOR_PADDING = 8;
+
 
 export interface InteractiveEditorViewState {
 	readonly notebook?: INotebookEditorViewState;
@@ -80,7 +84,7 @@ export interface InteractiveEditorOptions extends ITextEditorOptions {
 	readonly viewState?: InteractiveEditorViewState;
 }
 
-export class InteractiveEditor extends EditorPane {
+export class InteractiveEditor extends EditorPane implements IEditorPaneWithScrolling {
 	private _rootElement!: HTMLElement;
 	private _styleElement!: HTMLStyleElement;
 	private _notebookEditorContainer!: HTMLElement;
@@ -102,20 +106,24 @@ export class InteractiveEditor extends EditorPane {
 	private _editorGroupService: IEditorGroupsService;
 	private _notebookExecutionStateService: INotebookExecutionStateService;
 	private _extensionService: IExtensionService;
-	private _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
+	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _lastLayoutDimensions?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
 	private _editorOptions: IEditorOptions;
 	private _notebookOptions: NotebookOptions;
 	private _editorMemento: IEditorMemento<InteractiveEditorViewState>;
-	private _groupListener = this._register(new DisposableStore());
+	private readonly _groupListener = this._register(new MutableDisposable());
 	private _runbuttonToolbar: ToolBar | undefined;
+	private _hintElement: ReplInputHintContentWidget | undefined;
 
 	private _onDidFocusWidget = this._register(new Emitter<void>());
 	override get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
 	private _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+	private _onDidChangeScroll = this._register(new Emitter<void>());
+	readonly onDidChangeScroll = this._onDidChangeScroll.event;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -136,13 +144,12 @@ export class InteractiveEditor extends EditorPane {
 	) {
 		super(
 			INTERACTIVE_WINDOW_EDITOR_ID,
+			group,
 			telemetryService,
 			themeService,
 			storageService
 		);
-		this._instantiationService = instantiationService;
 		this._notebookWidgetService = notebookWidgetService;
-		this._contextKeyService = contextKeyService;
 		this._configurationService = configurationService;
 		this._notebookKernelService = notebookKernelService;
 		this._languageService = languageService;
@@ -153,17 +160,22 @@ export class InteractiveEditor extends EditorPane {
 		this._notebookExecutionStateService = notebookExecutionStateService;
 		this._extensionService = extensionService;
 
+		this._rootElement = DOM.$('.interactive-editor');
+		this._contextKeyService = this._register(contextKeyService.createScoped(this._rootElement));
+		this._contextKeyService.createKey('isCompositeNotebook', true);
+		this._instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
+
 		this._editorOptions = this._computeEditorOptions();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
 				this._editorOptions = this._computeEditorOptions();
 			}
 		}));
-		this._notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScroll: false, dragAndDropEnabled: false });
+		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, true, { cellToolbarInteraction: 'hover', globalToolbar: true, stickyScrollEnabled: false, dragAndDropEnabled: false, disableRulers: true });
 		this._editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
-		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateInputDecoration, this));
+		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateInputHint, this));
 		this._register(this._notebookExecutionStateService.onDidChangeExecution((e) => {
 			if (e.type === NotebookExecutionType.cell && isEqual(e.notebook, this._notebookWidget.value?.viewModel?.notebookDocument.uri)) {
 				const cell = this._notebookWidget.value?.getCellByHandle(e.cellHandle);
@@ -183,7 +195,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._rootElement = DOM.append(parent, DOM.$('.interactive-editor'));
+		DOM.append(parent, this._rootElement);
 		this._rootElement.style.position = 'relative';
 		this._notebookEditorContainer = DOM.append(this._rootElement, DOM.$('.notebook-editor-container'));
 		this._inputCellContainer = DOM.append(this._rootElement, DOM.$('.input-cell-container'));
@@ -200,30 +212,28 @@ export class InteractiveEditor extends EditorPane {
 		const menu = this._register(this._menuService.createMenu(MenuId.InteractiveInputExecute, this._contextKeyService));
 		this._runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this._contextMenuService, {
 			getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: action => {
-				return createActionViewItem(this._instantiationService, action);
+			actionViewItemProvider: (action, options) => {
+				return createActionViewItem(this._instantiationService, action, options);
 			},
 			renderDropdownAsChildElement: true
 		}));
 
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
+		const { primary, secondary } = getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		this._runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 
 	private _createLayoutStyles(): void {
-		this._styleElement = DOM.createStyleSheet(this._rootElement);
+		this._styleElement = domStylesheets.createStyleSheet(this._rootElement);
 		const styleSheets: string[] = [];
 
 		const {
-			focusIndicator,
 			codeCellLeftMargin,
 			cellRunGutter
 		} = this._notebookOptions.getLayoutConfiguration();
-		const leftMargin = codeCellLeftMargin + cellRunGutter;
+		const {
+			focusIndicator
+		} = this._notebookOptions.getDisplayOptions();
+		const leftMargin = this._notebookOptions.getCellEditorContainerLeftMargin();
 
 		styleSheets.push(`
 			.interactive-editor .input-cell-container {
@@ -287,7 +297,8 @@ export class InteractiveEditor extends EditorPane {
 				},
 				hover: {
 					enabled: true
-				}
+				},
+				rulers: []
 			}
 		});
 
@@ -310,7 +321,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
-		if (this.group && this._notebookWidget.value && input instanceof InteractiveEditorInput) {
+		if (this._notebookWidget.value && input instanceof InteractiveEditorInput) {
 			if (this._notebookWidget.value.isDisposed) {
 				return;
 			}
@@ -325,10 +336,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	private _loadNotebookEditorViewState(input: InteractiveEditorInput): InteractiveEditorViewState | undefined {
-		let result: InteractiveEditorViewState | undefined;
-		if (this.group) {
-			result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
-		}
+		const result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
 		if (result) {
 			return result;
 		}
@@ -348,7 +356,6 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	override async setInput(input: InteractiveEditorInput, options: InteractiveEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const group = this.group!;
 		const notebookInput = input.notebookEditorInput;
 
 		// there currently is a widget which we still own so
@@ -359,8 +366,8 @@ export class InteractiveEditor extends EditorPane {
 
 		this._widgetDisposableStore.clear();
 
-		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, notebookInput, {
-			isEmbedded: true,
+		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group.id, notebookInput, {
+			isReplHistory: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
@@ -379,11 +386,13 @@ export class InteractiveEditor extends EditorPane {
 			cellEditorContributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
-				ModesHoverController.ID,
+				ContentHoverController.ID,
+				GlyphHoverController.ID,
 				MarkerController.ID
 			]),
-			options: this._notebookOptions
-		});
+			options: this._notebookOptions,
+			codeWindow: this.window
+		}, undefined, this.window);
 
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
 			...{
@@ -396,8 +405,10 @@ export class InteractiveEditor extends EditorPane {
 					ParameterHintsController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
-					ModesHoverController.ID,
-					MarkerController.ID
+					ContentHoverController.ID,
+					GlyphHoverController.ID,
+					MarkerController.ID,
+					INLINE_CHAT_ID,
 				])
 			}
 		});
@@ -405,11 +416,7 @@ export class InteractiveEditor extends EditorPane {
 		if (this._lastLayoutDimensions) {
 			this._notebookEditorContainer.style.height = `${this._lastLayoutDimensions.dimension.height - this.inputCellContainerHeight}px`;
 			this._notebookWidget.value!.layout(new DOM.Dimension(this._lastLayoutDimensions.dimension.width, this._lastLayoutDimensions.dimension.height - this.inputCellContainerHeight), this._notebookEditorContainer);
-			const {
-				codeCellLeftMargin,
-				cellRunGutter
-			} = this._notebookOptions.getLayoutConfiguration();
-			const leftMargin = codeCellLeftMargin + cellRunGutter;
+			const leftMargin = this._notebookOptions.getCellEditorContainerLeftMargin();
 			const maxHeight = Math.min(this._lastLayoutDimensions.dimension.height / 2, this.inputCellEditorHeight);
 			this._codeEditorWidget.layout(this._validateDimension(this._lastLayoutDimensions.dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
 			this._inputFocusIndicator.style.height = `${this.inputCellEditorHeight}px`;
@@ -486,15 +493,31 @@ export class InteractiveEditor extends EditorPane {
 
 		this._widgetDisposableStore.add(this.themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
-				this._updateInputDecoration();
+				this._updateInputHint();
 			}
 		}));
 
 		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModelContent(() => {
 			if (this.isVisible()) {
-				this._updateInputDecoration();
+				this._updateInputHint();
 			}
 		}));
+
+		this._codeEditorWidget.onDidChangeModelDecorations(() => {
+			if (this.isVisible()) {
+				this._updateInputHint();
+			}
+		});
+
+		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModel(() => {
+			this._updateInputHint();
+		}));
+
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ReplEditorSettings.showExecutionHint)) {
+				this._updateInputHint();
+			}
+		});
 
 		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this._contextKeyService);
 		if (input.resource && input.historyService.has(input.resource)) {
@@ -527,13 +550,20 @@ export class InteractiveEditor extends EditorPane {
 		}));
 
 		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
-			const value = editorModel!.getValue();
-			if (this.input?.resource && value !== '') {
-				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
+			const value = editorModel.getValue();
+			if (this.input?.resource) {
+				const historyService = (this.input as InteractiveEditorInput).historyService;
+				if (!historyService.matchesCurrent(this.input.resource, value)) {
+					historyService.replaceLast(this.input.resource, value);
+				}
 			}
 		}));
 
+		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidScroll(() => this._onDidChangeScroll.fire()));
+
 		this._syncWithKernel();
+
+		this._updateInputHint();
 	}
 
 	override setOptions(options: INotebookEditorOptions | undefined): void {
@@ -563,7 +593,7 @@ export class InteractiveEditor extends EditorPane {
 		const index = this._notebookWidget.value!.getCellIndex(cvm);
 		if (index === this._notebookWidget.value!.getLength() - 1) {
 			// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
-			if (this._configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
+			if (this._configurationService.getValue<boolean>(ReplEditorSettings.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
 				this._notebookWidget.value!.scrollToBottom();
 			}
 		}
@@ -590,8 +620,6 @@ export class InteractiveEditor extends EditorPane {
 				NOTEBOOK_KERNEL.bindTo(this._contextKeyService).set(selectedOrSuggested.id);
 			}
 		}
-
-		this._updateInputDecoration();
 	}
 
 	layout(dimension: DOM.Dimension, position: DOM.IDomPosition): void {
@@ -615,11 +643,7 @@ export class InteractiveEditor extends EditorPane {
 	private _layoutWidgets(dimension: DOM.Dimension, position: DOM.IDomPosition) {
 		const contentHeight = this._codeEditorWidget.hasModel() ? this._codeEditorWidget.getContentHeight() : this.inputCellEditorHeight;
 		const maxHeight = Math.min(dimension.height / 2, contentHeight);
-		const {
-			codeCellLeftMargin,
-			cellRunGutter
-		} = this._notebookOptions.getLayoutConfiguration();
-		const leftMargin = codeCellLeftMargin + cellRunGutter;
+		const leftMargin = this._notebookOptions.getCellEditorContainerLeftMargin();
 
 		const inputCellContainerHeight = maxHeight + INPUT_CELL_VERTICAL_PADDING * 2;
 		this._notebookEditorContainer.style.height = `${dimension.height - inputCellContainerHeight}px`;
@@ -635,41 +659,43 @@ export class InteractiveEditor extends EditorPane {
 		return new DOM.Dimension(Math.max(0, width), Math.max(0, height));
 	}
 
-	private _updateInputDecoration(): void {
+	private _hasConflictingDecoration() {
+		return Boolean(this._codeEditorWidget.getLineDecorations(1)?.find((d) =>
+			d.options.beforeContentClassName
+			|| d.options.afterContentClassName
+			|| d.options.before?.content
+			|| d.options.after?.content
+		));
+	}
+
+	private _updateInputHint(): void {
 		if (!this._codeEditorWidget) {
 			return;
 		}
 
-		if (!this._codeEditorWidget.hasModel()) {
-			return;
+		const shouldHide =
+			!this._codeEditorWidget.hasModel() ||
+			this._configurationService.getValue<boolean>(ReplEditorSettings.showExecutionHint) === false ||
+			this._codeEditorWidget.getModel()!.getValueLength() !== 0 ||
+			this._hasConflictingDecoration();
+
+		if (!this._hintElement && !shouldHide) {
+			this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
+		} else if (this._hintElement && shouldHide) {
+			this._hintElement.dispose();
+			this._hintElement = undefined;
 		}
+	}
 
-		const model = this._codeEditorWidget.getModel();
+	getScrollPosition(): IEditorPaneScrollPosition {
+		return {
+			scrollTop: this._notebookWidget.value?.scrollTop ?? 0,
+			scrollLeft: 0
+		};
+	}
 
-		const decorations: IDecorationOptions[] = [];
-
-		if (model?.getValueLength() === 0) {
-			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
-			const languageId = model.getLanguageId();
-			const keybinding = this._keybindingService.lookupKeybinding('interactive.execute', this._contextKeyService)?.getLabel();
-			const text = nls.localize('interactiveInputPlaceHolder', "Type '{0}' code here and press {1} to run", languageId, keybinding ?? 'ctrl+enter');
-			decorations.push({
-				range: {
-					startLineNumber: 0,
-					endLineNumber: 0,
-					startColumn: 0,
-					endColumn: 1
-				},
-				renderOptions: {
-					after: {
-						contentText: text,
-						color: transparentForeground ? transparentForeground.toString() : undefined
-					}
-				}
-			});
-		}
-
-		this._codeEditorWidget.setDecorationsByType('interactive-decoration', DECORATION_KEY, decorations);
+	setScrollPosition(position: IEditorPaneScrollPosition): void {
+		this._notebookWidget.value?.setScrollTop(position.scrollTop);
 	}
 
 	override focus() {
@@ -683,12 +709,9 @@ export class InteractiveEditor extends EditorPane {
 		this._notebookWidget.value!.focus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-		if (group) {
-			this._groupListener.clear();
-			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
-		}
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		this._groupListener.value = this.group.onWillCloseEditor(e => this._saveEditorViewState(e.editor));
 
 		if (!visible) {
 			this._saveEditorViewState(this.input);
@@ -696,6 +719,8 @@ export class InteractiveEditor extends EditorPane {
 				this._notebookWidget.value.onWillHide();
 			}
 		}
+
+		this._updateInputHint();
 	}
 
 	override clearInput() {
@@ -712,10 +737,11 @@ export class InteractiveEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
+	override getControl(): ReplEditorControl & ICompositeCodeEditor {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			codeEditor: this._codeEditorWidget
+			activeCodeEditor: this._codeEditorWidget,
+			onDidChangeActiveEditor: Event.None
 		};
 	}
 }

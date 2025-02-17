@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { illegalState } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IME } from 'vs/base/common/ime';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from 'vs/base/common/keybindings';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
+import * as arrays from '../../../base/common/arrays.js';
+import { IntervalTimer, TimeoutTimer } from '../../../base/common/async.js';
+import { illegalState } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IME } from '../../../base/common/ime.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../base/common/keybindings.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import * as nls from '../../../nls.js';
 
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
-import { ResolutionResult, KeybindingResolver, ResultKind, NoMatchingKb } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICommandService } from '../../commands/common/commands.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../contextkey/common/contextkey.js';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from './keybinding.js';
+import { ResolutionResult, KeybindingResolver, ResultKind, NoMatchingKb } from './keybindingResolver.js';
+import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
+import { ILogService } from '../../log/common/log.js';
+import { INotificationService } from '../../notification/common/notification.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 interface CurrentChord {
 	keypress: string;
@@ -53,6 +53,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _ignoreSingleModifiers: KeybindingModifierSet;
 	private _currentSingleModifier: SingleModifierChord | null;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
+	protected _currentlyDispatchingCommandId: string | null;
 
 	protected _logging: boolean;
 
@@ -75,6 +76,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._ignoreSingleModifiers = KeybindingModifierSet.EMPTY;
 		this._currentSingleModifier = null;
 		this._currentSingleModifierClearTimeout = new TimeoutTimer();
+		this._currentlyDispatchingCommandId = null;
 		this._logging = false;
 	}
 
@@ -124,8 +126,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		);
 	}
 
-	public lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined {
-		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context || this._contextKeyService);
+	public lookupKeybinding(commandId: string, context?: IContextKeyService, enforceContextCheck = false): ResolvedKeybinding | undefined {
+		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context || this._contextKeyService, enforceContextCheck);
 		if (!result) {
 			return undefined;
 		}
@@ -362,10 +364,15 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 					}
 
 					this._log(`+ Invoking command ${resolveResult.commandId}.`);
-					if (typeof resolveResult.commandArgs === 'undefined') {
-						this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
-					} else {
-						this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+					this._currentlyDispatchingCommandId = resolveResult.commandId;
+					try {
+						if (typeof resolveResult.commandArgs === 'undefined') {
+							this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
+						} else {
+							this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+						}
+					} finally {
+						this._currentlyDispatchingCommandId = null;
 					}
 
 					if (!HIGH_FREQ_COMMANDS.test(resolveResult.commandId)) {
@@ -377,6 +384,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			}
 		}
 	}
+
+	abstract enableKeybindingHoldMode(commandId: string): Promise<void> | undefined;
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 		if (event.ctrlKey || event.metaKey) {

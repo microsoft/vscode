@@ -263,12 +263,12 @@ suitability for any purpose.
 
 ---------------------------------------------------------
 
-better-go-syntax 1.0.0 - MIT
-https://github.com/jeff-hykin/better-go-syntax/
+autocomplete 2.684.0 - MIT
+https://github.com/withfig/autocomplete
 
 MIT License
 
-Copyright (c) 2019 Jeff Hykin
+Copyright (c) 2021 Hercules Labs Inc. (Fig)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -287,6 +287,34 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+cacheable-request 7.0.4 - MIT
+
+
+Copyright (c) cacheable-request authors
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -545,12 +573,12 @@ to the base-name name of the original file, and an extension of txt, html, or si
 
 ---------------------------------------------------------
 
-freebroccolo/atom-language-swift 0.0.0 - MIT
-https://github.com/freebroccolo/atom-language-swift
+go-syntax 0.7.9 - MIT
+https://github.com/worlpaker/go-syntax
 
-The MIT License (MIT)
+MIT License
 
-Copyright (c) 2014 Darin Morrison
+Copyright (c) 2023 Furkan Ozalp
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -567,7 +595,8 @@ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -592,7 +621,7 @@ without specific, written prior permission. Title to copyright in this document 
 
 ---------------------------------------------------------
 
-Ionic documentation 1.2.4 - Apache2
+Ionic documentation 1.2.4 - Apache-2.0
 https://github.com/ionic-team/ionic-site
 
 Copyright Drifty Co. http://drifty.com/.
@@ -804,7 +833,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jeff-hykin/better-shell-syntax 1.6.2 - MIT
+jeff-hykin/better-shell-syntax 1.8.7 - MIT
 https://github.com/jeff-hykin/better-shell-syntax
 
 MIT License
@@ -860,7 +889,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jlelong/vscode-latex-basics 1.5.4 - MIT
+jlelong/vscode-latex-basics 1.9.0 - MIT
 https://github.com/jlelong/vscode-latex-basics
 
 Copyright (c) vscode-latex-basics authors
@@ -901,7 +930,23 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---------------------------------------------------------
 
-JuliaEditorSupport/atom-language-julia 0.22.1 - MIT
+jtbandes/swift-tmlanguage  - MIT
+https://github.com/jtbandes/swift-tmlanguage
+
+The MIT License (MIT)
+
+Copyright 2023 Jacob Bandes-Storch
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+JuliaEditorSupport/atom-language-julia 0.23.0 - MIT
 https://github.com/JuliaEditorSupport/atom-language-julia
 
 The atom-language-julia package is licensed under the MIT "Expat" License:
@@ -960,7 +1005,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 
 ---------------------------------------------------------
 
-language-docker 0.0.0 - Apache2
+language-docker 0.0.0 - Apache-2.0
 https://github.com/moby/moby
 
 Apache License
@@ -1157,38 +1202,12 @@ Apache License
 
 ---------------------------------------------------------
 
-language-less 0.34.2 - MIT
-https://github.com/atom/language-less
+language-less 0.6.1 - MIT
+https://github.com/radium-v/Better-Less
 
-The MIT License (MIT)
+MIT License
 
-Copyright (c) 2014 GitHub Inc.
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
-This package was derived from a TextMate bundle located at
-https://github.com/textmate/less.tmbundle and distributed under the following
-license, located in `LICENSE.md`:
-
-Copyright (c) 2010 Scott Kyle and Rasmus Andersson
+Copyright (c) 2017 John Kreitlow
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -1197,16 +1216,16 @@ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -1278,7 +1297,7 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-marked 4.1.0 - MIT
+marked 14.0.0 - MIT
 https://github.com/markedjs/marked
 
 information
@@ -1452,7 +1471,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-microsoft/vscode-mssql 1.20.0 - MIT
+microsoft/vscode-mssql 1.23.0 - MIT
 https://github.com/microsoft/vscode-mssql
 
 ------------------------------------------ START OF LICENSE -----------------------------------------
@@ -1543,7 +1562,23 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-redhat-developer/vscode-java 1.22.0 - MIT
+RedCMD/YAML-Syntax-Highlighter 1.3.2 - MIT
+https://github.com/RedCMD/YAML-Syntax-Highlighter
+
+MIT License
+
+Copyright 2024 RedCMD
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+redhat-developer/vscode-java 1.26.0 - MIT
 https://github.com/redhat-developer/vscode-java
 
 The MIT License (MIT)
@@ -1583,7 +1618,7 @@ suitability for any purpose.
 
 ---------------------------------------------------------
 
-REditorSupport/vscode-R 2.8.1 - MIT
+REditorSupport/vscode-R 2.8.4 - MIT
 https://github.com/REditorSupport/vscode-R
 
 MIT License
@@ -1712,6 +1747,55 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+Shopify/ruby-lsp 0.0.0 - MIT License
+https://github.com/Shopify/ruby-lsp
+
+The MIT License (MIT)
+
+Copyright (c) 2022-present, Shopify Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+================================================================================
+The following files and related configuration in package.json are based on a
+sequence of adaptions: grammars/ruby.cson.json, grammars/erb.cson.json,
+languages/erb.json.
+
+Copyright (c) 2016 Peng Lv
+Copyright (c) 2017-2019 Stafford Brunk
+https://github.com/rubyide/vscode-ruby
+
+    Released under the MIT license
+    https://github.com/rubyide/vscode-ruby/blob/main/LICENSE.txt
+
+Copyright (c) 2014 GitHub Inc.
+https://github.com/atom/language-ruby
+
+    Released under the MIT license
+    https://github.com/atom/language-ruby/blob/master/LICENSE.md
+
+https://github.com/textmate/ruby.tmbundle
+    https://github.com/textmate/ruby.tmbundle#license
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -1941,51 +2025,6 @@ An exception is made for files in readable text which contain their own license 
 or files where an accompanying file exists (in the same directory) with a "-license" suffix added
 to the base-name name of the original file, and an extension of txt, html, or similar. For example
 "tidy" is accompanied by "tidy-license.txt".
----------------------------------------------------------
-
----------------------------------------------------------
-
-textmate/ruby.tmbundle 0.0.0 - TextMate Bundle License
-https://github.com/textmate/ruby.tmbundle
-
-Copyright (c) textmate-ruby.tmbundle project authors
-
-If not otherwise specified (see below), files in this folder fall under the following license:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-
-An exception is made for files in readable text which contain their own license information,
-or files where an accompanying file exists (in the same directory) with a "-license" suffix added
-to the base-name name of the original file, and an extension of txt, html, or similar. For example
-"tidy" is accompanied by "tidy-license.txt".
----------------------------------------------------------
-
----------------------------------------------------------
-
-textmate/yaml.tmbundle 0.0.0 - TextMate Bundle License
-https://github.com/textmate/yaml.tmbundle
-
-Copyright (c) 2015 FichteFoll <fichtefoll2@googlemail.com>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -2500,7 +2539,7 @@ Creative Commons may be contacted at creativecommons.org.
 
 ---------------------------------------------------------
 
-vscode-logfile-highlighter 2.15.0 - MIT
+vscode-logfile-highlighter 2.17.0 - MIT
 https://github.com/emilast/vscode-logfile-highlighter
 
 The MIT License (MIT)
@@ -2612,7 +2651,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-Web Background Synchronization  - Apache2
+Web Background Synchronization  - Apache-2.0
 https://github.com/WICG/background-sync
 
 Apache License

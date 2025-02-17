@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Menu } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { isCancellationError } from 'vs/base/common/errors';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { defaultMenuStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
+import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { Menu } from '../../../base/browser/ui/menu/menu.js';
+import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import { combinedDisposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IContextViewService } from './contextView.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { INotificationService } from '../../notification/common/notification.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { defaultMenuStyles } from '../../theme/browser/defaultStyles.js';
 
 
 export interface IContextMenuHandlerOptions {
@@ -49,7 +49,7 @@ export class ContextMenuHandler {
 
 		let menu: Menu | undefined;
 
-		const shadowRootElement = delegate.domForShadowRoot instanceof HTMLElement ? delegate.domForShadowRoot : undefined;
+		const shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
@@ -81,7 +81,7 @@ export class ContextMenuHandler {
 
 				const menuDisposables = new DisposableStore();
 
-				const actionRunner = delegate.actionRunner || new ActionRunner();
+				const actionRunner = delegate.actionRunner || menuDisposables.add(new ActionRunner());
 				actionRunner.onWillRun(evt => this.onActionRun(evt, !delegate.skipTelemetry), this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 				menu = new Menu(container, actions, {
@@ -95,14 +95,14 @@ export class ContextMenuHandler {
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
-				const window = getWindow(container);
-				menuDisposables.add(addDisposableListener(window, EventType.BLUR, () => this.contextViewService.hideContextView(true)));
-				menuDisposables.add(addDisposableListener(window, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+				const targetWindow = getWindow(container);
+				menuDisposables.add(addDisposableListener(targetWindow, EventType.BLUR, () => this.contextViewService.hideContextView(true)));
+				menuDisposables.add(addDisposableListener(targetWindow, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 					if (e.defaultPrevented) {
 						return;
 					}
 
-					const event = new StandardMouseEvent(e);
+					const event = new StandardMouseEvent(targetWindow, e);
 					let element: HTMLElement | null = event.target;
 
 					// Don't do anything as we are likely creating a context menu

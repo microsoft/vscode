@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../nls.js';
 
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { memoize } from 'vs/base/common/decorators';
-import { URI } from 'vs/base/common/uri';
+import { NativeEnvironmentService } from '../../platform/environment/node/environmentService.js';
+import { OPTIONS, OptionDescriptions } from '../../platform/environment/node/argv.js';
+import { refineServiceDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../platform/environment/common/environment.js';
+import { memoize } from '../../base/common/decorators.js';
+import { URI } from '../../base/common/uri.js';
 
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
@@ -19,6 +19,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'host': { type: 'string', cat: 'o', args: 'ip-address', description: nls.localize('host', "The host name or IP address the server should listen to. If not set, defaults to 'localhost'.") },
 	'port': { type: 'string', cat: 'o', args: 'port | port range', description: nls.localize('port', "The port the server should listen to. If 0 is passed a random free port is picked. If a range in the format num-num is passed, a free port from the range (end inclusive) is selected.") },
 	'socket-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('socket-path', "The path to a socket file for the server to listen to.") },
+	'server-base-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('server-base-path', "The path under which the web UI and the code server is provided. Defaults to '/'.`") },
 	'connection-token': { type: 'string', cat: 'o', args: 'token', deprecates: ['connectionToken'], description: nls.localize('connection-token', "A secret that must be included with all requests.") },
 	'connection-token-file': { type: 'string', cat: 'o', args: 'path', deprecates: ['connection-secret', 'connectionTokenFile'], description: nls.localize('connection-token-file', "Path to a file that contains the connection token.") },
 	'without-connection-token': { type: 'boolean', cat: 'o', description: nls.localize('without-connection-token', "Run without a connection token. Only use this if the connection is secured by other means.") },
@@ -59,6 +60,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'builtin-extensions-dir': OPTIONS['builtin-extensions-dir'],
 	'install-extension': OPTIONS['install-extension'],
 	'install-builtin-extension': OPTIONS['install-builtin-extension'],
+	'update-extensions': OPTIONS['update-extensions'],
 	'uninstall-extension': OPTIONS['uninstall-extension'],
 	'list-extensions': OPTIONS['list-extensions'],
 	'locate-extension': OPTIONS['locate-extension'],
@@ -67,6 +69,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'category': OPTIONS['category'],
 	'force': OPTIONS['force'],
 	'do-not-sync': OPTIONS['do-not-sync'],
+	'do-not-include-pack-dependencies': OPTIONS['do-not-include-pack-dependencies'],
 	'pre-release': OPTIONS['pre-release'],
 	'start-server': { type: 'boolean', cat: 'e', description: nls.localize('start-server', "Start the server when installing or uninstalling extensions. To be used in combination with 'install-extension', 'install-builtin-extension' and 'uninstall-extension'.") },
 
@@ -100,6 +103,12 @@ export interface ServerParsedArgs {
 	 */
 	port?: string;
 	'socket-path'?: string;
+
+	/**
+	 * The path under which the web UI and the code server is provided.
+	 * By defaults it is '/'.`
+	 */
+	'server-base-path'?: string;
 
 	/**
 	 * A secret token that must be provided by the web client with all requests.
@@ -160,9 +169,9 @@ export interface ServerParsedArgs {
 	'default-workspace'?: string;
 	'default-folder'?: string;
 
-	/** @deprecated, use default-workspace instead */
+	/** @deprecated use default-workspace instead */
 	workspace: string;
-	/** @deprecated, use default-folder instead */
+	/** @deprecated use default-folder instead */
 	folder: string;
 
 
@@ -177,6 +186,7 @@ export interface ServerParsedArgs {
 	'builtin-extensions-dir'?: string;
 	'install-extension'?: string[];
 	'install-builtin-extension'?: string[];
+	'update-extensions'?: boolean;
 	'uninstall-extension'?: string[];
 	'list-extensions'?: boolean;
 	'locate-extension'?: string[];
@@ -185,6 +195,8 @@ export interface ServerParsedArgs {
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
 	'pre-release'?: boolean; // used by install-extension
+	'do-not-include-pack-dependencies'?: boolean; // used by install-extension
+
 
 	'start-server'?: boolean;
 

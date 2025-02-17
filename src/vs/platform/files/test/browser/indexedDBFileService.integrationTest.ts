@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IndexedDB } from 'vs/base/browser/indexedDB';
-import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite } from 'vs/base/test/common/testUtils';
-import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import assert from 'assert';
+import { IndexedDB } from '../../../../base/browser/indexedDB.js';
+import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { flakySuite } from '../../../../base/test/common/testUtils.js';
+import { IndexedDBFileSystemProvider } from '../../browser/indexedDBFileSystemProvider.js';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType } from '../../common/files.js';
+import { FileService } from '../../common/fileService.js';
+import { NullLogService } from '../../../log/common/log.js';
 
 flakySuite('IndexedDBFileSystemProvider', function () {
 
@@ -100,10 +100,10 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		assert.strictEqual((await userdataFileProvider.stat(newFolderResource)).type, FileType.Directory);
 
 		assert.ok(event);
-		assert.strictEqual(event!.resource.path, newFolderResource.path);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.path, newFolderResource.path);
-		assert.strictEqual(event!.target!.isDirectory, true);
+		assert.strictEqual(event.resource.path, newFolderResource.path);
+		assert.strictEqual(event.operation, FileOperation.CREATE);
+		assert.strictEqual(event.target!.resource.path, newFolderResource.path);
+		assert.strictEqual(event.target!.isDirectory, true);
 	});
 
 	test('createFolder: creating multiple folders at once', async () => {
@@ -162,17 +162,17 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		assert.strictEqual(result.resource.toString(), resource.toString());
 		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
-		assert.ok(result!.isDirectory);
-		assert.strictEqual(result.children!.length, testsElements.length);
+		assert.ok(result.children.length > 0);
+		assert.ok(result.isDirectory);
+		assert.strictEqual(result.children.length, testsElements.length);
 
-		assert.ok(result.children!.every(entry => {
+		assert.ok(result.children.every(entry => {
 			return testsElements.some(name => {
 				return basename(entry.resource) === name;
 			});
 		}));
 
-		result.children!.forEach(value => {
+		result.children.forEach(value => {
 			assert.ok(basename(value.resource));
 			if (['examples', 'other'].indexOf(basename(value.resource)) >= 0) {
 				assert.ok(value.isDirectory);
@@ -189,7 +189,7 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 				assert.strictEqual(value.mtime, undefined);
 				assert.strictEqual(value.ctime, undefined);
 			} else {
-				assert.ok(!'Unexpected value ' + basename(value.resource));
+				assert.fail('Unexpected value ' + basename(value.resource));
 			}
 		});
 	});

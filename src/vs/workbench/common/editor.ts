@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { DeepRequiredNonNullable, assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEncodingSupport, ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { FileType, IFileReadLimits, IFileService } from 'vs/platform/files/common/files';
-import { IPathData } from 'vs/platform/window/common/window';
-import { IExtUri } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from 'vs/base/common/errorMessage';
-import { IAction, toAction } from 'vs/base/common/actions';
-import Severity from 'vs/base/common/severity';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { localize } from '../../nls.js';
+import { Event } from '../../base/common/event.js';
+import { DeepRequiredNonNullable, assertIsDefined } from '../../base/common/types.js';
+import { URI } from '../../base/common/uri.js';
+import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from '../../editor/common/editorCommon.js';
+import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput, ITextEditorOptions } from '../../platform/editor/common/editor.js';
+import type { EditorInput } from './editor/editorInput.js';
+import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from '../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IEncodingSupport, ILanguageSupport } from '../services/textfile/common/textfiles.js';
+import { IEditorGroup } from '../services/editor/common/editorGroupsService.js';
+import { ICompositeControl, IComposite } from './composite.js';
+import { FileType, IFileReadLimits, IFileService } from '../../platform/files/common/files.js';
+import { IPathData } from '../../platform/window/common/window.js';
+import { IExtUri } from '../../base/common/resources.js';
+import { Schemas } from '../../base/common/network.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from '../../base/common/errorMessage.js';
+import { IAction, toAction } from '../../base/common/actions.js';
+import Severity from '../../base/common/severity.js';
+import { IPreferencesService } from '../services/preferences/common/preferences.js';
+import { IReadonlyEditorGroupModel } from './editor/editorGroupModel.js';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -74,7 +74,7 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 	/**
 	 * Instantiates the editor pane using the provided services.
 	 */
-	instantiate(instantiationService: IInstantiationService): T;
+	instantiate(instantiationService: IInstantiationService, group: IEditorGroup): T;
 
 	/**
 	 * Whether the descriptor is for the provided editor pane.
@@ -107,6 +107,11 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeSelection?: Event<IEditorPaneSelectionChangeEvent>;
 
 	/**
+	 * An optional event to notify when the editor inside the pane scrolled
+	 */
+	readonly onDidChangeScroll?: Event<void>;
+
+	/**
 	 * The assigned input of this editor.
 	 */
 	readonly input: EditorInput | undefined;
@@ -119,7 +124,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	readonly group: IEditorGroup | undefined;
+	readonly group: IEditorGroup;
 
 	/**
 	 * The minimum width of this editor.
@@ -181,6 +186,22 @@ export interface IEditorPane extends IComposite {
 	 * selection as needed.
 	 */
 	getSelection?(): IEditorPaneSelection | undefined;
+
+	/**
+	 * An optional method to return the current scroll position
+	 * of an editor inside the pane.
+	 *
+	 * Clients of this method will typically react to the
+	 * `onDidChangeScroll` event to receive the current
+	 * scroll position as needed.
+	 */
+	getScrollPosition?(): IEditorPaneScrollPosition;
+
+	/**
+	 * An optional method to set the current scroll position
+	 * of an editor inside the pane.
+	 */
+	setScrollPosition?(scrollPosition: IEditorPaneScrollPosition): void;
 
 	/**
 	 * Finds out if this editor is visible or not.
@@ -305,6 +326,29 @@ export function isEditorPaneWithSelection(editorPane: IEditorPane | undefined): 
 	return !!candidate && typeof candidate.getSelection === 'function' && !!candidate.onDidChangeSelection;
 }
 
+export interface IEditorPaneWithScrolling extends IEditorPane {
+
+	readonly onDidChangeScroll: Event<void>;
+
+	getScrollPosition(): IEditorPaneScrollPosition;
+
+	setScrollPosition(position: IEditorPaneScrollPosition): void;
+}
+
+export function isEditorPaneWithScrolling(editorPane: IEditorPane | undefined): editorPane is IEditorPaneWithScrolling {
+	const candidate = editorPane as IEditorPaneWithScrolling | undefined;
+
+	return !!candidate && typeof candidate.getScrollPosition === 'function' && typeof candidate.setScrollPosition === 'function' && !!candidate.onDidChangeScroll;
+}
+
+/**
+ * Scroll position of a pane
+ */
+export interface IEditorPaneScrollPosition {
+	readonly scrollTop: number;
+	readonly scrollLeft?: number;
+}
+
 /**
  * Try to retrieve the view state for the editor pane that
  * has the provided editor input opened, if at all.
@@ -327,7 +371,6 @@ export function findViewStateForEditor(input: EditorInput, group: GroupIdentifie
  */
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: EditorInput;
-	readonly group: IEditorGroup;
 }
 
 /**
@@ -489,6 +532,32 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+/**
+ * A resource list diff editor input compares multiple resources side by side
+ * highlighting the differences.
+ */
+export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
+	/**
+	 * A unique identifier of this multi diff editor input.
+	 * If a second multi diff editor with the same uri is opened, the existing one is revealed instead (even if the resources list is different!).
+	 */
+	readonly multiDiffSource?: URI;
+
+	/**
+	 * The list of resources to compare.
+	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
+	 */
+	readonly resources?: IMultiDiffEditorResource[];
+
+	/**
+	 * Whether the editor should be serialized and stored for subsequent sessions.
+	 */
+	readonly isTransient?: boolean;
+}
+
+export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {
+	readonly goToFileResource?: URI;
+}
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
 
 /**
@@ -539,6 +608,22 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 	const candidate = editor as IResourceDiffEditorInput | undefined;
 
 	return candidate?.original !== undefined && candidate.modified !== undefined;
+}
+
+export function isResourceMultiDiffEditorInput(editor: unknown): editor is IResourceMultiDiffEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceMultiDiffEditorInput | undefined;
+	if (!candidate) {
+		return false;
+	}
+	if (candidate.resources && !Array.isArray(candidate.resources)) {
+		return false;
+	}
+
+	return !!candidate.resources || !!candidate.multiDiffSource;
 }
 
 export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {
@@ -751,16 +836,10 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor cannot be in a dirty state
 	 * and may still have unsaved changes
 	 */
-	Scratchpad = 1 << 9,
-
-	/**
-	 * Signals that the editor does not support opening in
-	 * auxiliary windows yet.
-	 */
-	AuxWindowUnsupported = 1 << 10
+	Scratchpad = 1 << 9
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
 
 export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
@@ -907,7 +986,7 @@ export interface IFileEditorInput extends EditorInput, IEncodingSupport, ILangua
 	isResolved(): boolean;
 }
 
-export interface IFileEditorInputOptions extends ITextEditorOptions {
+export interface IFileLimitedEditorInputOptions extends IEditorOptions {
 
 	/**
 	 * If provided, the size of the file will be checked against the limits
@@ -915,6 +994,8 @@ export interface IFileEditorInputOptions extends ITextEditorOptions {
 	 */
 	readonly limits?: IFileReadLimits;
 }
+
+export interface IFileEditorInputOptions extends ITextEditorOptions, IFileLimitedEditorInputOptions { }
 
 export function createTooLargeFileError(group: IEditorGroup, input: EditorInput, options: IEditorOptions | undefined, message: string, preferencesService: IPreferencesService): Error {
 	return createEditorOpenError(message, [
@@ -1001,6 +1082,12 @@ export interface IEditorCommandsContext {
 	preserveFocus?: boolean;
 }
 
+export function isEditorCommandsContext(context: unknown): context is IEditorCommandsContext {
+	const candidate = context as IEditorCommandsContext | undefined;
+
+	return typeof candidate?.groupId === 'number';
+}
+
 /**
  * More information around why an editor was closed in the model.
  */
@@ -1066,6 +1153,14 @@ export interface IEditorWillMoveEvent extends IEditorIdentifier {
 
 export interface IEditorWillOpenEvent extends IEditorIdentifier { }
 
+export interface IWillInstantiateEditorPaneEvent {
+
+	/**
+	 * @see {@link IEditorDescriptor.typeId}
+	 */
+	readonly typeId: string;
+}
+
 export type GroupIdentifier = number;
 
 export const enum GroupModelChangeKind {
@@ -1076,6 +1171,9 @@ export const enum GroupModelChangeKind {
 	GROUP_LABEL,
 	GROUP_LOCKED,
 
+	/* Editors Change */
+	EDITORS_SELECTION,
+
 	/* Editor Changes */
 	EDITOR_OPEN,
 	EDITOR_CLOSE,
@@ -1084,6 +1182,7 @@ export const enum GroupModelChangeKind {
 	EDITOR_LABEL,
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
+	EDITOR_TRANSIENT,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
 	EDITOR_WILL_DISPOSE
@@ -1120,6 +1219,7 @@ interface IEditorPartConfiguration {
 	tabActionLocation?: 'left' | 'right';
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
+	alwaysShowEditorActions?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
@@ -1145,9 +1245,10 @@ interface IEditorPartConfiguration {
 	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'auto' | 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
+	dragToOpenWindow?: boolean;
 	centeredLayoutFixedWidth?: boolean;
 	doubleClickTabToToggleEditorGroupSizes?: 'maximize' | 'expand' | 'off';
-	showEditorActionsInTitleBar?: 'noTabs' | 'never';
+	editorActionsLocation?: 'default' | 'titleBar' | 'hidden';
 	limit?: IEditorPartLimitConfiguration;
 	decorations?: IEditorPartDecorationsConfiguration;
 }
@@ -1260,7 +1361,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1329,7 +1430,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceMultiDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { Position } from 'vs/editor/common/core/position';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { SmartSnippetInserter } from '../../common/smartSnippetInserter.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('SmartSnippetInserter', () => {
 

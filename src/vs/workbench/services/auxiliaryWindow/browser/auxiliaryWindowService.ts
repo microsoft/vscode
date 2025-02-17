@@ -3,20 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { mark } from 'vs/base/common/performance';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { isWeb } from 'vs/base/common/platform';
-import { IRectangle } from 'vs/platform/window/common/window';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
+import { getZoomLevel } from '../../../../base/browser/browser.js';
+import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from '../../../../base/browser/dom.js';
+import { cloneGlobalStylesheets, isGlobalStylesheet } from '../../../../base/browser/domStylesheets.js';
+import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { Barrier } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { mark } from '../../../../base/common/performance.js';
+import { isFirefox, isWeb } from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { DEFAULT_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
+import { BaseWindow } from '../../../browser/window.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IHostService } from '../../host/browser/host.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -25,43 +34,200 @@ export interface IAuxiliaryWindowOpenEvent {
 	readonly disposables: DisposableStore;
 }
 
+export enum AuxiliaryWindowMode {
+	Maximized,
+	Normal,
+	Fullscreen
+}
+
+export interface IAuxiliaryWindowOpenOptions {
+	readonly bounds?: Partial<IRectangle>;
+
+	readonly mode?: AuxiliaryWindowMode;
+	readonly zoomLevel?: number;
+
+	readonly nativeTitlebar?: boolean;
+	readonly disableFullscreen?: boolean;
+}
+
 export interface IAuxiliaryWindowService {
 
 	readonly _serviceBrand: undefined;
 
 	readonly onDidOpenAuxiliaryWindow: Event<IAuxiliaryWindowOpenEvent>;
 
-	hasWindow(windowId: number): boolean;
+	open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow>;
 
-	open(options?: { position?: IRectangle }): Promise<IAuxiliaryWindow>;
+	getWindow(windowId: number): IAuxiliaryWindow | undefined;
+}
+
+export interface BeforeAuxiliaryWindowUnloadEvent {
+	veto(reason: string | undefined): void;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
 
+	readonly onWillLayout: Event<Dimension>;
 	readonly onDidLayout: Event<Dimension>;
-	readonly onDidClose: Event<void>;
+
+	readonly onBeforeUnload: Event<BeforeAuxiliaryWindowUnloadEvent>;
+	readonly onUnload: Event<void>;
+
+	readonly whenStylesHaveLoaded: Promise<void>;
 
 	readonly window: CodeWindow;
 	readonly container: HTMLElement;
 
 	layout(): void;
+
+	createState(): IAuxiliaryWindowOpenOptions;
 }
 
-export function isAuxiliaryWindow(obj: Window): obj is CodeWindow {
-	if (obj === mainWindow) {
-		return false;
+const DEFAULT_AUX_WINDOW_DIMENSIONS = new Dimension(DEFAULT_AUX_WINDOW_SIZE.width, DEFAULT_AUX_WINDOW_SIZE.height);
+
+export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
+
+	private readonly _onWillLayout = this._register(new Emitter<Dimension>());
+	readonly onWillLayout = this._onWillLayout.event;
+
+	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
+	readonly onDidLayout = this._onDidLayout.event;
+
+	private readonly _onBeforeUnload = this._register(new Emitter<BeforeAuxiliaryWindowUnloadEvent>());
+	readonly onBeforeUnload = this._onBeforeUnload.event;
+
+	private readonly _onUnload = this._register(new Emitter<void>());
+	readonly onUnload = this._onUnload.event;
+
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
+
+	readonly whenStylesHaveLoaded: Promise<void>;
+
+	constructor(
+		readonly window: CodeWindow,
+		readonly container: HTMLElement,
+		stylesHaveLoaded: Barrier,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+	) {
+		super(window, undefined, hostService, environmentService);
+
+		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => undefined);
+
+		this.registerListeners();
 	}
 
-	const candidate = obj as CodeWindow | undefined;
+	private registerListeners(): void {
+		this._register(addDisposableListener(this.window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.handleBeforeUnload(e)));
+		this._register(addDisposableListener(this.window, EventType.UNLOAD, () => this.handleUnload()));
 
-	return !!candidate && Object.hasOwn(candidate, 'vscodeWindowId');
+		this._register(addDisposableListener(this.window, 'unhandledrejection', e => {
+			onUnexpectedError(e.reason);
+			e.preventDefault();
+		}));
+
+		this._register(addDisposableListener(this.window, EventType.RESIZE, () => this.layout()));
+
+		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0)); 						// Prevent container from scrolling (#55456)
+
+		if (isWeb) {
+			this._register(addDisposableListener(this.container, EventType.DROP, e => EventHelper.stop(e, true))); 							// Prevent default navigation on drop
+			this._register(addDisposableListener(this.container, EventType.WHEEL, e => e.preventDefault(), { passive: false })); 			// Prevent the back/forward gestures in macOS
+			this._register(addDisposableListener(this.container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true))); 					// Prevent native context menus in web
+		} else {
+			this._register(addDisposableListener(this.window.document.body, EventType.DRAG_OVER, (e: DragEvent) => EventHelper.stop(e)));	// Prevent drag feedback on <body>
+			this._register(addDisposableListener(this.window.document.body, EventType.DROP, (e: DragEvent) => EventHelper.stop(e)));		// Prevent default navigation on drop
+		}
+	}
+
+	private handleBeforeUnload(e: BeforeUnloadEvent): void {
+
+		// Check for veto from a listening component
+		let veto: string | undefined;
+		this._onBeforeUnload.fire({
+			veto(reason) {
+				if (reason) {
+					veto = reason;
+				}
+			}
+		});
+		if (veto) {
+			this.handleVetoBeforeClose(e, veto);
+
+			return;
+		}
+
+		// Check for confirm before close setting
+		const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+		const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
+		if (confirmBeforeClose) {
+			this.confirmBeforeClose(e);
+		}
+	}
+
+	protected handleVetoBeforeClose(e: BeforeUnloadEvent, reason: string): void {
+		this.preventUnload(e);
+	}
+
+	protected preventUnload(e: BeforeUnloadEvent): void {
+		e.preventDefault();
+		e.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
+	}
+
+	protected confirmBeforeClose(e: BeforeUnloadEvent): void {
+		this.preventUnload(e);
+	}
+
+	private handleUnload(): void {
+
+		// Event
+		this._onUnload.fire();
+	}
+
+	layout(): void {
+
+		// Split layout up into two events so that downstream components
+		// have a chance to participate in the beginning or end of the
+		// layout phase.
+		// This helps to build the auxiliary window in another component
+		// in the `onWillLayout` phase and then let other compoments
+		// react when the overall layout has finished in `onDidLayout`.
+
+		const dimension = getClientArea(this.window.document.body, DEFAULT_AUX_WINDOW_DIMENSIONS, this.container);
+		this._onWillLayout.fire(dimension);
+		this._onDidLayout.fire(dimension);
+	}
+
+	createState(): IAuxiliaryWindowOpenOptions {
+		return {
+			bounds: {
+				x: this.window.screenX,
+				y: this.window.screenY,
+				width: this.window.outerWidth,
+				height: this.window.outerHeight
+			},
+			zoomLevel: getZoomLevel(this.window)
+		};
+	}
+
+	override dispose(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		this._onWillDispose.fire();
+
+		super.dispose();
+	}
 }
 
 export class BrowserAuxiliaryWindowService extends Disposable implements IAuxiliaryWindowService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly DEFAULT_SIZE = { width: 800, height: 600 };
+	private static readonly DEFAULT_SIZE = DEFAULT_AUX_WINDOW_SIZE;
 
 	private static WINDOW_IDS = getWindowId(mainWindow) + 1; // start from the main window ID + 1
 
@@ -72,61 +238,112 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService protected readonly dialogService: IDialogService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHostService protected readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
 
-	async open(options?: { position?: IRectangle }): Promise<IAuxiliaryWindow> {
+	async open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow> {
 		mark('code/auxiliaryWindow/willOpen');
 
-		const disposables = new DisposableStore();
-
-		const auxiliaryWindow = await this.doOpen(options);
-		if (!auxiliaryWindow) {
+		const targetWindow = await this.openWindow(options);
+		if (!targetWindow) {
 			throw new Error(localize('unableToOpenWindowError', "Unable to open a new window."));
 		}
 
-		disposables.add(toDisposable(() => auxiliaryWindow.close()));
+		// Add a `vscodeWindowId` property to identify auxiliary windows
+		const resolvedWindowId = await this.resolveWindowId(targetWindow);
+		ensureCodeWindow(targetWindow, resolvedWindowId);
 
-		const { container, onDidLayout, onDidClose } = await this.create(auxiliaryWindow, disposables);
+		const containerDisposables = new DisposableStore();
+		const { container, stylesLoaded } = this.createContainer(targetWindow, containerDisposables, options);
 
-		const result: IAuxiliaryWindow = {
-			window: auxiliaryWindow,
-			container,
-			onDidLayout: onDidLayout.event,
-			onDidClose: onDidClose.event,
-			layout: () => onDidLayout.fire(getClientArea(container)),
-			dispose: () => disposables.dispose()
-		};
+		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container, stylesLoaded);
 
-		this.windows.set(auxiliaryWindow.vscodeWindowId, result);
-		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.vscodeWindowId)));
-
-		disposables.add(registerWindow(auxiliaryWindow));
+		const registryDisposables = new DisposableStore();
+		this.windows.set(targetWindow.vscodeWindowId, auxiliaryWindow);
+		registryDisposables.add(toDisposable(() => this.windows.delete(targetWindow.vscodeWindowId)));
 
 		const eventDisposables = new DisposableStore();
-		disposables.add(eventDisposables);
-		this._onDidOpenAuxiliaryWindow.fire({ window: result, disposables: eventDisposables });
+
+		Event.once(auxiliaryWindow.onWillDispose)(() => {
+			targetWindow.close();
+
+			containerDisposables.dispose();
+			registryDisposables.dispose();
+			eventDisposables.dispose();
+		});
+
+		registryDisposables.add(registerWindow(targetWindow));
+		this._onDidOpenAuxiliaryWindow.fire({ window: auxiliaryWindow, disposables: eventDisposables });
 
 		mark('code/auxiliaryWindow/didOpen');
 
-		return result;
+		type AuxiliaryWindowClassification = {
+			owner: 'bpasero';
+			comment: 'An event that fires when an auxiliary window is opened';
+			bounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Has window bounds provided.' };
+		};
+		type AuxiliaryWindowOpenEvent = {
+			bounds: boolean;
+		};
+		this.telemetryService.publicLog2<AuxiliaryWindowOpenEvent, AuxiliaryWindowClassification>('auxiliaryWindowOpen', { bounds: !!options?.bounds });
+
+		return auxiliaryWindow;
 	}
 
-	private async doOpen(options?: { position?: IRectangle }): Promise<CodeWindow | undefined> {
-		let position: IRectangle | undefined = options?.position;
-		if (!position) {
-			const activeWindow = getActiveWindow();
-			position = {
-				x: activeWindow.screen.availWidth / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.width / 2,
-				y: activeWindow.screen.availHeight / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.height / 2,
-				width: BrowserAuxiliaryWindowService.DEFAULT_SIZE.width,
-				height: BrowserAuxiliaryWindowService.DEFAULT_SIZE.height
+	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier): AuxiliaryWindow {
+		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService, this.environmentService);
+	}
+
+	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
+		const activeWindow = getActiveWindow();
+		const activeWindowBounds = {
+			x: activeWindow.screenX,
+			y: activeWindow.screenY,
+			width: activeWindow.outerWidth,
+			height: activeWindow.outerHeight
+		};
+
+		const width = Math.max(options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width, WindowMinimumSize.WIDTH);
+		const height = Math.max(options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height, WindowMinimumSize.HEIGHT);
+
+		let newWindowBounds: IRectangle = {
+			x: options?.bounds?.x ?? Math.max(activeWindowBounds.x + activeWindowBounds.width / 2 - width / 2, 0),
+			y: options?.bounds?.y ?? Math.max(activeWindowBounds.y + activeWindowBounds.height / 2 - height / 2, 0),
+			width,
+			height
+		};
+
+		if (!options?.bounds && newWindowBounds.x === activeWindowBounds.x && newWindowBounds.y === activeWindowBounds.y) {
+			// Offset the new window a bit so that it does not overlap
+			// with the active window, unless bounds are provided
+			newWindowBounds = {
+				...newWindowBounds,
+				x: newWindowBounds.x + 30,
+				y: newWindowBounds.y + 30
 			};
 		}
 
-		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${position.x},top=${position.y},width=${position.width},height=${position.height}`);
+		const features = coalesce([
+			'popup=yes',
+			`left=${newWindowBounds.x}`,
+			`top=${newWindowBounds.y}`,
+			`width=${newWindowBounds.width}`,
+			`height=${newWindowBounds.height}`,
+
+			// non-standard properties
+			options?.nativeTitlebar ? 'window-native-titlebar=yes' : undefined,
+			options?.disableFullscreen ? 'window-disable-fullscreen=yes' : undefined,
+			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined,
+			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined
+		]);
+
+		const auxiliaryWindow = mainWindow.open(isFirefox ? '' /* FF immediately fires an unload event if using about:blank */ : 'about:blank', undefined, features.join(','));
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
@@ -135,62 +352,103 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				buttons: [
 					{
 						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
-						run: () => this.doOpen(options)
+						run: () => this.openWindow(options)
 					}
 				],
 				cancelButton: true
 			})).result;
 		}
 
-		return auxiliaryWindow?.window as CodeWindow | undefined;
+		return auxiliaryWindow?.window;
 	}
 
-	protected async create(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
-		await this.patchMethods(auxiliaryWindow);
+	protected async resolveWindowId(auxiliaryWindow: Window): Promise<number> {
+		return BrowserAuxiliaryWindowService.WINDOW_IDS++;
+	}
+
+	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions): { stylesLoaded: Barrier; container: HTMLElement } {
+		auxiliaryWindow.document.createElement = function () {
+			// Disallow `createElement` because it would create
+			// HTML Elements in the "wrong" context and break
+			// code that does "instanceof HTMLElement" etc.
+			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
+		};
 
 		this.applyMeta(auxiliaryWindow);
-		this.applyCSS(auxiliaryWindow, disposables);
-
+		const { stylesLoaded } = this.applyCSS(auxiliaryWindow, disposables);
 		const container = this.applyHTML(auxiliaryWindow, disposables);
 
-		const { onDidLayout, onDidClose } = this.registerListeners(auxiliaryWindow, container, disposables);
-
-		return { container, onDidLayout, onDidClose };
+		return { stylesLoaded, container };
 	}
 
 	private applyMeta(auxiliaryWindow: CodeWindow): void {
-		const metaCharset = createMetaElement(auxiliaryWindow.document.head);
-		metaCharset.setAttribute('charset', 'utf-8');
+		for (const metaTag of ['meta[charset="utf-8"]', 'meta[http-equiv="Content-Security-Policy"]', 'meta[name="viewport"]', 'meta[name="theme-color"]']) {
+			const metaElement = mainWindow.document.querySelector(metaTag);
+			if (metaElement) {
+				const clonedMetaElement = createMetaElement(auxiliaryWindow.document.head);
+				copyAttributes(metaElement, clonedMetaElement);
 
-		const originalCSPMetaTag = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
-		if (originalCSPMetaTag) {
-			const csp = createMetaElement(auxiliaryWindow.document.head);
-			copyAttributes(originalCSPMetaTag, csp);
-
-			const content = csp.getAttribute('content');
-			if (content) {
-				csp.setAttribute('content', content.replace(/(script-src[^\;]*)/, `script-src 'none'`));
+				if (metaTag === 'meta[http-equiv="Content-Security-Policy"]') {
+					const content = clonedMetaElement.getAttribute('content');
+					if (content) {
+						clonedMetaElement.setAttribute('content', content.replace(/(script-src[^\;]*)/, `script-src 'none'`));
+					}
+				}
 			}
+		}
+
+		const originalIconLinkTag = mainWindow.document.querySelector('link[rel="icon"]');
+		if (originalIconLinkTag) {
+			const icon = createLinkElement(auxiliaryWindow.document.head);
+			copyAttributes(originalIconLinkTag, icon);
 		}
 	}
 
-	protected applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore): void {
+	private applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
 		mark('code/auxiliaryWindow/willApplyCSS');
 
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
 
-		function cloneNode(originalNode: Node): void {
+		const stylesLoaded = new Barrier();
+		stylesLoaded.wait().then(() => mark('code/auxiliaryWindow/didLoadCSSStyles'));
+
+		const pendingLinksDisposables = disposables.add(new DisposableStore());
+
+		let pendingLinksToSettle = 0;
+		function onLinkSettled() {
+			if (--pendingLinksToSettle === 0) {
+				pendingLinksDisposables.dispose();
+				stylesLoaded.open();
+			}
+		}
+
+		function cloneNode(originalNode: Element): void {
 			if (isGlobalStylesheet(originalNode)) {
 				return; // global stylesheets are handled by `cloneGlobalStylesheets` below
 			}
 
 			const clonedNode = auxiliaryWindow.document.head.appendChild(originalNode.cloneNode(true));
+			if (originalNode.tagName.toLowerCase() === 'link') {
+				pendingLinksToSettle++;
+
+				pendingLinksDisposables.add(addDisposableListener(clonedNode, 'load', onLinkSettled));
+				pendingLinksDisposables.add(addDisposableListener(clonedNode, 'error', onLinkSettled));
+			}
+
 			mapOriginalToClone.set(originalNode, clonedNode);
 		}
 
 		// Clone all style elements and stylesheet links from the window to the child window
-		for (const originalNode of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
-			cloneNode(originalNode);
+		// and keep track of <link> elements to settle to signal that styles have loaded
+		// Increment pending links right from the beginning to ensure we only settle when
+		// all style related nodes have been cloned.
+		pendingLinksToSettle++;
+		try {
+			for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
+				cloneNode(originalNode);
+			}
+		} finally {
+			onLinkSettled();
 		}
 
 		// Global stylesheets in <head> are cloned in a special way because the mutation
@@ -200,7 +458,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		// Listen to new stylesheets as they are being added or removed in the main window
 		// and apply to child window (including changes to existing stylesheets elements)
-		disposables.add(sharedMutationObserver.observe(document.head, disposables, { childList: true, subtree: true })(mutations => {
+		disposables.add(sharedMutationObserver.observe(mainWindow.document.head, disposables, { childList: true, subtree: true })(mutations => {
 			for (const mutation of mutations) {
 				if (
 					mutation.type !== 'childList' ||						// only interested in added/removed nodes
@@ -214,7 +472,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				for (const node of mutation.addedNodes) {
 
 					// <style>/<link> element was added
-					if (node instanceof HTMLElement && (node.tagName.toLowerCase() === 'style' || node.tagName.toLowerCase() === 'link')) {
+					if (isHTMLElement(node) && (node.tagName.toLowerCase() === 'style' || node.tagName.toLowerCase() === 'link')) {
 						cloneNode(node);
 					}
 
@@ -238,6 +496,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}));
 
 		mark('code/auxiliaryWindow/didApplyCSS');
+
+		return { stylesLoaded };
 	}
 
 	private applyHTML(auxiliaryWindow: CodeWindow, disposables: DisposableStore): HTMLElement {
@@ -245,77 +505,25 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		// Create workbench container and apply classes
 		const container = document.createElement('div');
+		container.setAttribute('role', 'application');
+		position(container, 0, 0, 0, 0, 'relative');
+		container.style.display = 'flex';
+		container.style.height = '100%';
+		container.style.flexDirection = 'column';
 		auxiliaryWindow.document.body.append(container);
 
 		// Track attributes
-		disposables.add(trackAttributes(document.documentElement, auxiliaryWindow.document.documentElement));
-		disposables.add(trackAttributes(document.body, auxiliaryWindow.document.body));
-		disposables.add(trackAttributes(this.layoutService.container, container, ['class'])); // only class attribute
+		disposables.add(trackAttributes(mainWindow.document.documentElement, auxiliaryWindow.document.documentElement));
+		disposables.add(trackAttributes(mainWindow.document.body, auxiliaryWindow.document.body));
+		disposables.add(trackAttributes(this.layoutService.mainContainer, container, ['class'])); // only class attribute
 
 		mark('code/auxiliaryWindow/didApplyHTML');
 
 		return container;
 	}
 
-	private registerListeners(auxiliaryWindow: CodeWindow, container: HTMLElement, disposables: DisposableStore) {
-		const onDidClose = disposables.add(new Emitter<void>());
-		disposables.add(addDisposableListener(auxiliaryWindow, 'unload', () => {
-			onDidClose.fire();
-		}));
-
-		disposables.add(addDisposableListener(auxiliaryWindow, 'unhandledrejection', e => {
-			onUnexpectedError(e.reason);
-			e.preventDefault();
-		}));
-
-		const onDidLayout = disposables.add(new Emitter<Dimension>());
-		disposables.add(addDisposableListener(auxiliaryWindow, EventType.RESIZE, () => {
-			const dimension = getClientArea(auxiliaryWindow.document.body);
-			position(container, 0, 0, 0, 0, 'relative');
-			size(container, dimension.width, dimension.height);
-
-			onDidLayout.fire(dimension);
-		}));
-
-		this._register(addDisposableListener(container, EventType.SCROLL, () => container.scrollTop = 0)); // Prevent container from scrolling (#55456)
-
-		if (isWeb) {
-			disposables.add(addDisposableListener(container, EventType.DROP, e => EventHelper.stop(e, true))); 					// Prevent default navigation on drop
-			disposables.add(addDisposableListener(container, EventType.WHEEL, e => e.preventDefault(), { passive: false })); 	// Prevent the back/forward gestures in macOS
-			disposables.add(addDisposableListener(container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true))); 			// Prevent native context menus in web
-		} else {
-			disposables.add(addDisposableListener(auxiliaryWindow.document.body, EventType.DRAG_OVER, (e: DragEvent) => EventHelper.stop(e)));	// Prevent drag feedback on <body>
-			disposables.add(addDisposableListener(auxiliaryWindow.document.body, EventType.DROP, (e: DragEvent) => EventHelper.stop(e)));		// Prevent default navigation on drop
-		}
-
-		return { onDidLayout, onDidClose };
-	}
-
-	protected async resolveWindowId(auxiliaryWindow: CodeWindow): Promise<number> {
-		return BrowserAuxiliaryWindowService.WINDOW_IDS++;
-	}
-
-	protected async patchMethods(auxiliaryWindow: CodeWindow): Promise<void> {
-		mark('code/auxiliaryWindow/willPatchMethods');
-
-		// Add a `vscodeWindowId` property to identify auxiliary windows
-		const resolvedWindowId = await this.resolveWindowId(auxiliaryWindow);
-		Object.defineProperty(auxiliaryWindow, 'vscodeWindowId', {
-			get: () => resolvedWindowId
-		});
-
-		// Disallow `createElement` because it would create
-		// HTML Elements in the "wrong" context and break
-		// code that does "instanceof HTMLElement" etc.
-		auxiliaryWindow.document.createElement = function () {
-			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
-		};
-
-		mark('code/auxiliaryWindow/didPatchMethods');
-	}
-
-	hasWindow(windowId: number): boolean {
-		return this.windows.has(windowId);
+	getWindow(windowId: number): IAuxiliaryWindow | undefined {
+		return this.windows.get(windowId);
 	}
 }
 

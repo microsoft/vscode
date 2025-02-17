@@ -143,5 +143,5 @@ export class JSONSchemaCache {
 	}
 }
 function getCacheFileName(uri: string): string {
-	return `${createHash('MD5').update(uri).digest('hex')}.schema.json`;
+	return `${createHash('sha256').update(uri).digest('hex')}.schema.json`;
 }

@@ -2,11 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { removeProperty, setProperty } from 'vs/base/common/jsonEdit';
-import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
+import assert from 'assert';
+import { removeProperty, setProperty } from '../../common/jsonEdit.js';
+import { Edit, FormattingOptions } from '../../common/jsonFormatter.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('JSON - edits', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertEdit(content: string, edits: Edit[], expected: string) {
 		assert(edits);

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/singleeditortabscontrol';
-import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod, IToolbarActions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
-import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
-import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
-import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
-import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { Color } from 'vs/base/common/color';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { equals } from 'vs/base/common/objects';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import './media/singleeditortabscontrol.css';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod, IToolbarActions } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { EditorTabsControl } from './editorTabsControl.js';
+import { ResourceLabel, IResourceLabel } from '../../labels.js';
+import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from '../../../common/theme.js';
+import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver, isHTMLElement } from '../../../../base/browser/dom.js';
+import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from './editorCommands.js';
+import { Color } from '../../../../base/common/color.js';
+import { assertIsDefined, assertAllDefined } from '../../../../base/common/types.js';
+import { equals } from '../../../../base/common/objects.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IEditorTitleControlDimensions } from './editorTitleControl.js';
+import { BreadcrumbsControlFactory } from './breadcrumbsControl.js';
 
 interface IRenderedEditorLabel {
 	readonly editor?: EditorInput;
@@ -34,7 +34,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
-	protected override create(parent: HTMLElement): void {
+	protected override create(parent: HTMLElement): HTMLElement {
 		super.create(parent);
 
 		const titleContainer = this.titleContainer = parent;
@@ -51,7 +51,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		titleContainer.appendChild(labelContainer);
 
 		// Editor Label
-		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, undefined)).element;
+		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, {})).element;
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
@@ -60,25 +60,29 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 			showSymbolIcons: true,
 			showDecorationColors: false,
 			widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
-			showPlaceholder: false
+			showPlaceholder: false,
+			dragEditor: true,
 		}));
 		this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
-		// Right Actions Container
-		const actionsContainer = document.createElement('div');
-		actionsContainer.classList.add('title-actions');
-		titleContainer.appendChild(actionsContainer);
+		// Create editor actions toolbar
+		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
 
-		// Editor actions toolbar
-		this.createEditorActionsToolBar(actionsContainer);
+		return titleContainer;
 	}
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {
 
-		// Group dragging
-		this.enableGroupDragging(titleContainer);
+		// Drag & Drop support
+		let lastDragEvent: DragEvent | undefined = undefined;
+		let isNewWindowOperation = false;
+		this._register(new DragAndDropObserver(titleContainer, {
+			onDragStart: e => { isNewWindowOperation = this.onGroupDragStart(e, titleContainer); },
+			onDrag: e => { lastDragEvent = e; },
+			onDragEnd: e => { this.onGroupDragEnd(e, lastDragEvent, titleContainer, isNewWindowOperation); },
+		}));
 
 		// Pin on double click
 		this._register(addDisposableListener(titleContainer, EventType.DBLCLICK, e => this.onTitleDoubleClick(e)));
@@ -129,7 +133,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// to check on the target
 		// (https://github.com/microsoft/vscode/issues/107543)
 		const target = e.initialTarget;
-		if (!(target instanceof HTMLElement) || !this.editorLabel || !isAncestor(target, this.editorLabel.element)) {
+		if (!(isHTMLElement(target)) || !this.editorLabel || !isAncestor(target, this.editorLabel.element)) {
 			return;
 		}
 
@@ -178,17 +182,15 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
-	stickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
-	}
+	stickEditor(editor: EditorInput): void { }
 
-	unstickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
-	}
+	unstickEditor(editor: EditorInput): void { }
 
 	setActive(isActive: boolean): void {
 		this.redraw();
 	}
+
+	updateEditorSelections(): void { }
 
 	updateEditorLabel(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
@@ -303,11 +305,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 				description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
 			}
 
-			let title = editor.getTitle(Verbosity.LONG);
-			if (description === title) {
-				title = ''; // dont repeat what is already shown
-			}
-
 			editorLabel.setResource(
 				{
 					resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
@@ -315,13 +312,15 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 					description
 				},
 				{
-					title,
+					title: this.getHoverTitle(editor),
 					italic: !isEditorPinned,
 					extraClasses: ['single-tab', 'title-label'].concat(editor.getLabelExtraClasses()),
 					fileDecorations: {
 						colors: Boolean(options.decorations?.colors),
 						badges: Boolean(options.decorations?.badges)
 					},
+					icon: editor.getIcon(),
+					hideIcon: options.showIcons === false,
 				}
 			);
 
@@ -355,7 +354,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// Inactive: only show "Close, "Unlock" and secondary actions
 		else {
 			return {
-				primary: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID || action.id === UNLOCK_GROUP_COMMAND_ID),
+				primary: this.groupsView.partOptions.alwaysShowEditorActions ? editorActions.primary : editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID || action.id === UNLOCK_GROUP_COMMAND_ID),
 				secondary: editorActions.secondary
 			};
 		}

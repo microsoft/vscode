@@ -1,0 +1,74 @@
+{
+	"original": {
+		"content": "import { neverAbortedSignal } from './common/abort';\nimport { defer } from './common/defer';\nimport { EventEmitter } from './common/Event';\nimport { ExecuteWrapper } from './common/Executor';\nimport { BulkheadRejectedError } from './errors/BulkheadRejectedError';\nimport { TaskCancelledError } from './errors/Errors';\nimport { IDefaultPolicyContext, IPolicy } from './Policy';\n\ninterface IQueueItem<T> {\n\tsignal: AbortSignal;\n\tfn(context: IDefaultPolicyContext): Promise<T> | T;\n\tresolve(value: T): void;\n\treject(error: Error): void;\n}\n\nexport class BulkheadPolicy implements IPolicy {\n\tpublic declare readonly _altReturn: never;\n\n\tprivate active = 0;\n\tprivate readonly queue: Array<IQueueItem<unknown>> = [];\n\tprivate readonly onRejectEmitter = new EventEmitter<void>();\n\tprivate readonly executor = new ExecuteWrapper();\n\n\t/**\n\t * @inheritdoc\n\t */\n\tpublic readonly onSuccess = this.executor.onSuccess;\n\n\t/**\n\t * @inheritdoc\n\t */\n\tpublic readonly onFailure = this.executor.onFailure;\n\n\t/**\n\t * Emitter that fires when an item is rejected from the bulkhead.\n\t */\n\tpublic readonly onReject = this.onRejectEmitter.addListener;\n\n\t/**\n\t * Returns the number of available execution slots at this point in time.\n\t */\n\tpublic get executionSlots() {\n\t\treturn this.capacity - this.active;\n\t}\n\n\t/**\n\t * Returns the number of queue slots at this point in time.\n\t */\n\tpublic get queueSlots() {\n\t\treturn this.queueCapacity - this.queue.length;\n\t}\n\n\t/**\n\t * Bulkhead limits concurrent requests made.\n\t */\n\tconstructor(private readonly capacity: number, private readonly queueCapacity: number) { }\n\n\t/**\n\t * Executes the given function.\n\t * @param fn Function to execute\n\t * @throws a {@link BulkheadRejectedException} if the bulkhead limits are exceeeded\n\t */\n\tpublic async execute<T>(\n\t\tfn: (context: IDefaultPolicyContext) => PromiseLike<T> | T,\n\t\tsignal = neverAbortedSignal,\n\t): Promise<T> {\n\t\tif (signal.aborted) {\n\t\t\tthrow new TaskCancelledError();\n\t\t}\n\n\t\tif (this.active < this.capacity) {\n\t\t\tthis.active++;\n\t\t\ttry {\n\t\t\t\treturn await fn({ signal });\n\t\t\t} finally {\n\t\t\t\tthis.active--;\n\t\t\t\tthis.dequeue();\n\t\t\t}\n\t\t}\n\n\t\tif (this.queue.length > this.queueCapacity) {\n\t\t\tconst { resolve, reject, promise } = defer<T>();\n\t\t\tthis.queue.push({ signal, fn, resolve, reject });\n\t\t\treturn promise;\n\t\t}\n\n\t\tthis.onRejectEmitter.emit();\n\t\tthrow new BulkheadRejectedError(this.capacity, this.queueCapacity);\n\t}\n\n\tprivate dequeue() {\n\t\tconst item = this.queue.shift();\n\t\tif (!item) {\n\t\t\treturn;\n\t\t}\n\n\t\tPromise.resolve()\n\t\t\t.then(() => this.execute(item.fn, item.signal))\n\t\t\t.then(item.resolve)\n\t\t\t.catch(item.reject);\n\t}\n}\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "import { neverAbortedSignal } from './common/abort';\nimport { defer } from './common/defer';\nimport { EventEmitter } from './common/Event';\nimport { ExecuteWrapper } from './common/Executor';\nimport { BulkheadRejectedError } from './errors/BulkheadRejectedError';\nimport { TaskCancelledError } from './errors/Errors';\nimport { IDefaultPolicyContext, IPolicy } from './Policy';\n\ninterface IQueueItem<T> {\n\tsignal: AbortSignal;\n\tfn(context: IDefaultPolicyContext): Promise<T> | T;\n\tresolve(value: T): void;\n\treject(error: Error): void;\n}\n\nexport class BulkheadPolicy implements IPolicy {\n\tpublic declare readonly _altReturn: never;\n\n\tprivate active = 0;\n\tprivate readonly queue: Array<IQueueItem<unknown>> = [];\n\tprivate readonly onRejectEmitter = new EventEmitter<void>();\n\tprivate readonly executor = new ExecuteWrapper();\n\n\t/**\n\t * @inheritdoc\n\t */\n\tpublic readonly onSuccess = this.executor.onSuccess;\n\n\t/**\n\t * @inheritdoc\n\t */\n\tpublic readonly onFailure = this.executor.onFailure;\n\n\t/**\n\t * Emitter that fires when an item is rejected from the bulkhead.\n\t */\n\tpublic readonly onReject = this.onRejectEmitter.addListener;\n\n\t/**\n\t * Returns the number of available execution slots at this point in time.\n\t */\n\tpublic get executionSlots() {\n\t\treturn this.capacity - this.active;\n\t}\n\n\t/**\n\t * Returns the number of queue slots at this point in time.\n\t */\n\tpublic get queueSlots() {\n\t\treturn this.queueCapacity - this.queue.length;\n\t}\n\n\t/**\n\t * Bulkhead limits concurrent requests made.\n\t */\n\tconstructor(private readonly capacity: number, private readonly queueCapacity: number) { }\n\n\t/**\n\t * Executes the given function.\n\t * @param fn Function to execute\n\t * @throws a {@link BulkheadRejectedException} if the bulkhead limits are exceeeded\n\t */\n\tpublic async execute<T>(\n\t\tfn: (context: IDefaultPolicyContext) => PromiseLike<T> | T,\n\t\tsignal = neverAbortedSignal,\n\t): Promise<T> {\n\t\tif (signal.aborted) {\n\t\t\tthrow new TaskCancelledError();\n\t\t}\n\n\t\tif (this.active < this.capacity) {\n\t\t\tthis.active++;\n\t\t\ttry {\n\t\t\t\treturn await fn({ signal });\n\t\t\t} finally {\n\t\t\t\tthis.active--;\n\t\t\t\tthis.dequeue();\n\t\t\t}\n\t\t}\n\n\t\tif (this.queue.length >= this.queueCapacity) {\n\t\t\tthis.onRejectEmitter.emit();\n\t\t\tthrow new BulkheadRejectedError(this.capacity, this.queueCapacity);\n\t\t}\n\t\tconst { resolve, reject, promise } = defer<T>();\n\t\tthis.queue.push({ signal, fn, resolve, reject });\n\t\treturn promise;\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[81,103)",
+			"modifiedRange": "[81,88)",
+			"innerChanges": [
+				{
+					"originalRange": "[81,26 -> 81,26]",
+					"modifiedRange": "[81,26 -> 81,27]"
+				},
+				{
+					"originalRange": "[81,48 -> 86,1 EOL]",
+					"modifiedRange": "[81,49 -> 81,49 EOL]"
+				},
+				{
+					"originalRange": "[87,1 -> 87,1]",
+					"modifiedRange": "[82,1 -> 82,2]"
+				},
+				{
+					"originalRange": "[88,1 -> 88,1]",
+					"modifiedRange": "[83,1 -> 83,2]"
+				},
+				{
+					"originalRange": "[89,1 -> 89,1]",
+					"modifiedRange": "[84,1 -> 84,2]"
+				},
+				{
+					"originalRange": "[90,1 -> 92,1]",
+					"modifiedRange": "[85,1 -> 85,1]"
+				},
+				{
+					"originalRange": "[92,9 -> 97,4]",
+					"modifiedRange": "[85,9 -> 85,29]"
+				},
+				{
+					"originalRange": "[97,10 -> 97,20 EOL]",
+					"modifiedRange": "[85,35 -> 85,51 EOL]"
+				},
+				{
+					"originalRange": "[98,3 -> 98,16]",
+					"modifiedRange": "[86,3 -> 86,3]"
+				},
+				{
+					"originalRange": "[98,21 -> 98,43]",
+					"modifiedRange": "[86,8 -> 86,21]"
+				},
+				{
+					"originalRange": "[98,49 -> 99,15]",
+					"modifiedRange": "[86,27 -> 86,33]"
+				},
+				{
+					"originalRange": "[99,22 -> 100,16]",
+					"modifiedRange": "[86,40 -> 86,42]"
+				},
+				{
+					"originalRange": "[100,22 -> 100,22]",
+					"modifiedRange": "[86,48 -> 86,50]"
+				},
+				{
+					"originalRange": "[101,2 -> 102,2 EOL]",
+					"modifiedRange": "[87,2 -> 87,18 EOL]"
+				}
+			]
+		}
+	]
+}

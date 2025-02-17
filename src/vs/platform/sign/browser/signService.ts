@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
-import { FileAccess } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractSignService, IVsdaValidator } from 'vs/platform/sign/common/abstractSignService';
-import { ISignService } from 'vs/platform/sign/common/sign';
+import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../amdX.js';
+import { WindowIntervalTimer } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { memoize } from '../../../base/common/decorators.js';
+import { IProductService } from '../../product/common/productService.js';
+import { AbstractSignService, IVsdaValidator } from '../common/abstractSignService.js';
+import { ISignService } from '../common/sign.js';
 
 declare module vsdaWeb {
 	export function sign(salted_message: string): string;
@@ -57,11 +58,11 @@ export class SignService extends AbstractSignService implements ISignService {
 
 	@memoize
 	private async vsda(): Promise<typeof vsda_web> {
-		const checkInterval = new IntervalTimer();
+		const checkInterval = new WindowIntervalTimer();
 		let [wasm] = await Promise.all([
 			this.getWasmBytes(),
 			new Promise<void>((resolve, reject) => {
-				require(['vsda'], resolve, reject);
+				importAMDNodeModule('vsda', 'rust/web/vsda.js').then(() => resolve(), reject);
 
 				// todo@connor4312: there seems to be a bug(?) in vscode-loader with
 				// require() not resolving in web once the script loads, so check manually
@@ -69,10 +70,9 @@ export class SignService extends AbstractSignService implements ISignService {
 					if (typeof vsda_web !== 'undefined') {
 						resolve();
 					}
-				}, 50);
-			}).finally(() => checkInterval!.dispose()),
+				}, 50, mainWindow);
+			}).finally(() => checkInterval.dispose()),
 		]);
-
 
 		const keyBytes = new TextEncoder().encode(this.productService.serverLicense?.join('\n') || '');
 		for (let i = 0; i + STEP_SIZE < keyBytes.length; i += STEP_SIZE) {
@@ -86,7 +86,8 @@ export class SignService extends AbstractSignService implements ISignService {
 	}
 
 	private async getWasmBytes(): Promise<ArrayBuffer> {
-		const response = await fetch(FileAccess.asBrowserUri('vsda/../vsda_bg.wasm').toString(true));
+		const url = resolveAmdNodeModulePath('vsda', 'rust/web/vsda_bg.wasm');
+		const response = await fetch(url);
 		if (!response.ok) {
 			throw new Error('error loading vsda');
 		}

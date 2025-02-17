@@ -3,54 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ChatAgentLocation } from './chatAgents.js';
+import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from './chatModel.js';
+import { IParsedChatRequest } from './chatParserTypes.js';
+import { IChatContentReference, IChatProgressMessage } from './chatService.js';
 
 export interface IChatVariableData {
+	id: string;
 	name: string;
+	icon?: ThemeIcon;
+	fullName?: string;
 	description: string;
-	hidden?: boolean;
+	modelDescription?: string;
 	canTakeArgument?: boolean;
 }
 
-export interface IChatRequestVariableValue {
-	level: 'short' | 'medium' | 'full';
-	value: string;
-	description?: string;
-}
+export type IChatRequestVariableValue = string | URI | Location | unknown | Uint8Array;
+
+export type IChatVariableResolverProgress =
+	| IChatContentReference
+	| IChatProgressMessage;
 
 export interface IChatVariableResolver {
-	// TODO should we spec "zoom level"
-	(messageText: string, arg: string | undefined, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+	(messageText: string, arg: string | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined>;
 }
 
 export const IChatVariablesService = createDecorator<IChatVariablesService>('IChatVariablesService');
 
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
-	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
-	hasVariable(name: string): boolean;
-	getVariables(): Iterable<Readonly<IChatVariableData>>;
-	getDynamicReferences(sessionId: string): ReadonlyArray<IDynamicReference>; // should be its own service?
+	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>;
+	attachContext(name: string, value: string | URI | Location | unknown, location: ChatAgentLocation): void;
 
 	/**
 	 * Resolves all variables that occur in `prompt`
 	 */
-	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult>;
+	resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableData;
 }
 
-export interface IChatVariableResolveResult {
-	variables: Record<string, IChatRequestVariableValue[]>;
-	prompt: string;
-}
-
-export interface IDynamicReference {
+export interface IDynamicVariable {
 	range: IRange;
-	// data: any; // File details for a file, something else for a different type of thing, is it typed?
-	data: URI;
+	id: string;
+	fullName?: string;
+	icon?: ThemeIcon;
+	prefix?: string;
+	modelDescription?: string;
+	isFile?: boolean;
+	data: IChatRequestVariableValue;
 }

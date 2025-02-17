@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/base/common/themables';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
+import { Event } from '../../base/common/event.js';
+import { IMarkdownString } from '../../base/common/htmlContent.js';
+import { IDisposable } from '../../base/common/lifecycle.js';
+import { ThemeColor } from '../../base/common/themables.js';
+import { URI, UriComponents } from '../../base/common/uri.js';
+import { IEditorOptions } from './config/editorOptions.js';
+import { IDimension } from './core/dimension.js';
+import { IPosition, Position } from './core/position.js';
+import { IRange, Range } from './core/range.js';
+import { ISelection, Selection } from './core/selection.js';
+import { IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from './model.js';
+import { IModelDecorationsChangedEvent } from './textModelEvents.js';
+import { ICommandMetadata } from '../../platform/commands/common/commands.js';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -105,7 +105,7 @@ export interface IDiffEditorModel {
 	modified: ITextModel;
 }
 
-export interface IDiffEditorViewModel {
+export interface IDiffEditorViewModel extends IDisposable {
 	readonly model: IDiffEditorModel;
 
 	waitForDiff(): Promise<void>;
@@ -145,6 +145,15 @@ export interface IContentSizeChangedEvent {
 
 	readonly contentWidthChanged: boolean;
 	readonly contentHeightChanged: boolean;
+}
+
+/**
+ * @internal
+ */
+export interface ITriggerEditorOperationEvent {
+	source: string | null | undefined;
+	handlerId: string;
+	payload: any;
 }
 
 export interface INewScrollPosition {
@@ -257,8 +266,11 @@ export interface IEditor {
 	 * be called when the container of the editor gets resized.
 	 *
 	 * If a dimension is passed in, the passed in value will be used.
+	 *
+	 * By default, this will also render the editor immediately.
+	 * If you prefer to delay rendering to the next animation frame, use postponeRendering == true.
 	 */
-	layout(dimension?: IDimension): void;
+	layout(dimension?: IDimension, postponeRendering?: boolean): void;
 
 	/**
 	 * Brings browser focus to the editor text
@@ -556,6 +568,10 @@ export interface IEditorDecorationsCollection {
 	 */
 	set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 	/**
+	 * Append `newDecorations` to this collection.
+	 */
+	append(newDecorations: readonly IModelDeltaDecoration[]): string[];
+	/**
 	 * Remove all previous decorations.
 	 */
 	clear(): void;
@@ -762,14 +778,4 @@ export interface CompositionTypePayload {
 	replacePrevCharCnt: number;
 	replaceNextCharCnt: number;
 	positionDelta: number;
-}
-
-/**
- * @internal
- */
-export interface PastePayload {
-	text: string;
-	pasteOnNewLine: boolean;
-	multicursorText: string[] | null;
-	mode: string | null;
 }

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { ITestItem, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { createTestItemChildren, ITestItemApi, ITestItemLike, TestItemCollection, TestItemEventOp } from 'vs/workbench/contrib/testing/common/testItemCollection';
+import { URI } from '../../../../../base/common/uri.js';
+import { MainThreadTestCollection } from '../../common/mainThreadTestCollection.js';
+import { ITestItem, TestsDiff } from '../../common/testTypes.js';
+import { TestId } from '../../common/testId.js';
+import { createTestItemChildren, ITestItemApi, ITestItemLike, TestItemCollection, TestItemEventOp } from '../../common/testItemCollection.js';
 
 export class TestTestItem implements ITestItemLike {
 	private readonly props: ITestItem;
@@ -106,11 +106,31 @@ export class TestTestCollection extends TestItemCollection<TestTestItem> {
  * roots/stubs.
  */
 export const getInitializedMainTestCollection = async (singleUse = testStubs.nested()) => {
-	const c = new MainThreadTestCollection(async (t, l) => singleUse.expand(t, l));
+	const c = new MainThreadTestCollection({ asCanonicalUri: u => u }, async (t, l) => singleUse.expand(t, l));
 	await singleUse.expand(singleUse.root.id, Infinity);
 	c.apply(singleUse.collectDiff());
 	singleUse.dispose();
 	return c;
+};
+
+type StubTreeIds = Readonly<{ [id: string]: StubTreeIds | undefined }>;
+
+export const makeSimpleStubTree = (ids: StubTreeIds): TestTestCollection => {
+	const collection = new TestTestCollection();
+
+	const add = (parent: TestTestItem, children: StubTreeIds, path: readonly string[]) => {
+		for (const id of Object.keys(children)) {
+			const item = new TestTestItem(new TestId([...path, id]), id);
+			parent.children.add(item);
+			if (children[id]) {
+				add(item, children[id]!, [...path, id]);
+			}
+		}
+	};
+
+	add(collection.root, ids, ['ctrlId']);
+
+	return collection;
 };
 
 export const testStubs = {

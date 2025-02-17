@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/ff5e3f24ff5f242d62954cf9e124184f27bf24dd",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/dfa69a16a1154dbc820dc1111d72faa6954dd1e2",
 	"name": "Markdown",
 	"scopeName": "text.tex.markdown_latex_combined",
 	"patterns": [
@@ -1260,7 +1260,7 @@
 			]
 		},
 		"fenced_code_block_powershell": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powershell|ps1|psm1|psd1)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powershell|ps1|psm1|psd1|pwsh)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -2258,12 +2258,7 @@
 					]
 				}
 			},
-			"name": "markup.heading.markdown",
-			"patterns": [
-				{
-					"include": "#inline"
-				}
-			]
+			"name": "markup.heading.markdown"
 		},
 		"heading-setext": {
 			"patterns": [
@@ -2488,14 +2483,34 @@
 			"name": "meta.separator.markdown"
 		},
 		"frontMatter": {
-			"begin": "\\A-{3}\\s*$",
-			"contentName": "meta.embedded.block.frontmatter",
+			"begin": "\\A(?=(-{3,}))",
+			"end": "^ {,3}\\1-*[ \\t]*$|^[ \\t]*\\.{3}$",
+			"applyEndPatternLast": 1,
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.end.frontmatter"
+				}
+			},
 			"patterns": [
 				{
-					"include": "source.yaml"
+					"begin": "\\A(-{3,})(.*)$",
+					"while": "^(?! {,3}\\1-*[ \\t]*$|[ \\t]*\\.{3}$)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.begin.frontmatter"
+						},
+						"2": {
+							"name": "comment.frontmatter"
+						}
+					},
+					"contentName": "meta.embedded.block.frontmatter",
+					"patterns": [
+						{
+							"include": "source.yaml"
+						}
+					]
 				}
-			],
-			"end": "(^|\\G)-{3}|\\.{3}\\s*$"
+			]
 		},
 		"table": {
 			"name": "markup.table.markdown",

@@ -3,49 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType, IAccessibleViewSymbol } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { BufferContentTracker } from './bufferContentTracker.js';
+import { TerminalAccessibilitySettingId } from '../common/terminalAccessibilityConfiguration.js';
 
-export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
-	id = AccessibleViewProviderId.Terminal;
-	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', id: AccessibleViewProviderId.Terminal };
-	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
+export class TerminalAccessibleBufferProvider extends Disposable implements IAccessibleViewContentProvider {
+	readonly id = AccessibleViewProviderId.Terminal;
+	readonly options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', id: AccessibleViewProviderId.Terminal };
+	readonly verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
+
+	private _focusedInstance: ITerminalInstance | undefined;
+
 	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
-	private _focusedInstance: ITerminalInstance | undefined;
+
 	constructor(
-		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
+		private readonly _instance: Pick<ITerminalInstance, 'onDidExecuteText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
 		private _bufferTracker: BufferContentTracker,
 		customHelp: () => string,
-		@IModelService _modelService: IModelService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ITerminalService _terminalService: ITerminalService
+		@ITerminalService terminalService: ITerminalService,
 	) {
 		super();
 		this.options.customHelp = customHelp;
-		this.options.position = configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
-		this.add(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
-		this.add(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.AccessibleViewPreserveCursorPosition)) {
-				this.options.position = configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+		this.options.position = configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+		this._register(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition)) {
+				this.options.position = configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
 			}
 		}));
-		this._focusedInstance = _terminalService.activeInstance;
-		this.add(_terminalService.onDidChangeActiveInstance(() => {
-			if (_terminalService.activeInstance && this._focusedInstance?.instanceId !== _terminalService.activeInstance?.instanceId) {
+		this._focusedInstance = terminalService.activeInstance;
+		this._register(terminalService.onDidChangeActiveInstance(() => {
+			if (terminalService.activeInstance && this._focusedInstance?.instanceId !== terminalService.activeInstance?.instanceId) {
 				this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal);
-				this._focusedInstance = _terminalService.activeInstance;
+				this._focusedInstance = terminalService.activeInstance;
 			}
 		}));
 	}
@@ -87,7 +86,7 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 			if (lineNumber === undefined) {
 				continue;
 			}
-			result.push({ command, lineNumber });
+			result.push({ command, lineNumber, exitCode: command.exitCode });
 		}
 		if (currentCommand) {
 			const lineNumber = this._getEditorLineForCommand(currentCommand);
@@ -114,5 +113,5 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		return line + 1;
 	}
 }
-export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number }
+export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number; exitCode?: number }
 

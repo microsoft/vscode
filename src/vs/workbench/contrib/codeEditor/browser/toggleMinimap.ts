@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class ToggleMinimapAction extends Action2 {
 
@@ -18,9 +18,8 @@ export class ToggleMinimapAction extends Action2 {
 		super({
 			id: ToggleMinimapAction.ID,
 			title: {
-				value: localize('toggleMinimap', "Toggle Minimap"),
-				original: 'Toggle Minimap',
-				mnemonicTitle: localize({ key: 'miMinimap', comment: ['&& denotes a mnemonic'] }, "&&Minimap")
+				...localize2('toggleMinimap', "Toggle Minimap"),
+				mnemonicTitle: localize({ key: 'miMinimap', comment: ['&& denotes a mnemonic'] }, "&&Minimap"),
 			},
 			category: Categories.View,
 			f1: true,

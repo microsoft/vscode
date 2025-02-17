@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as _fs from 'fs';
-import * as _url from 'url';
-import * as _cp from 'child_process';
-import * as _http from 'http';
-import * as _os from 'os';
-import { cwd } from 'vs/base/common/process';
-import { dirname, extname, resolve, join } from 'vs/base/common/path';
-import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from 'vs/platform/environment/node/argv';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
-import { PipeCommand } from 'vs/workbench/api/node/extHostCLIServer';
-import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
+import * as fs from 'fs';
+import * as url from 'url';
+import * as cp from 'child_process';
+import * as http from 'http';
+import { cwd } from '../../base/common/process.js';
+import { dirname, extname, resolve, join } from '../../base/common/path.js';
+import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from '../../platform/environment/node/argv.js';
+import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
+import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
+import { PipeCommand } from '../../workbench/api/node/extHostCLIServer.js';
+import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platform/environment/node/stdin.js';
+import { DeferredPromise } from '../../base/common/async.js';
+import { FileAccess } from '../../base/common/network.js';
 
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.
@@ -67,8 +68,10 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'status':
 		case 'install-extension':
 		case 'uninstall-extension':
+		case 'update-extensions':
 		case 'list-extensions':
 		case 'force':
+		case 'do-not-include-pack-dependencies':
 		case 'show-versions':
 		case 'category':
 		case 'verbose':
@@ -144,15 +147,15 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
 			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
-			case 'fish': file = 'fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish'; break;
+			case 'fish': file = 'shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
-		console.log(resolve(__dirname, '../..', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
+		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'common', 'scripts', file));
 		return;
 	}
 	if (cliPipe) {
 		if (parsedArgs['openExternal']) {
-			openInBrowser(parsedArgs['_'], verbose);
+			await openInBrowser(parsedArgs['_'], verbose);
 			return;
 		}
 	}
@@ -180,26 +183,34 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 
 	parsedArgs['_'] = [];
 
+	let readFromStdinPromise: Promise<void> | undefined;
+	let stdinFilePath: string | undefined;
+
 	if (hasReadStdinArg && hasStdinWithoutTty()) {
 		try {
-			let stdinFilePath = cliStdInFilePath;
+			stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
 				stdinFilePath = getStdinFilePath();
-				await readFromStdin(stdinFilePath, verbose); // throws error if file can not be written
+				const readFromStdinDone = new DeferredPromise<void>();
+				await readFromStdin(stdinFilePath, verbose, () => readFromStdinDone.complete()); // throws error if file can not be written
+				if (!parsedArgs.wait) {
+					// if `--wait` is not provided, we keep this process alive
+					// for at least as long as the stdin stream is open to
+					// ensure that we read all the data.
+					readFromStdinPromise = readFromStdinDone.p;
+				}
 			}
 
 			// Make sure to open tmp file
 			translatePath(stdinFilePath, mapFileUri, folderURIs, fileURIs);
 
-			// Enable --wait to get all data and ignore adding this to history
-			parsedArgs.wait = true;
+			// Ignore adding this to history
 			parsedArgs['skip-add-to-recently-opened'] = true;
 
 			console.log(`Reading from stdin via: ${stdinFilePath}`);
 		} catch (e) {
 			console.log(`Failed to create file to read via stdin: ${e.toString()}`);
 		}
-
 	}
 
 	if (parsedArgs.extensionDevelopmentPath) {
@@ -217,7 +228,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	}
 
 	if (cliCommand) {
-		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions']) {
+		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions'] || parsedArgs['update-extensions']) {
 			const cmdLine: string[] = [];
 			parsedArgs['install-extension']?.forEach(id => cmdLine.push('--install-extension', id));
 			parsedArgs['uninstall-extension']?.forEach(id => cmdLine.push('--uninstall-extension', id));
@@ -227,9 +238,12 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 					cmdLine.push(`--${opt}=${value}`);
 				}
 			});
+			if (parsedArgs['update-extensions']) {
+				cmdLine.push('--update-extensions');
+			}
 
-			const cp = _cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit' });
-			cp.on('error', err => console.log(err));
+			const childProcess = cp.fork(FileAccess.asFileUri('server-main').fsPath, cmdLine, { stdio: 'inherit' });
+			childProcess.on('error', err => console.log(err));
 			return;
 		}
 
@@ -258,14 +272,13 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			if (verbose) {
 				console.log(`Invoking: cmd.exe /C ${cliCommand} ${newCommandline.join(' ')} in ${processCwd}`);
 			}
-			_cp.spawn('cmd.exe', ['/C', cliCommand, ...newCommandline], {
+			cp.spawn('cmd.exe', ['/C', cliCommand, ...newCommandline], {
 				stdio: 'inherit',
 				cwd: processCwd
 			});
 		} else {
 			const cliCwd = dirname(cliCommand);
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-			newCommandline.unshift('--ms-enable-electron-run-as-node');
 			newCommandline.unshift('resources/app/out/cli.js');
 			if (verbose) {
 				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 "${cliCommand}" "${newCommandline.join('" "')}"`);
@@ -274,16 +287,16 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 				if (verbose) {
 					console.log(`Using pipes for output.`);
 				}
-				const cp = _cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit', 'pipe', 'pipe'] });
-				cp.stdout.on('data', data => process.stdout.write(data));
-				cp.stderr.on('data', data => process.stderr.write(data));
+				const childProcess = cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit', 'pipe', 'pipe'] });
+				childProcess.stdout.on('data', data => process.stdout.write(data));
+				childProcess.stderr.on('data', data => process.stderr.write(data));
 			} else {
-				_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: 'inherit' });
+				cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: 'inherit' });
 			}
 		}
 	} else {
 		if (parsedArgs.status) {
-			sendToPipe({
+			await sendToPipe({
 				type: 'status'
 			}, verbose).then((res: string) => {
 				console.log(res);
@@ -293,8 +306,8 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			return;
 		}
 
-		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions']) {
-			sendToPipe({
+		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions'] || parsedArgs['update-extensions']) {
+			await sendToPipe({
 				type: 'extensionManagement',
 				list: parsedArgs['list-extensions'] ? { showVersions: parsedArgs['show-versions'], category: parsedArgs['category'] } : undefined,
 				install: asExtensionIdOrVSIX(parsedArgs['install-extension']),
@@ -317,13 +330,14 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			waitMarkerFilePath = createWaitMarkerFileSync(verbose);
 		}
 
-		sendToPipe({
+		await sendToPipe({
 			type: 'open',
 			fileURIs,
 			folderURIs,
 			diffMode: parsedArgs.diff,
 			mergeMode: parsedArgs.merge,
 			addMode: parsedArgs.add,
+			removeMode: parsedArgs.remove,
 			gotoLineMode: parsedArgs.goto,
 			forceReuseWindow: parsedArgs['reuse-window'],
 			forceNewWindow: parsedArgs['new-window'],
@@ -334,15 +348,29 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		});
 
 		if (waitMarkerFilePath) {
-			waitForFileDeleted(waitMarkerFilePath);
+			await waitForFileDeleted(waitMarkerFilePath);
+		}
+
+		if (readFromStdinPromise) {
+			await readFromStdinPromise;
+
+		}
+
+		if (waitMarkerFilePath && stdinFilePath) {
+			try {
+				fs.unlinkSync(stdinFilePath);
+			} catch (e) {
+				//ignore
+			}
 		}
 	}
+
 }
 
 function runningInWSL2(): boolean {
 	if (!!process.env['WSL_DISTRO_NAME']) {
 		try {
-			return _cp.execSync('uname -r', { encoding: 'utf8' }).includes('-microsoft-');
+			return cp.execSync('uname -r', { encoding: 'utf8' }).includes('-microsoft-');
 		} catch (_e) {
 			// Ignore
 		}
@@ -351,17 +379,17 @@ function runningInWSL2(): boolean {
 }
 
 async function waitForFileDeleted(path: string) {
-	while (_fs.existsSync(path)) {
+	while (fs.existsSync(path)) {
 		await new Promise(res => setTimeout(res, 1000));
 	}
 }
 
-function openInBrowser(args: string[], verbose: boolean) {
+async function openInBrowser(args: string[], verbose: boolean) {
 	const uris: string[] = [];
 	for (const location of args) {
 		try {
-			if (/^(http|https|file):\/\//.test(location)) {
-				uris.push(_url.parse(location).href);
+			if (/^[a-z-]+:\/\/.+/.test(location)) {
+				uris.push(url.parse(location).href);
 			} else {
 				uris.push(pathToURI(location).href);
 			}
@@ -370,7 +398,7 @@ function openInBrowser(args: string[], verbose: boolean) {
 		}
 	}
 	if (uris.length) {
-		sendToPipe({
+		await sendToPipe({
 			type: 'openExternal',
 			uris
 		}, verbose).catch(e => {
@@ -379,7 +407,7 @@ function openInBrowser(args: string[], verbose: boolean) {
 	}
 }
 
-function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
+function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
 	if (verbose) {
 		console.log(JSON.stringify(args, null, '  '));
 	}
@@ -391,7 +419,7 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
 			return;
 		}
 
-		const opts: _http.RequestOptions = {
+		const opts: http.RequestOptions = {
 			socketPath: cliPipe,
 			path: '/',
 			method: 'POST',
@@ -401,7 +429,7 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
 			}
 		};
 
-		const req = _http.request(opts, res => {
+		const req = http.request(opts, res => {
 			if (res.headers['content-type'] !== 'application/json') {
 				reject('Error in response: Invalid content type: Expected \'application/json\', is: ' + res.headers['content-type']);
 				return;
@@ -446,18 +474,18 @@ function fatal(message: string, err: any): void {
 
 const preferredCwd = process.env.PWD || cwd(); // prefer process.env.PWD as it does not follow symlinks
 
-function pathToURI(input: string): _url.URL {
+function pathToURI(input: string): url.URL {
 	input = input.trim();
 	input = resolve(preferredCwd, input);
 
-	return _url.pathToFileURL(input);
+	return url.pathToFileURL(input);
 }
 
 function translatePath(input: string, mapFileUri: (input: string) => string, folderURIS: string[], fileURIS: string[]) {
 	const url = pathToURI(input);
 	const mappedUri = mapFileUri(url.href);
 	try {
-		const stat = _fs.lstatSync(_fs.realpathSync(input));
+		const stat = fs.lstatSync(fs.realpathSync(input));
 
 		if (stat.isFile()) {
 			fileURIS.push(mappedUri);
@@ -478,6 +506,10 @@ function translatePath(input: string, mapFileUri: (input: string) => string, fol
 
 function mapFileToRemoteUri(uri: string): string {
 	return uri.replace(/^file:\/\//, 'vscode-remote://' + cliRemoteAuthority);
+}
+
+function getAppRoot() {
+	return dirname(FileAccess.asFileUri('').fsPath);
 }
 
 const [, , productName, version, commit, executableName, ...remainingArgs] = process.argv;

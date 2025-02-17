@@ -7,6 +7,7 @@ import * as playwright from '@playwright/test';
 import { assert } from 'chai';
 
 const PORT = 8563;
+const TIMEOUT = 20 * 1000;
 
 const APP = `http://127.0.0.1:${PORT}/dist/core.html`;
 
@@ -18,7 +19,7 @@ type BrowserType = 'chromium' | 'firefox' | 'webkit';
 const browserType: BrowserType = process.env.BROWSER as BrowserType || 'chromium';
 
 before(async function () {
-	this.timeout(20 * 1000);
+	this.timeout(TIMEOUT);
 	console.log(`Starting browser: ${browserType}`);
 	browser = await playwright[browserType].launch({
 		headless: process.argv.includes('--headless'),
@@ -26,50 +27,40 @@ before(async function () {
 });
 
 after(async function () {
-	this.timeout(20 * 1000);
+	this.timeout(TIMEOUT);
 	await browser.close();
 });
 
+const pageErrors: any[] = [];
 beforeEach(async function () {
-	this.timeout(20 * 1000);
+	this.timeout(TIMEOUT);
 	page = await browser.newPage({
 		viewport: {
 			width: 800,
 			height: 600
 		}
 	});
+
+	pageErrors.length = 0;
+	page.on('pageerror', (e) => {
+		console.log(e);
+		pageErrors.push(e);
+	});
+	page.on('pageerror', (e) => {
+		console.log(e);
+		pageErrors.push(e);
+	});
 });
 
 afterEach(async () => {
 	await page.close();
-});
-
-describe('Basic loading', function (): void {
-	this.timeout(20000);
-
-	it('should fail because page has an error', async () => {
-		const pageErrors: any[] = [];
-		page.on('pageerror', (e) => {
-			console.log(e);
-			pageErrors.push(e);
-		});
-
-		page.on('pageerror', (e) => {
-			console.log(e);
-			pageErrors.push(e);
-		});
-
-		await page.goto(APP);
-		this.timeout(20000);
-
-		for (const e of pageErrors) {
-			throw e;
-		}
-	});
+	for (const e of pageErrors) {
+		throw e;
+	}
 });
 
 describe('API Integration Tests', function (): void {
-	this.timeout(20000);
+	this.timeout(TIMEOUT);
 
 	beforeEach(async () => {
 		await page.goto(APP);

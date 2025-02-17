@@ -3,25 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
-import { EventProfiling } from 'vs/base/common/event';
-import { InputLatencyContrib } from 'vs/workbench/contrib/performance/browser/inputLatencyContrib';
+import { localize2 } from '../../../../nls.js';
+import { registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from '../../../common/editor.js';
+import { PerfviewContrib, PerfviewInput } from './perfviewEditor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { InstantiationService, Trace } from '../../../../platform/instantiation/common/instantiationService.js';
+import { EventProfiling } from '../../../../base/common/event.js';
+import { InputLatencyContrib } from './inputLatencyContrib.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { GCBasedDisposableTracker, setDisposableTracker } from '../../../../base/common/lifecycle.js';
 
 // -- startup performance view
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+registerWorkbenchContribution2(
+	PerfviewContrib.ID,
 	PerfviewContrib,
-	LifecyclePhase.Ready
+	{ lazy: true }
 );
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
@@ -45,7 +48,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'perfview.show',
-			title: { value: localize('show.label', "Startup Performance"), original: 'Startup Performance' },
+			title: localize2('show.label', 'Startup Performance'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -53,8 +56,8 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		const instaService = accessor.get(IInstantiationService);
-		return editorService.openEditor(instaService.createInstance(PerfviewInput), { pinned: true });
+		const contrib = PerfviewContrib.get();
+		return editorService.openEditor(contrib.getEditorInput(), { pinned: true });
 	}
 });
 
@@ -64,7 +67,7 @@ registerAction2(class PrintServiceCycles extends Action2 {
 	constructor() {
 		super({
 			id: 'perf.insta.printAsyncCycles',
-			title: { value: localize('cycles', "Print Service Cycles"), original: 'Print Service Cycles' },
+			title: localize2('cycles', 'Print Service Cycles'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -88,7 +91,7 @@ registerAction2(class PrintServiceTraces extends Action2 {
 	constructor() {
 		super({
 			id: 'perf.insta.printTraces',
-			title: { value: localize('insta.trace', "Print Service Traces"), original: 'Print Service Traces' },
+			title: localize2('insta.trace', 'Print Service Traces'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -112,7 +115,7 @@ registerAction2(class PrintEventProfiling extends Action2 {
 	constructor() {
 		super({
 			id: 'perf.event.profiling',
-			title: { value: localize('emitter', "Print Emitter Profiles"), original: 'Print Emitter Profiles' },
+			title: localize2('emitter', 'Print Emitter Profiles'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -135,3 +138,18 @@ Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkb
 	InputLatencyContrib,
 	LifecyclePhase.Eventually
 );
+
+
+// -- track leaking disposables, those that get GC'ed before having been disposed
+
+
+class DisposableTracking {
+	static readonly Id = 'perf.disposableTracking';
+	constructor(@IEnvironmentService envService: IEnvironmentService) {
+		if (!envService.isBuilt && !envService.extensionTestsLocationURI) {
+			setDisposableTracker(new GCBasedDisposableTracker());
+		}
+	}
+}
+
+registerWorkbenchContribution2(DisposableTracking.Id, DisposableTracking, WorkbenchPhase.Eventually);

@@ -23,12 +23,12 @@ steps:
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../distro/download-distro.yml
+    - template: ../distro/download-distro.yml@self
 
-    - task: AzureKeyVault@1
+    - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
-        azureSubscription: "vscode-builds-subscription"
+        azureSubscription: vscode
         KeyVaultName: vscode-build-secrets
         SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
@@ -45,12 +45,12 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH > .build/yarnlockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/yarnlockhash'
+      key: '"node_modules" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -61,39 +61,44 @@ steps:
 
   - script: |
       set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      echo "always-auth=true" >> .npmrc
-      yarn config set registry "$NPM_REGISTRY"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: .npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
   - script: |
       set -e
-      export npm_config_arch=$(VSCODE_ARCH)
-      npm i -g node-gyp@9.4.0
+      c++ --version
+      xcode-select -print-path
       python3 -m pip install setuptools
 
       for i in {1..5}; do # try 5 times
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Npm install failed $i, trying again..."
       done
     env:
+      npm_config_arch: $(VSCODE_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
+      # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
+      # flipped the default to support legacy linux distros which shouldn't happen
+      # on macOS.
+      GYP_DEFINES: "kerberos_use_rtld=false"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -114,12 +119,12 @@ steps:
     - script: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
-  - template: ../common/install-builtin-extensions.yml
+  - template: ../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
-        yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+        npm run gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
         echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -127,7 +132,7 @@ steps:
 
     - script: |
         set -e
-        yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
+        npm run gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
         ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
@@ -139,7 +144,7 @@ steps:
 
     - script: |
         set -e
-        yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+        npm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
         ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
@@ -150,13 +155,13 @@ steps:
       displayName: Build server (web)
 
   - ${{ else }}:
-      - script: yarn gulp transpile-client-swc transpile-extensions
+      - script: npm run gulp transpile-client-esbuild transpile-extensions
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Transpile
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - template: product-build-darwin-test.yml
+    - template: product-build-darwin-test.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
@@ -176,13 +181,20 @@ steps:
         APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         APP_PATH="$APP_ROOT/$APP_NAME"
-        ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
-        unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
+        unzip $(Build.ArtifactStagingDirectory)/cli/*.zip -d $(Build.ArtifactStagingDirectory)/cli
         CLI_APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").tunnelApplicationName")
         APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").applicationName")
         mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
         chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
       displayName: Make CLI executable
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js $(VSCODE_ARCH)
+        APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.js $(VSCODE_ARCH)
+      displayName: Verify arch of Mach-O objects
 
     # Setting hardened entitlements is a requirement for:
     # * Apple notarization
@@ -212,38 +224,31 @@ steps:
       condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
       displayName: Generate artifact prefix
 
-    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-      displayName: Generate SBOM (client)
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
-        BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-        PackageName: Visual Studio Code
-
-    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-      displayName: Generate SBOM (server)
-      inputs:
-        BuildComponentPath: $(Build.SourcesDirectory)/remote
-        BuildDropPath: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
-        PackageName: Visual Studio Code Server
-
-    - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (client)
-      artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_darwin_$(VSCODE_ARCH)
-
-    - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (server)
-      artifact: $(ARTIFACT_PREFIX)sbom_vscode_server_darwin_$(VSCODE_ARCH)
-
-    - publish: $(CLIENT_PATH)
-      artifact: $(ARTIFACT_PREFIX)unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
-      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
+        targetPath: $(CLIENT_PATH)
+        artifactName: $(ARTIFACT_PREFIX)unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+        sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH) (unsigned)"
+        sbomPackageVersion: $(Build.SourceVersion)
       displayName: Publish client archive
 
-    - publish: $(SERVER_PATH)
-      artifact: $(ARTIFACT_PREFIX)vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(SERVER_PATH)
+        artifactName: $(ARTIFACT_PREFIX)vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Server"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
       displayName: Publish server archive
 
-    - publish: $(WEB_PATH)
-      artifact: $(ARTIFACT_PREFIX)vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(WEB_PATH)
+        artifactName: $(ARTIFACT_PREFIX)vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
+        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
+        sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
       displayName: Publish web server archive

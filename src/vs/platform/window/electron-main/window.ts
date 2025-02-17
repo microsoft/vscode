@@ -3,22 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Rectangle } from 'electron';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISerializableCommandAction } from 'vs/platform/action/common/action';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import electron from 'electron';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { ISerializableCommandAction } from '../../action/common/action.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_WINDOW_SIZE, INativeWindowConfiguration } from '../common/window.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export interface IBaseWindow extends IDisposable {
 
+	readonly onDidMaximize: Event<void>;
+	readonly onDidUnmaximize: Event<void>;
+	readonly onDidTriggerSystemContextMenu: Event<{ readonly x: number; readonly y: number }>;
+	readonly onDidEnterFullScreen: Event<void>;
+	readonly onDidLeaveFullScreen: Event<void>;
 	readonly onDidClose: Event<void>;
 
 	readonly id: number;
-	readonly win: BrowserWindow | null;
+	readonly win: electron.BrowserWindow | null;
 
 	readonly lastFocusTime: number;
 	focus(options?: { force: boolean }): void;
@@ -31,13 +36,16 @@ export interface IBaseWindow extends IDisposable {
 
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
+
+	matches(webContents: electron.WebContents): boolean;
 }
 
 export interface ICodeWindow extends IBaseWindow {
 
 	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;
-	readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }>;
 	readonly onDidDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;
@@ -66,18 +74,16 @@ export interface ICodeWindow extends IBaseWindow {
 
 	close(): void;
 
-	getBounds(): Rectangle;
+	getBounds(): electron.Rectangle;
 
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
 
-	handleTitleDoubleClick(): void;
-
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
-	serializeWindowState(): IWindowState;
+	notifyZoomLevel(zoomLevel: number | undefined): void;
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
+	serializeWindowState(): IWindowState;
 }
 
 export const enum LoadReason {
@@ -127,14 +133,39 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+	zoomLevel?: number;
 	readonly display?: number;
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
 	return {
-		width: 1024,
-		height: 768,
+		width: DEFAULT_WINDOW_SIZE.width,
+		height: DEFAULT_WINDOW_SIZE.height,
 		mode
+	};
+};
+
+export const defaultAuxWindowState = function (): IWindowState {
+
+	// Auxiliary windows are being created from a `window.open` call
+	// that sets `windowFeatures` that encode the desired size and
+	// position of the new window (`top`, `left`).
+	// In order to truly override this to a good default window state
+	// we need to set not only width and height but also x and y to
+	// a good location on the primary display.
+
+	const width = DEFAULT_AUX_WINDOW_SIZE.width;
+	const height = DEFAULT_AUX_WINDOW_SIZE.height;
+	const workArea = electron.screen.getPrimaryDisplay().workArea;
+	const x = Math.max(workArea.x + (workArea.width / 2) - (width / 2), 0);
+	const y = Math.max(workArea.y + (workArea.height / 2) - (height / 2), 0);
+
+	return {
+		x,
+		y,
+		width,
+		height,
+		mode: WindowMode.Normal
 	};
 };
 

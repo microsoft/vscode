@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentData, setWordDefinitionFor } from 'vs/workbench/api/common/extHostDocumentData';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IModelChangedEvent } from '../../../editor/common/model/mirrorTextModel.js';
+import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from './extHost.protocol.js';
+import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import * as TypeConverters from './extHostTypeConverters.js';
 import type * as vscode from 'vscode';
-import { assertIsDefined } from 'vs/base/common/types';
-import { deepFreeze } from 'vs/base/common/objects';
-import { TextDocumentChangeReason } from 'vs/workbench/api/common/extHostTypes';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { assertIsDefined } from '../../../base/common/types.js';
+import { deepFreeze } from '../../../base/common/objects.js';
+import { TextDocumentChangeReason } from './extHostTypes.js';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
-	private readonly _onDidAddDocument = new Emitter<vscode.TextDocument>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidRemoveDocument = new Emitter<vscode.TextDocument>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>({ onListenerError: onUnexpectedExternalError });
-	private readonly _onDidSaveDocument = new Emitter<vscode.TextDocument>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidAddDocument = new Emitter<vscode.TextDocument>();
+	private readonly _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
+	private readonly _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
+	private readonly _onDidSaveDocument = new Emitter<vscode.TextDocument>();
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;
@@ -134,6 +133,20 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 			throw new Error('unknown document');
 		}
 		data._acceptIsDirty(isDirty);
+		this._onDidChangeDocument.fire({
+			document: data.document,
+			contentChanges: [],
+			reason: undefined
+		});
+	}
+
+	public $acceptEncodingChanged(uriComponents: UriComponents, encoding: string): void {
+		const uri = URI.revive(uriComponents);
+		const data = this._documentsAndEditors.getDocument(uri);
+		if (!data) {
+			throw new Error('unknown document');
+		}
+		data._acceptEncoding(encoding);
 		this._onDidChangeDocument.fire({
 			document: data.document,
 			contentChanges: [],

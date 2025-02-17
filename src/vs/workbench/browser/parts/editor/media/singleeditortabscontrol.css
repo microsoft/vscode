@@ -33,13 +33,10 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control {
+	line-height: var(--editor-group-tab-height);
 	flex: 1 50%;
 	overflow: hidden;
 	margin-left: .45em;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
-	font-size: 0.9em;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
@@ -52,10 +49,16 @@
 	height: inherit;
 	width: inherit;
 	background-image: none;
+	font-size: 0.9em;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.backslash-path .monaco-breadcrumb-item::before  {
 	content: '\\';
+	font-size: 0.9em;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .outline-element-icon::before {
+	font-size: 0.9em;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::before,
@@ -67,6 +70,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::after {
 	content: '\00a0•\00a0'; /* use dot separator for workspace folder */
+	font-size: 0.9em;
 	padding: 0;
 }
 
@@ -87,6 +91,10 @@
 	padding-right: 2px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-icon-label .label-name {
+	font-size: 0.9em;
+}
+
 /* Editor Actions Toolbar (via title actions) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions {
@@ -96,6 +104,11 @@
 	padding-right: 8px;
 	height: var(--editor-group-tab-height);
 }
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions.hidden {
+	display: none;
+}
+
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions .action-item {
 	margin-right: 4px;

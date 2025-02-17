@@ -3,37 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../nls.js';
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as Types from 'vs/base/common/types';
-import * as Platform from 'vs/base/common/platform';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import * as Types from '../../../base/common/types.js';
+import * as Platform from '../../../base/common/platform.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 
 import {
 	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent, TaskEventKind,
 	IPresentationOptions, CommandOptions, ICommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource,
 	TaskSourceKind, IExtensionTaskSource, IRunOptions, ITaskSet, TaskGroup, TaskDefinition, PresentationOptions, RunOptions
-} from 'vs/workbench/contrib/tasks/common/tasks';
+} from '../../contrib/tasks/common/tasks.js';
 
 
-import { IResolveSet, IResolvedVariables } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { ITaskService, ITaskFilter, ITaskProvider } from 'vs/workbench/contrib/tasks/common/taskService';
+import { IResolveSet, IResolvedVariables } from '../../contrib/tasks/common/taskSystem.js';
+import { ITaskService, ITaskFilter, ITaskProvider } from '../../contrib/tasks/common/taskService.js';
 
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext } from '../common/extHost.protocol.js';
 import {
 	ITaskDefinitionDTO, ITaskExecutionDTO, IProcessExecutionOptionsDTO, ITaskPresentationOptionsDTO,
 	IProcessExecutionDTO, IShellExecutionDTO, IShellExecutionOptionsDTO, ICustomExecutionDTO, ITaskDTO, ITaskSourceDTO, ITaskHandleDTO, ITaskFilterDTO, ITaskProcessStartedDTO, ITaskProcessEndedDTO, ITaskSystemInfoDTO,
 	IRunOptionsDTO, ITaskGroupDTO
-} from 'vs/workbench/api/common/shared/tasks';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
+} from '../common/shared/tasks.js';
+import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
+import { ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 
 namespace TaskExecutionDTO {
 	export function from(value: ITaskExecution): ITaskExecutionDTO {
@@ -414,7 +415,7 @@ namespace TaskFilterDTO {
 }
 
 @extHostNamedCustomer(MainContext.MainThreadTask)
-export class MainThreadTask implements MainThreadTaskShape {
+export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 
 	private readonly _extHostContext: IExtHostContext | undefined;
 	private readonly _proxy: ExtHostTaskShape;
@@ -426,9 +427,10 @@ export class MainThreadTask implements MainThreadTaskShape {
 		@IWorkspaceContextService private readonly _workspaceContextServer: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
 	) {
+		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
-		this._taskService.onDidStateChange(async (event: ITaskEvent) => {
+		this._register(this._taskService.onDidStateChange(async (event: ITaskEvent) => {
 			if (event.kind === TaskEventKind.Changed) {
 				return;
 			}
@@ -445,22 +447,23 @@ export class MainThreadTask implements MainThreadTaskShape {
 					resolvedDefinition = await this._configurationResolverService.resolveAnyAsync(task.getWorkspaceFolder(),
 						execution.task.definition, dictionary);
 				}
-				this._proxy.$onDidStartTask(execution, event.terminalId!, resolvedDefinition);
+				this._proxy.$onDidStartTask(execution, event.terminalId, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
-				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
+				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
 				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
-		});
+		}));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		for (const value of this._providers.values()) {
 			value.disposable.dispose();
 		}
 		this._providers.clear();
+		super.dispose();
 	}
 
 	$createTaskId(taskDTO: ITaskDTO): Promise<string> {
@@ -487,10 +490,14 @@ export class MainThreadTask implements MainThreadTaskShape {
 							console.error(`Task System: can not convert task: ${JSON.stringify(dto.definition, undefined, 0)}. Task will be dropped`);
 						}
 					}
+					const processedExtension: IExtensionDescription = {
+						...value.extension,
+						extensionLocation: URI.revive(value.extension.extensionLocation)
+					};
 					return {
 						tasks,
-						extension: value.extension
-					} as ITaskSet;
+						extension: processedExtension
+					} satisfies ITaskSet;
 				});
 			},
 			resolveTask: (task: ConfiguringTask) => {

@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider } from 'vs/editor/common/languages';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { formatDocumentRangesWithProvider, formatDocumentWithProvider, getRealAndSyntheticDocumentFormattersOrdered, FormattingConflicts, FormattingMode } from 'vs/editor/contrib/format/browser/format';
-import { Range } from 'vs/editor/common/core/range';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextModel } from 'vs/editor/common/model';
-import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { generateUuid } from 'vs/base/common/uuid';
+import { getCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorAction, registerEditorAction } from '../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider } from '../../../../editor/common/languages.js';
+import * as nls from '../../../../nls.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { formatDocumentRangesWithProvider, formatDocumentWithProvider, getRealAndSyntheticDocumentFormattersOrdered, FormattingConflicts, FormattingMode, FormattingKind } from '../../../../editor/contrib/format/browser/format.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IExtensionService, toExtension } from '../../../services/extensions/common/extensions.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { editorConfigurationBaseNode } from '../../../../editor/common/config/editorConfigurationSchema.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
 
-class DefaultFormatter extends Disposable implements IWorkbenchContribution {
+export class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 	static readonly configName = 'editor.defaultFormatter';
 
@@ -61,7 +61,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	) {
 		super();
 		this._store.add(this._extensionService.onDidChangeExtensions(this._updateConfigValues, this));
-		this._store.add(FormattingConflicts.setFormatterSelector((formatter, document, mode) => this._selectFormatter(formatter, document, mode)));
+		this._store.add(FormattingConflicts.setFormatterSelector((formatter, document, mode, kind) => this._selectFormatter(formatter, document, mode, kind)));
 		this._store.add(_editorService.onDidActiveEditorChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentFormattingEditProvider.onDidChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(this._updateStatus, this));
@@ -107,7 +107,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		return s.match(/\s/) ? `'${s}'` : s;
 	}
 
-	private async _analyzeFormatter<T extends FormattingEditProvider>(formatter: T[], document: ITextModel): Promise<T | string> {
+	private async _analyzeFormatter<T extends FormattingEditProvider>(kind: FormattingKind, formatter: T[], document: ITextModel): Promise<T | string> {
 		const defaultFormatterId = this._configService.getValue<string>(DefaultFormatter.configName, {
 			resource: document.uri,
 			overrideIdentifier: document.getLanguageId()
@@ -126,7 +126,9 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			if (extension && this._extensionEnablementService.isEnabled(toExtension(extension))) {
 				// formatter does not target this file
 				const langName = this._languageService.getLanguageName(document.getLanguageId()) || document.getLanguageId();
-				const detail = nls.localize('miss', "Extension '{0}' is configured as formatter but it cannot format '{1}'-files", extension.displayName || extension.name, langName);
+				const detail = kind === FormattingKind.File
+					? nls.localize('miss.1', "Extension '{0}' is configured as formatter but it cannot format '{1}'-files", extension.displayName || extension.name, langName)
+					: nls.localize('miss.2', "Extension '{0}' is configured as formatter but it can only format '{1}'-files as a whole, not selections or parts of it.", extension.displayName || extension.name, langName);
 				return detail;
 			}
 
@@ -143,8 +145,8 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		return message;
 	}
 
-	private async _selectFormatter<T extends FormattingEditProvider>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
-		const formatterOrMessage = await this._analyzeFormatter(formatter, document);
+	private async _selectFormatter<T extends FormattingEditProvider>(formatter: T[], document: ITextModel, mode: FormattingMode, kind: FormattingKind): Promise<T | undefined> {
+		const formatterOrMessage = await this._analyzeFormatter(kind, formatter, document);
 		if (typeof formatterOrMessage !== 'string') {
 			return formatterOrMessage;
 		}
@@ -153,7 +155,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			// running from a user action -> show modal dialog so that users configure
 			// a default formatter
 			const { confirmed } = await this._dialogService.confirm({
-				message: nls.localize('miss.1', "Configure Default Formatter"),
+				message: nls.localize('miss', "Configure Default Formatter"),
 				detail: formatterOrMessage,
 				primaryButton: nls.localize({ key: 'do.config', comment: ['&& denotes a mnemonic'] }, "&&Configure...")
 			});
@@ -213,7 +215,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		const cts = new CancellationTokenSource();
 		this._languageStatusStore.add(toDisposable(() => cts.dispose(true)));
 
-		this._analyzeFormatter(formatter, document).then(result => {
+		this._analyzeFormatter(FormattingKind.File, formatter, document).then(result => {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}

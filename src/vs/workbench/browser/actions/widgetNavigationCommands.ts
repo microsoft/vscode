@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WorkbenchListFocusContextKey, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from 'vs/platform/list/browser/listService';
-import { Event } from 'vs/base/common/event';
-import { combinedDisposable, toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight, KeybindingsRegistry } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { WorkbenchListFocusContextKey, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from '../../../platform/list/browser/listService.js';
+import { Event } from '../../../base/common/event.js';
+import { combinedDisposable, toDisposable, IDisposable, Disposable } from '../../../base/common/lifecycle.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 
 /** INavigableContainer represents a logical container composed of widgets that can
 	be navigated back and forth with key shortcuts */
@@ -27,6 +27,7 @@ interface INavigableContainer {
 	 * focused, and blurred if all parts being blurred.
 	 */
 	readonly focusNotifiers: readonly IFocusNotifier[];
+	readonly name?: string; // for debugging
 	focusPreviousWidget(): void;
 	focusNextWidget(): void;
 }
@@ -36,16 +37,18 @@ interface IFocusNotifier {
 	readonly onDidBlur: Event<any>;
 }
 
-function handleFocusEventsGroup(group: readonly IFocusNotifier[], handler: (isFocus: boolean) => void): IDisposable {
+function handleFocusEventsGroup(group: readonly IFocusNotifier[], handler: (isFocus: boolean) => void, onPartFocusChange?: (index: number, state: string) => void): IDisposable {
 	const focusedIndices = new Set<number>();
 	return combinedDisposable(...group.map((events, index) => combinedDisposable(
 		events.onDidFocus(() => {
+			onPartFocusChange?.(index, 'focus');
 			if (!focusedIndices.size) {
 				handler(true);
 			}
 			focusedIndices.add(index);
 		}),
 		events.onDidBlur(() => {
+			onPartFocusChange?.(index, 'blur');
 			focusedIndices.delete(index);
 			if (!focusedIndices.size) {
 				handler(false);
@@ -57,6 +60,9 @@ function handleFocusEventsGroup(group: readonly IFocusNotifier[], handler: (isFo
 const NavigableContainerFocusedContextKey = new RawContextKey<boolean>('navigableContainerFocused', false);
 
 class NavigableContainerManager implements IDisposable {
+
+	static readonly ID = 'workbench.contrib.navigableContainerManager';
+
 	private static INSTANCE: NavigableContainerManager | undefined;
 
 	private readonly containers = new Set<INavigableContainer>();
@@ -64,7 +70,10 @@ class NavigableContainerManager implements IDisposable {
 	private focused: IContextKey<boolean>;
 
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILogService private logService: ILogService,
+		@IConfigurationService private configurationService: IConfigurationService) {
 		this.focused = NavigableContainerFocusedContextKey.bindTo(contextKeyService);
 		NavigableContainerManager.INSTANCE = this;
 	}
@@ -75,25 +84,43 @@ class NavigableContainerManager implements IDisposable {
 		NavigableContainerManager.INSTANCE = undefined;
 	}
 
+	private get debugEnabled(): boolean {
+		return this.configurationService.getValue('workbench.navigibleContainer.enableDebug');
+	}
+
+	private log(msg: string, ...args: any[]): void {
+		if (this.debugEnabled) {
+			this.logService.debug(msg, ...args);
+		}
+	}
+
 	static register(container: INavigableContainer): IDisposable {
 		const instance = this.INSTANCE;
 		if (!instance) {
 			return Disposable.None;
 		}
 		instance.containers.add(container);
+		instance.log('NavigableContainerManager.register', container.name);
 
 		return combinedDisposable(
 			handleFocusEventsGroup(container.focusNotifiers, (isFocus) => {
 				if (isFocus) {
+					instance.log('NavigableContainerManager.focus', container.name);
 					instance.focused.set(true);
 					instance.lastContainer = container;
-				} else if (instance.lastContainer === container) {
-					instance.focused.set(false);
-					instance.lastContainer = undefined;
+				} else {
+					instance.log('NavigableContainerManager.blur', container.name, instance.lastContainer?.name);
+					if (instance.lastContainer === container) {
+						instance.focused.set(false);
+						instance.lastContainer = undefined;
+					}
 				}
+			}, (index: number, event: string) => {
+				instance.log('NavigableContainerManager.partFocusChange', container.name, index, event);
 			}),
 			toDisposable(() => {
 				instance.containers.delete(container);
+				instance.log('NavigableContainerManager.unregister', container.name, instance.lastContainer?.name);
 				if (instance.lastContainer === container) {
 					instance.focused.set(false);
 					instance.lastContainer = undefined;
@@ -111,8 +138,7 @@ export function registerNavigableContainer(container: INavigableContainer): IDis
 	return NavigableContainerManager.register(container);
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(NavigableContainerManager, LifecyclePhase.Starting);
+registerWorkbenchContribution2(NavigableContainerManager.ID, NavigableContainerManager, WorkbenchPhase.BlockStartup);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'widgetNavigation.focusPrevious',

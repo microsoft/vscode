@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
+import { IChatWidgetService } from '../chat.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 
 export function registerChatCopyActions() {
 	registerAction2(class CopyAllAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.copyAll',
-				title: {
-					value: localize('interactive.copyAll.label', "Copy All"),
-					original: 'Copy All'
-				},
+				title: localize2('interactive.copyAll.label', "Copy All"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				menu: {
-					id: MenuId.ChatContext
+					id: MenuId.ChatContext,
+					when: ChatContextKeys.responseIsFiltered.toNegated(),
+					group: 'copy',
 				}
 			});
 		}
@@ -35,8 +35,8 @@ export function registerChatCopyActions() {
 			if (widget) {
 				const viewModel = widget.viewModel;
 				const sessionAsText = viewModel?.getItems()
-					.filter((item): item is (IChatRequestViewModel | IChatResponseViewModel) => isRequestVM(item) || isResponseVM(item))
-					.map(stringifyItem)
+					.filter((item): item is (IChatRequestViewModel | IChatResponseViewModel) => isRequestVM(item) || (isResponseVM(item) && !item.errorDetails?.responseIsFiltered))
+					.map(item => stringifyItem(item))
 					.join('\n\n');
 				if (sessionAsText) {
 					clipboardService.writeText(sessionAsText);
@@ -49,14 +49,13 @@ export function registerChatCopyActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.copyItem',
-				title: {
-					value: localize('interactive.copyItem.label', "Copy"),
-					original: 'Copy'
-				},
+				title: localize2('interactive.copyItem.label', "Copy"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				menu: {
-					id: MenuId.ChatContext
+					id: MenuId.ChatContext,
+					when: ChatContextKeys.responseIsFiltered.toNegated(),
+					group: 'copy',
 				}
 			});
 		}
@@ -68,13 +67,8 @@ export function registerChatCopyActions() {
 			}
 
 			const clipboardService = accessor.get(IClipboardService);
-			const text = stringifyItem(item);
+			const text = stringifyItem(item, false);
 			clipboardService.writeText(text);
 		}
 	});
-}
-
-function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel): string {
-	return isRequestVM(item) ?
-		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.asString()}`;
 }

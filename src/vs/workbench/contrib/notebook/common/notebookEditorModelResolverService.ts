@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IReference } from 'vs/base/common/lifecycle';
-import { Event, IWaitUntil } from 'vs/base/common/event';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IResolvedNotebookEditorModel, NotebookEditorModelCreationOptions } from './notebookCommon.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { Event, IWaitUntil } from '../../../../base/common/event.js';
+import { NotebookTextModel } from './model/notebookTextModel.js';
 
 export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookModelResolverService');
 
@@ -49,6 +50,8 @@ export interface INotebookEditorModelResolverService {
 
 	isDirty(resource: URI): boolean;
 
-	resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
-	resolve(resource: IUntitledNotebookResource, viewType: string): Promise<IReference<IResolvedNotebookEditorModel>>;
+	createUntitledNotebookTextModel(viewType: string): Promise<NotebookTextModel>;
+
+	resolve(resource: URI, viewType?: string, creationOptions?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;
+	resolve(resource: IUntitledNotebookResource, viewType: string, creationOtions?: NotebookEditorModelCreationOptions): Promise<IReference<IResolvedNotebookEditorModel>>;
 }

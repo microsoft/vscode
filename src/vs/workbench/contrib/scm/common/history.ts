@@ -3,56 +3,99 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
+import { IObservable } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IMenu } from '../../../../platform/actions/common/actions.js';
+import { ColorIdentifier } from '../../../../platform/theme/common/colorUtils.js';
+import { ISCMRepository } from './scm.js';
+
+export interface ISCMHistoryProviderMenus {
+	getHistoryItemMenu(historyItem: SCMHistoryItemViewModelTreeElement): IMenu;
+}
 
 export interface ISCMHistoryProvider {
+	readonly historyItemRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly historyItemRemoteRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly historyItemBaseRef: IObservable<ISCMHistoryItemRef | undefined>;
 
-	readonly onDidChangeActionButton: Event<void>;
-	readonly onDidChangeCurrentHistoryItemGroup: Event<void>;
+	readonly historyItemRefChanges: IObservable<ISCMHistoryItemRefsChangeEvent>;
 
-	get actionButton(): ISCMActionButtonDescriptor | undefined;
-	set actionButton(button: ISCMActionButtonDescriptor | undefined);
-
-	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined;
-	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);
-
-	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
-	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined>;
-	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+	provideHistoryItemRefs(historyItemsRefs?: string[]): Promise<ISCMHistoryItemRef[] | undefined>;
+	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
+	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
+	resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined>;
 }
 
 export interface ISCMHistoryOptions {
-	readonly cursor?: string;
+	readonly skip?: number;
 	readonly limit?: number | { id?: string };
+	readonly historyItemRefs?: readonly string[];
 }
 
-export interface ISCMHistoryItemGroup {
-	readonly id: string;
-	readonly label: string;
-	readonly upstream?: ISCMRemoteHistoryItemGroup;
+export interface ISCMHistoryItemStatistics {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
 }
 
-export interface ISCMRemoteHistoryItemGroup {
+export interface ISCMHistoryItemRef {
 	readonly id: string;
-	readonly label: string;
+	readonly name: string;
+	readonly revision?: string;
+	readonly category?: string;
+	readonly description?: string;
+	readonly color?: ColorIdentifier;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+}
+
+export interface ISCMHistoryItemRefsChangeEvent {
+	readonly added: readonly ISCMHistoryItemRef[];
+	readonly removed: readonly ISCMHistoryItemRef[];
+	readonly modified: readonly ISCMHistoryItemRef[];
+	readonly silent: boolean;
 }
 
 export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
-	readonly label: string;
-	readonly description?: string;
-	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	readonly subject: string;
+	readonly message: string;
+	readonly displayId?: string;
+	readonly author?: string;
+	readonly authorEmail?: string;
+	readonly authorIcon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
+	readonly statistics?: ISCMHistoryItemStatistics;
+	readonly references?: ISCMHistoryItemRef[];
+}
+
+export interface ISCMHistoryItemGraphNode {
+	readonly id: string;
+	readonly color: ColorIdentifier;
+}
+
+export interface ISCMHistoryItemViewModel {
+	readonly historyItem: ISCMHistoryItem;
+	readonly isCurrent: boolean;
+	readonly inputSwimlanes: ISCMHistoryItemGraphNode[];
+	readonly outputSwimlanes: ISCMHistoryItemGraphNode[];
+}
+
+export interface SCMHistoryItemViewModelTreeElement {
+	readonly repository: ISCMRepository;
+	readonly historyItemViewModel: ISCMHistoryItemViewModel;
+	readonly type: 'historyItemViewModel';
+}
+
+export interface SCMHistoryItemLoadMoreTreeElement {
+	readonly repository: ISCMRepository;
+	readonly graphColumns: ISCMHistoryItemGraphNode[];
+	readonly type: 'historyItemLoadMore';
 }
 
 export interface ISCMHistoryItemChange {
 	readonly uri: URI;
 	readonly originalUri?: URI;
 	readonly modifiedUri?: URI;
-	readonly renameUri?: URI;
 }

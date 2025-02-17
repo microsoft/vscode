@@ -3,18 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationHandle, INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { INotificationHandle, INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 export class AccessibilityStatus extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.accessibilityStatus';
+
 	private screenReaderNotification: INotificationHandle | null = null;
 	private promptedScreenReader: boolean = false;
 	private readonly screenReaderModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -22,25 +26,33 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
-		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this.onScreenReaderModeChange()));
-		this._register(configurationService.onDidChangeConfiguration(c => {
+		this._register(CommandsRegistry.registerCommand({ id: 'showEditorScreenReaderNotification', handler: () => this.showScreenReaderNotification() }));
+
+		this.updateScreenReaderModeElement(this.accessibilityService.isScreenReaderOptimized());
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.onScreenReaderModeChange()));
+
+		this._register(this.configurationService.onDidChangeConfiguration(c => {
 			if (c.affectsConfiguration('editor.accessibilitySupport')) {
 				this.onScreenReaderModeChange();
 			}
 		}));
-		CommandsRegistry.registerCommand({ id: 'showEditorScreenReaderNotification', handler: () => this.showScreenReaderNotification() });
-		this.updateScreenReaderModeElement(this._accessibilityService.isScreenReaderOptimized());
 	}
 
 	private showScreenReaderNotification(): void {
 		this.screenReaderNotification = this.notificationService.prompt(
 			Severity.Info,
-			localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
+			localize('screenReaderDetectedExplanation.question', "Screen reader usage detected. Do you want to enable {0} to optimize the editor for screen reader usage?", 'editor.accessibilitySupport'),
 			[{
 				label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
 				run: () => {
@@ -50,6 +62,12 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 				label: localize('screenReaderDetectedExplanation.answerNo', "No"),
 				run: () => {
 					this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
+				}
+			},
+			{
+				label: localize('screenReaderDetectedExplanation.answerLearnMore', "Learn More"),
+				run: () => {
+					this.openerService.open('https://code.visualstudio.com/docs/editor/accessibility#_screen-readers');
 				}
 			}],
 			{
@@ -69,7 +87,8 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 					text,
 					ariaLabel: text,
 					command: 'showEditorScreenReaderNotification',
-					kind: 'prominent'
+					kind: 'prominent',
+					showInAllWindows: true
 				}, 'status.editor.screenReaderMode', StatusbarAlignment.RIGHT, 100.6);
 			}
 		} else {
@@ -80,7 +99,7 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 	private onScreenReaderModeChange(): void {
 
 		// We only support text based editors
-		const screenReaderDetected = this._accessibilityService.isScreenReaderOptimized();
+		const screenReaderDetected = this.accessibilityService.isScreenReaderOptimized();
 		if (screenReaderDetected) {
 			const screenReaderConfiguration = this.configurationService.getValue('editor.accessibilitySupport');
 			if (screenReaderConfiguration === 'auto') {
@@ -94,6 +113,6 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 		if (this.screenReaderNotification) {
 			this.screenReaderNotification.close();
 		}
-		this.updateScreenReaderModeElement(this._accessibilityService.isScreenReaderOptimized());
+		this.updateScreenReaderModeElement(this.accessibilityService.isScreenReaderOptimized());
 	}
 }

@@ -6,6 +6,7 @@
 import type * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
+import { textMimeTypes } from './constants';
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -89,15 +90,6 @@ function sortOutputItemsBasedOnDisplayOrder(outputItems: NotebookCellOutputItem[
 		.sort((outputItemA, outputItemB) => outputItemA.index - outputItemB.index).map(item => item.item);
 }
 
-
-enum CellOutputMimeTypes {
-	error = 'application/vnd.code.notebook.error',
-	stderr = 'application/vnd.code.notebook.stderr',
-	stdout = 'application/vnd.code.notebook.stdout'
-}
-
-export const textMimeTypes = ['text/plain', 'text/markdown', 'text/latex', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
-
 function concatMultilineString(str: string | string[], trim?: boolean): string {
 	const nonLineFeedWhiteSpaceTrim = /(^[\t\f\v\r ]+|[\t\f\v\r ]+$)/g;
 	if (Array.isArray(str)) {
@@ -139,6 +131,8 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 			}
 		} else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
 			return NotebookCellOutputItem.text(JSON.stringify(value), mime);
+		} else if (mime === 'application/json') {
+			return NotebookCellOutputItem.json(value, mime);
 		} else {
 			// For everything else, treat the data as strings (or multi-line strings).
 			value = Array.isArray(value) ? concatMultilineString(value) : value;
@@ -152,19 +146,24 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
 	[key: string]: any;
 } {
-	const cellMetadata: { [key: string]: any } = {};
 	// We put this only for VSC to display in diff view.
 	// Else we don't use this.
-	const custom: CellMetadata = {};
+	const cellMetadata: CellMetadata = {};
+	if (cell.cell_type === 'code') {
+		if (typeof cell['execution_count'] === 'number') {
+			cellMetadata.execution_count = cell['execution_count'];
+		} else {
+			cellMetadata.execution_count = null;
+		}
+	}
+
 	if (cell['metadata']) {
-		custom['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
+		cellMetadata['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
 	}
 
 	if ('id' in cell && typeof cell.id === 'string') {
-		custom.id = cell.id;
+		cellMetadata.id = cell.id;
 	}
-
-	cellMetadata.custom = custom;
 
 	if (cell['attachments']) {
 		cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
@@ -353,7 +352,7 @@ export function jupyterNotebookModelToNotebookData(
 	preferredLanguage: string
 ): NotebookData {
 	const notebookContentWithoutCells = { ...notebookContent, cells: [] };
-	if (!notebookContent.cells || notebookContent.cells.length === 0) {
+	if (!Array.isArray(notebookContent.cells)) {
 		throw new Error('Notebook content is missing cells');
 	}
 
@@ -362,6 +361,6 @@ export function jupyterNotebookModelToNotebookData(
 		.filter((item): item is NotebookCellData => !!item);
 
 	const notebookData = new NotebookData(cells);
-	notebookData.metadata = { custom: notebookContentWithoutCells };
+	notebookData.metadata = notebookContentWithoutCells;
 	return notebookData;
 }

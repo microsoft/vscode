@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { IRange } from 'vs/editor/common/core/range';
-import { IChatAgent, IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { revive } from '../../../../base/common/marshalling.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
+import { IChatSlashData } from './chatSlashCommands.js';
+import { IChatRequestVariableValue } from './chatVariables.js';
+import { IToolData } from './languageModelToolsService.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
@@ -21,7 +24,15 @@ export interface IParsedChatRequestPart {
 	readonly range: IOffsetRange;
 	readonly editorRange: IRange;
 	readonly text: string;
+	/** How this part is represented in the prompt going to the agent */
 	readonly promptText: string;
+}
+
+export function getPromptText(request: IParsedChatRequest): { message: string; diff: number } {
+	const message = request.parts.map(r => r.promptText).join('').trimStart();
+	const diff = request.text.length - message.length;
+
+	return { message, diff };
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {
@@ -41,15 +52,33 @@ export const chatSubcommandLeader = '/';
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
+ * @deprecated, but kept for backwards compatibility with old persisted chat requests
  */
-export class ChatRequestVariablePart implements IParsedChatRequestPart {
+class ChatRequestVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'var';
 	readonly kind = ChatRequestVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string, readonly variableId: string) { }
 
 	get text(): string {
 		const argPart = this.variableArg ? `:${this.variableArg}` : '';
 		return `${chatVariableLeader}${this.variableName}${argPart}`;
+	}
+
+	get promptText(): string {
+		return this.text;
+	}
+}
+
+/**
+ * An invocation of a tool
+ */
+export class ChatRequestToolPart implements IParsedChatRequestPart {
+	static readonly Kind = 'tool';
+	readonly kind = ChatRequestToolPart.Kind;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly toolName: string, readonly toolId: string, readonly displayName?: string, readonly icon?: IToolData['icon']) { }
+
+	get text(): string {
+		return `${chatVariableLeader}${this.toolName}`;
 	}
 
 	get promptText(): string {
@@ -63,10 +92,10 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	static readonly Kind = 'agent';
 	readonly kind = ChatRequestAgentPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgent) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
 
 	get text(): string {
-		return `${chatAgentLeader}${this.agent.id}`;
+		return `${chatAgentLeader}${this.agent.name}`;
 	}
 
 	get promptText(): string {
@@ -97,7 +126,7 @@ export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
 export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 	static readonly Kind = 'slash';
 	readonly kind = ChatRequestSlashCommandPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: ISlashCommand) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: IChatSlashData) { }
 
 	get text(): string {
 		return `${chatSubcommandLeader}${this.slashCommand.command}`;
@@ -111,21 +140,17 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 /**
  * An invocation of a dynamic reference like '#file:'
  */
-export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
+export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
-	readonly kind = ChatRequestDynamicReferencePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string, readonly arg: string, readonly data: URI) { }
+	readonly kind = ChatRequestDynamicVariablePart.Kind;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean) { }
 
 	get referenceText(): string {
-		return `${this.name}:${this.arg}`;
-	}
-
-	get text(): string {
-		return `${chatVariableLeader}${this.referenceText}`;
+		return this.text.replace(chatVariableLeader, '');
 	}
 
 	get promptText(): string {
-		return `[${this.text}](values:${this.referenceText})`;
+		return this.text;
 	}
 }
 
@@ -144,13 +169,26 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestVariablePart).variableName,
-					(part as ChatRequestVariablePart).variableArg
+					(part as ChatRequestVariablePart).variableArg,
+					(part as ChatRequestVariablePart).variableId || '',
+				);
+			} else if (part.kind === ChatRequestToolPart.Kind) {
+				return new ChatRequestToolPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestToolPart).toolName,
+					(part as ChatRequestToolPart).toolId,
+					(part as ChatRequestToolPart).displayName,
+					(part as ChatRequestToolPart).icon,
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
+				let agent = (part as ChatRequestAgentPart).agent;
+				agent = reviveSerializedAgent(agent);
+
 				return new ChatRequestAgentPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestAgentPart).agent
+					agent
 				);
 			} else if (part.kind === ChatRequestAgentSubcommandPart.Kind) {
 				return new ChatRequestAgentSubcommandPart(
@@ -164,17 +202,44 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					part.editorRange,
 					(part as ChatRequestSlashCommandPart).slashCommand
 				);
-			} else if (part.kind === ChatRequestDynamicReferencePart.Kind) {
-				return new ChatRequestDynamicReferencePart(
+			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
+				return new ChatRequestDynamicVariablePart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestDynamicReferencePart).name,
-					(part as ChatRequestDynamicReferencePart).arg,
-					URI.revive((part as ChatRequestDynamicReferencePart).data)
+					(part as ChatRequestDynamicVariablePart).text,
+					(part as ChatRequestDynamicVariablePart).id,
+					(part as ChatRequestDynamicVariablePart).modelDescription,
+					revive((part as ChatRequestDynamicVariablePart).data),
+					(part as ChatRequestDynamicVariablePart).fullName,
+					(part as ChatRequestDynamicVariablePart).icon,
+					(part as ChatRequestDynamicVariablePart).isFile
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);
 			}
 		})
 	};
+}
+
+export function extractAgentAndCommand(parsed: IParsedChatRequest): { agentPart: ChatRequestAgentPart | undefined; commandPart: ChatRequestAgentSubcommandPart | undefined } {
+	const agentPart = parsed.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
+	const commandPart = parsed.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
+	return { agentPart, commandPart };
+}
+
+export function formatChatQuestion(chatAgentService: IChatAgentService, location: ChatAgentLocation, prompt: string, participant: string | null = null, command: string | null = null): string | undefined {
+	let question = '';
+	if (participant && participant !== chatAgentService.getDefaultAgent(location)?.id) {
+		const agent = chatAgentService.getAgent(participant);
+		if (!agent) {
+			// Refers to agent that doesn't exist
+			return undefined;
+		}
+
+		question += `${chatAgentLeader}${agent.name} `;
+		if (command) {
+			question += `${chatSubcommandLeader}${command} `;
+		}
+	}
+	return question + prompt;
 }

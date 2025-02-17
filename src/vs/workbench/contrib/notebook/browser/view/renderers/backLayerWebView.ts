@@ -3,58 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as osPath from 'vs/base/common/path';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise, runWhenIdle } from 'vs/base/common/async';
-import { decodeBase64 } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { getExtensionForMimeType } from 'vs/base/common/mime';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { equals } from 'vs/base/common/objects';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { dirname, extname, isEqual, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import * as UUID from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService, matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { editorFindMatch, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
-import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellUri, ICellOutput, INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
-import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/contrib/webview/common/webview';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { getWindow } from '../../../../../../base/browser/dom.js';
+import { IMouseWheelEvent } from '../../../../../../base/browser/mouseEvent.js';
+import { CodeWindow } from '../../../../../../base/browser/window.js';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../../base/common/actions.js';
+import { coalesce } from '../../../../../../base/common/arrays.js';
+import { DeferredPromise, runWhenGlobalIdle } from '../../../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
+import { FileAccess, Schemas, matchesScheme, matchesSomeScheme } from '../../../../../../base/common/network.js';
+import { equals } from '../../../../../../base/common/objects.js';
+import * as osPath from '../../../../../../base/common/path.js';
+import { isMacintosh, isWeb } from '../../../../../../base/common/platform.js';
+import { dirname, extname, isEqual, joinPath } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import * as UUID from '../../../../../../base/common/uuid.js';
+import { TokenizationRegistry } from '../../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { generateTokensCSSForColorMap } from '../../../../../../editor/common/languages/supports/tokenization.js';
+import { tokenizeToString } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
+import * as nls from '../../../../../../nls.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { ITextEditorOptions, ITextEditorSelection } from '../../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { editorFindMatch, editorFindMatchHighlight } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService, Themable } from '../../../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
+import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from '../../notebookBrowser.js';
+import { NOTEBOOK_WEBVIEW_BOUNDARY } from '../notebookCellList.js';
+import { preloadsScriptStr } from './webviewPreloads.js';
+import { transformWebviewThemeVars } from './webviewThemeMapping.js';
+import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
+import { CellUri, ICellOutput, INotebookRendererInfo, RendererMessagingSpec } from '../../../common/notebookCommon.js';
+import { INotebookKernel } from '../../../common/notebookKernelService.js';
+import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
+import { IScopedRendererMessaging } from '../../../common/notebookRendererMessagingService.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from '../../../../webview/browser/webview.js';
+import { WebviewWindowDragMonitor } from '../../../../webview/browser/webviewWindowDragMonitor.js';
+import { asWebviewUri, webviewGenericCspSource } from '../../../../webview/common/webview.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages.js';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -112,10 +114,14 @@ interface BacklayerWebviewOptions {
 	readonly fontFamily: string;
 	readonly outputFontFamily: string;
 	readonly markupFontSize: number;
+	readonly markdownLineHeight: number;
 	readonly outputLineHeight: number;
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
 	readonly outputLineLimit: number;
+	readonly outputLinkifyFilePaths: boolean;
+	readonly minimalError: boolean;
+	readonly markupFontFamily: string;
 }
 
 
@@ -244,7 +250,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			renderOptions: {
 				lineLimit: this.options.outputLineLimit,
 				outputScrolling: this.options.outputScrolling,
-				outputWordWrap: this.options.outputWordWrap
+				outputWordWrap: this.options.outputWordWrap,
+				linkifyFilePaths: this.options.outputLinkifyFilePaths,
+				minimalError: this.options.minimalError
 			}
 		});
 	}
@@ -260,9 +268,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
 			'notebook-markup-font-size': typeof this.options.markupFontSize === 'number' && this.options.markupFontSize > 0 ? `${this.options.markupFontSize}px` : `calc(${this.options.fontSize}px * 1.2)`,
+			'notebook-markdown-line-height': typeof this.options.markdownLineHeight === 'number' && this.options.markdownLineHeight > 0 ? `${this.options.markdownLineHeight}px` : `normal`,
 			'notebook-cell-output-font-size': `${this.options.outputFontSize || this.options.fontSize}px`,
 			'notebook-cell-output-line-height': `${this.options.outputLineHeight}px`,
-			'notebook-cell-output-max-height': `${this.options.outputLineHeight * this.options.outputLineLimit}px`,
+			'notebook-cell-output-max-height': `${this.options.outputLineHeight * this.options.outputLineLimit + 2}px`,
 			'notebook-cell-output-font-family': this.options.outputFontFamily || this.options.fontFamily,
 			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double-click or press enter to edit."),
 			'notebook-cell-renderer-not-found-error': nls.localize({
@@ -273,6 +282,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				key: 'notebook.error.rendererFallbacksExhausted',
 				comment: ['$0 is a placeholder for the mime type']
 			}, "Could not render content for '$0'"),
+			'notebook-markup-font-family': this.options.markupFontFamily,
 		};
 	}
 
@@ -282,7 +292,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const renderOptions = {
 			lineLimit: this.options.outputLineLimit,
 			outputScrolling: this.options.outputScrolling,
-			outputWordWrap: this.options.outputWordWrap
+			outputWordWrap: this.options.outputWordWrap,
+			linkifyFilePaths: this.options.outputLinkifyFilePaths,
+			minimalError: this.options.minimalError
 		};
 		const preloadScript = preloadsScriptStr(
 			{
@@ -331,6 +343,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						width: 100%;
 					}
 
+					#container .cell_container.nb-insertHighlight div.output_container div.output {
+						background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
+					}
+
 					#container > div > div > div.output {
 						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
@@ -358,7 +374,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						white-space: initial;
 
 						font-size: var(--notebook-markup-font-size);
+						line-height: var(--notebook-markdown-line-height);
 						color: var(--theme-ui-foreground);
+						font-family: var(--notebook-markup-font-family);
 					}
 
 					#container div.preview.draggable {
@@ -386,6 +404,22 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						background-color: var(--theme-notebook-symbol-highlight-background);
 					}
 
+					#container .nb-symbolHighlight .output_container .output {
+						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
+					#container .markup > div.nb-multiCellHighlight {
+						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
+					#container .nb-multiCellHighlight .output_container .output {
+						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
+					#container .nb-chatGenerationHighlight .output_container .output {
+						background-color: var(--vscode-notebook-selectedCellBackground);
+					}
+
 					#container > div.nb-cellDeleted .output_container {
 						background-color: var(--theme-notebook-diff-removed-background);
 					}
@@ -409,7 +443,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					}
 
 					table, thead, tr, th, td, tbody {
-						border: none !important;
+						border: none;
 						border-color: transparent;
 						border-spacing: 0;
 						border-collapse: collapse;
@@ -470,7 +504,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				id: renderer.id,
 				entrypoint,
 				mimeTypes: renderer.mimeTypes,
-				messaging: renderer.messaging !== RendererMessagingSpec.Never,
+				messaging: renderer.messaging !== RendererMessagingSpec.Never && !!this.rendererMessaging,
 				isBuiltin: renderer.isBuiltin
 			};
 		});
@@ -508,10 +542,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return !!this.webview;
 	}
 
-	createWebview(): Promise<void> {
+	createWebview(targetWindow: CodeWindow): Promise<void> {
 		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
 		const htmlContent = this.generateContent(baseUrl.toString());
-		return this._initialize(htmlContent);
+		return this._initialize(htmlContent, targetWindow);
 	}
 
 	private getNotebookBaseUri() {
@@ -542,20 +576,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		return [
-			dirname(FileAccess.asFileUri('vs/loader.js')),
+			dirname(FileAccess.asFileUri('vs/nls.js')),
 		];
 	}
 
-	private _initialize(content: string): Promise<void> {
-		if (!document.body.contains(this.element)) {
+	private _initialize(content: string, targetWindow: CodeWindow): Promise<void> {
+		if (!getWindow(this.element).document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
 
 		this.webview = this._createInset(this.webviewService, content);
-		this.webview.mountTo(this.element);
+		this.webview.mountTo(this.element, targetWindow);
 		this._register(this.webview);
 
-		this._register(new WebviewWindowDragMonitor(() => this.webview));
+		this._register(new WebviewWindowDragMonitor(targetWindow, () => this.webview));
 
 		const initializePromise = new DeferredPromise<void>();
 
@@ -662,7 +696,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 						if (latestCell) {
 							latestCell.outputIsFocused = true;
-							this.notebookEditor.focusNotebookCell(latestCell, 'output', { skipReveal: true });
+							this.notebookEditor.focusNotebookCell(latestCell, 'output', { outputId: resolvedResult.output.model.outputId, skipReveal: true, outputWebviewFocused: true });
 						}
 					}
 					break;
@@ -673,6 +707,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 						if (latestCell) {
 							latestCell.outputIsFocused = false;
+							latestCell.inputInOutputIsFocused = false;
 						}
 					}
 					break;
@@ -895,15 +930,49 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				}
 				case 'notebookPerformanceMessage': {
 					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
+					if (data.mimeType && data.outputSize && data.rendererId === 'vscode.builtin-renderer') {
+						this._sendPerformanceData(data.mimeType, data.outputSize, data.duration);
+					}
 					break;
 				}
 				case 'outputInputFocus': {
+					const resolvedResult = this.resolveOutputId(data.id);
+					if (resolvedResult) {
+						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+						if (latestCell) {
+							latestCell.inputInOutputIsFocused = data.inputFocused;
+						}
+					}
 					this.notebookEditor.didFocusOutputInputChange(data.inputFocused);
 				}
 			}
 		}));
 
 		return initializePromise.p;
+	}
+
+	private _sendPerformanceData(mimeType: string, outputSize: number, renderTime: number) {
+		type NotebookOutputRenderClassification = {
+			owner: 'amunger';
+			comment: 'Track performance data for output rendering';
+			mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Presentation type of the output.' };
+			outputSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Size of the output data buffer.'; isMeasurement: true };
+			renderTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time spent rendering output.'; isMeasurement: true };
+		};
+
+		type NotebookOutputRenderEvent = {
+			mimeType: string;
+			outputSize: number;
+			renderTime: number;
+		};
+
+		const telemetryData = {
+			mimeType,
+			outputSize,
+			renderTime
+		};
+
+		this.telemetryService.publicLog2<NotebookOutputRenderEvent, NotebookOutputRenderClassification>('NotebookCellOutputRender', telemetryData);
 	}
 
 	private _handleNotebookCellResource(uri: URI) {
@@ -1057,7 +1126,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (match) {
-			match.group.openEditor(match.editor, lineNumber !== undefined && column !== undefined ? <ITextEditorOptions>{ selection: { startLineNumber: lineNumber, startColumn: column } } : undefined);
+			const selection: ITextEditorSelection | undefined = lineNumber !== undefined && column !== undefined ? { startLineNumber: lineNumber, startColumn: column } : undefined;
+			const textEditorOptions: ITextEditorOptions = { selection: selection };
+			match.group.openEditor(match.editor, selection ? textEditorOptions : undefined);
 		} else {
 			this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
 		}
@@ -1435,7 +1506,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return;
 		}
 
-		this.pendingWebviewIdleCreationRequest.set(content.source, runWhenIdle(() => {
+		this.pendingWebviewIdleCreationRequest.set(content.source, runWhenGlobalIdle(() => {
 			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true, true);
 			this._sendMessageToWebview(message, transferable);
 			this.pendingWebviewIdleInsetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });
@@ -1668,6 +1739,30 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview?.focus();
 	}
 
+	selectOutputContents(cell: ICellViewModel) {
+		if (this._disposed) {
+			return;
+		}
+		const output = cell.outputsViewModels.find(o => o.model.outputId === cell.focusedOutputId);
+		const outputId = output ? this.insetMapping.get(output)?.outputId : undefined;
+		this._sendMessageToWebview({
+			type: 'select-output-contents',
+			cellOrOutputId: outputId || cell.id
+		});
+	}
+
+	selectInputContents(cell: ICellViewModel) {
+		if (this._disposed) {
+			return;
+		}
+		const output = cell.outputsViewModels.find(o => o.model.outputId === cell.focusedOutputId);
+		const outputId = output ? this.insetMapping.get(output)?.outputId : undefined;
+		this._sendMessageToWebview({
+			type: 'select-input-contents',
+			cellOrOutputId: outputId || cell.id
+		});
+	}
+
 	focusOutput(cellOrOutputId: string, alternateId: string | undefined, viewFocused: boolean) {
 		if (this._disposed) {
 			return;
@@ -1684,7 +1779,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }): Promise<IFindMatch[]> {
+	blurOutput() {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'blur-output'
+		});
+	}
+
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string; findIds: string[] }): Promise<IFindMatch[]> {
 		if (query === '') {
 			this._sendMessageToWebview({
 				type: 'findStop',

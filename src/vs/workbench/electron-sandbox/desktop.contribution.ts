@@ -3,31 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ExperimentalSplitWindowAction } from 'vs/workbench/electron-sandbox/actions/windowActions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
-import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
-import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import product from 'vs/platform/product/common/product';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { localize, localize2 } from '../../nls.js';
+import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/common/actions.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
+import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
+import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction } from './actions/developerActions.js';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from './actions/windowActions.js';
+import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
+import { CommandsRegistry } from '../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { IsMacContext } from '../../platform/contextkey/common/contextkeys.js';
+import { INativeHostService } from '../../platform/native/common/native.js';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { IJSONSchema } from '../../base/common/jsonSchema.js';
+import { InstallShellScriptAction, UninstallShellScriptAction } from './actions/installActions.js';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from '../common/contextkeys.js';
+import { TELEMETRY_SETTING_ID } from '../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ShutdownReason } from '../services/lifecycle/common/lifecycle.js';
+import { NativeWindow } from './window.js';
+import { ModifierKeyEmitter } from '../../base/browser/dom.js';
+import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from '../common/configuration.js';
+import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-sandbox/window.js';
+import product from '../../platform/product/common/product.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contributions.js';
+import { LinuxCustomTitlebarExperiment } from './parts/titlebar/titlebarPart.js';
 
 // Actions
 (function registerActions(): void {
@@ -41,10 +44,6 @@ import product from 'vs/platform/product/common/product';
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(CloseWindowAction);
-	if (product.quality !== 'stable') {
-		// TODO@bpasero revisit
-		registerAction2(ExperimentalSplitWindowAction);
-	}
 
 	if (isMacintosh) {
 		// macOS: behave like other native apps that have documents
@@ -91,12 +90,12 @@ import product from 'vs/platform/product/common/product';
 	// Actions: macOS Native Tabs
 	if (isMacintosh) {
 		for (const command of [
-			{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: { value: localize('newTab', "New Window Tab"), original: 'New Window Tab' } },
-			{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: { value: localize('showPreviousTab', "Show Previous Window Tab"), original: 'Show Previous Window Tab' } },
-			{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: { value: localize('showNextWindowTab', "Show Next Window Tab"), original: 'Show Next Window Tab' } },
-			{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: { value: localize('moveWindowTabToNewWindow', "Move Window Tab to New Window"), original: 'Move Window Tab to New Window' } },
-			{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: { value: localize('mergeAllWindowTabs', "Merge All Windows"), original: 'Merge All Windows' } },
-			{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: { value: localize('toggleWindowTabsBar', "Toggle Window Tabs Bar"), original: 'Toggle Window Tabs Bar' } }
+			{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: localize2('newTab', 'New Window Tab') },
+			{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: localize2('showPreviousTab', 'Show Previous Window Tab') },
+			{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: localize2('showNextWindowTab', 'Show Next Window Tab') },
+			{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: localize2('moveWindowTabToNewWindow', 'Move Window Tab to New Window') },
+			{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: localize2('mergeAllWindowTabs', 'Merge All Windows') },
+			{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: localize2('toggleWindowTabsBar', 'Toggle Window Tabs Bar') }
 		]) {
 			CommandsRegistry.registerCommand(command.id, command.handler);
 
@@ -112,6 +111,7 @@ import product from 'vs/platform/product/common/product';
 	registerAction2(ConfigureRuntimeArgumentsAction);
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
+	registerAction2(ShowGPUInfoAction);
 })();
 
 // Menu
@@ -156,6 +156,11 @@ import product from 'vs/platform/product/common/product';
 		'title': localize('windowConfigurationTitle', "Window"),
 		'type': 'object',
 		'properties': {
+			'window.confirmSaveUntitledWorkspace': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('confirmSaveUntitledWorkspace', "Controls whether a confirmation dialog shows asking to save or discard an opened untitled workspace in the window when switching to another workspace. Disabling the confirmation dialog will always discard the untitled workspace."),
+			},
 			'window.openWithoutArgumentsInNewWindow': {
 				'type': 'string',
 				'enum': ['on', 'off'],
@@ -171,15 +176,15 @@ import product from 'vs/platform/product/common/product';
 				'type': 'string',
 				'enum': ['preserve', 'all', 'folders', 'one', 'none'],
 				'enumDescriptions': [
-					localize('window.reopenFolders.preserve', "Always reopen all windows. If a folder or workspace is opened (e.g. from the command line) it opens as a new window unless it was opened before. If files are opened they will open in one of the restored windows."),
-					localize('window.reopenFolders.all', "Reopen all windows unless a folder, workspace or file is opened (e.g. from the command line)."),
-					localize('window.reopenFolders.folders', "Reopen all windows that had folders or workspaces opened unless a folder, workspace or file is opened (e.g. from the command line)."),
-					localize('window.reopenFolders.one', "Reopen the last active window unless a folder, workspace or file is opened (e.g. from the command line)."),
+					localize('window.reopenFolders.preserve', "Always reopen all windows. If a folder or workspace is opened (e.g. from the command line) it opens as a new window unless it was opened before. If files are opened they will open in one of the restored windows together with editors that were previously opened."),
+					localize('window.reopenFolders.all', "Reopen all windows unless a folder, workspace or file is opened (e.g. from the command line). If a file is opened, it will replace any of the editors that were previously opened in a window."),
+					localize('window.reopenFolders.folders', "Reopen all windows that had folders or workspaces opened unless a folder, workspace or file is opened (e.g. from the command line). If a file is opened, it will replace any of the editors that were previously opened in a window."),
+					localize('window.reopenFolders.one', "Reopen the last active window unless a folder, workspace or file is opened (e.g. from the command line). If a file is opened, it will replace any of the editors that were previously opened in a window."),
 					localize('window.reopenFolders.none', "Never reopen a window. Unless a folder or workspace is opened (e.g. from the command line), an empty window will appear.")
 				],
 				'default': 'all',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('restoreWindows', "Controls how windows are being reopened after starting for the first time. This setting has no effect when the application is already running.")
+				'description': localize('restoreWindows', "Controls how windows and editors within are being restored when opening.")
 			},
 			'window.restoreFullscreen': {
 				'type': 'boolean',
@@ -190,9 +195,16 @@ import product from 'vs/platform/product/common/product';
 			'window.zoomLevel': {
 				'type': 'number',
 				'default': 0,
-				'minimum': -5,
-				'description': localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity."),
+				'minimum': MIN_ZOOM_LEVEL,
+				'maximum': MAX_ZOOM_LEVEL,
+				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomLevel' }, "Adjust the default zoom level for all windows. Each increment above `0` (e.g. `1`) or below (e.g. `-1`) represents zooming `20%` larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity. See {0} for configuring if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window.", '`#window.zoomPerWindow#`'),
 				ignoreSync: true,
+				tags: ['accessibility']
+			},
+			'window.zoomPerWindow': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomPerWindow' }, "Controls if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window. See {0} for configuring a default zoom level for all windows.", '`#window.zoomLevel#`'),
 				tags: ['accessibility']
 			},
 			'window.newWindowDimensions': {
@@ -218,14 +230,26 @@ import product from 'vs/platform/product/common/product';
 				'type': 'boolean',
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, this setting will close the window when the application icon in the title bar is double-clicked. The window will not be able to be dragged by the icon. This setting is effective only if `#window.titleBarStyle#` is set to `custom`.")
+				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, this setting will close the window when the application icon in the title bar is double-clicked. The window will not be able to be dragged by the icon. This setting is effective only if {0} is set to `custom`.", '`#window.titleBarStyle#`')
 			},
 			'window.titleBarStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
-				'default': isLinux ? 'native' : 'custom',
+				'default': isLinux && product.quality === 'stable' ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
+				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
+			},
+			'window.customTitleBarVisibility': {
+				'type': 'string',
+				'enum': ['auto', 'windowed', 'never'],
+				'markdownEnumDescriptions': [
+					localize(`window.customTitleBarVisibility.auto`, "Automatically changes custom title bar visibility."),
+					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. When not in full screen, automatically change custom title bar visibility."),
+					localize(`window.customTitleBarVisibility.never`, "Hide custom titlebar when {0} is set to `native`.", '`#window.titleBarStyle#`'),
+				],
+				'default': isLinux && product.quality === 'stable' ? 'never' : 'auto',
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in non full screen mode with `never` when {0} is set to `native`.", '`#window.titleBarStyle#`'),
 			},
 			'window.dialogStyle': {
 				'type': 'string',
@@ -239,7 +263,7 @@ import product from 'vs/platform/product/common/product';
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
-				'included': isMacintosh
+				'included': isMacintosh,
 			},
 			'window.nativeFullScreen': {
 				'type': 'boolean',
@@ -308,13 +332,13 @@ import product from 'vs/platform/product/common/product';
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription': localize('security.promptForLocalFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a local file or workspace is about to open through a protocol handler.'),
-				'scope': ConfigurationScope.MACHINE
+				'scope': ConfigurationScope.APPLICATION
 			},
 			'security.promptForRemoteFileProtocolHandling': {
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription': localize('security.promptForRemoteFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a remote file or workspace is about to open through a protocol handler.'),
-				'scope': ConfigurationScope.MACHINE
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});
@@ -335,6 +359,14 @@ import product from 'vs/platform/product/common/product';
 			locale: {
 				type: 'string',
 				description: localize('argv.locale', 'The display Language to use. Picking a different language requires the associated language pack to be installed.')
+			},
+			'disable-lcd-text': {
+				type: 'boolean',
+				description: localize('argv.disableLcdText', 'Disables LCD font antialiasing.')
+			},
+			'proxy-bypass-list': {
+				type: 'string',
+				description: localize('argv.proxyBypassList', 'Bypass any specified proxy for the given semi-colon-separated list of hosts. Example value "<local>;*.microsoft.com;*foo.com;1.2.3.4:5678", will use the proxy server for all hosts except for local addresses (localhost, 127.0.0.1 etc.), microsoft.com subdomains, hosts that contain the suffix foo.com and anything at 1.2.3.4:5678')
 			},
 			'disable-hardware-acceleration': {
 				type: 'boolean',
@@ -386,3 +418,6 @@ import product from 'vs/platform/product/common/product';
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
 })();
+
+// Workbench Contributions
+registerWorkbenchContribution2(LinuxCustomTitlebarExperiment.ID, LinuxCustomTitlebarExperiment, WorkbenchPhase.Eventually);

@@ -8,9 +8,12 @@
 	"engines": {
 		"vscode": "0.10.x"
 	},
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dart-lang/dart-syntax-highlight grammars/dart.json ./syntaxes/dart.tmLanguage.json"
-  },
+	"scripts": {
+		"update-grammar": "node ../node_modules/vscode-grammar-updater/bin dart-lang/dart-syntax-highlight grammars/dart.json ./syntaxes/dart.tmLanguage.json"
+	},
+	"categories": [
+		"Programming Languages"
+	],
 	"contributes": {
 		"languages": [
 			{
@@ -26,9 +29,9 @@
 		],
 		"grammars": [
 			{
-					"language": "dart",
-					"scopeName": "source.dart",
-					"path": "./syntaxes/dart.tmLanguage.json"
+				"language": "dart",
+				"scopeName": "source.dart",
+				"path": "./syntaxes/dart.tmLanguage.json"
 			}
 		]
 	}

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess, ForkOptions } from 'electron';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
+import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { ILogService } from '../../log/common/log.js';
 import { StringDecoder } from 'string_decoder';
-import { timeout } from 'vs/base/common/async';
-import { FileAccess } from 'vs/base/common/network';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import Severity from 'vs/base/common/severity';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { removeDangerousEnvVariables } from 'vs/base/common/processes';
-import { deepClone } from 'vs/base/common/objects';
-import { isWindows } from 'vs/base/common/platform';
-import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from 'vs/base/node/unc';
+import { timeout } from '../../../base/common/async.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import Severity from '../../../base/common/severity.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
+import { deepClone } from '../../../base/common/objects.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
 
 export interface IUtilityProcessConfiguration {
 
@@ -72,10 +72,11 @@ export interface IUtilityProcessConfiguration {
 	readonly parentLifecycleBound?: number;
 
 	/**
-	 * Allow the utility process to force heap allocations inside
-	 * the V8 sandbox.
+	 * HTTP 401 and 407 requests created via electron:net module
+	 * will be redirected to the main process and can be handled
+	 * via the app#login event.
 	 */
-	readonly forceAllocationsToV8Sandbox?: boolean;
+	readonly respondToAuthRequestsFromMainProcess?: boolean;
 }
 
 export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfiguration {
@@ -212,7 +213,10 @@ export class UtilityProcess extends Disposable {
 		const started = this.doStart(configuration);
 
 		if (started && configuration.payload) {
-			this.postMessage(configuration.payload);
+			const posted = this.postMessage(configuration.payload);
+			if (posted) {
+				this.log('payload sent via postMessage()', Severity.Info);
+			}
 		}
 
 		return started;
@@ -230,7 +234,7 @@ export class UtilityProcess extends Disposable {
 		const args = this.configuration.args ?? [];
 		const execArgv = this.configuration.execArgv ?? [];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
-		const forceAllocationsToV8Sandbox = this.configuration.forceAllocationsToV8Sandbox;
+		const respondToAuthRequestsFromMainProcess = this.configuration.respondToAuthRequestsFromMainProcess;
 		const stdio = 'pipe';
 		const env = this.createEnv(configuration);
 
@@ -242,9 +246,9 @@ export class UtilityProcess extends Disposable {
 			env,
 			execArgv,
 			allowLoadingUnsignedLibraries,
-			forceAllocationsToV8Sandbox,
+			respondToAuthRequestsFromMainProcess,
 			stdio
-		} as ForkOptions & { forceAllocationsToV8Sandbox?: Boolean });
+		});
 
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
@@ -256,7 +260,7 @@ export class UtilityProcess extends Disposable {
 		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
 		// Apply supported environment variables from config
-		env['VSCODE_AMD_ENTRYPOINT'] = configuration.entryPoint;
+		env['VSCODE_ESM_ENTRYPOINT'] = configuration.entryPoint;
 		if (typeof configuration.parentLifecycleBound === 'number') {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
 		}
@@ -320,6 +324,46 @@ export class UtilityProcess extends Disposable {
 			this.onDidExitOrCrashOrKill();
 		}));
 
+		// V8 Error
+		this._register(Event.fromNodeEventEmitter(process, 'error', (type, location, report) => ({ type, location, report }))(({ type, location, report }) => {
+			this.log(`crashed due to ${type} from V8 at ${location}`, Severity.Info);
+
+			let addons: string[] = [];
+			try {
+				const reportJSON = JSON.parse(report);
+				addons = reportJSON.sharedObjects
+					.filter((sharedObject: string) => sharedObject.endsWith('.node'))
+					.map((addon: string) => {
+						const index = addon.indexOf('extensions') === -1 ? addon.indexOf('node_modules') : addon.indexOf('extensions');
+						return addon.substring(index);
+					});
+			} catch (e) {
+				// ignore
+			}
+
+			// Telemetry
+			type UtilityProcessV8ErrorClassification = {
+				processtype: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
+				error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of error from the utility process to understand the nature of the crash better.' };
+				location: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The source location that triggered the crash to understand the nature of the crash better.' };
+				addons: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The list of addons loaded in the utility process to understand the nature of the crash better' };
+				owner: 'deepak1556';
+				comment: 'Provides insight into V8 sandbox FATAL error caused by native addons.';
+			};
+			type UtilityProcessV8ErrorEvent = {
+				processtype: string;
+				error: string;
+				location: string;
+				addons: string[];
+			};
+			this.telemetryService.publicLog2<UtilityProcessV8ErrorEvent, UtilityProcessV8ErrorClassification>('utilityprocessv8error', {
+				processtype: configuration.type,
+				error: type,
+				location,
+				addons
+			});
+		}));
+
 		// Child process gone
 		this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
 			if (details.type === 'Utility' && details.name === serviceName) {
@@ -329,7 +373,7 @@ export class UtilityProcess extends Disposable {
 				type UtilityProcessCrashClassification = {
 					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
 					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
-					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the utility process to understand the nature of the crash better' };
+					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the utility process to understand the nature of the crash better' };
 					owner: 'bpasero';
 					comment: 'Provides insight into reasons the utility process crashed.';
 				};
@@ -363,12 +407,14 @@ export class UtilityProcess extends Disposable {
 		}));
 	}
 
-	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): void {
+	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): boolean {
 		if (!this.process) {
-			return; // already killed, crashed or never started
+			return false; // already killed, crashed or never started
 		}
 
 		this.process.postMessage(message, transfer);
+
+		return true;
 	}
 
 	connect(payload?: unknown): Electron.MessagePortMain {

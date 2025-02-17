@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ComputedEditorOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { EditorLayoutInfo, EditorLayoutInfoComputer, EditorMinimapOptions, EditorOption, EditorOptions, InternalEditorRenderLineNumbersOptions, InternalEditorScrollbarOptions, RenderLineNumbersType, RenderMinimap } from 'vs/editor/common/config/editorOptions';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ComputedEditorOptions } from '../../../browser/config/editorConfiguration.js';
+import { EditorLayoutInfo, EditorLayoutInfoComputer, EditorMinimapOptions, EditorOption, EditorOptions, InternalEditorRenderLineNumbersOptions, InternalEditorScrollbarOptions, RenderLineNumbersType, RenderMinimap } from '../../../common/config/editorOptions.js';
 
 interface IEditorLayoutProviderOpts {
 	readonly outerWidth: number;
@@ -58,6 +58,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			maxColumn: input.minimapMaxColumn,
 			showSlider: 'mouseover',
 			scale: 1,
+			showRegionSectionHeaders: true,
+			showMarkSectionHeaders: true,
+			sectionHeaderFontSize: 9,
+			sectionHeaderLetterSpacing: 1,
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {

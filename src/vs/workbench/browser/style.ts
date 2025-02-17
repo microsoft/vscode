@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/style';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { createMetaElement } from 'vs/base/browser/dom';
-import { isSafari, isStandalone } from 'vs/base/browser/browser';
-import { selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import './media/style.css';
+import { registerThemingParticipant } from '../../platform/theme/common/themeService.js';
+import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from '../common/theme.js';
+import { isWeb, isIOS } from '../../base/common/platform.js';
+import { createMetaElement } from '../../base/browser/dom.js';
+import { isSafari, isStandalone } from '../../base/browser/browser.js';
+import { selectionBackground } from '../../platform/theme/common/colorRegistry.js';
+import { mainWindow } from '../../base/browser/window.js';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -28,7 +29,7 @@ registerThemingParticipant((theme, collector) => {
 		const titleBackground = theme.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
 		if (titleBackground) {
 			const metaElementId = 'monaco-workbench-meta-theme-color';
-			let metaElement = document.getElementById(metaElementId) as HTMLMetaElement | null;
+			let metaElement = mainWindow.document.getElementById(metaElementId) as HTMLMetaElement | null;
 			if (!metaElement) {
 				metaElement = createMetaElement();
 				metaElement.name = 'theme-color';
@@ -59,13 +60,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
 	}
 });
-
-/**
- * The best font-family to be used in CSS based on the platform:
- * - Windows: Segoe preferred, fallback to sans-serif
- * - macOS: standard system font, fallback to sans-serif
- * - Linux: standard system font preferred, fallback to Ubuntu fonts
- *
- * Note: this currently does not adjust for different locales.
- */
-export const DEFAULT_FONT_FAMILY = isWindows ? '"Segoe WPC", "Segoe UI", sans-serif' : isMacintosh ? '-apple-system, BlinkMacSystemFont, sans-serif' : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';

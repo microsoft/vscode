@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { basename, isEqual } from 'vs/base/common/resources';
-import { Action } from 'vs/base/common/actions';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ResourceMap } from 'vs/base/common/map';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileConstants';
-import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Event } from 'vs/base/common/event';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isWindows } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditorIdentifier, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
-import { hash } from 'vs/base/common/hash';
+import { localize } from '../../../../../nls.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IWriteFileOptions } from '../../../../../platform/files/common/files.js';
+import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions, ITextFileSaveOptions } from '../../../../services/textfile/common/textfiles.js';
+import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IDisposable, dispose, Disposable } from '../../../../../base/common/lifecycle.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TextFileContentProvider } from '../../common/files.js';
+import { FileEditorInput } from './fileEditorInput.js';
+import { SAVE_FILE_AS_LABEL } from '../fileConstants.js';
+import { INotificationService, INotificationHandle, INotificationActions, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { IEditorIdentifier, SaveReason, SideBySideEditor } from '../../../../common/editor.js';
+import { hash } from '../../../../../base/common/hash.js';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -41,6 +41,8 @@ const conflictEditorHelp = localize('userGuide', "Use the actions in the editor 
 
 // A handler for text file save error happening with conflict resolution actions
 export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.textFileSaveErrorHandler';
 
 	private readonly messages = new ResourceMap<INotificationHandle>();
 	private readonly conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false, true).bindTo(this.contextKeyService);
@@ -97,7 +99,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		}
 	}
 
-	onSaveError(error: unknown, model: ITextFileEditorModel): void {
+	onSaveError(error: unknown, model: ITextFileEditorModel, options: ITextFileSaveOptions): void {
 		const fileOperationError = error as FileOperationError;
 		const resource = model.resource;
 
@@ -125,7 +127,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 				message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Please compare your version with the file contents or overwrite the content of the file with your changes.", basename(resource));
 
 				primaryActions.push(this.instantiationService.createInstance(ResolveSaveConflictAction, model));
-				primaryActions.push(this.instantiationService.createInstance(SaveModelIgnoreModifiedSinceAction, model));
+				primaryActions.push(this.instantiationService.createInstance(SaveModelIgnoreModifiedSinceAction, model, options));
 
 				secondaryActions.push(this.instantiationService.createInstance(ConfigureSaveConflictAction));
 			}
@@ -140,24 +142,24 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 			// Save Elevated
 			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {
-				primaryActions.push(this.instantiationService.createInstance(SaveModelElevatedAction, model, !!triedToUnlock));
+				primaryActions.push(this.instantiationService.createInstance(SaveModelElevatedAction, model, options, !!triedToUnlock));
 			}
 
 			// Unlock
 			else if (isWriteLocked) {
-				primaryActions.push(this.instantiationService.createInstance(UnlockModelAction, model));
+				primaryActions.push(this.instantiationService.createInstance(UnlockModelAction, model, options));
 			}
 
 			// Retry
 			else {
-				primaryActions.push(this.instantiationService.createInstance(RetrySaveModelAction, model));
+				primaryActions.push(this.instantiationService.createInstance(RetrySaveModelAction, model, options));
 			}
 
 			// Save As
 			primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, model));
 
-			// Discard
-			primaryActions.push(this.instantiationService.createInstance(DiscardModelAction, model));
+			// Revert
+			primaryActions.push(this.instantiationService.createInstance(RevertModelAction, model));
 
 			// Message
 			if (isWriteLocked) {
@@ -270,6 +272,7 @@ class SaveModelElevatedAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
+		private options: ITextFileSaveOptions,
 		private triedToUnlock: boolean
 	) {
 		super('workbench.files.action.saveModelElevated', triedToUnlock ? isWindows ? localize('overwriteElevated', "Overwrite as Admin...") : localize('overwriteElevatedSudo', "Overwrite as Sudo...") : isWindows ? localize('saveElevated', "Retry as Admin...") : localize('saveElevatedSudo', "Retry as Sudo..."));
@@ -278,6 +281,7 @@ class SaveModelElevatedAction extends Action {
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({
+				...this.options,
 				writeElevated: true,
 				writeUnlock: this.triedToUnlock,
 				reason: SaveReason.EXPLICIT
@@ -289,24 +293,25 @@ class SaveModelElevatedAction extends Action {
 class RetrySaveModelAction extends Action {
 
 	constructor(
-		private model: ITextFileEditorModel
+		private model: ITextFileEditorModel,
+		private options: ITextFileSaveOptions
 	) {
 		super('workbench.files.action.saveModel', localize('retry', "Retry"));
 	}
 
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
-			await this.model.save({ reason: SaveReason.EXPLICIT });
+			await this.model.save({ ...this.options, reason: SaveReason.EXPLICIT });
 		}
 	}
 }
 
-class DiscardModelAction extends Action {
+class RevertModelAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel
 	) {
-		super('workbench.files.action.discardModel', localize('discard', "Discard"));
+		super('workbench.files.action.revertModel', localize('revert', "Revert"));
 	}
 
 	override async run(): Promise<void> {
@@ -322,7 +327,7 @@ class SaveModelAsAction extends Action {
 		private model: ITextFileEditorModel,
 		@IEditorService private editorService: IEditorService
 	) {
-		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL);
+		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL.value);
 	}
 
 	override async run(): Promise<void> {
@@ -358,14 +363,15 @@ class SaveModelAsAction extends Action {
 class UnlockModelAction extends Action {
 
 	constructor(
-		private model: ITextFileEditorModel
+		private model: ITextFileEditorModel,
+		private options: ITextFileSaveOptions
 	) {
 		super('workbench.files.action.unlock', localize('overwrite', "Overwrite"));
 	}
 
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
-			await this.model.save({ writeUnlock: true, reason: SaveReason.EXPLICIT });
+			await this.model.save({ ...this.options, writeUnlock: true, reason: SaveReason.EXPLICIT });
 		}
 	}
 }
@@ -373,14 +379,15 @@ class UnlockModelAction extends Action {
 class SaveModelIgnoreModifiedSinceAction extends Action {
 
 	constructor(
-		private model: ITextFileEditorModel
+		private model: ITextFileEditorModel,
+		private options: ITextFileSaveOptions
 	) {
 		super('workbench.files.action.saveIgnoreModifiedSince', localize('overwrite', "Overwrite"));
 	}
 
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
-			await this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
+			await this.model.save({ ...this.options, ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 		}
 	}
 }

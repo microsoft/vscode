@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractExtHostConsoleForwarder } from 'vs/workbench/api/common/extHostConsoleForwarder';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { NativeLogMarkers } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { AbstractExtHostConsoleForwarder } from '../common/extHostConsoleForwarder.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
+import { IExtHostRpcService } from '../common/extHostRpcService.js';
+import { NativeLogMarkers } from '../../services/extensions/common/extensionHostProtocol.js';
 
 const MAX_STREAM_BUFFER_LENGTH = 1024 * 1024;
 
@@ -24,7 +24,7 @@ export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 		this._wrapStream('stdout', 'log');
 	}
 
-	protected override _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error', original: (...args: any[]) => void, args: IArguments) {
+	protected override _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error' | 'debug', original: (...args: any[]) => void, args: IArguments) {
 		const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
 		this._isMakingConsoleCall = true;
 		stream.write(`\n${NativeLogMarkers.Start}\n`);

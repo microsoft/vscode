@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import * as nls from 'vs/nls';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/common/views';
-import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { FileMatch, FolderMatch, Match, RenderableMatch, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
-import { ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import * as DOM from '../../../../base/browser/dom.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import * as nls from '../../../../nls.js';
+import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { SearchView } from './searchView.js';
+import { ISearchConfigurationProperties, VIEW_ID } from '../../../services/search/common/search.js';
+import { isSearchTreeMatch, RenderableMatch, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch } from './searchTreeModel/searchTreeCommon.js';
+import { searchComparer } from './searchCompare.js';
 
-export const category = { value: nls.localize('search', "Search"), original: 'Search' };
+export const category = nls.localize2('search', "Search");
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
@@ -27,7 +28,7 @@ export function getSearchView(viewsService: IViewsService): SearchView | undefin
 	return viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
 }
 
-export function getElementsToOperateOn(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): RenderableMatch[] {
+export function getElementsToOperateOn(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): RenderableMatch[] {
 	let elements: RenderableMatch[] = viewer.getSelection().filter((x): x is RenderableMatch => x !== null).sort((a, b) => searchComparer(a, b, sortConfig.sortOrder));
 
 	// if selection doesn't include multiple elements, just return current focus element.
@@ -52,10 +53,10 @@ export function shouldRefocus(elements: RenderableMatch[], focusElement: Rendera
 
 function hasDownstreamMatch(elements: RenderableMatch[], focusElement: RenderableMatch) {
 	for (const elem of elements) {
-		if ((elem instanceof FileMatch && focusElement instanceof Match && elem.matches().includes(focusElement)) ||
-			(elem instanceof FolderMatch && (
-				(focusElement instanceof FileMatch && elem.getDownstreamFileMatch(focusElement.resource)) ||
-				(focusElement instanceof Match && elem.getDownstreamFileMatch(focusElement.parent().resource))
+		if ((isSearchTreeFileMatch(elem) && isSearchTreeMatch(focusElement) && elem.matches().includes(focusElement)) ||
+			(isSearchTreeFolderMatch(elem) && (
+				(isSearchTreeFileMatch(focusElement) && elem.getDownstreamFileMatch(focusElement.resource)) ||
+				(isSearchTreeMatch(focusElement) && elem.getDownstreamFileMatch(focusElement.parent().resource))
 			))) {
 			return true;
 		}

@@ -1,0 +1,44 @@
+{
+	"original": {
+		"content": "const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer() : undefined;\nif (deletedCodeLineBreaksComputer) {\n\tfor (const a of alignmentsVal) {\n\t\tif (a.diff) {\n\t\t\tfor (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {\n\t\t\t\tdeletedCodeLineBreaksComputer?.addRequest(this._editors.original.getModel()!.getLineContent(i), null, null);\n\t\t\t}\n\t\t}\n\t}\n}\n\nconst lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? [];\nlet lineBreakDataIdx = 0;",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer() : undefined;\nif (deletedCodeLineBreaksComputer) {\n\tconst originalModel = this._editors.original.getModel()!;\n\tfor (const a of alignmentsVal) {\n\t\tif (a.diff) {\n\t\t\tfor (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {\n\t\t\t\t// `i` can be out of bound when the diff has not been updated yet.\n\t\t\t\t// In this case, we do an early return.\n\t\t\t\t// TODO@hediet: Fix this by applying the edit directly to the diff model, so that the diff is always valid.\n\t\t\t\tif (i > originalModel.getLineCount()) {\n\t\t\t\t\treturn { orig: origViewZones, mod: modViewZones };\n\t\t\t\t}\n\t\t\t\tdeletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, null);\n\t\t\t}\n\t\t}\n\t}\n}\n\nconst lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? [];\nlet lineBreakDataIdx = 0;",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[3,3)",
+			"modifiedRange": "[3,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[3,1 -> 3,1]",
+					"modifiedRange": "[3,1 -> 4,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[6,7)",
+			"modifiedRange": "[7,14)",
+			"innerChanges": [
+				{
+					"originalRange": "[6,1 -> 6,34]",
+					"modifiedRange": "[7,1 -> 13,34]"
+				},
+				{
+					"originalRange": "[6,47 -> 6,61]",
+					"modifiedRange": "[13,47 -> 13,47]"
+				},
+				{
+					"originalRange": "[6,69 -> 6,73]",
+					"modifiedRange": "[13,55 -> 13,55]"
+				},
+				{
+					"originalRange": "[6,78 -> 6,81]",
+					"modifiedRange": "[13,60 -> 13,60]"
+				}
+			]
+		}
+	]
+}

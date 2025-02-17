@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughPart';
-import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { WalkThroughPart, WALK_THROUGH_FOCUS } from './walkThroughPart.js';
+import { ICommandAndKeybindingRule, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 export const WalkThroughArrowUp: ICommandAndKeybindingRule = {
 	id: 'workbench.action.interactivePlayground.arrowUp',

@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheet, isActiveElement, isKeyboardEvent } from 'vs/base/browser/dom';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IPagedListOptions, IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
-import { DefaultStyleController, IKeyboardNavigationEventFilter, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
-import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { ITableOptions, ITableOptionsUpdate, ITableStyles, Table } from 'vs/base/browser/ui/table/tableWidget';
-import { TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, RenderIndentGuides, TreeFindMatchType } from 'vs/base/browser/ui/tree/abstractTree';
-import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptions, ICompressibleAsyncDataTreeOptionsUpdate, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
-import { CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate, ICompressibleTreeRenderer, IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, IDataSource, ITreeEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStyleOverride, defaultFindWidgetStyles, defaultListStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { isActiveElement, isKeyboardEvent } from '../../../base/browser/dom.js';
+import { IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
+import { IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
+import { IPagedListOptions, IPagedRenderer, PagedList } from '../../../base/browser/ui/list/listPaging.js';
+import { IKeyboardNavigationEventFilter, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, TypeNavigationMode } from '../../../base/browser/ui/list/listWidget.js';
+import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from '../../../base/browser/ui/table/table.js';
+import { ITableOptions, ITableOptionsUpdate, ITableStyles, Table } from '../../../base/browser/ui/table/tableWidget.js';
+import { IAbstractTreeOptions, IAbstractTreeOptionsUpdate, RenderIndentGuides, TreeFindMatchType, TreeFindMode } from '../../../base/browser/ui/tree/abstractTree.js';
+import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptions, ICompressibleAsyncDataTreeOptionsUpdate, ITreeCompressionDelegate } from '../../../base/browser/ui/tree/asyncDataTree.js';
+import { DataTree, IDataTreeOptions } from '../../../base/browser/ui/tree/dataTree.js';
+import { CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate, ICompressibleTreeRenderer, IObjectTreeOptions, ObjectTree } from '../../../base/browser/ui/tree/objectTree.js';
+import { IAsyncDataSource, IDataSource, ITreeEvent, ITreeRenderer } from '../../../base/browser/ui/tree/tree.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { localize } from '../../../nls.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
+import { InputFocusedContextKey } from '../../contextkey/common/contextkeys.js';
+import { IContextViewService } from '../../contextview/browser/contextView.js';
+import { IEditorOptions } from '../../editor/common/editor.js';
+import { createDecorator, IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { ResultKind } from '../../keybinding/common/keybindingResolver.js';
+import { Registry } from '../../registry/common/platform.js';
+import { defaultFindWidgetStyles, defaultListStyles, getListStyles, IStyleOverride } from '../../theme/browser/defaultStyles.js';
 
 export type ListWidget = List<any> | PagedList<any> | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any> | Table<any>;
 export type WorkbenchListWidget = WorkbenchList<any> | WorkbenchPagedList<any> | WorkbenchObjectTree<any, any> | WorkbenchCompressibleObjectTree<any, any> | WorkbenchDataTree<any, any, any> | WorkbenchAsyncDataTree<any, any, any> | WorkbenchCompressibleAsyncDataTree<any, any, any> | WorkbenchTable<any>;
@@ -57,7 +57,6 @@ export class ListService implements IListService {
 	private readonly disposables = new DisposableStore();
 	private lists: IRegisteredList[] = [];
 	private _lastFocusedWidget: WorkbenchListWidget | undefined = undefined;
-	private _hasCreatedStyleController: boolean = false;
 
 	get lastFocusedList(): WorkbenchListWidget | undefined {
 		return this._lastFocusedWidget;
@@ -76,13 +75,6 @@ export class ListService implements IListService {
 	}
 
 	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
-		if (!this._hasCreatedStyleController) {
-			this._hasCreatedStyleController = true;
-			// create a shared default tree style sheet for performance reasons
-			const styleController = new DefaultStyleController(createStyleSheet(), '');
-			styleController.style(defaultListStyles);
-		}
-
 		if (this.lists.some(l => l.widget === widget)) {
 			throw new Error('Cannot register the same widget multiple times');
 		}
@@ -122,8 +114,9 @@ export const WorkbenchListScrollAtBottomContextKey = ContextKeyExpr.or(
 	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('both'));
 
 export const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
+export const WorkbenchTreeStickyScrollFocused = new RawContextKey<boolean>('treestickyScrollFocused', false);
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
-export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
+export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey), WorkbenchTreeStickyScrollFocused.negate());
 export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
@@ -189,6 +182,8 @@ const listSmoothScrolling = 'workbench.list.smoothScrolling';
 const mouseWheelScrollSensitivityKey = 'workbench.list.mouseWheelScrollSensitivity';
 const fastScrollSensitivityKey = 'workbench.list.fastScrollSensitivity';
 const treeExpandMode = 'workbench.tree.expandMode';
+const treeStickyScroll = 'workbench.tree.enableStickyScroll';
+const treeStickyScrollMaxElements = 'workbench.tree.stickyScrollMaxItemCount';
 
 function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
@@ -703,7 +698,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent; element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
-			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+			this.openOnSingleClick = options?.configurationService.getValue(openModeSettingKey) !== 'doubleClick';
 			this._register(options?.configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(openModeSettingKey)) {
 					this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
@@ -720,8 +715,8 @@ abstract class ResourceNavigator<T> extends Disposable {
 		}
 
 		const selectionKeyboardEvent = event.browserEvent as SelectionKeyboardEvent;
-		const preserveFocus = typeof selectionKeyboardEvent.preserveFocus === 'boolean' ? selectionKeyboardEvent.preserveFocus! : true;
-		const pinned = typeof selectionKeyboardEvent.pinned === 'boolean' ? selectionKeyboardEvent.pinned! : !preserveFocus;
+		const preserveFocus = typeof selectionKeyboardEvent.preserveFocus === 'boolean' ? selectionKeyboardEvent.preserveFocus : true;
+		const pinned = typeof selectionKeyboardEvent.pinned === 'boolean' ? selectionKeyboardEvent.pinned : !preserveFocus;
 		const sideBySide = false;
 
 		this._open(this.getSelectedElement(), preserveFocus, pinned, sideBySide, event.browserEvent);
@@ -865,6 +860,7 @@ export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTree
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly selectionNavigation?: boolean;
+	readonly scrollToActiveElement?: boolean;
 }
 
 export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {
@@ -1151,6 +1147,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	return {
 		getTypeNavigationMode,
 		disposable,
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		options: {
 			// ...options, // TODO@Joao why is this not splatted here?
 			keyboardSupport: false,
@@ -1167,6 +1164,8 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick'),
 			contextViewProvider: contextViewService as IContextViewProvider,
 			findWidgetStyles: defaultFindWidgetStyles,
+			enableStickyScroll: Boolean(configurationService.getValue(treeStickyScroll)),
+			stickyScrollMaxItemCount: Number(configurationService.getValue(treeStickyScrollMaxElements)),
 		} as TOptions
 	};
 }
@@ -1188,6 +1187,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	private treeElementCanExpand: IContextKey<boolean>;
 	private treeElementHasChild: IContextKey<boolean>;
 	private treeFindOpen: IContextKey<boolean>;
+	private treeStickyScrollFocused: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private disposables: IDisposable[] = [];
 
@@ -1227,6 +1227,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.treeElementHasChild = WorkbenchTreeElementHasChild.bindTo(this.contextKeyService);
 
 		this.treeFindOpen = WorkbenchTreeFindOpen.bindTo(this.contextKeyService);
+		this.treeStickyScrollFocused = WorkbenchTreeStickyScrollFocused.bindTo(this.contextKeyService);
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
@@ -1273,6 +1274,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 			tree.onDidChangeCollapseState(updateCollapseContextKeys),
 			tree.onDidChangeModel(updateCollapseContextKeys),
 			tree.onDidChangeFindOpenState(enabled => this.treeFindOpen.set(enabled)),
+			tree.onDidChangeStickyScrollFocused(focused => this.treeStickyScrollFocused.set(focused)),
 			configurationService.onDidChangeConfiguration(e => {
 				let newOptions: IAbstractTreeOptionsUpdate = {};
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
@@ -1312,6 +1314,14 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 				}
 				if (e.affectsConfiguration(treeExpandMode) && options.expandOnlyOnTwistieClick === undefined) {
 					newOptions = { ...newOptions, expandOnlyOnTwistieClick: configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick' };
+				}
+				if (e.affectsConfiguration(treeStickyScroll)) {
+					const enableStickyScroll = configurationService.getValue<boolean>(treeStickyScroll);
+					newOptions = { ...newOptions, enableStickyScroll };
+				}
+				if (e.affectsConfiguration(treeStickyScrollMaxElements)) {
+					const stickyScrollMaxItemCount = Math.max(1, configurationService.getValue<number>(treeStickyScrollMaxElements));
+					newOptions = { ...newOptions, stickyScrollMaxItemCount };
 				}
 				if (e.affectsConfiguration(mouseWheelScrollSensitivityKey)) {
 					const mouseWheelScrollSensitivity = configurationService.getValue<number>(mouseWheelScrollSensitivityKey);
@@ -1464,6 +1474,17 @@ configurationRegistry.registerConfiguration({
 			enum: ['singleClick', 'doubleClick'],
 			default: 'singleClick',
 			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names. Note that some trees and lists might choose to ignore this setting if it is not applicable."),
+		},
+		[treeStickyScroll]: {
+			type: 'boolean',
+			default: true,
+			description: localize('sticky scroll', "Controls whether sticky scrolling is enabled in trees."),
+		},
+		[treeStickyScrollMaxElements]: {
+			type: 'number',
+			minimum: 1,
+			default: 7,
+			markdownDescription: localize('sticky scroll maximum items', "Controls the number of sticky elements displayed in the tree when {0} is enabled.", '`#workbench.tree.enableStickyScroll#`'),
 		},
 		[typeNavigationModeSettingKey]: {
 			type: 'string',

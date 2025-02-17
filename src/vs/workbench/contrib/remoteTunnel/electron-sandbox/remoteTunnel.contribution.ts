@@ -3,44 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { ITunnelApplicationConfig } from 'vs/base/common/product';
-import { joinPath } from 'vs/base/common/resources';
-import { isNumber, isObject, isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, IRemoteTunnelSession, LOGGER_NAME, LOG_ID, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { Action } from '../../../../base/common/actions.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ITunnelApplicationConfig } from '../../../../base/common/product.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { isNumber, isObject, isString } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, IRemoteTunnelSession, LOGGER_NAME, LOG_ID, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService, isUntitledWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IOutputService } from '../../../services/output/common/output.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
-export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
-	original: 'Remote-Tunnels',
-	value: localize('remoteTunnel.category', 'Remote Tunnels')
-};
+export const REMOTE_TUNNEL_CATEGORY = localize2('remoteTunnel.category', 'Remote Tunnels');
 
 type CONTEXT_KEY_STATES = 'connected' | 'connecting' | 'disconnected';
 
@@ -50,6 +46,7 @@ export const REMOTE_TUNNEL_CONNECTION_STATE = new RawContextKey<CONTEXT_KEY_STAT
 const REMOTE_TUNNEL_USED_STORAGE_KEY = 'remoteTunnelServiceUsed';
 const REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY = 'remoteTunnelServicePromptedPreview';
 const REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY = 'remoteTunnelExtensionRecommended';
+const REMOTE_TUNNEL_HAS_USED_BEFORE = 'remoteTunnelHasUsed';
 const REMOTE_TUNNEL_EXTENSION_TIMEOUT = 4 * 60 * 1000; // show the recommendation that a machine started using tunnels if it joined less than 4 minutes ago
 
 const INVALID_TOKEN_RETRIES = 2;
@@ -236,38 +233,47 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			return; // already initialized, token available
 		}
 
-		return await this.progressService.withProgress(
-			{
-				location: ProgressLocation.Window,
-				title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
-			},
-			async (progress: IProgress<IProgressStep>) => {
-				const listener = this.remoteTunnelService.onDidChangeTunnelStatus(status => {
-					switch (status.type) {
-						case 'connecting':
-							if (status.progress) {
-								progress.report({ message: status.progress });
-							}
-							break;
-					}
-				});
-				let newSession: IRemoteTunnelSession | undefined;
-				if (mode.active) {
-					const token = await this.getSessionToken(mode.session);
-					if (token) {
-						newSession = { ...mode.session, token };
-					}
+		const doInitialStateDiscovery = async (progress?: IProgress<IProgressStep>) => {
+			const listener = progress && this.remoteTunnelService.onDidChangeTunnelStatus(status => {
+				switch (status.type) {
+					case 'connecting':
+						if (status.progress) {
+							progress.report({ message: status.progress });
+						}
+						break;
 				}
-				const status = await this.remoteTunnelService.initialize(mode.active && newSession ? { ...mode, session: newSession } : INACTIVE_TUNNEL_MODE);
-				listener.dispose();
-
-				if (status.type === 'connected') {
-					this.connectionInfo = status.info;
-					this.connectionStateContext.set('connected');
-					return;
+			});
+			let newSession: IRemoteTunnelSession | undefined;
+			if (mode.active) {
+				const token = await this.getSessionToken(mode.session);
+				if (token) {
+					newSession = { ...mode.session, token };
 				}
 			}
-		);
+			const status = await this.remoteTunnelService.initialize(mode.active && newSession ? { ...mode, session: newSession } : INACTIVE_TUNNEL_MODE);
+			listener?.dispose();
+
+			if (status.type === 'connected') {
+				this.connectionInfo = status.info;
+				this.connectionStateContext.set('connected');
+				return;
+			}
+		};
+
+
+		const hasUsed = this.storageService.getBoolean(REMOTE_TUNNEL_HAS_USED_BEFORE, StorageScope.APPLICATION, false);
+
+		if (hasUsed) {
+			await this.progressService.withProgress(
+				{
+					location: ProgressLocation.Window,
+					title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+				},
+				doInitialStateDiscovery
+			);
+		} else {
+			doInitialStateDiscovery(undefined);
+		}
 	}
 
 	private getPreferredTokenFromSession(session: ExistingSessionItem) {
@@ -278,6 +284,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		if (this.connectionInfo) {
 			return this.connectionInfo;
 		}
+
+		this.storageService.store(REMOTE_TUNNEL_HAS_USED_BEFORE, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		let tokenProblems = false;
 		for (let i = 0; i < INVALID_TOKEN_RETRIES; i++) {
@@ -355,19 +363,20 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private async getAuthenticationSession(): Promise<ExistingSessionItem | undefined> {
 		const sessions = await this.getAllSessions();
-		const quickpick = this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>();
+		const disposables = new DisposableStore();
+		const quickpick = disposables.add(this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>({ useSeparators: true }));
 		quickpick.ok = false;
 		quickpick.placeholder = localize('accountPreference.placeholder', "Sign in to an account to enable remote access");
 		quickpick.ignoreFocusOut = true;
 		quickpick.items = await this.createQuickpickItems(sessions);
 
 		return new Promise((resolve, reject) => {
-			quickpick.onDidHide((e) => {
+			disposables.add(quickpick.onDidHide((e) => {
 				resolve(undefined);
-				quickpick.dispose();
-			});
+				disposables.dispose();
+			}));
 
-			quickpick.onDidAccept(async (e) => {
+			disposables.add(quickpick.onDidAccept(async (e) => {
 				const selection = quickpick.selectedItems[0];
 				if ('provider' in selection) {
 					const session = await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes);
@@ -378,7 +387,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					resolve(undefined);
 				}
 				quickpick.hide();
-			});
+			}));
 
 			quickpick.show();
 		});
@@ -387,7 +396,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	private createExistingSessionItem(session: AuthenticationSession, providerId: string): ExistingSessionItem {
 		return {
 			label: session.account.label,
-			description: this.authenticationService.getLabel(providerId),
+			description: this.authenticationService.getProvider(providerId).label,
 			session,
 			providerId
 		};
@@ -404,9 +413,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		for (const authenticationProvider of (await this.getAuthenticationProviders())) {
 			const signedInForProvider = sessions.some(account => account.providerId === authenticationProvider.id);
-			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
-				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
-				options.push({ label: localize({ key: 'sign in using account', comment: ['{0} will be a auth provider (e.g. Github)'] }, "Sign in with {0}", providerName), provider: authenticationProvider });
+			const provider = this.authenticationService.getProvider(authenticationProvider.id);
+			if (!signedInForProvider || provider.supportsMultipleAccounts) {
+				options.push({ label: localize({ key: 'sign in using account', comment: ['{0} will be a auth provider (e.g. Github)'] }, "Sign in with {0}", provider.label), provider: authenticationProvider });
 			}
 		}
 
@@ -742,7 +751,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		return new Promise<void>((c, e) => {
 			const disposables = new DisposableStore();
-			const quickPick = this.quickInputService.createQuickPick();
+			const quickPick = this.quickInputService.createQuickPick({ useSeparators: true });
 			quickPick.placeholder = localize('manage.placeholder', 'Select a command to invoke');
 			disposables.add(quickPick);
 			const items: Array<QuickPickItem> = [];
@@ -789,13 +798,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('remoteTunnelAccess.machineName', "The name under which the remote tunnel access is registered. If not set, the host name is used."),
 			type: 'string',
 			scope: ConfigurationScope.APPLICATION,
+			ignoreSync: true,
 			pattern: '^(\\w[\\w-]*)?$',
 			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash."),
 			maxLength: 20,
 			default: ''
 		},
 		[CONFIGURATION_KEY_PREVENT_SLEEP]: {
-			description: localize('remoteTunnelAccess.preventSleep', "Prevent the computer from sleeping when remote tunnel access is turned on."),
+			description: localize('remoteTunnelAccess.preventSleep', "Prevent this computer from sleeping when remote tunnel access is turned on."),
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			default: false,

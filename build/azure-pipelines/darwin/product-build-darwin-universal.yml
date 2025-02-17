@@ -5,12 +5,12 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - template: ../distro/download-distro.yml
+  - template: ../distro/download-distro.yml@self
 
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
@@ -20,33 +20,34 @@ steps:
 
   - script: |
       set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      echo "always-auth=true" >> .npmrc
-      yarn config set registry "$NPM_REGISTRY"
-    workingDirectory: build
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: build/.npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
   - script: |
       set -e
+
       for i in {1..5}; do # try 5 times
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Npm install failed $i, trying again..."
       done
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
 
   - download: current
@@ -69,6 +70,13 @@ steps:
 
   - script: |
       set -e
+      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js universal
+    displayName: Verify arch of Mach-O objects
+
+  - script: |
+      set -e
       security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
       security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
       security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
@@ -82,6 +90,11 @@ steps:
   - script: pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
     displayName: Archive build
 
-  - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
-    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+      artifactName: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      sbomPackageName: "VS Code macOS $(VSCODE_ARCH) (unsigned)"
+      sbomPackageVersion: $(Build.SourceVersion)
     displayName: Publish client archive

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import { basename } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { IProcessEnvironment, isWindows, OS } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { getSystemShell } from 'vs/base/node/shell';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Promises } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { clamp } from 'vs/base/common/numbers';
+import { basename } from '../../../base/common/path.js';
+import { localize } from '../../../nls.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { IProcessEnvironment, isWindows, OS } from '../../../base/common/platform.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { getSystemShell } from '../../../base/node/shell.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
+import { ILogService } from '../../log/common/log.js';
+import { Promises } from '../../../base/common/async.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { clamp } from '../../../base/common/numbers.js';
 
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 
@@ -128,14 +128,17 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		// handle popular non-POSIX shells
 		const name = basename(systemShellUnix);
 		let command: string, shellArgs: Array<string>;
-		const extraArgs = (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '';
-		if (/^pwsh(-preview)?$/.test(name)) {
+		const extraArgs = '';
+		if (/^(?:pwsh(?:-preview)?|powershell)$/.test(name)) {
 			// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
 			// you escape single quotes inside of a single quoted string.
 			command = `& '${process.execPath}' ${extraArgs} -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
 			shellArgs = ['-Login', '-Command'];
 		} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
 			command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+			shellArgs = ['-i', '-l', '-c'];
+		} else if (name === 'xonsh') { // #200374: native implementation is shorter
+			command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
 			shellArgs = ['-i', '-l', '-c'];
 		} else {
 			command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;

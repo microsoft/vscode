@@ -59,6 +59,13 @@
 		"comment": "We closed this issue because we [don't plan to address it](https://aka.ms/vscode-out-of-scope) in the foreseeable future. If you disagree and feel that this issue is crucial: we are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nThanks for your understanding, and happy coding!"
 	},
 	{
+		"type": "label",
+		"name": "wont-fix",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "We closed this issue because we [don't plan to address it](https://github.com/microsoft/vscode/wiki/Issue-Grooming#wont-fix-bugs).\n\nThanks for your understanding, and happy coding!"
+	},
+	{
 		"type": "comment",
 		"name": "causedByExtension",
 		"allowUsers": [
@@ -194,28 +201,17 @@
 		"addLabel": "unreleased"
 	},
 	{
-		"type": "label",
-		"name": "~info-needed",
-		"action": "updateLabels",
-		"addLabel": "info-needed",
-		"removeLabel": "~info-needed",
-		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
-	},
-	{
-		"type": "label",
-		"name": "~version-info-needed",
-		"action": "updateLabels",
-		"addLabel": "info-needed",
-		"removeLabel": "~version-info-needed",
-		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
-	},
-	{
-		"type": "label",
-		"name": "~confirmation-needed",
-		"action": "updateLabels",
-		"addLabel": "info-needed",
-		"removeLabel": "~confirmation-needed",
-		"comment": "Please diagnose the root cause of the issue by running the command `F1 > Help: Troubleshoot Issue` and following the instructions. Once you have done that, please update the issue with the results.\n\nHappy Coding!"
+		"type": "comment",
+		"name": "spam",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"reason": "not_planned",
+		"addLabel": "invalid"
 	},
 	{
 		"type": "comment",
@@ -518,5 +514,29 @@
 		"addLabel": "verification-steps-needed",
 		"removeLabel": "~verification-steps-needed",
 		"comment": "Friendly ping! Looks like this issue requires some further steps to be verified. Please provide us with the steps necessary to verify this issue."
+	},
+	{
+		"type": "label",
+		"name": "~info-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~info-needed",
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
+	},
+	{
+		"type": "label",
+		"name": "~version-info-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~version-info-needed",
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information, such as a version number, or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nHappy Coding!"
+	},
+	{
+		"type": "label",
+		"name": "~confirmation-needed",
+		"action": "updateLabels",
+		"addLabel": "info-needed",
+		"removeLabel": "~confirmation-needed",
+		"comment": "Please diagnose the root cause of the issue by running the command `F1 > Help: Troubleshoot Issue` and following the instructions. Once you have done that, please update the issue with the results.\n\nHappy Coding!"
 	}
 ]

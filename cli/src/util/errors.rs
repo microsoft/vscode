@@ -41,7 +41,7 @@ impl From<reqwest::Error> for WrappedError {
 				"error requesting {}",
 				e.url().map_or("<unknown>", |u| u.as_str())
 			),
-			original: format!("{}", e),
+			original: format!("{e}"),
 		}
 	}
 }
@@ -53,7 +53,7 @@ where
 {
 	WrappedError {
 		message: message.into(),
-		original: format!("{:?}", original),
+		original: format!("{original:?}"),
 	}
 }
 
@@ -64,7 +64,7 @@ where
 {
 	WrappedError {
 		message: message.into(),
-		original: format!("{}", original),
+		original: format!("{original}"),
 	}
 }
 
@@ -93,10 +93,7 @@ impl StatusError {
 		let body = res.text().await.map_err(|e| {
 			wrap(
 				e,
-				format!(
-					"failed to read response body on {} code from {}",
-					status_code, url
-				),
+				format!("failed to read response body on {status_code} code from {url}"),
 			)
 		})?;
 
@@ -290,7 +287,7 @@ pub struct CannotForwardControlPort();
 
 impl std::fmt::Display for CannotForwardControlPort {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Cannot forward or unforward port {}.", CONTROL_PORT)
+		write!(f, "Cannot forward or unforward port {CONTROL_PORT}.")
 	}
 }
 
@@ -308,7 +305,7 @@ pub struct ServiceAlreadyRegistered();
 
 impl std::fmt::Display for ServiceAlreadyRegistered {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Already registered the service. Run `{} tunnel service uninstall` to unregister it first", APPLICATION_NAME)
+		write!(f, "Already registered the service. Run `{APPLICATION_NAME} tunnel service uninstall` to unregister it first")
 	}
 }
 
@@ -434,7 +431,7 @@ impl Display for DbusConnectFailedError {
 		str.push_str(&self.0);
 		str.push('\n');
 
-		write!(f, "{}", str)
+		write!(f, "{str}")
 	}
 }
 
@@ -471,7 +468,7 @@ pub enum CodeError {
 
 	#[error("platform not currently supported: {0}")]
 	UnsupportedPlatform(String),
-	#[error("This machine not meet {name}'s prerequisites, expected either...: {bullets}")]
+	#[error("This machine does not meet {name}'s prerequisites, expected either...\n{bullets}")]
 	PrerequisitesFailed { name: &'static str, bullets: String },
 	#[error("failed to spawn process: {0:?}")]
 	ProcessSpawnFailed(std::io::Error),
@@ -512,6 +509,16 @@ pub enum CodeError {
 	// todo: can be specialized when update service is moved to CodeErrors
 	#[error("Could not check for update: {0}")]
 	UpdateCheckFailed(String),
+	#[error("Could not read connection token file: {0}")]
+	CouldNotReadConnectionTokenFile(std::io::Error),
+	#[error("Could not write connection token file: {0}")]
+	CouldNotCreateConnectionTokenFile(std::io::Error),
+	#[error("A tunnel with the name {0} exists and is in-use. Please pick a different name or stop the existing tunnel.")]
+	TunnelActiveAndInUse(String),
+	#[error("Timed out looking for port/socket")]
+	ServerOriginTimeout,
+	#[error("Server exited without writing port/socket: {0}")]
+	ServerUnexpectedExit(String),
 }
 
 makeAnyError!(

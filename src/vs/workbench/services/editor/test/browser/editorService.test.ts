@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestSingletonFileEditorInput, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { ACTIVE_GROUP, IBaseSaveRevertAllEditorOptions, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { timeout } from 'vs/base/common/async';
-import { FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ErrorPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { EditorActivation, IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput, EditorInputCapabilities } from '../../../../common/editor.js';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestSingletonFileEditorInput, workbenchTeardown } from '../../../../test/browser/workbenchTestServices.js';
+import { EditorService } from '../../browser/editorService.js';
+import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from '../../common/editorGroupsService.js';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { ACTIVE_GROUP, IBaseSaveRevertAllEditorOptions, IEditorService, PreferredGroup, SIDE_GROUP } from '../../common/editorService.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { FileEditorInput } from '../../../../contrib/files/browser/editors/fileEditorInput.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { FileOperationEvent, FileOperation } from '../../../../../platform/files/common/files.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { RegisteredEditorPriority } from '../../common/editorResolverService.js';
+import { WorkspaceTrustUriResponse } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { ErrorPlaceholderEditor } from '../../../../browser/parts/editor/editorPlaceholder.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IEditorPaneService } from '../../common/editorPaneService.js';
 
 suite('EditorService', () => {
 
@@ -70,115 +71,132 @@ suite('EditorService', () => {
 	}
 
 	test('openEditor() - basics', async () => {
-		const [, service] = await createEditorService();
+		const [, service, accessor] = await createEditorService();
 
-		await testOpenBasics(service);
+		await testOpenBasics(service, accessor.editorPaneService);
 	});
 
-	test('pasero openEditor() - basics (scoped)', async () => {
-		const [part, service] = await createEditorService();
+	test('openEditor() - basics (scoped)', async () => {
+		const [part, service, accessor] = await createEditorService();
 		const scoped = service.createScoped('main', disposables);
 		await part.whenReady;
 
-		await testOpenBasics(scoped);
+		await testOpenBasics(scoped, accessor.editorPaneService);
 	});
 
-	async function testOpenBasics(service: IEditorService) {
+	async function testOpenBasics(editorService: IEditorService, editorPaneService: IEditorPaneService) {
 		let input = createTestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
 		let otherInput = createTestFileEditorInput(URI.parse('my://resource2-basics'), TEST_EDITOR_INPUT_ID);
 
 		let activeEditorChangeEventCounter = 0;
-		disposables.add(service.onDidActiveEditorChange(() => {
+		disposables.add(editorService.onDidActiveEditorChange(() => {
 			activeEditorChangeEventCounter++;
 		}));
 
 		let visibleEditorChangeEventCounter = 0;
-		disposables.add(service.onDidVisibleEditorsChange(() => {
+		disposables.add(editorService.onDidVisibleEditorsChange(() => {
 			visibleEditorChangeEventCounter++;
 		}));
 
+		let willOpenEditorListenerCounter = 0;
+		disposables.add(editorService.onWillOpenEditor(() => {
+			willOpenEditorListenerCounter++;
+		}));
+
 		let didCloseEditorListenerCounter = 0;
-		disposables.add(service.onDidCloseEditor(() => {
+		disposables.add(editorService.onDidCloseEditor(() => {
 			didCloseEditorListenerCounter++;
 		}));
 
+		let willInstantiateEditorPaneListenerCounter = 0;
+		disposables.add(editorPaneService.onWillInstantiateEditorPane(e => {
+			if (e.typeId === TEST_EDITOR_ID) {
+				willInstantiateEditorPaneListenerCounter++;
+			}
+		}));
+
 		// Open input
-		let editor = await service.openEditor(input, { pinned: true });
+		let editor = await editorService.openEditor(input, { pinned: true });
 
 		assert.strictEqual(editor?.getId(), TEST_EDITOR_ID);
-		assert.strictEqual(editor, service.activeEditorPane);
-		assert.strictEqual(1, service.count);
-		assert.strictEqual(input, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].editor);
-		assert.strictEqual(input, service.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
-		assert.strictEqual(input, service.activeEditor);
-		assert.strictEqual(service.visibleEditorPanes.length, 1);
-		assert.strictEqual(service.visibleEditorPanes[0], editor);
-		assert.ok(!service.activeTextEditorControl);
-		assert.ok(!service.activeTextEditorLanguageId);
-		assert.strictEqual(service.visibleTextEditorControls.length, 0);
-		assert.strictEqual(service.isOpened(input), true);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: 'unknownTypeId' }), false);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: 'unknownTypeId', editorId: input.editorId }), false);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: 'unknownTypeId', editorId: 'unknownTypeId' }), false);
-		assert.strictEqual(service.isVisible(input), true);
-		assert.strictEqual(service.isVisible(otherInput), false);
+		assert.strictEqual(editor, editorService.activeEditorPane);
+		assert.strictEqual(1, editorService.count);
+		assert.strictEqual(input, editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].editor);
+		assert.strictEqual(input, editorService.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
+		assert.strictEqual(input, editorService.activeEditor);
+		assert.strictEqual(editorService.visibleEditorPanes.length, 1);
+		assert.strictEqual(editorService.visibleEditorPanes[0], editor);
+		assert.ok(!editorService.activeTextEditorControl);
+		assert.ok(!editorService.activeTextEditorLanguageId);
+		assert.strictEqual(editorService.visibleTextEditorControls.length, 0);
+		assert.strictEqual(editorService.getVisibleTextEditorControls(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
+		assert.strictEqual(editorService.isOpened(input), true);
+		assert.strictEqual(editorService.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
+		assert.strictEqual(editorService.isOpened({ resource: input.resource, typeId: input.typeId, editorId: 'unknownTypeId' }), false);
+		assert.strictEqual(editorService.isOpened({ resource: input.resource, typeId: 'unknownTypeId', editorId: input.editorId }), false);
+		assert.strictEqual(editorService.isOpened({ resource: input.resource, typeId: 'unknownTypeId', editorId: 'unknownTypeId' }), false);
+		assert.strictEqual(editorService.isVisible(input), true);
+		assert.strictEqual(editorService.isVisible(otherInput), false);
+		assert.strictEqual(willOpenEditorListenerCounter, 1);
 		assert.strictEqual(activeEditorChangeEventCounter, 1);
 		assert.strictEqual(visibleEditorChangeEventCounter, 1);
+		assert.ok(editorPaneService.didInstantiateEditorPane(TEST_EDITOR_ID));
+		assert.strictEqual(willInstantiateEditorPaneListenerCounter, 1);
 
 		// Close input
-		await editor?.group?.closeEditor(input);
+		await editor?.group.closeEditor(input);
 
-		assert.strictEqual(0, service.count);
-		assert.strictEqual(0, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length);
-		assert.strictEqual(0, service.getEditors(EditorsOrder.SEQUENTIAL).length);
+		assert.strictEqual(0, editorService.count);
+		assert.strictEqual(0, editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length);
+		assert.strictEqual(0, editorService.getEditors(EditorsOrder.SEQUENTIAL).length);
 		assert.strictEqual(didCloseEditorListenerCounter, 1);
 		assert.strictEqual(activeEditorChangeEventCounter, 2);
 		assert.strictEqual(visibleEditorChangeEventCounter, 2);
 		assert.ok(input.gotDisposed);
 
 		// Open again 2 inputs (disposed editors are ignored!)
-		await service.openEditor(input, { pinned: true });
-		assert.strictEqual(0, service.count);
+		await editorService.openEditor(input, { pinned: true });
+		assert.strictEqual(0, editorService.count);
 
 		// Open again 2 inputs (recreate because disposed)
 		input = createTestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
 		otherInput = createTestFileEditorInput(URI.parse('my://resource2-basics'), TEST_EDITOR_INPUT_ID);
 
-		await service.openEditor(input, { pinned: true });
-		editor = await service.openEditor(otherInput, { pinned: true });
+		await editorService.openEditor(input, { pinned: true });
+		editor = await editorService.openEditor(otherInput, { pinned: true });
 
-		assert.strictEqual(2, service.count);
-		assert.strictEqual(otherInput, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].editor);
-		assert.strictEqual(input, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1].editor);
-		assert.strictEqual(input, service.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
-		assert.strictEqual(otherInput, service.getEditors(EditorsOrder.SEQUENTIAL)[1].editor);
-		assert.strictEqual(service.visibleEditorPanes.length, 1);
-		assert.strictEqual(service.isOpened(input), true);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
-		assert.strictEqual(service.isOpened(otherInput), true);
-		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
+		assert.strictEqual(2, editorService.count);
+		assert.strictEqual(otherInput, editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].editor);
+		assert.strictEqual(input, editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1].editor);
+		assert.strictEqual(input, editorService.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
+		assert.strictEqual(otherInput, editorService.getEditors(EditorsOrder.SEQUENTIAL)[1].editor);
+		assert.strictEqual(editorService.visibleEditorPanes.length, 1);
+		assert.strictEqual(editorService.isOpened(input), true);
+		assert.strictEqual(editorService.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
+		assert.strictEqual(editorService.isOpened(otherInput), true);
+		assert.strictEqual(editorService.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
 		assert.strictEqual(activeEditorChangeEventCounter, 4);
+		assert.strictEqual(willOpenEditorListenerCounter, 3);
 		assert.strictEqual(visibleEditorChangeEventCounter, 4);
 
 		const stickyInput = createTestFileEditorInput(URI.parse('my://resource3-basics'), TEST_EDITOR_INPUT_ID);
-		await service.openEditor(stickyInput, { sticky: true });
+		await editorService.openEditor(stickyInput, { sticky: true });
 
-		assert.strictEqual(3, service.count);
+		assert.strictEqual(3, editorService.count);
 
-		const allSequentialEditors = service.getEditors(EditorsOrder.SEQUENTIAL);
+		const allSequentialEditors = editorService.getEditors(EditorsOrder.SEQUENTIAL);
 		assert.strictEqual(allSequentialEditors.length, 3);
 		assert.strictEqual(stickyInput, allSequentialEditors[0].editor);
 		assert.strictEqual(input, allSequentialEditors[1].editor);
 		assert.strictEqual(otherInput, allSequentialEditors[2].editor);
 
-		const sequentialEditorsExcludingSticky = service.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true });
+		const sequentialEditorsExcludingSticky = editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true });
 		assert.strictEqual(sequentialEditorsExcludingSticky.length, 2);
 		assert.strictEqual(input, sequentialEditorsExcludingSticky[0].editor);
 		assert.strictEqual(otherInput, sequentialEditorsExcludingSticky[1].editor);
 
-		const mruEditorsExcludingSticky = service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true });
+		const mruEditorsExcludingSticky = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true });
 		assert.strictEqual(mruEditorsExcludingSticky.length, 2);
 		assert.strictEqual(input, sequentialEditorsExcludingSticky[0].editor);
 		assert.strictEqual(otherInput, sequentialEditorsExcludingSticky[1].editor);
@@ -1382,15 +1400,15 @@ suite('EditorService', () => {
 				const rootPane = await openEditor(untypedEditor1);
 				const sidePane = await openEditor(untypedEditor2, SIDE_GROUP);
 
-				assert.strictEqual(rootPane?.group?.count, 1);
-				assert.strictEqual(sidePane?.group?.count, 1);
+				assert.strictEqual(rootPane?.group.count, 1);
+				assert.strictEqual(sidePane?.group.count, 1);
 
 				accessor.editorGroupService.activateGroup(sidePane.group);
 
 				await openEditor(untypedEditor1);
 
-				assert.strictEqual(rootPane?.group?.count, 1);
-				assert.strictEqual(sidePane?.group?.count, 1);
+				assert.strictEqual(rootPane?.group.count, 1);
+				assert.strictEqual(sidePane?.group.count, 1);
 
 				await resetTestState();
 			}
@@ -1402,18 +1420,18 @@ suite('EditorService', () => {
 
 				const rootPane = await openEditor(untypedEditor1);
 				await openEditor(untypedEditor2);
-				assert.strictEqual(rootPane?.group?.activeEditor?.resource?.toString(), untypedEditor2.resource.toString());
+				assert.strictEqual(rootPane?.group.activeEditor?.resource?.toString(), untypedEditor2.resource.toString());
 				const sidePane = await openEditor(untypedEditor2, SIDE_GROUP);
 
-				assert.strictEqual(rootPane?.group?.count, 2);
-				assert.strictEqual(sidePane?.group?.count, 1);
+				assert.strictEqual(rootPane?.group.count, 2);
+				assert.strictEqual(sidePane?.group.count, 1);
 
 				accessor.editorGroupService.activateGroup(sidePane.group);
 
 				await openEditor(untypedEditor1);
 
-				assert.strictEqual(rootPane?.group?.count, 2);
-				assert.strictEqual(sidePane?.group?.count, 1);
+				assert.strictEqual(rootPane?.group.count, 2);
+				assert.strictEqual(sidePane?.group.count, 1);
 
 				await resetTestState();
 			}
@@ -1441,7 +1459,7 @@ suite('EditorService', () => {
 		assert.strictEqual(pane?.options?.sticky, true);
 		assert.strictEqual(pane?.options?.preserveFocus, true);
 
-		await pane.group?.closeAllEditors();
+		await pane.group.closeAllEditors();
 
 		// Untyped editor (without registered editor)
 		pane = await service.openEditor({ resource: URI.file('resource-openEditors') });
@@ -1482,7 +1500,7 @@ suite('EditorService', () => {
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
 		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
-		await editor2?.group?.closeEditor(input);
+		await editor2?.group.closeEditor(input);
 		assert.strictEqual(part.activeGroup.count, 1);
 
 		assert.strictEqual(service.isOpened(input), false);
@@ -1490,7 +1508,7 @@ suite('EditorService', () => {
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), false);
 		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
-		await editor1?.group?.closeEditor(sideBySideInput);
+		await editor1?.group.closeEditor(sideBySideInput);
 
 		assert.strictEqual(service.isOpened(input), false);
 		assert.strictEqual(service.isOpened(otherInput), false);
@@ -2326,7 +2344,7 @@ suite('EditorService', () => {
 		assert.strictEqual(accessor.fileService.watches.length, 1);
 		assert.strictEqual(accessor.fileService.watches[0].toString(), input2.resource.toString());
 
-		await editor?.group?.closeAllEditors();
+		await editor?.group.closeAllEditors();
 		assert.strictEqual(accessor.fileService.watches.length, 0);
 	});
 
@@ -2591,14 +2609,14 @@ suite('EditorService', () => {
 			const found1 = service.findEditors(input.resource);
 			assert.strictEqual(found1.length, 2);
 			assert.strictEqual(found1[0].editor, input);
-			assert.strictEqual(found1[0].groupId, sideEditor?.group?.id);
+			assert.strictEqual(found1[0].groupId, sideEditor?.group.id);
 			assert.strictEqual(found1[1].editor, input);
 			assert.strictEqual(found1[1].groupId, rootGroup.id);
 
 			const found2 = service.findEditors(input);
 			assert.strictEqual(found2.length, 2);
 			assert.strictEqual(found2[0].editor, input);
-			assert.strictEqual(found2[0].groupId, sideEditor?.group?.id);
+			assert.strictEqual(found2[0].groupId, sideEditor?.group.id);
 			assert.strictEqual(found2[1].editor, input);
 			assert.strictEqual(found2[1].groupId, rootGroup.id);
 		}
@@ -2625,7 +2643,7 @@ suite('EditorService', () => {
 
 		// Check we don't find editors after closing them
 		await rootGroup.closeAllEditors();
-		await sideEditor?.group?.closeAllEditors();
+		await sideEditor?.group.closeAllEditors();
 		{
 			const found1 = service.findEditors(input.resource);
 			assert.strictEqual(found1.length, 0);

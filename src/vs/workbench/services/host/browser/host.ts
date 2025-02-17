@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
 
 export const IHostService = createDecorator<IHostService>('hostService');
 
@@ -18,7 +19,6 @@ export const IHostService = createDecorator<IHostService>('hostService');
 export interface IHostService {
 
 	readonly _serviceBrand: undefined;
-
 
 	//#region Focus
 
@@ -56,14 +56,19 @@ export interface IHostService {
 
 	//#endregion
 
-
 	//#region Window
 
 	/**
 	 * Emitted when the active window changes between main window
 	 * and auxiliary windows.
 	 */
-	readonly onDidChangeActiveWindow: Event<void>;
+	readonly onDidChangeActiveWindow: Event<number>;
+
+	/**
+	 * Emitted when the window with the given identifier changes
+	 * its fullscreen state.
+	 */
+	readonly onDidChangeFullScreen: Event<{ windowId: number; fullscreen: boolean }>;
 
 	/**
 	 * Opens an empty window. The optional parameter allows to define if
@@ -85,6 +90,11 @@ export interface IHostService {
 	 * Bring a window to the front and restore it if needed.
 	 */
 	moveTop(targetWindow: Window): Promise<void>;
+
+	/**
+	 * Get the location of the mouse cursor and its display bounds or `undefined` if unavailable.
+	 */
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle } | undefined>;
 
 	//#endregion
 
@@ -110,6 +120,24 @@ export interface IHostService {
 	 * in progress, attempts to quit the application will not be vetoed with a dialog.
 	 */
 	withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T>;
+
+	//#endregion
+
+	//#region Screenshots
+
+	/**
+	 * Captures a screenshot.
+	 */
+	getScreenshot(): Promise<ArrayBufferLike | undefined>;
+
+	//#endregion
+
+	//#region Native Handle
+
+	/**
+	 * Get the native handle of the window.
+	 */
+	getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined>;
 
 	//#endregion
 }

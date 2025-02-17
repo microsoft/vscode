@@ -3,24 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { Event } from 'vs/base/common/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/quickInput';
-import { localize } from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
+import * as cssJs from '../../../base/browser/cssValue.js';
+import { DomEmitter } from '../../../base/browser/event.js';
+import { Event } from '../../../base/common/event.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { Gesture, EventType as GestureEventType } from '../../../base/browser/touch.js';
+import { renderLabelWithIcons } from '../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IdGenerator } from '../../../base/common/idGenerator.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { parseLinkedText } from '../../../base/common/linkedText.js';
+import { URI } from '../../../base/common/uri.js';
+import './media/quickInput.css';
+import { localize } from '../../../nls.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IQuickInputButton } from '../common/quickInput.js';
+import { IAction } from '../../../base/common/actions.js';
 
 const iconPathToClass: Record<string, string> = {};
 const iconClassGenerator = new IdGenerator('quick-input-button-icon-');
 
-export function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): string | undefined {
+function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): string | undefined {
 	if (!iconPath) {
 		return undefined;
 	}
@@ -31,12 +35,28 @@ export function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): 
 		iconClass = iconPathToClass[key];
 	} else {
 		iconClass = iconClassGenerator.nextId();
-		dom.createCSSRule(`.${iconClass}, .hc-light .${iconClass}`, `background-image: ${dom.asCSSUrl(iconPath.light || iconPath.dark)}`);
-		dom.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: ${dom.asCSSUrl(iconPath.dark)}`);
+		domStylesheetsJs.createCSSRule(`.${iconClass}, .hc-light .${iconClass}`, `background-image: ${cssJs.asCSSUrl(iconPath.light || iconPath.dark)}`);
+		domStylesheetsJs.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: ${cssJs.asCSSUrl(iconPath.dark)}`);
 		iconPathToClass[key] = iconClass;
 	}
 
 	return iconClass;
+}
+
+export function quickInputButtonToAction(button: IQuickInputButton, id: string, run: () => unknown): IAction {
+	let cssClasses = button.iconClass || getIconClass(button.iconPath);
+	if (button.alwaysVisible) {
+		cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
+	}
+
+	return {
+		id,
+		label: '',
+		tooltip: button.tooltip || '',
+		class: cssClasses,
+		enabled: true,
+		run
+	};
 }
 
 export function renderQuickInputDescription(description: string, container: HTMLElement, actionHandler: { callback: (content: string) => void; disposables: DisposableStore }) {

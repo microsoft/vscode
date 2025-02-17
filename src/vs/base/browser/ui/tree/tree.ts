@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
-import { Event } from 'vs/base/common/event';
+import { IDragAndDropData } from '../../dnd.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../list/list.js';
+import { ListViewTargetSector } from '../list/listView.js';
+import { Event } from '../../../common/event.js';
 
 export const enum TreeVisibility {
 
@@ -118,6 +119,12 @@ export interface ICollapseStateChangeEvent<T, TFilterData> {
 	deep: boolean;
 }
 
+export interface ITreeListSpliceData<T, TFilterData> {
+	start: number;
+	deleteCount: number;
+	elements: ITreeNode<T, TFilterData>[];
+}
+
 export interface ITreeModelSpliceEvent<T, TFilterData> {
 	insertedNodes: ITreeNode<T, TFilterData>[];
 	deletedNodes: ITreeNode<T, TFilterData>[];
@@ -126,7 +133,8 @@ export interface ITreeModelSpliceEvent<T, TFilterData> {
 export interface ITreeModel<T, TFilterData, TRef> {
 	readonly rootRef: TRef;
 
-	readonly onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>;
+	readonly onDidSpliceModel: Event<ITreeModelSpliceEvent<T, TFilterData>>;
+	readonly onDidSpliceRenderedNodes: Event<ITreeListSpliceData<T, TFilterData>>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
@@ -178,6 +186,7 @@ export interface ITreeContextMenuEvent<T> {
 	readonly browserEvent: UIEvent;
 	readonly element: T | null;
 	readonly anchor: HTMLElement | IMouseEvent;
+	readonly isStickyScroll: boolean;
 }
 
 export interface ITreeNavigator<T> {
@@ -212,12 +221,12 @@ export interface ITreeDragOverReaction extends IListDragOverReaction {
 export const TreeDragOverReactions = {
 	acceptBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up }; },
 	acceptBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand }; },
-	acceptCopyBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up, effect: ListDragOverEffect.Copy }; },
-	acceptCopyBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, effect: ListDragOverEffect.Copy, autoExpand }; }
+	acceptCopyBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up, effect: { type: ListDragOverEffectType.Copy, position: ListDragOverEffectPosition.Over } }; },
+	acceptCopyBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, effect: { type: ListDragOverEffectType.Copy, position: ListDragOverEffectPosition.Over }, autoExpand }; }
 };
 
 export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
-	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
 }
 
 export class TreeError extends Error {

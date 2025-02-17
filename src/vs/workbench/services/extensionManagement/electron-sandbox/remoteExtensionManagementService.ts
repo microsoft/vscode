@@ -3,33 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILogService } from 'vs/platform/log/common/log';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { Promises } from 'vs/base/common/async';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { RemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, ExtensionManagementError, ExtensionManagementErrorCode, EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionType, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { localize } from '../../../../nls.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IExtensionManagementServer } from '../common/extensionManagement.js';
+import { Promises } from '../../../../base/common/async.js';
+import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { RemoteExtensionManagementService } from '../common/remoteExtensionManagementService.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/remoteUserDataProfiles.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { areApiProposalsCompatible } from '../../../../platform/extensions/common/extensionValidator.js';
+import { isBoolean, isUndefined } from '../../../../base/common/types.js';
 
 export class NativeRemoteExtensionManagementService extends RemoteExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
 		private readonly localExtensionManagementServer: IExtensionManagementServer,
+		@IProductService productService: IProductService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IRemoteUserDataProfilesService remoteUserDataProfilesService: IRemoteUserDataProfilesService,
@@ -37,38 +40,46 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(channel, userDataProfileService, userDataProfilesService, remoteUserDataProfilesService, uriIdentityService);
+		super(channel, productService, allowedExtensionsService, userDataProfileService, userDataProfilesService, remoteUserDataProfilesService, uriIdentityService);
 	}
 
-	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+	override async install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {
 		const local = await super.install(vsix, options);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}
 
-	override async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	override async installFromGallery(extension: IGalleryExtension, installOptions: InstallOptions = {}): Promise<ILocalExtension> {
+		if (isUndefined(installOptions.donotVerifySignature)) {
+			const value = this.configurationService.getValue('extensions.verifySignature');
+			installOptions.donotVerifySignature = isBoolean(value) ? !value : undefined;
+		}
 		const local = await this.doInstallFromGallery(extension, installOptions);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}
 
-	private async doInstallFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	private async doInstallFromGallery(extension: IGalleryExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
 		if (this.configurationService.getValue('remote.downloadExtensionsLocally')) {
-			return this.downloadAndInstall(extension, installOptions || {});
+			return this.downloadAndInstall(extension, installOptions);
 		}
 		try {
-			return await super.installFromGallery(extension, installOptions);
+			const clientTargetPlatform = await this.localExtensionManagementServer.extensionManagementService.getTargetPlatform();
+			return await super.installFromGallery(extension, { ...installOptions, context: { ...installOptions?.context, [EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT]: clientTargetPlatform } });
 		} catch (error) {
 			switch (error.name) {
 				case ExtensionManagementErrorCode.Download:
+				case ExtensionManagementErrorCode.DownloadSignature:
+				case ExtensionManagementErrorCode.Gallery:
 				case ExtensionManagementErrorCode.Internal:
+				case ExtensionManagementErrorCode.Unknown:
 					try {
 						this.logService.error(`Error while installing '${extension.identifier.id}' extension in the remote server.`, toErrorMessage(error));
-						return await this.downloadAndInstall(extension, installOptions || {});
+						return await this.downloadAndInstall(extension, installOptions);
 					} catch (e) {
 						this.logService.error(e);
 						throw e;
@@ -84,7 +95,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		this.logService.info(`Downloading the '${extension.identifier.id}' extension locally and install`);
 		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
 		installOptions = { ...installOptions, donotIncludePackAndDependencies: true };
-		const installed = await this.getInstalled(ExtensionType.User);
+		const installed = await this.getInstalled(ExtensionType.User, undefined, installOptions.productVersion);
 		const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(compatible, CancellationToken.None);
 		if (workspaceExtensions.length) {
 			this.logService.info(`Downloading the workspace dependencies and packed extensions of '${compatible.identifier.id}' locally and install`);
@@ -101,7 +112,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		const location = await this.localExtensionManagementServer.extensionManagementService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install, !!installOptions.donotVerifySignature);
 		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
 		try {
-			const local = await super.install(location, installOptions);
+			const local = await super.install(location, { ...installOptions, keepExisting: true });
 			this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
 			return local;
 		} finally {
@@ -130,6 +141,10 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		}
 
 		if (!compatibleExtension) {
+			const incompatibleApiProposalsMessages: string[] = [];
+			if (!areApiProposalsCompatible(extension.properties.enabledApiProposals ?? [], incompatibleApiProposalsMessages)) {
+				throw new ExtensionManagementError(localize('incompatibleAPI', "Can't install '{0}' extension. {1}", extension.displayName ?? extension.identifier.id, incompatibleApiProposalsMessages[0]), ExtensionManagementErrorCode.IncompatibleApi);
+			}
 			/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
 			if (!includePreRelease && extension.properties.isPreReleaseVersion && (await this.galleryService.getExtensions([extension.identifier], CancellationToken.None))[0]) {
 				throw new ExtensionManagementError(localize('notFoundReleaseExtension', "Can't install release version of '{0}' extension because it has no release version.", extension.identifier.id), ExtensionManagementErrorCode.ReleaseVersionNotFound);

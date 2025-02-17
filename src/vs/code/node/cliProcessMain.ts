@@ -3,66 +3,68 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { hostname, release } from 'os';
-import { raceTimeout } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isAbsolute, join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadService } from 'vs/platform/download/common/downloadService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
-import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
-import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
-import { ConsoleLogger, getLogLevel, ILogger, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
-import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
-import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestService } from 'vs/platform/request/node/requestService';
-import { SaveStrategy, StateReadonlyService } from 'vs/platform/state/node/stateService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
-import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfilesReadonlyService } from 'vs/platform/userDataProfile/node/userDataProfile';
-import { resolveMachineId, resolveSqmId } from 'vs/platform/telemetry/node/telemetryUtils';
-import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
-import { LogService } from 'vs/platform/log/common/logService';
-import { LoggerService } from 'vs/platform/log/node/loggerService';
-import { localize } from 'vs/nls';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { raceTimeout } from '../../base/common/async.js';
+import { toErrorMessage } from '../../base/common/errorMessage.js';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { Schemas } from '../../base/common/network.js';
+import { isAbsolute, join } from '../../base/common/path.js';
+import { isWindows } from '../../base/common/platform.js';
+import { cwd } from '../../base/common/process.js';
+import { URI } from '../../base/common/uri.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ConfigurationService } from '../../platform/configuration/common/configurationService.js';
+import { IDownloadService } from '../../platform/download/common/download.js';
+import { DownloadService } from '../../platform/download/common/downloadService.js';
+import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
+import { INativeEnvironmentService } from '../../platform/environment/common/environment.js';
+import { NativeEnvironmentService } from '../../platform/environment/node/environmentService.js';
+import { ExtensionGalleryServiceWithNoStorageService } from '../../platform/extensionManagement/common/extensionGalleryService.js';
+import { IAllowedExtensionsService, IExtensionGalleryService, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
+import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
+import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
+import { IExtensionsScannerService } from '../../platform/extensionManagement/common/extensionsScannerService.js';
+import { ExtensionManagementService, INativeServerExtensionManagementService } from '../../platform/extensionManagement/node/extensionManagementService.js';
+import { ExtensionsScannerService } from '../../platform/extensionManagement/node/extensionsScannerService.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { FileService } from '../../platform/files/common/fileService.js';
+import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystemProvider.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
+import { ILanguagePackService } from '../../platform/languagePacks/common/languagePacks.js';
+import { NativeLanguagePackService } from '../../platform/languagePacks/node/languagePacks.js';
+import { ConsoleLogger, getLogLevel, ILogger, ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
+import { FilePolicyService } from '../../platform/policy/common/filePolicyService.js';
+import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
+import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
+import product from '../../platform/product/common/product.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { IRequestService } from '../../platform/request/common/request.js';
+import { RequestService } from '../../platform/request/node/requestService.js';
+import { SaveStrategy, StateReadonlyService } from '../../platform/state/node/stateService.js';
+import { resolveCommonProperties } from '../../platform/telemetry/common/commonProperties.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender } from '../../platform/telemetry/common/telemetryUtils.js';
+import { OneDataSystemAppender } from '../../platform/telemetry/node/1dsAppender.js';
+import { buildTelemetryMessage } from '../../platform/telemetry/node/telemetry.js';
+import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
+import { UserDataProfilesReadonlyService } from '../../platform/userDataProfile/node/userDataProfile.js';
+import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from '../../platform/telemetry/node/telemetryUtils.js';
+import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
+import { LogService } from '../../platform/log/common/logService.js';
+import { LoggerService } from '../../platform/log/node/loggerService.js';
+import { localize } from '../../nls.js';
+import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
+import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
+import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 
 class CliMain extends Disposable {
 
@@ -121,9 +123,9 @@ class CliMain extends Disposable {
 
 		// Init folders
 		await Promise.all([
-			environmentService.appSettingsHome.with({ scheme: Schemas.file }).fsPath,
-			environmentService.extensionsPath
-		].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
+			this.allowWindowsUNCPath(environmentService.appSettingsHome.with({ scheme: Schemas.file }).fsPath),
+			this.allowWindowsUNCPath(environmentService.extensionsPath)
+		].map(path => path ? fs.promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Logger
 		const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
@@ -185,6 +187,7 @@ class CliMain extends Disposable {
 			}
 		}
 		const sqmId = await resolveSqmId(stateService, logService);
+		const devDeviceId = await resolvedevDeviceId(stateService, logService);
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesService.init();
@@ -193,7 +196,7 @@ class CliMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+		const requestService = new RequestService('local', configurationService, environmentService, logService);
 		services.set(IRequestService, requestService);
 
 		// Download Service
@@ -203,6 +206,7 @@ class CliMain extends Disposable {
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
 		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
+		services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService, undefined, true));
 
@@ -220,7 +224,7 @@ class CliMain extends Disposable {
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, isInternal),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, isInternal),
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
@@ -231,6 +235,17 @@ class CliMain extends Disposable {
 		}
 
 		return [new InstantiationService(services), appenders];
+	}
+
+	private allowWindowsUNCPath(path: string): string {
+		if (isWindows) {
+			const host = getUNCHost(path);
+			if (host) {
+				addUNCHostToAllowlist(host);
+			}
+		}
+
+		return path;
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
@@ -271,13 +286,17 @@ class CliMain extends Disposable {
 
 		// Install Extension
 		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
-			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'], profileLocation };
+			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'], donotIncludePackAndDependencies: !!this.argv['do-not-include-pack-dependencies'], profileLocation };
 			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.asExtensionIdOrVSIX(this.argv['install-builtin-extension'] || []), installOptions, !!this.argv['force']);
 		}
 
 		// Uninstall Extension
 		else if (this.argv['uninstall-extension']) {
 			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force'], profileLocation);
+		}
+
+		else if (this.argv['update-extensions']) {
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).updateExtensions(profileLocation);
 		}
 
 		// Locate Extension

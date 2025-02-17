@@ -3,31 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from 'vs/editor/common/languages';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { getOrSet, SetMap } from 'vs/base/common/map';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { flatten } from 'vs/base/common/arrays';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import Severity from 'vs/base/common/severity';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { mixin } from 'vs/base/common/objects';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { Command } from '../../editor/common/languages.js';
+import { UriComponents, URI } from '../../base/common/uri.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { ContextKeyExpression } from '../../platform/contextkey/common/contextkey.js';
+import { localize } from '../../nls.js';
+import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { IDisposable, Disposable, toDisposable } from '../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { getOrSet, SetMap } from '../../base/common/map.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IKeybindings } from '../../platform/keybinding/common/keybindingsRegistry.js';
+import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { IProgressIndicator } from '../../platform/progress/common/progress.js';
+import Severity from '../../base/common/severity.js';
+import { IAccessibilityInformation } from '../../platform/accessibility/common/accessibility.js';
+import { IMarkdownString, MarkdownString } from '../../base/common/htmlContent.js';
+import { mixin } from '../../base/common/objects.js';
+import { Codicon } from '../../base/common/codicons.js';
+import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
+import { VSDataTransfer } from '../../base/common/dataTransfer.js';
+import { ILocalizedString } from '../../platform/action/common/action.js';
 
 export const VIEWS_LOG_ID = 'views';
 export const VIEWS_LOG_NAME = localize('views log', "Views");
@@ -205,7 +203,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	private readonly defaultViewContainers: ViewContainer[] = [];
 
 	get all(): ViewContainer[] {
-		return flatten([...this.viewContainers.values()]);
+		return [...this.viewContainers.values()].flat();
 	}
 
 	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean }): ViewContainer {
@@ -285,6 +283,8 @@ export interface IViewDescriptor {
 
 	readonly containerTitle?: string;
 
+	readonly singleViewPaneContainerTitle?: string;
+
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
@@ -299,6 +299,8 @@ export interface IViewDescriptor {
 	readonly virtualWorkspace?: string;
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
+
+	readonly accessibilityHelpContent?: MarkdownString;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
@@ -364,6 +366,11 @@ export enum ViewContentGroups {
 
 export interface IViewContentDescriptor {
 	readonly content: string;
+	/**
+	 * Whether to render all but the first button as secondary
+	 * if there are buttons in the `content` property.
+	 */
+	readonly renderSecondaryButtons?: boolean;
 	readonly when?: ContextKeyExpression | 'default';
 	readonly group?: string;
 	readonly order?: number;
@@ -567,31 +574,6 @@ export interface IView {
 	getProgressIndicator(): IProgressIndicator | undefined;
 }
 
-export const IViewsService = createDecorator<IViewsService>('viewsService');
-export interface IViewsService {
-
-	readonly _serviceBrand: undefined;
-
-	// View Container APIs
-	readonly onDidChangeViewContainerVisibility: Event<{ id: string; visible: boolean; location: ViewContainerLocation }>;
-	isViewContainerVisible(id: string): boolean;
-	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null>;
-	closeViewContainer(id: string): void;
-	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
-	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
-	getFocusedViewName(): string;
-
-	// View APIs
-	readonly onDidChangeViewVisibility: Event<{ id: string; visible: boolean }>;
-	readonly onDidChangeFocusedView: Event<void>;
-	isViewVisible(id: string): boolean;
-	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
-	closeView(id: string): void;
-	getActiveViewWithId<T extends IView>(id: string): T | null;
-	getViewWithId<T extends IView>(id: string): T | null;
-	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
-}
-
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
 export enum ViewVisibilityState {
@@ -680,7 +662,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly container: any | undefined;
 
-	refresh(treeItems?: readonly ITreeItem[]): Promise<void>;
+	// checkboxesChanged is a subset of treeItems
+	refresh(treeItems?: readonly ITreeItem[], checkboxesChanged?: readonly ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -855,8 +838,8 @@ export class NoTreeViewError extends Error {
 	constructor(treeViewId: string) {
 		super(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
 	}
-	static is(err: Error): err is NoTreeViewError {
-		return err.name === 'NoTreeViewError';
+	static is(err: unknown): err is NoTreeViewError {
+		return !!err && (err as Error).name === 'NoTreeViewError';
 	}
 }
 
@@ -864,6 +847,7 @@ export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
+	getChildrenBatch?(element?: ITreeItem[]): Promise<ITreeItem[][] | undefined>;
 }
 
 export interface ITreeViewDragAndDropController {

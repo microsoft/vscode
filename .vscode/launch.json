@@ -203,6 +203,24 @@
 			}
 		},
 		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Tokenizer Performance Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/vscode-colorize-perf-tests/test",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-colorize-perf-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-colorize-perf-tests/out"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
@@ -257,10 +275,6 @@
 			"presentation": {
 				"hidden": true,
 			},
-			// This is read by the vscode-diagnostic-tools extension
-			"vscode-diagnostic-tools.debuggerScripts": [
-				"${workspaceFolder}/scripts/hot-reload-injected-script.js"
-			]
 		},
 		{
 			"type": "node",

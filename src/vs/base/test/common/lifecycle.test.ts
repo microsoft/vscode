@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { Emitter } from '../../common/event.js';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, toDisposable } from '../../common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from './utils.js';
 
 class Disposable implements IDisposable {
 	isDisposed = false;
 	dispose() { this.isDisposed = true; }
 }
 
+// Leaks are allowed here since we test lifecycle stuff:
+// eslint-disable-next-line local/code-ensure-no-disposables-leak-in-test
 suite('Lifecycle', () => {
-
 	test('dispose single disposable', () => {
 		const disposable = new Disposable();
 
@@ -129,6 +130,8 @@ suite('Lifecycle', () => {
 });
 
 suite('DisposableStore', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('dispose should call all child disposes even if a child throws on dispose', () => {
 		const disposedValues = new Set<number>();
 
@@ -221,6 +224,8 @@ suite('DisposableStore', () => {
 });
 
 suite('Reference Collection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	class Collection extends ReferenceCollection<number> {
 		private _count = 0;
 		get count() { return this._count; }

@@ -7,9 +7,12 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
+  - name: PUBLISH_TASK_NAME
+    type: string
+    default: PublishPipelineArtifact@0
 
 steps:
-  - script: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - script: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
@@ -35,27 +38,24 @@ steps:
           DISPLAY: ":10"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
-
-      - script: yarn test-node
+      - script: npm run test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-
-      - script: yarn test-browser-no-install --browser chromium --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 15
 
+
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: ./scripts/test.sh --build --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
-
-      - script: yarn test-node --build
+      - script: npm run test-node -- --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-
-      - script: yarn test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Chromium)
@@ -64,7 +64,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - script: |
         set -e
-        yarn gulp \
+        npm run gulp \
           compile-extension:configuration-editing \
           compile-extension:css-language-features-server \
           compile-extension:emmet \
@@ -74,13 +74,13 @@ steps:
           compile-extension:ipynb \
           compile-extension:notebook-renderers \
           compile-extension:json-language-features-server \
-          compile-extension:markdown-language-features-server \
           compile-extension:markdown-language-features \
           compile-extension-media \
           compile-extension:microsoft-authentication \
           compile-extension:typescript-language-features \
           compile-extension:vscode-api-tests \
           compile-extension:vscode-colorize-tests \
+          compile-extension:vscode-colorize-perf-tests \
           compile-extension:vscode-test-resolver
       displayName: Build integration tests
 
@@ -145,34 +145,35 @@ steps:
       condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: yarn --cwd test/smoke compile
+      - script: npm run compile
+        workingDirectory: test/smoke
         displayName: Compile smoke tests
 
-      - script: yarn gulp compile-extension:markdown-language-features compile-extension-media compile-extension:vscode-test-resolver
+      - script: npm run gulp compile-extension:markdown-language-features compile-extension:ipynb compile-extension-media compile-extension:vscode-test-resolver
         displayName: Build extensions for smoke tests
 
-      - script: yarn gulp node
+      - script: npm run gulp node
         displayName: Download node.js for remote smoke tests
         retryCountOnTaskFailure: 3
 
-      - script: yarn smoketest-no-compile --tracing
+      - script: npm run smoketest-no-compile -- --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
-      - script: yarn smoketest-no-compile --remote --tracing
+      - script: npm run smoketest-no-compile -- --remote --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: yarn smoketest-no-compile --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+      - script: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
@@ -180,10 +181,10 @@ steps:
 
       - script: |
           set -e
-          yarn gulp compile-extension:vscode-test-resolver
+          npm run gulp compile-extension:vscode-test-resolver
           APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
           VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
-          yarn smoketest-no-compile --tracing --remote --build "$APP_PATH"
+          npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)
 
@@ -197,7 +198,7 @@ steps:
       condition: succeededOrFailed()
 
   - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - task: PublishPipelineArtifact@0
+    - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build/crashes
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -206,13 +207,14 @@ steps:
           artifactName: crash-dump-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: crash-dump-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
       condition: failed()
 
     # In order to properly symbolify above crash reports
     # (if any), we need the compiled native modules too
-    - task: PublishPipelineArtifact@0
+    - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: node_modules
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -221,11 +223,12 @@ steps:
           artifactName: node-modules-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
       condition: failed()
 
-    - task: PublishPipelineArtifact@0
+    - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build/logs
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -234,6 +237,7 @@ steps:
           artifactName: logs-linux-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true
       condition: succeededOrFailed()

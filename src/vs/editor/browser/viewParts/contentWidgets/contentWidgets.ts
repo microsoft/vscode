@@ -3,20 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IViewModel } from 'vs/editor/common/viewModel';
+import * as dom from '../../../../base/browser/dom.js';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { ContentWidgetPositionPreference, IContentWidget, IContentWidgetRenderedCoordinate } from '../../editorBrowser.js';
+import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IDimension } from '../../../common/core/dimension.js';
+import { PositionAffinity } from '../../../common/model.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { IViewModel } from '../../../common/viewModel.js';
 
+/**
+ * This view part is responsible for rendering the content widgets, which are
+ * used for rendering elements that are associated to an editor position,
+ * such as suggestions or the parameter hints.
+ */
 export class ViewContentWidgets extends ViewPart {
 
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;
@@ -121,7 +126,7 @@ export class ViewContentWidgets extends ViewPart {
 			delete this._widgets[widgetId];
 
 			const domNode = myWidget.domNode.domNode;
-			domNode.parentNode!.removeChild(domNode);
+			domNode.remove();
 			domNode.removeAttribute('monaco-visible-content-widget');
 
 			this.setShouldRender();
@@ -167,10 +172,18 @@ interface IBoxLayoutResult {
 	left: number;
 }
 
-interface IRenderData {
+interface IOffViewportRenderData {
+	kind: 'offViewport';
+	preserveFocus: boolean;
+}
+
+interface IInViewportRenderData {
+	kind: 'inViewport';
 	coordinate: Coordinate;
 	position: ContentWidgetPositionPreference;
 }
+
+type IRenderData = IInViewportRenderData | IOffViewportRenderData;
 
 class Widget {
 	private readonly _context: ViewContext;
@@ -435,7 +448,11 @@ class Widget {
 
 		const { primary, secondary } = this._getAnchorsCoordinates(ctx);
 		if (!primary) {
-			return null;
+			return {
+				kind: 'offViewport',
+				preserveFocus: this.domNode.domNode.contains(this.domNode.domNode.ownerDocument.activeElement)
+			};
+			// return null;
 		}
 
 		if (this._cachedDomNodeOffsetWidth === -1 || this._cachedDomNodeOffsetHeight === -1) {
@@ -474,7 +491,11 @@ class Widget {
 						return null;
 					}
 					if (pass === 2 || placement.fitsAbove) {
-						return { coordinate: new Coordinate(placement.aboveTop, placement.left), position: ContentWidgetPositionPreference.ABOVE };
+						return {
+							kind: 'inViewport',
+							coordinate: new Coordinate(placement.aboveTop, placement.left),
+							position: ContentWidgetPositionPreference.ABOVE
+						};
 					}
 				} else if (pref === ContentWidgetPositionPreference.BELOW) {
 					if (!placement) {
@@ -482,13 +503,25 @@ class Widget {
 						return null;
 					}
 					if (pass === 2 || placement.fitsBelow) {
-						return { coordinate: new Coordinate(placement.belowTop, placement.left), position: ContentWidgetPositionPreference.BELOW };
+						return {
+							kind: 'inViewport',
+							coordinate: new Coordinate(placement.belowTop, placement.left),
+							position: ContentWidgetPositionPreference.BELOW
+						};
 					}
 				} else {
 					if (this.allowEditorOverflow) {
-						return { coordinate: this._prepareRenderWidgetAtExactPositionOverflowing(new Coordinate(anchor.top, anchor.left)), position: ContentWidgetPositionPreference.EXACT };
+						return {
+							kind: 'inViewport',
+							coordinate: this._prepareRenderWidgetAtExactPositionOverflowing(new Coordinate(anchor.top, anchor.left)),
+							position: ContentWidgetPositionPreference.EXACT
+						};
 					} else {
-						return { coordinate: new Coordinate(anchor.top, anchor.left), position: ContentWidgetPositionPreference.EXACT };
+						return {
+							kind: 'inViewport',
+							coordinate: new Coordinate(anchor.top, anchor.left),
+							position: ContentWidgetPositionPreference.EXACT
+						};
 					}
 				}
 			}
@@ -518,16 +551,23 @@ class Widget {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		if (!this._renderData) {
+		if (!this._renderData || this._renderData.kind === 'offViewport') {
 			// This widget should be invisible
 			if (this._isVisible) {
 				this.domNode.removeAttribute('monaco-visible-content-widget');
 				this._isVisible = false;
-				this.domNode.setVisibility('hidden');
+
+				if (this._renderData?.kind === 'offViewport' && this._renderData.preserveFocus) {
+					// widget wants to be shown, but it is outside of the viewport and it
+					// has focus which we need to preserve
+					this.domNode.setTop(-1000);
+				} else {
+					this.domNode.setVisibility('hidden');
+				}
 			}
 
 			if (typeof this._actual.afterRender === 'function') {
-				safeInvoke(this._actual.afterRender, this._actual, null);
+				safeInvoke(this._actual.afterRender, this._actual, null, null);
 			}
 			return;
 		}
@@ -548,7 +588,7 @@ class Widget {
 		}
 
 		if (typeof this._actual.afterRender === 'function') {
-			safeInvoke(this._actual.afterRender, this._actual, this._renderData.position);
+			safeInvoke(this._actual.afterRender, this._actual, this._renderData.position, this._renderData.coordinate);
 		}
 	}
 }
@@ -560,7 +600,7 @@ class PositionPair {
 	) { }
 }
 
-class Coordinate {
+class Coordinate implements IContentWidgetRenderedCoordinate {
 	_coordinateBrand: void = undefined;
 
 	constructor(

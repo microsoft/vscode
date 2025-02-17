@@ -3,46 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { distinct } from 'vs/base/common/arrays';
-import { Queue, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import * as resources from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { INewReplElementData, ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { Queue, RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { canceled } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { mixin } from '../../../../base/common/objects.js';
+import * as platform from '../../../../base/common/platform.js';
+import * as resources from '../../../../base/common/resources.js';
+import Severity from '../../../../base/common/severity.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { RawDebugSession } from './rawDebugSession.js';
+import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugLocationReferenced, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID, isFrameDeemphasized } from '../common/debug.js';
+import { DebugCompoundRoot } from '../common/debugCompoundRoot.js';
+import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from '../common/debugModel.js';
+import { Source } from '../common/debugSource.js';
+import { filterExceptionsFromTelemetry } from '../common/debugUtils.js';
+import { INewReplElementData, ReplModel } from '../common/replModel.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { ITestService } from '../../testing/common/testService.js';
+import { ITestResultService } from '../../testing/common/testResultService.js';
+import { LiveTestResult } from '../../testing/common/testResult.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+
+const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
 export class DebugSession implements IDebugSession, IDisposable {
 	parentSession: IDebugSession | undefined;
+	rememberedCapabilities?: DebugProtocol.Capabilities;
 
 	private _subId: string | undefined;
 	raw: RawDebugSession | undefined; // used in tests
@@ -54,11 +63,18 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private threadIds: number[] = [];
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
 	private readonly rawListeners = new DisposableStore();
+	private readonly globalDisposables = new DisposableStore();
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
 	private repl: ReplModel;
 	private stoppedDetails: IRawStoppedDetails[] = [];
+	private readonly statusQueue = this.rawListeners.add(new ThreadStatusScheduler());
+
+	/** Test run this debug session was spawned by */
+	public readonly correlatedTestRun?: LiveTestResult;
+	/** Whether we terminated the correlated run yet. Used so a 2nd terminate request goes through to the underlying session. */
+	private didTerminateTestRun?: boolean;
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
@@ -70,10 +86,16 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
 	private readonly _onDidInvalidMemory = new Emitter<DebugProtocol.MemoryEvent>();
 
-	private readonly _onDidChangeREPLElements = new Emitter<void>();
+	private readonly _onDidChangeREPLElements = new Emitter<IReplElement | undefined>();
 
 	private _name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
+
+	/**
+	 * Promise set while enabling dependent breakpoints to block the debugger
+	 * from continuing from a stopped state.
+	 */
+	private _waitToResume?: Promise<unknown>;
 
 	constructor(
 		private id: string,
@@ -94,7 +116,10 @@ export class DebugSession implements IDebugSession, IDisposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICustomEndpointTelemetryService private readonly customEndpointTelemetryService: ICustomEndpointTelemetryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ITestService private readonly testService: ITestService,
+		@ITestResultService testResultService: ITestResultService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		this._options = options || {};
 		this.parentSession = this._options.parentSession;
@@ -104,14 +129,24 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
 
-		const toDispose = new DisposableStore();
+		const toDispose = this.globalDisposables;
 		const replListener = toDispose.add(new MutableDisposable());
-		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+		replListener.value = this.repl.onDidChangeElements((e) => this._onDidChangeREPLElements.fire(e));
 		if (lifecycleService) {
 			toDispose.add(lifecycleService.onWillShutdown(() => {
 				this.shutdown();
 				dispose(toDispose);
 			}));
+		}
+
+		// Cast here, it's not possible to reference a hydrated result in this code path.
+		this.correlatedTestRun = options?.testRun
+			? (testResultService.getResult(options.testRun.runId) as LiveTestResult)
+			: this.parentSession?.correlatedTestRun;
+
+		if (this.correlatedTestRun) {
+			// Listen to the test completing because the user might have taken the cancel action rather than stopping the session.
+			toDispose.add(this.correlatedTestRun.onComplete(() => this.terminate()));
 		}
 
 		const compoundRoot = this._options.compoundRoot;
@@ -144,7 +179,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 				// remove its parent, if it's still running
 				if (!this.hasSeparateRepl() && this.raw?.isInShutdown === false) {
 					this.repl = this.repl.clone();
-					replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+					replListener.value = this.repl.onDidChangeElements((e) => this._onDidChangeREPLElements.fire(e));
 					this.parentSession = undefined;
 				}
 			}));
@@ -206,7 +241,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 	get autoExpandLazyVariables(): boolean {
 		// This tiny helper avoids converting the entire debug model to use service injection
-		return this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+		const screenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
+		const value = this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+		return value === 'auto' && screenReaderOptimized || value === 'on';
 	}
 
 	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {
@@ -259,7 +296,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this._onDidEndAdapter.event;
 	}
 
-	get onDidChangeReplElements(): Event<void> {
+	get onDidChangeReplElements(): Event<IReplElement | undefined> {
 		return this._onDidChangeREPLElements.event;
 	}
 
@@ -311,7 +348,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 			await this.raw.start();
 			this.registerListeners();
-			await this.raw!.initialize({
+			await this.raw.initialize({
 				clientID: 'vscode',
 				clientName: this.productService.nameLong,
 				adapterID: this.configuration.type,
@@ -327,12 +364,15 @@ export class DebugSession implements IDebugSession, IDisposable {
 				supportsMemoryReferences: true, //#129684
 				supportsArgsCanBeInterpretedByShell: true, // #149910
 				supportsMemoryEvent: true, // #133643
-				supportsStartDebuggingRequest: true
+				supportsStartDebuggingRequest: true,
+				supportsANSIStyling: true,
 			});
 
 			this.initialized = true;
 			this._onDidChangeState.fire();
+			this.rememberedCapabilities = this.raw.capabilities;
 			this.debugService.setExceptionBreakpointsForSession(this, (this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
+			this.debugService.getModel().registerBreakpointModes(this.configuration.type, this.raw.capabilities.breakpointModes || []);
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
@@ -374,6 +414,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.cancelAllRequests();
 		if (this._options.lifecycleManagedByParent && this.parentSession) {
 			await this.parentSession.terminate(restart);
+		} else if (this.correlatedTestRun && !this.correlatedTestRun.completedAt && !this.didTerminateTestRun) {
+			this.didTerminateTestRun = true;
+			this.testService.cancelTestRun(this.correlatedTestRun.id);
 		} else if (this.raw) {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				await this.raw.terminate(restart);
@@ -446,10 +489,10 @@ export class DebugSession implements IDebugSession, IDisposable {
 		const response = await this.raw.setBreakpoints({
 			source: rawSource,
 			lines: breakpointsToSend.map(bp => bp.sessionAgnosticData.lineNumber),
-			breakpoints: breakpointsToSend.map(bp => ({ line: bp.sessionAgnosticData.lineNumber, column: bp.sessionAgnosticData.column, condition: bp.condition, hitCondition: bp.hitCondition, logMessage: bp.logMessage })),
+			breakpoints: breakpointsToSend.map(bp => bp.toDAP()),
 			sourceModified
 		});
-		if (response && response.body) {
+		if (response?.body) {
 			const data = new Map<string, DebugProtocol.Breakpoint>();
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data.set(breakpointsToSend[i].getId(), response.body.breakpoints[i]);
@@ -465,8 +508,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setFunctionBreakpoints({ breakpoints: fbpts });
-			if (response && response.body) {
+			const response = await this.raw.setFunctionBreakpoints({ breakpoints: fbpts.map(bp => bp.toDAP()) });
+			if (response?.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < fbpts.length; i++) {
 					data.set(fbpts[i].getId(), response.body.breakpoints[i]);
@@ -494,7 +537,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 			} : { filters: exbpts.map(exb => exb.filter) };
 
 			const response = await this.raw.setExceptionBreakpoints(args);
-			if (response && response.body && response.body.breakpoints) {
+			if (response?.body && response.body.breakpoints) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < exbpts.length; i++) {
 					data.set(exbpts[i].getId(), response.body.breakpoints[i]);
@@ -505,7 +548,19 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 	}
 
-	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
+	dataBytesBreakpointInfo(address: string, bytes: number): Promise<IDataBreakpointInfoResponse | undefined> {
+		if (this.raw?.capabilities.supportsDataBreakpointBytes === false) {
+			throw new Error(localize('sessionDoesNotSupporBytesBreakpoints', "Session does not support breakpoints with bytes"));
+		}
+
+		return this._dataBreakpointInfo({ name: address, bytes, asAddress: true });
+	}
+
+	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
+		return this._dataBreakpointInfo({ name, variablesReference });
+	}
+
+	private async _dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'data breakpoints info'));
 		}
@@ -513,7 +568,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 			throw new Error(localize('sessionNotReadyForBreakpoints', "Session is not ready for breakpoints"));
 		}
 
-		const response = await this.raw.dataBreakpointInfo({ name, variablesReference });
+		const response = await this.raw.dataBreakpointInfo(args);
 		return response?.body;
 	}
 
@@ -523,11 +578,24 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setDataBreakpoints({ breakpoints: dataBreakpoints });
-			if (response && response.body) {
+			const converted = await Promise.all(dataBreakpoints.map(async bp => {
+				try {
+					const dap = await bp.toDAP(this);
+					return { dap, bp };
+				} catch (e) {
+					return { bp, message: e.message };
+				}
+			}));
+			const response = await this.raw.setDataBreakpoints({ breakpoints: converted.map(d => d.dap).filter(isDefined) });
+			if (response?.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
-				for (let i = 0; i < dataBreakpoints.length; i++) {
-					data.set(dataBreakpoints[i].getId(), response.body.breakpoints[i]);
+				let i = 0;
+				for (const dap of converted) {
+					if (!dap.dap) {
+						data.set(dap.bp.getId(), dap.message);
+					} else if (i < response.body.breakpoints.length) {
+						data.set(dap.bp.getId(), response.body.breakpoints[i++]);
+					}
 				}
 				this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 			}
@@ -540,8 +608,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toJSON()) });
-			if (response && response.body) {
+			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toDAP()) });
+			if (response?.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < instructionBreakpoints.length; i++) {
 					data.set(instructionBreakpoints[i].getId(), response.body.breakpoints[i]);
@@ -624,15 +692,16 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this.raw.variables({ variablesReference, filter, start, count }, token);
 	}
 
-	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined> {
+	evaluate(expression: string, frameId: number, context?: string, location?: { line: number; column: number; source: DebugProtocol.Source }): Promise<DebugProtocol.EvaluateResponse | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'evaluate'));
 		}
 
-		return this.raw.evaluate({ expression, frameId, context });
+		return this.raw.evaluate({ expression, frameId, context, line: location?.line, column: location?.column, source: location?.source });
 	}
 
 	async restartFrame(frameId: number, threadId: number): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'restartFrame'));
 		}
@@ -648,6 +717,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'next'));
 		}
@@ -657,6 +727,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepIn'));
 		}
@@ -666,6 +737,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepOut'));
 		}
@@ -675,6 +747,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepBack'));
 		}
@@ -684,6 +757,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async continue(threadId: number): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'continue'));
 		}
@@ -692,6 +766,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async reverseContinue(threadId: number): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'reverse continue'));
 		}
@@ -771,14 +846,14 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		const response = await this.raw.loadedSources({});
-		if (response && response.body && response.body.sources) {
+		if (response?.body && response.body.sources) {
 			return response.body.sources.map(src => this.getSource(src));
 		} else {
 			return [];
 		}
 	}
 
-	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined> {
+	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'completions')));
 		}
@@ -832,6 +907,20 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		return this.raw.writeMemory({ memoryReference, offset, allowPartial, data });
+	}
+
+	async resolveLocationReference(locationReference: number): Promise<IDebugLocationReferenced> {
+		if (!this.raw) {
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'locations'));
+		}
+
+		const location = await this.raw.locations({ locationReference });
+		if (!location?.body) {
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'locations'));
+		}
+
+		const source = this.getSource(location.body.source);
+		return { column: 1, ...location.body, source };
 	}
 
 	//---- threads
@@ -926,10 +1015,21 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 	}
 
+	private waitForTriggeredBreakpoints() {
+		if (!this._waitToResume) {
+			return;
+		}
+
+		return raceTimeout(
+			this._waitToResume,
+			TRIGGERED_BREAKPOINT_MAX_DELAY
+		);
+	}
+
 	private async fetchThreads(stoppedDetails?: IRawStoppedDetails): Promise<void> {
 		if (this.raw) {
 			const response = await this.raw.threads();
-			if (response && response.body && response.body.threads) {
+			if (response?.body && response.body.threads) {
 				this.model.rawUpdate({
 					sessionId: this.getId(),
 					threads: response.body.threads,
@@ -982,71 +1082,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}));
 
 
-		const statusQueue = this.rawListeners.add(new ThreadStatusScheduler());
-		this.rawListeners.add(this.raw.onDidStop(async event => {
-			this.passFocusScheduler.cancel();
-			this.stoppedDetails.push(event.body);
-
-			statusQueue.run(
-				this.fetchThreads(event.body).then(() => event.body.threadId === undefined ? this.threadIds : [event.body.threadId]),
-				async (threadId, token) => {
-					const hasLotsOfThreads = event.body.threadId === undefined && this.threadIds.length > 10;
-
-					// If the focus for the current session is on a non-existent thread, clear the focus.
-					const focusedThread = this.debugService.getViewModel().focusedThread;
-					const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
-					if (focusedThreadDoesNotExist) {
-						this.debugService.focusStackFrame(undefined, undefined);
-					}
-					const thread = typeof threadId === 'number' ? this.getThread(threadId) : undefined;
-					if (thread) {
-						// Call fetch call stack twice, the first only return the top stack frame.
-						// Second retrieves the rest of the call stack. For performance reasons #25605
-						// Second call is only done if there's few threads that stopped in this event.
-						const promises = this.model.refreshTopOfCallstack(<Thread>thread, /* fetchFullStack= */!hasLotsOfThreads);
-						const focus = async () => {
-							if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
-								const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-								if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
-									// Only take focus if nothing is focused, or if the focus is already on the current session
-									const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
-									await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
-								}
-
-								if (thread.stoppedDetails && !token.isCancellationRequested) {
-									if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
-										await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
-									}
-
-									if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
-										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
-									}
-								}
-							}
-						};
-
-						await promises.topCallStack;
-						if (token.isCancellationRequested) {
-							return;
-						}
-
-						focus();
-
-						await promises.wholeCallStack;
-						if (token.isCancellationRequested) {
-							return;
-						}
-
-						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-						if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize' || focusedStackFrame.presentationHint === 'deemphasize') {
-							// The top stack frame can be deemphesized so try to focus again #68616
-							focus();
-						}
-					}
-					this._onDidChangeState.fire();
-				},
-			);
-		}));
+		const statusQueue = this.statusQueue;
+		this.rawListeners.add(this.raw.onDidStop(event => this.handleStop(event.body)));
 
 		this.rawListeners.add(this.raw.onDidThread(event => {
 			statusQueue.cancel([event.body.threadId]);
@@ -1167,7 +1204,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 				if (event.body.group === 'start' || event.body.group === 'startCollapsed') {
 					const expanded = event.body.group === 'start';
-					this.repl.startGroup(event.body.output || '', expanded, source);
+					this.repl.startGroup(this, event.body.output || '', expanded, source);
 					return;
 				}
 				if (event.body.group === 'end') {
@@ -1263,11 +1300,15 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this._onDidInvalidMemory.fire(event);
 		}));
 		this.rawListeners.add(this.raw.onDidInvalidated(async event => {
-			if (!(event.body.areas && event.body.areas.length === 1 && (event.body.areas[0] === 'variables' || event.body.areas[0] === 'watch'))) {
-				// If invalidated event only requires to update variables or watch, do that, otherwise refatch threads https://github.com/microsoft/vscode/issues/106745
+			const areas = event.body.areas || ['all'];
+			// If invalidated event only requires to update variables or watch, do that, otherwise refetch threads https://github.com/microsoft/vscode/issues/106745
+			if (areas.includes('threads') || areas.includes('stacks') || areas.includes('all')) {
 				this.cancelAllRequests();
 				this.model.clearThreads(this.getId(), true);
-				await this.fetchThreads(this.getStoppedDetails());
+
+				const details = this.stoppedDetails;
+				this.stoppedDetails.length = 1;
+				await Promise.all(details.map(d => this.handleStop(d)));
 			}
 
 			const viewModel = this.debugService.getViewModel();
@@ -1277,6 +1318,135 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}));
 
 		this.rawListeners.add(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
+	}
+
+	private async handleStop(event: IRawStoppedDetails) {
+		this.passFocusScheduler.cancel();
+		this.stoppedDetails.push(event);
+
+		// do this very eagerly if we have hitBreakpointIds, since it may take a
+		// moment for breakpoints to set and we want to do our best to not miss
+		// anything
+		if (event.hitBreakpointIds) {
+			this._waitToResume = this.enableDependentBreakpoints(event.hitBreakpointIds);
+		}
+
+		this.statusQueue.run(
+			this.fetchThreads(event).then(() => event.threadId === undefined ? this.threadIds : [event.threadId]),
+			async (threadId, token) => {
+				const hasLotsOfThreads = event.threadId === undefined && this.threadIds.length > 10;
+
+				// If the focus for the current session is on a non-existent thread, clear the focus.
+				const focusedThread = this.debugService.getViewModel().focusedThread;
+				const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
+				if (focusedThreadDoesNotExist) {
+					this.debugService.focusStackFrame(undefined, undefined);
+				}
+
+				const thread = typeof threadId === 'number' ? this.getThread(threadId) : undefined;
+				if (thread) {
+					// Call fetch call stack twice, the first only return the top stack frame.
+					// Second retrieves the rest of the call stack. For performance reasons #25605
+					// Second call is only done if there's few threads that stopped in this event.
+					const promises = this.model.refreshTopOfCallstack(<Thread>thread, /* fetchFullStack= */!hasLotsOfThreads);
+					const focus = async () => {
+						if (focusedThreadDoesNotExist || (!event.preserveFocusHint && thread.getCallStack().length)) {
+							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+							if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
+								// Only take focus if nothing is focused, or if the focus is already on the current session
+								const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
+								await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
+							}
+
+							if (thread.stoppedDetails && !token.isCancellationRequested) {
+								if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
+									await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+								}
+
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
+									const activeWindow = getActiveWindow();
+									if (!activeWindow.document.hasFocus()) {
+										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
+									}
+								}
+							}
+						}
+					};
+
+					await promises.topCallStack;
+
+					if (!event.hitBreakpointIds) { // if hitBreakpointIds are present, this is handled earlier on
+						this._waitToResume = this.enableDependentBreakpoints(thread);
+					}
+
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					focus();
+
+					await promises.wholeCallStack;
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+					if (!focusedStackFrame || isFrameDeemphasized(focusedStackFrame)) {
+						// The top stack frame can be deemphesized so try to focus again #68616
+						focus();
+					}
+				}
+				this._onDidChangeState.fire();
+			},
+		);
+	}
+
+	private async enableDependentBreakpoints(hitBreakpointIdsOrThread: Thread | number[]) {
+		let breakpoints: IBreakpoint[];
+		if (Array.isArray(hitBreakpointIdsOrThread)) {
+			breakpoints = this.model.getBreakpoints().filter(bp => hitBreakpointIdsOrThread.includes(bp.getIdFromAdapter(this.id)!));
+		} else {
+			const frame = hitBreakpointIdsOrThread.getTopStackFrame();
+			if (frame === undefined) {
+				return;
+			}
+
+			if (hitBreakpointIdsOrThread.stoppedDetails && hitBreakpointIdsOrThread.stoppedDetails.reason !== 'breakpoint') {
+				return;
+			}
+
+			breakpoints = this.getBreakpointsAtPosition(frame.source.uri, frame.range.startLineNumber, frame.range.endLineNumber, frame.range.startColumn, frame.range.endColumn);
+		}
+
+		// find the current breakpoints
+
+		// check if the current breakpoints are dependencies, and if so collect and send the dependents to DA
+		const urisToResend = new Set<string>();
+		this.model.getBreakpoints({ triggeredOnly: true, enabledOnly: true }).forEach(bp => {
+			breakpoints.forEach(cbp => {
+				if (bp.enabled && bp.triggeredBy === cbp.getId()) {
+					bp.setSessionDidTrigger(this.getId());
+					urisToResend.add(bp.uri.toString());
+				}
+			});
+		});
+
+		const results: Promise<any>[] = [];
+		urisToResend.forEach((uri) => results.push(this.debugService.sendBreakpoints(URI.parse(uri), undefined, this)));
+		return Promise.all(results);
+	}
+
+	private getBreakpointsAtPosition(uri: URI, startLineNumber: number, endLineNumber: number, startColumn: number, endColumn: number): IBreakpoint[] {
+		return this.model.getBreakpoints({ uri: uri }).filter(bp => {
+			if (bp.lineNumber < startLineNumber || bp.lineNumber > endLineNumber) {
+				return false;
+			}
+
+			if (bp.column && (bp.column < startColumn || bp.column > endColumn)) {
+				return false;
+			}
+			return true;
+		});
 	}
 
 	private onDidExitAdapter(event?: AdapterEndEvent): void {
@@ -1306,6 +1476,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	public dispose() {
 		this.cancelAllRequests();
 		this.rawListeners.dispose();
+		this.globalDisposables.dispose();
 	}
 
 	//---- sources
@@ -1371,8 +1542,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.repl.removeReplExpressions();
 	}
 
-	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		await this.repl.addReplExpression(this, stackFrame, name);
+	async addReplExpression(stackFrame: IStackFrame | undefined, expression: string): Promise<void> {
+		await this.repl.addReplExpression(this, stackFrame, expression);
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 		this.debugService.getViewModel().updateViews();
 	}

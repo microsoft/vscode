@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
-import * as Objects from 'vs/base/common/objects';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Platform } from 'vs/base/common/platform';
-import * as Types from 'vs/base/common/types';
-import * as UUID from 'vs/base/common/uuid';
+import * as Objects from '../../../../base/common/objects.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import { Platform } from '../../../../base/common/platform.js';
+import * as Types from '../../../../base/common/types.js';
+import * as UUID from '../../../../base/common/uuid.js';
 
-import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
+import { ValidationStatus, IProblemReporter as IProblemReporterBase } from '../../../../base/common/parsers.js';
 import {
 	INamedProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
 	isNamedProblemMatcher, ProblemMatcherRegistry, ProblemMatcher
-} from 'vs/workbench/contrib/tasks/common/problemMatcher';
+} from './problemMatcher.js';
 
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import * as Tasks from './tasks';
-import { ITaskDefinitionRegistry, TaskDefinitionRegistry } from './taskDefinitionRegistry';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { URI } from 'vs/base/common/uri';
-import { ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import * as Tasks from './tasks.js';
+import { ITaskDefinitionRegistry, TaskDefinitionRegistry } from './taskDefinitionRegistry.js';
+import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from './taskService.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const enum ShellQuoting {
 	/**
@@ -133,6 +133,7 @@ export interface IPresentationOptionsConfig {
 
 	/**
 	 * Controls whether the terminal that the task runs in is closed when the task completes.
+	 * Note that if the terminal process exits with a non-zero exit code, it will not close.
 	 */
 	close?: boolean;
 }
@@ -1003,8 +1004,7 @@ namespace CommandConfiguration {
 				runtime = Tasks.RuntimeType.fromString(config.type);
 			}
 		}
-		const isShellConfiguration = ShellConfiguration.is(config.isShellCommand);
-		if (Types.isBoolean(config.isShellCommand) || isShellConfiguration) {
+		if (Types.isBoolean(config.isShellCommand) || ShellConfiguration.is(config.isShellCommand)) {
 			runtime = Tasks.RuntimeType.Shell;
 		} else if (config.isShellCommand !== undefined) {
 			runtime = !!config.isShellCommand ? Tasks.RuntimeType.Shell : Tasks.RuntimeType.Process;
@@ -1034,8 +1034,8 @@ namespace CommandConfiguration {
 		}
 		if (config.options !== undefined) {
 			result.options = CommandOptions.from(config.options, context);
-			if (result.options && result.options.shell === undefined && isShellConfiguration) {
-				result.options.shell = ShellConfiguration.from(config.isShellCommand as IShellConfiguration, context);
+			if (result.options && result.options.shell === undefined && ShellConfiguration.is(config.isShellCommand)) {
+				result.options.shell = ShellConfiguration.from(config.isShellCommand, context);
 				if (context.engine !== Tasks.ExecutionEngine.Terminal) {
 					context.taskLoadIssues.push(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
 				}
@@ -1247,11 +1247,6 @@ export namespace ProblemMatcherConverter {
 	}
 }
 
-const partialSource: Partial<Tasks.TaskSource> = {
-	label: 'Workspace',
-	config: undefined
-};
-
 export namespace GroupKind {
 	export function from(this: void, external: string | IGroupKind | undefined): Tasks.TaskGroup | undefined {
 		if (external === undefined) {
@@ -1399,6 +1394,7 @@ namespace ConfigurationProperties {
 		return _isEmpty(value, properties);
 	}
 }
+const label = 'Workspace';
 
 namespace ConfiguringTask {
 
@@ -1470,15 +1466,15 @@ namespace ConfiguringTask {
 		let taskSource: Tasks.FileBasedTaskSource;
 		switch (source) {
 			case TaskConfigSource.User: {
-				taskSource = Object.assign({} as Tasks.IUserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: configElement });
+				taskSource = { kind: Tasks.TaskSourceKind.User, config: configElement, label };
 				break;
 			}
 			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Object.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: configElement });
+				taskSource = { kind: Tasks.TaskSourceKind.WorkspaceFile, config: configElement, label };
 				break;
 			}
 			default: {
-				taskSource = Object.assign({} as Tasks.IWorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: configElement });
+				taskSource = { kind: Tasks.TaskSourceKind.Workspace, config: configElement, label };
 				break;
 			}
 		}
@@ -1543,15 +1539,15 @@ namespace CustomTask {
 		let taskSource: Tasks.FileBasedTaskSource;
 		switch (source) {
 			case TaskConfigSource.User: {
-				taskSource = Object.assign({} as Tasks.IUserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
+				taskSource = { kind: Tasks.TaskSourceKind.User, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder }, label };
 				break;
 			}
 			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Object.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder, workspace: context.workspace } });
+				taskSource = { kind: Tasks.TaskSourceKind.WorkspaceFile, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder, workspace: context.workspace }, label };
 				break;
 			}
 			default: {
-				taskSource = Object.assign({} as Tasks.IWorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
+				taskSource = { kind: Tasks.TaskSourceKind.Workspace, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder }, label };
 				break;
 			}
 		}
@@ -1668,7 +1664,7 @@ namespace CustomTask {
 		fillProperty(resultConfigProps, contributedConfigProps, 'promptOnClose');
 		fillProperty(resultConfigProps, contributedConfigProps, 'detail');
 		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
-			result.command.presentation!, contributedConfigProps.presentation)!;
+			result.command.presentation, contributedConfigProps.presentation)!;
 		result.command.options = CommandOptions.fillProperties(result.command.options, contributedConfigProps.options);
 		result.runOptions = RunOptions.fillProperties(result.runOptions, contributedTask.runOptions);
 
@@ -2110,7 +2106,7 @@ class ConfigurationParser {
 			const name = Tasks.CommandString.value(globals.command.name);
 			const task: Tasks.CustomTask = new Tasks.CustomTask(
 				context.uuidMap.getUUID(name),
-				Object.assign({} as Tasks.IWorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
+				Object.assign({}, source, 'workspace', { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }) satisfies Tasks.IWorkspaceTaskSource,
 				name,
 				Tasks.CUSTOMIZED_TASK_TYPE,
 				{

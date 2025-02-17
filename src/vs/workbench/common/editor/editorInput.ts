@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IEditorModel, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { isEqual } from 'vs/base/common/resources';
-import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { Emitter } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
+import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from '../editor.js';
+import { isEqual } from '../../../base/common/resources.js';
+import { ConfirmResult } from '../../../platform/dialogs/common/dialogs.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 
 export interface IEditorCloseHandler {
 
@@ -35,6 +35,23 @@ export interface IEditorCloseHandler {
 	 * to show a combined dialog.
 	 */
 	confirm(editors: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
+}
+
+export interface IUntypedEditorOptions {
+
+	/**
+	 * Implementations should try to preserve as much
+	 * view state as possible from the typed input based
+	 * on the group the editor is opened.
+	 */
+	readonly preserveViewState?: GroupIdentifier;
+
+	/**
+	 * Implementations should preserve the original
+	 * resource of the typed input and not alter
+	 * it.
+	 */
+	readonly preserveResource?: boolean;
 }
 
 /**
@@ -163,6 +180,14 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Returns the icon which represents this editor input.
+	 * If undefined, the default icon will be used.
+	 */
+	getIcon(): ThemeIcon | undefined {
+		return undefined;
+	}
+
+	/**
 	 * Returns a descriptor suitable for telemetry events.
 	 *
 	 * Subclasses should extend if they can contribute.
@@ -201,14 +226,14 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
-	 * Returns a type of `IEditorModel` that represents the resolved input.
+	 * Returns a type of `IDisposable` that represents the resolved input.
 	 * Subclasses should override to provide a meaningful model or return
 	 * `null` if the editor does not require a model.
 	 *
 	 * The `options` parameter are passed down from the editor when the
 	 * input is resolved as part of it.
 	 */
-	async resolve(options?: IEditorOptions): Promise<IEditorModel | null> {
+	async resolve(): Promise<IDisposable | null> {
 		return null;
 	}
 
@@ -263,6 +288,19 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Indicates if this editor can be moved to another group. By default
+	 * editors can freely be moved around groups. If an editor cannot be
+	 * moved, a message should be returned to show to the user.
+	 *
+	 * @returns `true` if the editor can be moved to the target group, or
+	 * a string with a message to show to the user if the editor cannot be
+	 * moved.
+	 */
+	canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		return true;
+	}
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -291,7 +329,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * for the editor to open in.
 	 */
 	prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
-		return firstOrDefault(editorPanes);
+		return editorPanes.at(0);
 	}
 
 	/**
@@ -300,13 +338,8 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * editor input into a form that it can be restored.
 	 *
 	 * May return `undefined` if an untyped representation is not supported.
-	 *
-	 * @param options additional configuration for the expected return type.
-	 * When `preserveViewState` is provided, implementations should try to
-	 * preserve as much view state as possible from the typed input based on
-	 * the group the editor is opened.
 	 */
-	toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntypedEditorInput | undefined {
+	toUntyped(options?: IUntypedEditorOptions): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 

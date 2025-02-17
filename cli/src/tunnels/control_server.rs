@@ -6,10 +6,11 @@ use crate::async_pipe::get_socket_rw_stream;
 use crate::constants::{CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
 use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
+use crate::options::Quality;
 use crate::rpc::{MaybeSync, RpcBuilder, RpcCaller, RpcDispatcher};
 use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
-use crate::tunnels::protocol::{HttpRequestParams, METHOD_CHALLENGE_ISSUE};
+use crate::tunnels::protocol::{HttpRequestParams, PortPrivacy, METHOD_CHALLENGE_ISSUE};
 use crate::tunnels::socket_signal::CloseReason;
 use crate::update_service::{Platform, Release, TargetKind, UpdateService};
 use crate::util::command::new_tokio_command;
@@ -32,6 +33,7 @@ use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
+use tokio::net::TcpStream;
 use tokio::pin;
 use tokio::process::{ChildStderr, ChildStdin};
 use tokio_util::codec::Decoder;
@@ -55,9 +57,9 @@ use super::protocol::{
 	ChallengeIssueResponse, ChallengeVerifyParams, ClientRequestMethod, EmptyObject, ForwardParams,
 	ForwardResult, FsReadDirEntry, FsReadDirResponse, FsRenameRequest, FsSinglePathRequest,
 	FsStatResponse, GetEnvResponse, GetHostnameResponse, HttpBodyParams, HttpHeadersParams,
-	ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult, SysKillRequest,
-	SysKillResponse, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult, VersionResponse,
-	METHOD_CHALLENGE_VERIFY,
+	NetConnectRequest, ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult,
+	SysKillRequest, SysKillResponse, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult,
+	VersionResponse, METHOD_CHALLENGE_VERIFY,
 };
 use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
@@ -143,6 +145,31 @@ pub struct ServerTermination {
 	pub tunnel: ActiveTunnel,
 }
 
+async fn preload_extensions(
+	log: &log::Logger,
+	platform: Platform,
+	mut args: CodeServerArgs,
+	launcher_paths: LauncherPaths,
+) -> Result<(), AnyError> {
+	args.start_server = false;
+
+	let params_raw = ServerParamsRaw {
+		commit_id: None,
+		quality: Quality::Stable,
+		code_server_args: args.clone(),
+		headless: true,
+		platform,
+	};
+
+	// cannot use delegated HTTP here since there's no remote connection yet
+	let http = Arc::new(ReqwestSimpleHttp::new());
+	let resolved = params_raw.resolve(log, http.clone()).await?;
+	let sb = ServerBuilder::new(log, &resolved, &launcher_paths, http.clone());
+
+	sb.setup().await?;
+	sb.install_extensions().await
+}
+
 // Runs the launcher server. Exits on a ctrl+c or when requested by a user.
 // Note that client connections may not be closed when this returns; use
 // `close_all_clients()` on the ServerTermination to make this happen.
@@ -158,6 +185,26 @@ pub async fn serve(
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
+
+	if !code_server_args.install_extensions.is_empty() {
+		info!(
+			log,
+			"Preloading extensions using stable server: {:?}", code_server_args.install_extensions
+		);
+		let log = log.clone();
+		let code_server_args = code_server_args.clone();
+		let launcher_paths = launcher_paths.clone();
+		// This is run async to the primary tunnel setup to be speedy.
+		tokio::spawn(async move {
+			if let Err(e) =
+				preload_extensions(&log, platform, code_server_args, launcher_paths).await
+			{
+				warning!(log, "Failed to preload extensions: {:?}", e);
+			} else {
+				info!(log, "Extension install complete");
+			}
+		});
+	}
 
 	loop {
 		tokio::select! {
@@ -341,6 +388,14 @@ fn make_socket_rpc(
 			handle_fs_connect(streams.remove(0), p.path).await
 		},
 	);
+	rpc.register_duplex(
+		"net_connect",
+		1,
+		move |mut streams, n: NetConnectRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_net_connect(streams.remove(0), n).await
+		},
+	);
 	rpc.register_async("fs_rm", move |p: FsSinglePathRequest, c| async move {
 		ensure_auth(&c.auth_state)?;
 		handle_fs_remove(p.path).await
@@ -511,7 +566,7 @@ async fn process_socket(
 			{
 				debug!(log, "closing socket reader: {}", e);
 				socket_tx
-					.send(SocketSignal::CloseWith(CloseReason(format!("{}", e))))
+					.send(SocketSignal::CloseWith(CloseReason(format!("{e}"))))
 					.await
 					.ok();
 			}
@@ -705,17 +760,18 @@ async fn handle_serve(
 			macro_rules! do_setup {
 				($sb:expr) => {
 					match $sb.get_running().await? {
-						Some(AnyCodeServer::Socket(s)) => s,
+						Some(AnyCodeServer::Socket(s)) => ($sb, Ok(s)),
 						Some(_) => return Err(AnyError::from(MismatchedLaunchModeError())),
 						None => {
 							$sb.setup().await?;
-							$sb.listen_on_default_socket().await?
+							let r = $sb.listen_on_default_socket().await;
+							($sb, r)
 						}
 					}
 				};
 			}
 
-			let server = if params.use_local_download {
+			let (sb, server) = if params.use_local_download {
 				let sb = ServerBuilder::new(
 					&install_log,
 					&resolved,
@@ -727,6 +783,24 @@ async fn handle_serve(
 				let sb =
 					ServerBuilder::new(&install_log, &resolved, &c.launcher_paths, c.http.clone());
 				do_setup!(sb)
+			};
+
+			let server = match server {
+				Ok(s) => s,
+				Err(e) => {
+					// we don't loop to avoid doing so infinitely: allow the client to reconnect in this case.
+					if let AnyError::CodeError(CodeError::ServerUnexpectedExit(ref e)) = e {
+						warning!(
+							c.log,
+							"({}), removing server due to possible corruptions",
+							e
+						);
+						if let Err(e) = sb.evict().await {
+							warning!(c.log, "Failed to evict server: {}", e);
+						}
+					}
+					return Err(e);
+				}
 			};
 
 			server_ref.replace(server.clone());
@@ -846,9 +920,14 @@ async fn handle_update(
 
 	info!(log, "Updating CLI to {}", latest_release);
 
-	updater
+	let r = updater
 		.do_update(&latest_release, SilentCopyProgress())
-		.await?;
+		.await;
+
+	if let Err(e) = r {
+		did_update.store(false, Ordering::SeqCst);
+		return Err(e);
+	}
 
 	Ok(UpdateResult {
 		up_to_date: true,
@@ -896,6 +975,20 @@ async fn handle_fs_write(mut input: DuplexStream, path: String) -> Result<EmptyO
 	Ok(EmptyObject {})
 }
 
+async fn handle_net_connect(
+	mut stream: DuplexStream,
+	req: NetConnectRequest,
+) -> Result<EmptyObject, AnyError> {
+	let mut s = TcpStream::connect((req.host, req.port))
+		.await
+		.map_err(|e| wrap(e, "could not connect to address"))?;
+
+	tokio::io::copy_bidirectional(&mut stream, &mut s)
+		.await
+		.map_err(|e| wrap(e, "error copying stream data"))?;
+
+	Ok(EmptyObject {})
+}
 async fn handle_fs_connect(
 	mut stream: DuplexStream,
 	path: String,
@@ -969,7 +1062,6 @@ fn handle_challenge_issue(
 
 	let mut auth_state = auth_state.lock().unwrap();
 	if let AuthState::WaitingForChallenge(Some(s)) = &*auth_state {
-		println!("looking for token {}, got {:?}", s, params.token);
 		match &params.token {
 			Some(t) if s != t => return Err(CodeError::AuthChallengeBadToken.into()),
 			None => return Err(CodeError::AuthChallengeBadToken.into()),
@@ -1008,8 +1100,16 @@ async fn handle_forward(
 	let port_forwarding = port_forwarding
 		.as_ref()
 		.ok_or(CodeError::PortForwardingNotAvailable)?;
-	info!(log, "Forwarding port {}", params.port);
-	let uri = port_forwarding.forward(params.port).await?;
+	info!(
+		log,
+		"Forwarding port {} (public={})", params.port, params.public
+	);
+	let privacy = match params.public {
+		true => PortPrivacy::Public,
+		false => PortPrivacy::Private,
+	};
+
+	let uri = port_forwarding.forward(params.port, privacy).await?;
 	Ok(ForwardResult { uri })
 }
 
@@ -1091,7 +1191,7 @@ async fn handle_acquire_cli(
 
 	let release = match params.commit_id {
 		Some(commit) => Release {
-			name: format!("{} CLI", PRODUCT_NAME_LONG),
+			name: format!("{PRODUCT_NAME_LONG} CLI"),
 			commit,
 			platform: params.platform,
 			quality: params.quality,

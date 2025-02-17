@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InlineVoiceChatAction, QuickVoiceChatAction, StartVoiceChatAction, StopListeningInInlineChatAction, StopListeningInQuickChatAction, StopListeningInChatEditorAction, StopListeningInChatViewAction, VoiceChatInChatViewAction, StopListeningAction, StopListeningAndSubmitAction } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { InlineVoiceChatAction, QuickVoiceChatAction, StartVoiceChatAction, VoiceChatInChatViewAction, StopListeningAction, StopListeningAndSubmitAction, KeywordActivationContribution, InstallSpeechProviderForVoiceChatAction, HoldToVoiceChatInChatViewAction, ReadChatResponseAloud, StopReadAloud, StopReadChatItemAloud } from './actions/voiceChatActions.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 
 registerAction2(StartVoiceChatAction);
+registerAction2(InstallSpeechProviderForVoiceChatAction);
 
 registerAction2(VoiceChatInChatViewAction);
+registerAction2(HoldToVoiceChatInChatViewAction);
 registerAction2(QuickVoiceChatAction);
 registerAction2(InlineVoiceChatAction);
 
 registerAction2(StopListeningAction);
 registerAction2(StopListeningAndSubmitAction);
 
-registerAction2(StopListeningInChatViewAction);
-registerAction2(StopListeningInChatEditorAction);
-registerAction2(StopListeningInQuickChatAction);
-registerAction2(StopListeningInInlineChatAction);
+registerAction2(ReadChatResponseAloud);
+registerAction2(StopReadChatItemAloud);
+registerAction2(StopReadAloud);
 
+registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);

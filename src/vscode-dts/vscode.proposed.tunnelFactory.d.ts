@@ -19,9 +19,13 @@ declare module 'vscode' {
 		tunnelFeatures?: {
 			elevation: boolean;
 			/**
-			 * One of the the options must have the ID "private".
+			 * One of the options must have the ID "private".
 			 */
 			privacyOptions: TunnelPrivacy[];
+			/**
+			 * Defaults to true for backwards compatibility.
+			 */
+			protocol?: boolean;
 		};
 	}
 

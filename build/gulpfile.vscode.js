@@ -6,10 +6,7 @@
 'use strict';
 
 const gulp = require('gulp');
-const merge = require('gulp-merge-json');
 const fs = require('fs');
-const os = require('os');
-const cp = require('child_process');
 const path = require('path');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
@@ -18,9 +15,11 @@ const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
+const { readISODate } = require('./lib/date');
 const task = require('./lib/task');
-const buildfile = require('../src/buildfile');
+const buildfile = require('./buildfile');
 const optimize = require('./lib/optimize');
+const { inlineMeta } = require('./lib/inlineMeta');
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 const packageJson = require('../package.json');
@@ -32,107 +31,136 @@ const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
+const { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
 // Build
 const vscodeEntryPoints = [
-	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
-	buildfile.base,
+	buildfile.workerEditor,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
 	buildfile.workerProfileAnalysis,
+	buildfile.workerOutputLinks,
+	buildfile.workerBackgroundTokenization,
 	buildfile.workbenchDesktop,
 	buildfile.code
 ].flat();
 
-const vscodeResources = [
-	'out-build/bootstrap.js',
-	'out-build/bootstrap-fork.js',
-	'out-build/bootstrap-amd.js',
-	'out-build/bootstrap-node.js',
-	'out-build/bootstrap-window.js',
-	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
-	'!out-build/vs/code/browser/**/*.html',
-	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/editor/standalone/**/*.svg',
-	'out-build/vs/base/common/performance.js',
-	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
-	'out-build/vs/base/browser/ui/codicons/codicon/**',
+const vscodeResourceIncludes = [
+
+	// NLS
+	'out-build/nls.messages.json',
+	'out-build/nls.keys.json',
+
+	// Workbench
+	'out-build/vs/code/electron-sandbox/workbench/workbench.html',
+
+	// Electron Preload
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
-	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/contrib/debug/**/*.json',
+
+	// Node Scripts
+	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
+
+	// Touchbar
+	'out-build/vs/workbench/browser/parts/editor/media/*.png',
+	'out-build/vs/workbench/contrib/debug/browser/media/*.png',
+
+	// External Terminal
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
-	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/*.fish',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'out-build/vs/**/markdown.css',
-	'out-build/vs/workbench/contrib/tasks/**/*.json',
+
+	// Terminal shell integration
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.fish',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',
+
+	// Accessibility Signals
+	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+
+	// Welcome
+	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+
+	// Extensions
+	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
+	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+
+	// Webview
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
+
+	// Extension Host Worker
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+
+	// Process Explorer
+	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.html',
+
+	// Tree Sitter highlights
+	'out-build/vs/editor/common/languages/highlights/*.scm',
+];
+
+const vscodeResources = [
+
+	// Includes
+	...vscodeResourceIncludes,
+
+	// Excludes
+	'!out-build/vs/code/browser/**',
+	'!out-build/vs/editor/standalone/**',
+	'!out-build/vs/code/**/*-dev.html',
+	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
 	'!**/test/**'
 ];
 
-// Do not change the order of these files! They will
-// be inlined into the target window file in this order
-// and they depend on each other in this way.
-const windowBootstrapFiles = [
-	'out-build/bootstrap.js',
-	'out-build/vs/loader.js',
-	'out-build/bootstrap-window.js'
+const bootstrapEntryPoints = [
+	'out-build/main.js',
+	'out-build/cli.js',
+	'out-build/bootstrap-fork.js'
 ];
 
-const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
+const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 	util.rimraf('out-vscode'),
 	// Optimize: bundles source files automatically based on
-	// AMD and CommonJS import statements based on the passed
-	// in entry points. In addition, concat window related
-	// bootstrap files into a single file.
-	optimize.optimizeTask(
+	// import statements based on the passed in entry points.
+	// In addition, concat window related bootstrap files into
+	// a single file.
+	optimize.bundleTask(
 		{
 			out: 'out-vscode',
-			amd: {
-				src: 'out-build',
-				entryPoints: vscodeEntryPoints,
-				resources: vscodeResources,
-				loaderConfig: optimize.loaderConfig(),
-				bundleInfo: undefined
-			},
-			commonJS: {
+			esm: {
 				src: 'out-build',
 				entryPoints: [
-					'out-build/main.js',
-					'out-build/cli.js'
+					...vscodeEntryPoints,
+					...bootstrapEntryPoints
 				],
-				platform: 'node',
-				external: [
-					'electron',
-					'minimist',
-					// TODO: we cannot inline `product.json` because
-					// it is being changed during build time at a later
-					// point in time (such as `checksums`)
-					'../product.json',
-					'../package.json',
-				]
-			},
-			manual: [
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'vs/code/electron-sandbox/issue/issueReporter.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' }
-			]
+				resources: vscodeResources,
+				fileContentMapper: filePath => {
+					if (
+						filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
+						filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')) {
+						return async (content) => {
+							const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
+							return `${bootstrapWindowContent}\n${content}`; // prepend bootstrap-window.js content to entry points that are Electron windows
+						};
+					}
+					return undefined;
+				},
+				skipTSBoilerplateRemoval: entryPoint =>
+					entryPoint === 'vs/code/electron-sandbox/workbench/workbench' ||
+					entryPoint === 'vs/code/electron-sandbox/processExplorer/processExplorer',
+			}
 		}
 	)
 ));
-gulp.task(optimizeVSCodeTask);
+gulp.task(bundleVSCodeTask);
 
-const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
+const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
-	optimizeVSCodeTask,
+	bundleVSCodeTask,
 	util.rimraf('out-vscode-min'),
 	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
@@ -184,7 +212,7 @@ function computeChecksum(filename) {
 	const contents = fs.readFileSync(filename);
 
 	const hash = crypto
-		.createHash('md5')
+		.createHash('sha256')
 		.update(contents)
 		.digest('base64')
 		.replace(/=+$/, '');
@@ -241,19 +269,25 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const name = product.nameShort;
 		const packageJsonUpdates = { name, version };
 
-		// for linux url handling
 		if (platform === 'linux') {
-			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
+			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
 		}
 
+		let packageJsonContents;
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
-			.pipe(json(packageJsonUpdates));
+			.pipe(json(packageJsonUpdates))
+			.pipe(es.through(function (file) {
+				packageJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
-		const date = new Date().toISOString();
-		const productJsonUpdate = { commit, date, checksums, version };
-
+		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json(productJsonUpdate));
+			.pipe(json({ commit, date: readISODate('out-build'), checksums, version }))
+			.pipe(es.through(function (file) {
+				productJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
 		const license = gulp.src([product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
@@ -265,7 +299,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
 		const productionDependencies = getProductionDependencies(root);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
@@ -278,10 +312,16 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/*.node',
 				'**/@vscode/ripgrep/bin/*',
 				'**/node-pty/build/Release/*',
+				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
-				'**/node-vsce-sign/bin/*',
+				'**/@vscode/vsce-sign/bin/*',
+			], [
+				'**/*.mk',
+				'!node_modules/vsda/**' // stay compatible with extensions that depend on us shipping `vsda` into ASAR
+			], [
+				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
 
 		let all = es.merge(
@@ -386,6 +426,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
+		result = inlineMeta(result, {
+			targetPaths: bootstrapEntryPoints,
+			packageJsonFn: () => packageJsonContents,
+			productJsonFn: () => productJsonContents
+		});
+
 		return result.pipe(vfs.dest(destination));
 	};
 }
@@ -394,7 +440,7 @@ function patchWin32DependenciesTask(destinationFolderName) {
 	const cwd = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
-		const deps = await glob('**/*.node', { cwd });
+		const deps = await glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' });
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');
@@ -441,6 +487,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 		const tasks = [
+			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 		];
@@ -454,9 +501,10 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 			compileBuildTask,
-			compileExtensionsBuildTask,
+			cleanExtensionsBuildTask,
+			compileNonNativeExtensionsBuildTask,
 			compileExtensionMediaBuildTask,
-			minified ? minifyVSCodeTask : optimizeVSCodeTask,
+			minified ? minifyVSCodeTask : bundleVSCodeTask,
 			vscodeTaskCI
 		));
 		gulp.task(vscodeTask);
@@ -491,19 +539,14 @@ gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
 		core,
-		compileExtensionsBuildTask,
+		compileAllExtensionsBuildTask,
 		function () {
-			const pathToMetadata = './out-vscode/nls.metadata.json';
-			const pathToRehWebMetadata = './out-vscode-reh-web/nls.metadata.json';
+			const pathToMetadata = './out-build/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
 			return es.merge(
-				gulp.src([pathToMetadata, pathToRehWebMetadata]).pipe(merge({
-					fileName: 'nls.metadata.json',
-					jsonSpace: '',
-					concatArrays: true
-				})).pipe(i18n.createXlfFilesForCoreBundle()),
+				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
 			).pipe(vfs.dest('../vscode-translations-export'));

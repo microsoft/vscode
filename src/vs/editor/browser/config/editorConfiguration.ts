@@ -3,22 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import * as arrays from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
-import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { BareFontInfo, FontInfo, IValidatedEditorOptions } from 'vs/editor/common/config/fontInfo';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import * as browser from '../../../base/browser/browser.js';
+import * as arrays from '../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import * as objects from '../../../base/common/objects.js';
+import * as platform from '../../../base/common/platform.js';
+import { ElementSizeObserver } from './elementSizeObserver.js';
+import { FontMeasurements } from './fontMeasurements.js';
+import { migrateOptions } from './migrateOptions.js';
+import { TabFocus } from './tabFocus.js';
+import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from '../../common/config/editorOptions.js';
+import { EditorZoom } from '../../common/config/editorZoom.js';
+import { BareFontInfo, FontInfo, IValidatedEditorOptions } from '../../common/config/fontInfo.js';
+import { IDimension } from '../../common/core/dimension.js';
+import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
+import { AccessibilitySupport, IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { getWindow, getWindowById } from '../../../base/browser/dom.js';
+import { PixelRatio } from '../../../base/browser/pixelRatio.js';
+import { MenuId } from '../../../platform/actions/common/actions.js';
+import { InputMode } from '../../common/inputMode.js';
 
 export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
@@ -41,6 +45,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	public readonly onDidChangeFast: Event<ConfigurationChangedEvent> = this._onDidChangeFast.event;
 
 	public readonly isSimpleWidget: boolean;
+	public readonly contextMenuId: MenuId;
 	private readonly _containerObserver: ElementSizeObserver;
 
 	private _isDominatedByLongLines: boolean = false;
@@ -48,6 +53,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	private _lineNumbersDigitCount: number = 1;
 	private _reservedHeight: number = 0;
 	private _glyphMarginDecorationLaneCount: number = 1;
+	private _targetWindowId: number;
 
 	private readonly _computeOptionsMemory: ComputeOptionsMemory = new ComputeOptionsMemory();
 	/**
@@ -65,13 +71,16 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	constructor(
 		isSimpleWidget: boolean,
+		contextMenuId: MenuId,
 		options: Readonly<IEditorConstructionOptions>,
 		container: HTMLElement | null,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.isSimpleWidget = isSimpleWidget;
+		this.contextMenuId = contextMenuId;
 		this._containerObserver = this._register(new ElementSizeObserver(container, options.dimension));
+		this._targetWindowId = getWindow(container).vscodeWindowId;
 
 		this._rawOptions = deepCloneAndMigrateOptions(options);
 		this._validatedOptions = EditorOptionsUtil.validateOptions(this._rawOptions);
@@ -85,8 +94,9 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(TabFocus.onDidChangeTabFocus(() => this._recomputeOptions()));
 		this._register(this._containerObserver.onDidChange(() => this._recomputeOptions()));
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
-		this._register(browser.PixelRatio.onDidChange(() => this._recomputeOptions()));
+		this._register(PixelRatio.getInstance(getWindow(container)).onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
+		this._register(InputMode.onDidChangeInputMode(() => this._recomputeOptions()));
 	}
 
 	private _recomputeOptions(): void {
@@ -118,6 +128,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode(),
+			inputMode: InputMode.getInputMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
 			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
 		};
@@ -130,7 +141,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerWidth: this._containerObserver.getWidth(),
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
-			pixelRatio: browser.PixelRatio.value,
+			pixelRatio: PixelRatio.getInstance(getWindowById(this._targetWindowId, true).window).value,
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
 					? AccessibilitySupport.Enabled
@@ -140,7 +151,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	}
 
 	protected _readFontInfo(bareFontInfo: BareFontInfo): FontInfo {
-		return FontMeasurements.readFontInfo(bareFontInfo);
+		return FontMeasurements.readFontInfo(getWindowById(this._targetWindowId, true).window, bareFontInfo);
 	}
 
 	public getRawOptions(): IEditorOptions {

@@ -3,36 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extension';
-import { append, $, addDisposableListener } from 'vs/base/browser/dom';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { Event } from 'vs/base/common/event';
-import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ManageExtensionAction, ReloadAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction, SkipUpdateAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import './media/extension.css';
+import { append, $, addDisposableListener } from '../../../../base/browser/dom.js';
+import { IDisposable, dispose, combinedDisposable } from '../../../../base/common/lifecycle.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
+import { Event } from '../../../../base/common/event.js';
+import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService, IExtensionsViewState } from '../common/extensions.js';
+import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from './extensionsActions.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, VerifiedPublisherWidget } from './extensionsWidgets.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { WORKBENCH_BACKGROUND } from '../../../common/theme.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { extensionVerifiedPublisherIconColor, verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 
 const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
-
-export interface IExtensionsViewState {
-	onFocus: Event<IExtension>;
-	onBlur: Event<IExtension>;
-}
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -63,13 +58,13 @@ export type ExtensionListRendererOptions = {
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
-		private extensionViewState: IExtensionsViewState,
+		private readonly extensionViewState: IExtensionsViewState,
 		private readonly options: ExtensionListRendererOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
 
@@ -98,28 +93,35 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $(`.verified-publisher`)), true);
 		const publisherDisplayName = append(publisher, $('.publisher-name.ellipsis'));
 		const actionbar = new ActionBar(footer, {
-			animated: false,
-			actionViewItemProvider: (action: IAction) => {
-				if (action instanceof ActionWithDropDownAction) {
-					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+				if (action instanceof ButtonWithDropDownExtensionAction) {
+					return new ButtonWithDropdownExtensionActionViewItem(
+						action,
+						{
+							...options,
+							icon: true,
+							label: true,
+							menuActionsOrProvider: { getActions: () => action.menuActions },
+							menuActionClassNames: action.menuActionClassNames
+						},
+						this.contextMenuService);
 				}
-				if (action instanceof ExtensionDropDownAction) {
-					return action.createActionViewItem();
+				if (action instanceof DropDownExtensionAction) {
+					return action.createActionViewItem(options);
 				}
 				return undefined;
 			},
 			focusOnlyEnabledItems: true
 		});
 		actionbar.setFocusable(false);
-		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
+		const actionBarListener = actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const extensionStatusIconAction = this.instantiationService.createInstance(ExtensionStatusAction);
 		const actions = [
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, true),
-			this.instantiationService.createInstance(ReloadAction),
-			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
-				[[this.instantiationService.createInstance(UpdateAction, false)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
+			this.instantiationService.createInstance(ExtensionRuntimeStateAction),
+			this.instantiationService.createInstance(UpdateAction, false),
 			this.instantiationService.createInstance(InstallDropdownAction),
 			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(SetLanguageAction),
@@ -128,8 +130,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			this.instantiationService.createInstance(LocalInstallAction),
 			this.instantiationService.createInstance(WebInstallAction),
 			extensionStatusIconAction,
-			this.instantiationService.createInstance(SwitchToReleasedVersionAction, true),
-			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, true),
 			this.instantiationService.createInstance(ManageExtensionAction)
 		];
 		const extensionHoverWidget = this.instantiationService.createInstance(ExtensionHoverWidget, { target: root, position: this.options.hoverOptions.position }, extensionStatusIconAction);
@@ -143,14 +143,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			verifiedPublisherWidget,
 			extensionHoverWidget,
 			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
-			this.instantiationService.createInstance(ExtensionActivationStatusWidget, activationStatus, true),
+			this.instantiationService.createInstance(ExtensionRuntimeStatusWidget, this.extensionViewState, activationStatus),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true),
 		];
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 
 		actionbar.push(actions, { icon: true, label: true });
-		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers);
+		const disposable = combinedDisposable(...actions, ...widgets, actionbar, actionBarListener, extensionContainers);
 
 		return {
 			root, element, icon, name, installCount, ratings, description, publisherDisplayName, disposables: [disposable], actionbar,
@@ -187,23 +187,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
 
-		const computeEnablement = async () => {
-			if (extension.state === ExtensionState.Uninstalled) {
-				if (!!extension.deprecationInfo) {
-					return true;
-				}
-				if (this.extensionsWorkbenchService.canSetLanguage(extension)) {
-					return false;
-				}
-				return !(await this.extensionsWorkbenchService.canInstall(extension));
-			} else if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
-				const runningExtension = this.extensionService.extensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier))[0];
-				return !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
-			}
-			return false;
-		};
-		const updateEnablement = async () => {
-			const disabled = await computeEnablement();
+		const updateEnablement = () => {
+			const disabled = extension.state === ExtensionState.Installed && extension.local && !this.extensionEnablementService.isEnabled(extension.local);
 			const deprecated = !!extension.deprecationInfo;
 			data.element.classList.toggle('deprecated', deprecated);
 			data.root.classList.toggle('disabled', disabled);
@@ -225,7 +210,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.description.textContent = extension.description;
 
 		const updatePublisher = () => {
-			data.publisherDisplayName.textContent = extension.publisherDisplayName;
+			data.publisherDisplayName.textContent = !extension.resourceExtension && extension.local?.source !== 'resource' ? extension.publisherDisplayName : '';
 		};
 		updatePublisher();
 		Event.filter(this.extensionsWorkbenchService.onChange, e => !!e && areSameExtensions(e.identifier, extension.identifier))(() => updatePublisher(), this, data.extensionDisposables);
@@ -265,6 +250,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const verifiedPublisherIconColor = theme.getColor(extensionVerifiedPublisherIconColor);
 	if (verifiedPublisherIconColor) {
 		const disabledVerifiedPublisherIconColor = verifiedPublisherIconColor.transparent(.5).makeOpaque(WORKBENCH_BACKGROUND(theme));
-		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled .author .verified-publisher ${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)} { color: ${disabledVerifiedPublisherIconColor}; }`);
+		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled:not(.selected) .author .verified-publisher ${ThemeIcon.asCSSSelector(verifiedPublisherIcon)} { color: ${disabledVerifiedPublisherIconColor}; }`);
 	}
 });

@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction } from 'vs/base/common/actions';
-import { disposableTimeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
-import { CellOverlayPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { registerCellToolbarStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbarStickyScroll';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
+import { IAction } from '../../../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
+import { createActionViewItem, getActionBarActions, MenuEntryActionViewItem, PrimaryAndSecondaryActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { INotebookCellActionContext } from '../../controller/coreActions.js';
+import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CodiconActionViewItem } from './cellActionView.js';
+import { CellOverlayPart } from '../cellPart.js';
+import { registerCellToolbarStickyScroll } from './cellToolbarStickyScroll.js';
+import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 
 export class BetweenCellToolbar extends CellOverlayPart {
 	private _betweenCellToolbar: ToolBar | undefined;
@@ -44,12 +46,12 @@ export class BetweenCellToolbar extends CellOverlayPart {
 		}
 
 		const betweenCellToolbar = this._register(new ToolBar(this._bottomCellToolbarContainer, this.contextMenuService, {
-			actionViewItemProvider: action => {
+			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
-					if (this._notebookEditor.notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
-						return this.instantiationService.createInstance(CodiconActionViewItem, action, undefined);
+					if (this._notebookEditor.notebookOptions.getDisplayOptions().insertToolbarAlignment === 'center') {
+						return this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 					} else {
-						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
+						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 					}
 				}
 
@@ -78,12 +80,15 @@ export class BetweenCellToolbar extends CellOverlayPart {
 
 	override didRenderCell(element: ICellViewModel): void {
 		const betweenCellToolbar = this._initialize();
-		betweenCellToolbar.context = <INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this._notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
+		if (this._notebookEditor.hasModel()) {
+			betweenCellToolbar.context = {
+				ui: true,
+				cell: element,
+				notebookEditor: this._notebookEditor,
+				source: 'insertToolbar',
+				$mid: MarshalledId.NotebookCellActionContext
+			} satisfies (INotebookCellActionContext & { source?: string; $mid: number });
+		}
 		this.updateInternalLayoutNow(element);
 	}
 
@@ -165,15 +170,16 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		if (this._view) {
 			return this._view;
 		}
-
+		const hoverDelegate = this._register(createInstantHoverDelegate());
 		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
-			actionViewItemProvider: action => {
-				return createActionViewItem(this.instantiationService, action);
+			actionViewItemProvider: (action, options) => {
+				return createActionViewItem(this.instantiationService, action, options);
 			},
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: true,
+			hoverDelegate
 		}));
 
-		const deleteToolbar = this._register(this.instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, this.toolbarContainer, 'cell-delete-toolbar')));
+		const deleteToolbar = this._register(this.instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, this.toolbarContainer, hoverDelegate, 'cell-delete-toolbar')));
 		if (model.deleteActions.primary.length !== 0 || model.deleteActions.secondary.length !== 0) {
 			deleteToolbar.setActions(model.deleteActions.primary, model.deleteActions.secondary);
 		}
@@ -198,12 +204,17 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		const view = this._initialize(model, element);
 		this.cellDisposables.add(registerCellToolbarStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
 
-		this.updateContext(view, <INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this._notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		});
+		if (this._notebookEditor.hasModel()) {
+			const toolbarContext: INotebookCellActionContext & { source?: string; $mid: number } = {
+				ui: true,
+				cell: element,
+				notebookEditor: this._notebookEditor,
+				source: 'cellToolbar',
+				$mid: MarshalledId.NotebookCellActionContext
+			};
+
+			this.updateContext(view, toolbarContext);
+		}
 	}
 
 	private updateContext(view: CellTitleToolbarView, toolbarContext: INotebookCellActionContext) {
@@ -259,26 +270,21 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 	}
 }
 
-function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
-	const primary: IAction[] = [];
-	const secondary: IAction[] = [];
-	const result = { primary, secondary };
-
-	createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-	return result;
+function getCellToolbarActions(menu: IMenu): PrimaryAndSecondaryActions {
+	return getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
 }
 
-function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement, elementClass?: string): ToolBar {
+function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement, hoverDelegate: IHoverDelegate, elementClass?: string): ToolBar {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const toolbar = new ToolBar(container, contextMenuService, {
 		getKeyBinding: action => keybindingService.lookupKeybinding(action.id),
-		actionViewItemProvider: action => {
-			return createActionViewItem(instantiationService, action);
+		actionViewItemProvider: (action, options) => {
+			return createActionViewItem(instantiationService, action, options);
 		},
-		renderDropdownAsChildElement: true
+		renderDropdownAsChildElement: true,
+		hoverDelegate
 	});
 
 	if (elementClass) {

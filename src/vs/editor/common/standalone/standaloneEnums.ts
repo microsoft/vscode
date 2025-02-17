@@ -210,118 +210,126 @@ export enum EditorOption {
 	domReadOnly = 34,
 	dragAndDrop = 35,
 	dropIntoEditor = 36,
-	emptySelectionClipboard = 37,
-	experimentalWhitespaceRendering = 38,
-	extraEditorClassName = 39,
-	fastScrollSensitivity = 40,
-	find = 41,
-	fixedOverflowWidgets = 42,
-	folding = 43,
-	foldingStrategy = 44,
-	foldingHighlight = 45,
-	foldingImportsByDefault = 46,
-	foldingMaximumRegions = 47,
-	unfoldOnClickAfterEndOfLine = 48,
-	fontFamily = 49,
-	fontInfo = 50,
-	fontLigatures = 51,
-	fontSize = 52,
-	fontWeight = 53,
-	fontVariations = 54,
-	formatOnPaste = 55,
-	formatOnType = 56,
-	glyphMargin = 57,
-	gotoLocation = 58,
-	hideCursorInOverviewRuler = 59,
-	hover = 60,
-	inDiffEditor = 61,
-	inlineSuggest = 62,
-	letterSpacing = 63,
-	lightbulb = 64,
-	lineDecorationsWidth = 65,
-	lineHeight = 66,
-	lineNumbers = 67,
-	lineNumbersMinChars = 68,
-	linkedEditing = 69,
-	links = 70,
-	matchBrackets = 71,
-	minimap = 72,
-	mouseStyle = 73,
-	mouseWheelScrollSensitivity = 74,
-	mouseWheelZoom = 75,
-	multiCursorMergeOverlapping = 76,
-	multiCursorModifier = 77,
-	multiCursorPaste = 78,
-	multiCursorLimit = 79,
-	multiDocumentOccurrencesHighlight = 80,
-	occurrencesHighlight = 81,
-	overviewRulerBorder = 82,
-	overviewRulerLanes = 83,
-	padding = 84,
-	pasteAs = 85,
-	parameterHints = 86,
-	peekWidgetDefaultFocus = 87,
-	definitionLinkOpensInPeek = 88,
-	quickSuggestions = 89,
-	quickSuggestionsDelay = 90,
-	readOnly = 91,
-	readOnlyMessage = 92,
-	renameOnType = 93,
-	renderControlCharacters = 94,
-	renderFinalNewline = 95,
-	renderLineHighlight = 96,
-	renderLineHighlightOnlyWhenFocus = 97,
-	renderValidationDecorations = 98,
-	renderWhitespace = 99,
-	revealHorizontalRightPadding = 100,
-	roundedSelection = 101,
-	rulers = 102,
-	scrollbar = 103,
-	scrollBeyondLastColumn = 104,
-	scrollBeyondLastLine = 105,
-	scrollPredominantAxis = 106,
-	selectionClipboard = 107,
-	selectionHighlight = 108,
-	selectOnLineNumbers = 109,
-	showFoldingControls = 110,
-	showUnused = 111,
-	snippetSuggestions = 112,
-	smartSelect = 113,
-	smoothScrolling = 114,
-	stickyScroll = 115,
-	stickyTabStops = 116,
-	stopRenderingLineAfter = 117,
-	suggest = 118,
-	suggestFontSize = 119,
-	suggestLineHeight = 120,
-	suggestOnTriggerCharacters = 121,
-	suggestSelection = 122,
-	tabCompletion = 123,
-	tabIndex = 124,
-	unicodeHighlighting = 125,
-	unusualLineTerminators = 126,
-	useShadowDOM = 127,
-	useTabStops = 128,
-	wordBreak = 129,
-	wordSeparators = 130,
-	wordWrap = 131,
-	wordWrapBreakAfterCharacters = 132,
-	wordWrapBreakBeforeCharacters = 133,
-	wordWrapColumn = 134,
-	wordWrapOverride1 = 135,
-	wordWrapOverride2 = 136,
-	wrappingIndent = 137,
-	wrappingStrategy = 138,
-	showDeprecated = 139,
-	inlayHints = 140,
-	editorClassName = 141,
-	pixelRatio = 142,
-	tabFocusMode = 143,
-	layoutInfo = 144,
-	wrappingInfo = 145,
-	defaultColorDecorators = 146,
-	colorDecoratorsActivatedOn = 147,
-	inlineCompletionsAccessibilityVerbose = 148
+	experimentalEditContextEnabled = 37,
+	emptySelectionClipboard = 38,
+	experimentalGpuAcceleration = 39,
+	experimentalWhitespaceRendering = 40,
+	extraEditorClassName = 41,
+	fastScrollSensitivity = 42,
+	find = 43,
+	fixedOverflowWidgets = 44,
+	folding = 45,
+	foldingStrategy = 46,
+	foldingHighlight = 47,
+	foldingImportsByDefault = 48,
+	foldingMaximumRegions = 49,
+	unfoldOnClickAfterEndOfLine = 50,
+	fontFamily = 51,
+	fontInfo = 52,
+	fontLigatures = 53,
+	fontSize = 54,
+	fontWeight = 55,
+	fontVariations = 56,
+	formatOnPaste = 57,
+	formatOnType = 58,
+	glyphMargin = 59,
+	gotoLocation = 60,
+	hideCursorInOverviewRuler = 61,
+	hover = 62,
+	inDiffEditor = 63,
+	inlineSuggest = 64,
+	letterSpacing = 65,
+	lightbulb = 66,
+	lineDecorationsWidth = 67,
+	lineHeight = 68,
+	lineNumbers = 69,
+	lineNumbersMinChars = 70,
+	linkedEditing = 71,
+	links = 72,
+	matchBrackets = 73,
+	minimap = 74,
+	mouseStyle = 75,
+	mouseWheelScrollSensitivity = 76,
+	mouseWheelZoom = 77,
+	multiCursorMergeOverlapping = 78,
+	multiCursorModifier = 79,
+	multiCursorPaste = 80,
+	multiCursorLimit = 81,
+	occurrencesHighlight = 82,
+	occurrencesHighlightDelay = 83,
+	overtypeCursorStyle = 84,
+	overtypeOnPaste = 85,
+	overviewRulerBorder = 86,
+	overviewRulerLanes = 87,
+	padding = 88,
+	pasteAs = 89,
+	parameterHints = 90,
+	peekWidgetDefaultFocus = 91,
+	placeholder = 92,
+	definitionLinkOpensInPeek = 93,
+	quickSuggestions = 94,
+	quickSuggestionsDelay = 95,
+	readOnly = 96,
+	readOnlyMessage = 97,
+	renameOnType = 98,
+	renderControlCharacters = 99,
+	renderFinalNewline = 100,
+	renderLineHighlight = 101,
+	renderLineHighlightOnlyWhenFocus = 102,
+	renderValidationDecorations = 103,
+	renderWhitespace = 104,
+	revealHorizontalRightPadding = 105,
+	roundedSelection = 106,
+	rulers = 107,
+	scrollbar = 108,
+	scrollBeyondLastColumn = 109,
+	scrollBeyondLastLine = 110,
+	scrollPredominantAxis = 111,
+	selectionClipboard = 112,
+	selectionHighlight = 113,
+	selectOnLineNumbers = 114,
+	showFoldingControls = 115,
+	showUnused = 116,
+	snippetSuggestions = 117,
+	smartSelect = 118,
+	smoothScrolling = 119,
+	stickyScroll = 120,
+	stickyTabStops = 121,
+	stopRenderingLineAfter = 122,
+	suggest = 123,
+	suggestFontSize = 124,
+	suggestLineHeight = 125,
+	suggestOnTriggerCharacters = 126,
+	suggestSelection = 127,
+	tabCompletion = 128,
+	tabIndex = 129,
+	unicodeHighlighting = 130,
+	unusualLineTerminators = 131,
+	useShadowDOM = 132,
+	useTabStops = 133,
+	wordBreak = 134,
+	wordSegmenterLocales = 135,
+	wordSeparators = 136,
+	wordWrap = 137,
+	wordWrapBreakAfterCharacters = 138,
+	wordWrapBreakBeforeCharacters = 139,
+	wordWrapColumn = 140,
+	wordWrapOverride1 = 141,
+	wordWrapOverride2 = 142,
+	wrappingIndent = 143,
+	wrappingStrategy = 144,
+	showDeprecated = 145,
+	inlayHints = 146,
+	effectiveCursorStyle = 147,
+	editorClassName = 148,
+	pixelRatio = 149,
+	tabFocusMode = 150,
+	layoutInfo = 151,
+	wrappingInfo = 152,
+	defaultColorDecorators = 153,
+	colorDecoratorsActivatedOn = 154,
+	inlineCompletionsAccessibilityVerbose = 155,
+	effectiveExperimentalEditContextEnabled = 156
 }
 
 /**
@@ -361,7 +369,19 @@ export enum EndOfLineSequence {
  */
 export enum GlyphMarginLane {
 	Left = 1,
-	Right = 2
+	Center = 2,
+	Right = 3
+}
+
+export enum HoverVerbosityAction {
+	/**
+	 * Increase the verbosity of the hover
+	 */
+	Increase = 0,
+	/**
+	 * Decrease the verbosity of the hover
+	 */
+	Decrease = 1
 }
 
 /**
@@ -414,6 +434,11 @@ export enum InlineCompletionTriggerKind {
 	 * Return multiple completion items to enable cycling through them.
 	 */
 	Explicit = 1
+}
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1
 }
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -641,6 +666,14 @@ export enum MinimapPosition {
 }
 
 /**
+ * Section header style.
+ */
+export enum MinimapSectionHeaderStyle {
+	Normal = 1,
+	Underlined = 2
+}
+
+/**
  * Type of hit element with the mouse in the editor.
  */
 export enum MouseTargetType {
@@ -702,6 +735,15 @@ export enum MouseTargetType {
 	OUTSIDE_EDITOR = 13
 }
 
+export enum NewSymbolNameTag {
+	AIGenerated = 1
+}
+
+export enum NewSymbolNameTriggerKind {
+	Invoke = 0,
+	Automatic = 1
+}
+
 /**
  * A positioning preference for rendering overlay widgets.
  */
@@ -728,6 +770,15 @@ export enum OverviewRulerLane {
 	Center = 2,
 	Right = 4,
 	Full = 7
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2
 }
 
 export enum PositionAffinity {
@@ -790,6 +841,12 @@ export enum SelectionDirection {
 	 * The selection starts below where it ends.
 	 */
 	RTL = 1
+}
+
+export enum ShowLightbulbIconMode {
+	Off = 'off',
+	OnCode = 'onCode',
+	On = 'on'
 }
 
 export enum SignatureHelpTriggerKind {

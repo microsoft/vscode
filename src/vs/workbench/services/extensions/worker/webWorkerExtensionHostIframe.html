@@ -4,7 +4,7 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-75NYUUvf+5++1WbfCZOV3PSWxBhONpaxwx+mkOFRv/Y=' https:;
+			script-src 'self' 'unsafe-eval' 'sha256-cl8ijlOzEe+0GRCQNJQu2k6nUQ0fAYNYIuuKEm72JDs=' https: http://localhost:* blob:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
@@ -12,7 +12,9 @@
 (function () {
 	const searchParams = new URL(document.location.href).searchParams;
 	const vscodeWebWorkerExtHostId = searchParams.get('vscodeWebWorkerExtHostId') || '';
-	const name = searchParams.get('debugged') ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
+	// DO NOT CHANGE the name of the worker without also updating js-debug, as that
+	// is used to filter targets to attach to (e.g. #232544)
+	const name = searchParams.get('debugged') ? 'DebugExtensionHostWorker' : 'ExtensionHostWorker';
 	const parentOrigin = searchParams.get('parentOrigin') || window.origin;
 	const salt = searchParams.get('salt');
 
@@ -66,14 +68,47 @@
 	}
 
 	function start() {
+
+		// Before we can load the worker, we need to get the current set of NLS
+		// configuration into this iframe. We ask the parent window to send it
+		// together with the necessary information to load the worker via Blob.
+
+		const bootstrapNlsType = 'vscode.bootstrap.nls';
+
+		self.onmessage = (event) => {
+			if (event.origin !== parentOrigin || event.data.type !== bootstrapNlsType) {
+				return;
+			}
+			const { data } = event.data;
+			createWorker(data.workerUrl, data.fileRoot, data.nls.messages, data.nls.language);
+		};
+
+		window.parent.postMessage({
+			vscodeWebWorkerExtHostId,
+			type: bootstrapNlsType
+		}, '*');
+	}
+
+	function createWorker(workerUrl, fileRoot, nlsMessages, nlsLanguage) {
 		try {
-			let workerUrl = '../../../../base/worker/workerMain.js';
 			if (globalThis.crossOriginIsolated) {
 				workerUrl += '?vscode-coi=2'; // COEP
 			}
 
-			const worker = new Worker(workerUrl, { name });
-			worker.postMessage('vs/workbench/api/worker/extensionHostWorker');
+			// In below blob code, we are using JSON.stringify to ensure the passed
+			// in values are not breaking our script. The values may contain string
+			// terminating characters (such as ' or ").
+
+			const blob = new Blob([[
+				`/*extensionHostWorker*/`,
+				`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(nlsMessages)};`,
+				`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(nlsLanguage)};`,
+				`globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(fileRoot)};`,
+				`await import(${JSON.stringify(workerUrl)});`,
+				`/*extensionHostWorker*/`
+			].join('')], { type: 'application/javascript' });
+
+			const worker = new Worker(URL.createObjectURL(blob), { name, type: 'module' });
 			const nestedWorkers = new Map();
 
 			worker.onmessage = (event) => {

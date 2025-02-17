@@ -3,30 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { stub } from 'sinon';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { IPath, normalize } from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { isObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorType } from 'vs/editor/common/editorCommon';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from 'vs/platform/label/common/label';
-import { IWorkspace, IWorkspaceFolder, IWorkspaceIdentifier, Workspace } from 'vs/platform/workspace/common/workspace';
-import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/baseConfigurationResolverService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { TestEditorService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { IPath, normalize } from '../../../../../base/common/path.js';
+import * as platform from '../../../../../base/common/platform.js';
+import { isObject } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { EditorType } from '../../../../../editor/common/editorCommon.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
+import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
+import { IWorkspace, IWorkspaceFolder, IWorkspaceIdentifier, Workspace } from '../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { BaseConfigurationResolverService } from '../../browser/baseConfigurationResolverService.js';
+import { IConfigurationResolverService } from '../../common/configurationResolver.js';
+import { IExtensionService } from '../../../extensions/common/extensions.js';
+import { IPathService } from '../../../path/common/pathService.js';
+import { TestEditorService, TestQuickInputService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 const mockLineNumber = 10;
 class TestEditorServiceWithActiveEditor extends TestEditorService {
@@ -71,9 +72,11 @@ suite('Configuration Resolver Service', () => {
 	let pathService: MockPathService;
 	let extensionService: IExtensionService;
 
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		mockCommandService = new MockCommandService();
-		editorService = new TestEditorServiceWithActiveEditor();
+		editorService = disposables.add(new TestEditorServiceWithActiveEditor());
 		quickInputService = new TestQuickInputService();
 		// environmentService = new MockWorkbenchEnvironmentService(envVariables);
 		labelService = new MockLabelService();
@@ -81,7 +84,7 @@ suite('Configuration Resolver Service', () => {
 		extensionService = new TestExtensionService();
 		containingWorkspace = testWorkspace(URI.parse('file:///VSCode/workspaceLocation'));
 		workspace = containingWorkspace.folders[0];
-		configurationResolverService = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService, labelService, pathService, extensionService);
+		configurationResolverService = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 	});
 
 	teardown(() => {
@@ -227,7 +230,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
@@ -238,7 +241,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 		assert.strictEqual(await service.resolveAsync(undefined, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
@@ -254,7 +257,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
 	});
 
@@ -270,7 +273,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 		if (platform.isWindows) {
 			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
 		} else {
@@ -290,7 +293,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 		if (platform.isWindows) {
 			assert.strictEqual(await service.resolveAsync(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
 		} else {
@@ -323,7 +326,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${config:editor.lineNumbers} ${config:editor.insertSpaces} xyz'), 'abc foo 123 false xyz');
 	});
 
@@ -332,7 +335,7 @@ suite('Configuration Resolver Service', () => {
 			editor: {}
 		});
 
-		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${unknownVariable} xyz'), 'abc ${unknownVariable} xyz');
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${env:unknownVariable} xyz'), 'abc  xyz');
 	});
@@ -344,7 +347,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
+		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 
 		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${env} xyz'));
 		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${env:} xyz'));
@@ -759,5 +762,14 @@ class MockInputsConfigurationService extends TestConfigurationService {
 			};
 		}
 		return configuration;
+	}
+
+	public override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		return {
+			value: undefined,
+			defaultValue: undefined,
+			userValue: undefined,
+			overrideIdentifiers: []
+		};
 	}
 }

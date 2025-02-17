@@ -3,26 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
-import { IDetachedTerminalInstance, IDetachedXTermOptions, IDetachedXtermTerminal, ITerminalContribution, IXtermAttachToElementOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ITerminalProcessInfo, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
+import * as dom from '../../../../base/browser/dom.js';
+import { Delayer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { ITerminalBackend } from '../../../../platform/terminal/common/terminal.js';
+import { IDetachedTerminalInstance, IDetachedXTermOptions, IDetachedXtermTerminal, ITerminalContribution, IXtermAttachToElementOptions } from './terminal.js';
+import { TerminalExtensionsRegistry } from './terminalExtensions.js';
+import { TerminalWidgetManager } from './widgets/widgetManager.js';
+import { XtermTerminal } from './xterm/xtermTerminal.js';
+import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
+import { ITerminalProcessInfo, ProcessState } from '../common/terminal.js';
 
-export class DeatachedTerminal extends Disposable implements IDetachedTerminalInstance {
+export class DetachedTerminal extends Disposable implements IDetachedTerminalInstance {
 	private readonly _widgets = this._register(new TerminalWidgetManager());
 	public readonly capabilities = new TerminalCapabilityStore();
 	private readonly _contributions: Map<string, ITerminalContribution> = new Map();
+
+	public domElement?: HTMLElement;
 
 	public get xterm(): IDetachedXtermTerminal {
 		return this._xterm;
@@ -49,7 +52,11 @@ export class DeatachedTerminal extends Disposable implements IDetachedTerminalIn
 
 			let contribution: ITerminalContribution;
 			try {
-				contribution = instantiationService.createInstance(desc.ctor, this, options.processInfo, this._widgets);
+				contribution = instantiationService.createInstance(desc.ctor, {
+					instance: this,
+					processManager: options.processInfo,
+					widgetManager: this._widgets
+				});
 				this._contributions.set(desc.id, contribution);
 				this._register(contribution);
 			} catch (err) {
@@ -66,9 +73,40 @@ export class DeatachedTerminal extends Disposable implements IDetachedTerminalIn
 		});
 	}
 
+	get selection(): string | undefined {
+		return this._xterm && this.hasSelection() ? this._xterm.raw.getSelection() : undefined;
+	}
+
+	hasSelection(): boolean {
+		return this._xterm.hasSelection();
+	}
+
+	clearSelection(): void {
+		this._xterm.clearSelection();
+	}
+
+	focus(force?: boolean): void {
+		if (force || !dom.getActiveWindow().getSelection()?.toString()) {
+			this.xterm.focus();
+		}
+	}
+
 	attachToElement(container: HTMLElement, options?: Partial<IXtermAttachToElementOptions> | undefined): void {
+		this.domElement = container;
 		const screenElement = this._xterm.attachToElement(container, options);
 		this._widgets.attachToElement(screenElement);
+	}
+
+	forceScrollbarVisibility(): void {
+		this.domElement?.classList.add('force-scrollbar');
+	}
+
+	resetScrollbarVisibility(): void {
+		this.domElement?.classList.remove('force-scrollbar');
+	}
+
+	getContribution<T extends ITerminalContribution>(id: string): T | null {
+		return this._contributions.get(id) as T | null;
 	}
 }
 

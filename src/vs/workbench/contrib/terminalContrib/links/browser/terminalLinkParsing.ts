@@ -9,8 +9,8 @@
  * exist.
  */
 
-import { Lazy } from 'vs/base/common/lazy';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 
 export interface IParsedLink {
 	path: ILinkPartialRange;
@@ -67,24 +67,32 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 	// - Row     = 339
 	// - Col     = 12
 	// - RowEnd  = 341
-	// - ColEnd  = 14
+	// - ColEnd  = 789
 	//
 	// These all support single quote ' in the place of " and [] in the place of ()
+	//
+	// See the tests for an exhaustive list of all supported formats
 	const lineAndColumnRegexClauses = [
 		// foo:339
 		// foo:339:12
+		// foo:339:12-789
+		// foo:339:12-341.789
 		// foo:339.12
 		// foo 339
-		// foo 339:12                             [#140780]
+		// foo 339:12                              [#140780]
 		// foo 339.12
+		// foo#339
+		// foo#339:12                              [#190288]
+		// foo#339.12
+		// foo, 339                                [#217927]
 		// "foo",339
 		// "foo",339:12
 		// "foo",339.12
-		// "foo",339.12-14
-		// "foo",339.12-341.14
-		`(?::| |['"],)${r()}([:.]${c()}(?:-(?:${re()}\.)?${ce()})?)?` + eolSuffix,
-		// The quotes below are optional          [#171652]
-		// "foo", line 339                        [#40468]
+		// "foo",339.12-789
+		// "foo",339.12-341.789
+		`(?::|#| |['"],|, )${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
+		// The quotes below are optional           [#171652]
+		// "foo", line 339                         [#40468]
 		// "foo", line 339, col 12
 		// "foo", line 339, column 12
 		// "foo":line 339
@@ -97,19 +105,24 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
 		// "foo" line 339 column 12
-		// "foo", line 339, character 12          [#171880]
-		// "foo", line 339, characters 12-14      [#171880]
-		// "foo", lines 339-341                   [#171880]
-		// "foo", lines 339-341, characters 12-14 [#178287]
+		// "foo", line 339, character 12           [#171880]
+		// "foo", line 339, characters 12-789      [#171880]
+		// "foo", lines 339-341                    [#171880]
+		// "foo", lines 339-341, characters 12-789 [#178287]
 		`['"]?(?:,? |: ?| on )lines? ${r()}(?:-${re()})?(?:,? (?:col(?:umn)?|characters?) ${c()}(?:-${ce()})?)?` + eolSuffix,
+		// () and [] are interchangeable
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
 		// foo (339)
-		//   ...
+		// foo (339,12)
+		// foo (339, 12)
 		// foo: (339)
-		//   ...
-		`:? ?[\\[\\(]${r()}(?:, ?${c()})?[\\]\\)]` + eolSuffix,
+		// foo: (339,12)
+		// foo: (339, 12)
+		// foo(339:12)                             [#229842]
+		// foo (339:12)                            [#229842]
+		`:? ?[\\[\\(]${r()}(?:(?:, ?|:)${c()})?[\\]\\)]` + eolSuffix,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses
@@ -196,7 +209,7 @@ function parseIntOptional(value: string | undefined): number | undefined {
 // characters the path is not allowed to _start_ with, the second `[]` includes characters not
 // allowed at all in the path. If the characters show up in both regexes the link will stop at that
 // character, otherwise it will stop at a space character.
-const linkWithSuffixPathCharacters = /(?<path>[^\s\|<>\[\({][^\s\|<>]*)$/;
+const linkWithSuffixPathCharacters = /(?<path>(?:file:\/\/\/)?[^\s\|<>\[\({][^\s\|<>]*)$/;
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
@@ -270,6 +283,11 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 				};
 				path = path.substring(prefix.text.length);
 
+				// Don't allow suffix links to be returned when the link itself is the empty string
+				if (path.trim().length === 0) {
+					continue;
+				}
+
 				// If there are multiple characters in the prefix, trim the prefix if the _first_
 				// suffix character is the same as the last prefix character. For example, for the
 				// text `echo "'foo' on line 1"`:
@@ -303,12 +321,12 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 }
 
 enum RegexPathConstants {
-	PathPrefix = '(?:\\.\\.?|\\~)',
+	PathPrefix = '(?:\\.\\.?|\\~|file:\/\/)',
 	PathSeparatorClause = '\\/',
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
 	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\]',
-	ExcludedStartPathCharactersClause = '[^\\0<>\\s!`&*()\\[\\]\'":;\\\\]',
+	ExcludedStartPathCharactersClause = '[^\\0<>\\?\\s!`&*()\\[\\]\'":;\\\\]',
 
 	WinOtherPathPrefix = '\\.\\.?|\\~',
 	WinPathSeparatorClause = '(?:\\\\|\\/)',
@@ -323,10 +341,10 @@ enum RegexPathConstants {
 const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|(?:' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
 
 /**
- * A regex clause that matches the start of an absolute path on Windows, such as: `C:`, `c:` and
- * `\\?\C` (UNC path).
+ * A regex clause that matches the start of an absolute path on Windows, such as: `C:`, `c:`,
+ * `file:///c:` (uri) and `\\?\C:` (UNC path).
  */
-export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
+export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\|file:\\/\\/\\/)?[a-zA-Z]:';
 
 /**
  * A regex that matches Windows paths, such as `\\?\c:\foo`, `c:\foo`, `~\foo`, `.\foo`, `..\foo`

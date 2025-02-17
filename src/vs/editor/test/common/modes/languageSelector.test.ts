@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { LanguageSelector, score } from 'vs/editor/common/languageSelector';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { LanguageSelector, score } from '../../../common/languageSelector.js';
 
 suite('LanguageSelector', function () {
 
@@ -19,7 +19,7 @@ suite('LanguageSelector', function () {
 
 	test('score, invalid selector', function () {
 		assert.strictEqual(score({}, model.uri, model.language, true, undefined, undefined), 0);
-		assert.strictEqual(score(undefined!, model.uri, model.language, true, undefined, undefined), 0);
+		assert.strictEqual(score(undefined, model.uri, model.language, true, undefined, undefined), 0);
 		assert.strictEqual(score(null!, model.uri, model.language, true, undefined, undefined), 0);
 		assert.strictEqual(score('', model.uri, model.language, true, undefined, undefined), 0);
 	});

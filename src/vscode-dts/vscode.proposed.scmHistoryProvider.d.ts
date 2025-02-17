@@ -11,67 +11,80 @@ declare module 'vscode' {
 	}
 
 	export interface SourceControlHistoryProvider {
-		actionButton?: SourceControlActionButton;
-		currentHistoryItemGroup?: SourceControlHistoryItemGroup;
+		readonly currentHistoryItemRef: SourceControlHistoryItemRef | undefined;
+		readonly currentHistoryItemRemoteRef: SourceControlHistoryItemRef | undefined;
+		readonly currentHistoryItemBaseRef: SourceControlHistoryItemRef | undefined;
 
 		/**
-		 * Fires when the action button changes
+		 * Fires when the current history item refs (local, remote, base)
+		 * change after a user action (ex: commit, checkout, fetch, pull, push)
 		 */
-		onDidChangeActionButton: Event<void>;
+		onDidChangeCurrentHistoryItemRefs: Event<void>;
 
 		/**
-		 * Fires when the current history item group changes (ex: checkout)
+		 * Fires when history item refs change
 		 */
-		onDidChangeCurrentHistoryItemGroup: Event<void>;
+		onDidChangeHistoryItemRefs: Event<SourceControlHistoryItemRefsChangeEvent>;
 
-		/**
-		 * Fires when the history item groups change (ex: commit, push, fetch)
-		 */
-		// onDidChangeHistoryItemGroups: Event<SourceControlHistoryChangeEvent>;
+		provideHistoryItemRefs(historyItemRefs: string[] | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemRef[]>;
+		provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
+		provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 
-		provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
-		provideHistoryItemChanges(historyItemId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
-
-		resolveHistoryItemGroupBase(historyItemGroupId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemGroup | undefined>;
-		resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId: string, token: CancellationToken): ProviderResult<{ id: string; ahead: number; behind: number }>;
+		resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[], token: CancellationToken): ProviderResult<string>;
 	}
 
 	export interface SourceControlHistoryOptions {
-		readonly cursor?: string;
+		readonly skip?: number;
 		readonly limit?: number | { id?: string };
+		readonly historyItemRefs?: readonly string[];
 	}
 
-	export interface SourceControlHistoryItemGroup {
-		readonly id: string;
-		readonly label: string;
-		readonly upstream?: SourceControlRemoteHistoryItemGroup;
-	}
-
-	export interface SourceControlRemoteHistoryItemGroup {
-		readonly id: string;
-		readonly label: string;
+	export interface SourceControlHistoryItemStatistics {
+		readonly files: number;
+		readonly insertions: number;
+		readonly deletions: number;
 	}
 
 	export interface SourceControlHistoryItem {
 		readonly id: string;
 		readonly parentIds: string[];
-		readonly label: string;
-		readonly description?: string;
-		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		readonly subject: string;
+		readonly message: string;
+		readonly displayId?: string;
+		readonly author?: string;
+		readonly authorEmail?: string;
+		readonly authorIcon?: IconPath;
 		readonly timestamp?: number;
+		readonly statistics?: SourceControlHistoryItemStatistics;
+		readonly references?: SourceControlHistoryItemRef[];
+	}
+
+	export interface SourceControlHistoryItemRef {
+		readonly id: string;
+		readonly name: string;
+		readonly description?: string;
+		readonly revision?: string;
+		readonly category?: string;
+		readonly icon?: IconPath;
 	}
 
 	export interface SourceControlHistoryItemChange {
 		readonly uri: Uri;
 		readonly originalUri: Uri | undefined;
 		readonly modifiedUri: Uri | undefined;
-		readonly renameUri: Uri | undefined;
 	}
 
-	// export interface SourceControlHistoryChangeEvent {
-	// 	readonly added: Iterable<SourceControlHistoryItemGroup>;
-	// 	readonly removed: Iterable<SourceControlHistoryItemGroup>;
-	// 	readonly modified: Iterable<SourceControlHistoryItemGroup>;
-	// }
+	export interface SourceControlHistoryItemRefsChangeEvent {
+		readonly added: readonly SourceControlHistoryItemRef[];
+		readonly removed: readonly SourceControlHistoryItemRef[];
+		readonly modified: readonly SourceControlHistoryItemRef[];
 
+		/**
+		 * Flag to indicate if the operation that caused the event to trigger was due
+		 * to a user action or a background operation (ex: Auto Fetch). The flag is used
+		 * to determine whether to automatically refresh the user interface or present
+		 * the user with a visual cue that the user interface is outdated.
+		 */
+		readonly silent: boolean;
+	}
 }

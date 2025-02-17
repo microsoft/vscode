@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractExtHostConsoleForwarder } from 'vs/workbench/api/common/extHostConsoleForwarder';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { AbstractExtHostConsoleForwarder } from '../common/extHostConsoleForwarder.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
+import { IExtHostRpcService } from '../common/extHostRpcService.js';
 
 export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 
@@ -16,7 +16,7 @@ export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 		super(extHostRpc, initData);
 	}
 
-	protected override _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error', original: (...args: any[]) => void, args: IArguments) {
+	protected override _nativeConsoleLogMessage(_method: unknown, original: (...args: any[]) => void, args: IArguments) {
 		original.apply(console, args as any);
 	}
 }

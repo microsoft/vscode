@@ -25,5 +25,6 @@
 }
 
 .inline-progress-widget:hover .icon::before {
-	content: "\ea76"; /* codicon-x */
+	content: var(--vscode-icon-x-content);
+	font-family: var(--vscode-icon-x-font-family);
 }

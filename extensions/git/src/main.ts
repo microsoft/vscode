@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel, languages } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -20,11 +20,14 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
-import { TerminalEnvironmentManager } from './terminal';
+import { TerminalEnvironmentManager, TerminalShellExecutionManager } from './terminal';
 import { createIPCServer, IPCServer } from './ipc/ipcServer';
-import { GitEditor } from './gitEditor';
+import { GitEditor, GitEditorDocumentLinkProvider } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
+import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
+import { GitBlameController } from './blame';
+import { StagedResourceQuickDiffProvider } from './repository';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -47,7 +50,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	}
 
 	const info = await findGit(pathHints, gitPath => {
-		logger.info(l10n.t('Validating found git in: "{0}"', gitPath));
+		logger.info(l10n.t('[main] Validating found git in: "{0}"', gitPath));
 		if (excludes.length === 0) {
 			return true;
 		}
@@ -55,7 +58,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
 		const skip = excludes.some(e => normalized.startsWith(e));
 		if (skip) {
-			logger.info(l10n.t('Skipped found git in: "{0}"', gitPath));
+			logger.info(l10n.t('[main] Skipped found git in: "{0}"', gitPath));
 		}
 		return !skip;
 	}, logger);
@@ -65,7 +68,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	try {
 		ipcServer = await createIPCServer(context.storagePath);
 	} catch (err) {
-		logger.error(`Failed to create git IPC: ${err}`);
+		logger.error(`[main] Failed to create git IPC: ${err}`);
 	}
 
 	const askpass = new Askpass(ipcServer);
@@ -78,7 +81,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, [askpass, gitEditor, ipcServer]);
 	disposables.push(terminalEnvironmentManager);
 
-	logger.info(l10n.t('Using git "{0}" from "{1}"', info.version, info.path));
+	logger.info(l10n.t('[main] Using git "{0}" from "{1}"', info.version, info.path));
 
 	const git = new Git({
 		gitPath: info.path,
@@ -109,14 +112,26 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter);
 	disposables.push(
 		cc,
-		new GitFileSystemProvider(model),
+		new GitFileSystemProvider(model, logger),
 		new GitDecorations(model),
+		new GitBlameController(model),
 		new GitTimelineProvider(model, cc),
-		new GitEditSessionIdentityProvider(model)
+		new GitEditSessionIdentityProvider(model),
+		new StagedResourceQuickDiffProvider(model),
+		new TerminalShellExecutionManager(model, logger)
 	);
 
-	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
+	const postCommitCommandsProvider = new GitPostCommitCommandsProvider(model);
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
+
+	const diagnosticsManager = new GitCommitInputBoxDiagnosticsManager(model);
+	disposables.push(diagnosticsManager);
+
+	const codeActionsProvider = new GitCommitInputBoxCodeActionsProvider(diagnosticsManager);
+	disposables.push(codeActionsProvider);
+
+	const gitEditorDocumentLinkProvider = languages.registerDocumentLinkProvider('git-commit', new GitEditorDocumentLinkProvider(model));
+	disposables.push(gitEditorDocumentLinkProvider);
 
 	checkGitVersion(info);
 	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);
@@ -180,7 +195,7 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	disposables.push(logger);
 
 	const onDidChangeLogLevel = (logLevel: LogLevel) => {
-		logger.appendLine(l10n.t('Log level: {0}', LogLevel[logLevel]));
+		logger.appendLine(l10n.t('[main] Log level: {0}', LogLevel[logLevel]));
 	};
 	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
 	onDidChangeLogLevel(logger.logLevel);
@@ -205,12 +220,12 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		const model = await createModel(context, logger, telemetryReporter, disposables);
 		return new GitExtensionImpl(model);
 	} catch (err) {
+		console.warn(err.message);
+		logger.warn(`[main] Failed to create model: ${err}`);
+
 		if (!/Git installation not found/.test(err.message || '')) {
 			throw err;
 		}
-
-		console.warn(err.message);
-		logger.warn(err.message);
 
 		/* __GDPR__
 			"git.missing" : {

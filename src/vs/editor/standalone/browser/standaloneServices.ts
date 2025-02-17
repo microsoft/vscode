@@ -3,96 +3,102 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/editor/common/languages/languageConfigurationRegistry';
-import 'vs/editor/standalone/browser/standaloneCodeEditorService';
-import 'vs/editor/standalone/browser/standaloneLayoutService';
-import 'vs/platform/undoRedo/common/undoRedoService';
-import 'vs/editor/common/services/languageFeatureDebounce';
-import 'vs/editor/common/services/semanticTokensStylingService';
-import 'vs/editor/common/services/languageFeaturesService';
+import './standaloneCodeEditorService.js';
+import './standaloneLayoutService.js';
+import '../../../platform/undoRedo/common/undoRedoService.js';
+import '../../common/services/languageFeatureDebounce.js';
+import '../../common/services/semanticTokensStylingService.js';
+import '../../common/services/languageFeaturesService.js';
+import '../../browser/services/hoverService/hoverService.js';
 
-import * as strings from 'vs/base/common/strings';
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ResolvedKeybinding, KeyCodeChord, Keybinding, decodeKeybinding } from 'vs/base/common/keybindings';
-import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/editor/common/config/editorConfigurationSchema';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfiguration';
-import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
-import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogService, IInputResult, IPrompt, IPromptResult, IPromptWithCustomCancel, IPromptResultWithCancel, IPromptWithDefaultCancel, IPromptBaseButton } from 'vs/platform/dialogs/common/dialogs';
-import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent, Verbosity } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
-import { IProgressRunner, IEditorProgressService, IProgressService, IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder, STANDALONE_EDITOR_WORKSPACE_ID } from 'vs/platform/workspace/common/workspace';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { StandaloneServicesNLS } from 'vs/editor/common/standaloneStrings';
-import { basename } from 'vs/base/common/resources';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextMenuService, IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { getSingletonServiceDescriptors, InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsService';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { StandaloneQuickInputService } from 'vs/editor/standalone/browser/quickInput/standaloneQuickInputService';
-import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/platform/actions/common/menuService';
-import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
-import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
-import { LogService } from 'vs/platform/log/common/logService';
-import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { mainWindow } from 'vs/base/browser/window';
+import * as strings from '../../../base/common/strings.js';
+import * as dom from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { Emitter, Event, IValueWithChangeEvent, ValueWithChangeEvent } from '../../../base/common/event.js';
+import { ResolvedKeybinding, KeyCodeChord, Keybinding, decodeKeybinding } from '../../../base/common/keybindings.js';
+import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable, combinedDisposable } from '../../../base/common/lifecycle.js';
+import { OS, isLinux, isMacintosh } from '../../../base/common/platform.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../browser/services/bulkEditService.js';
+import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from '../../common/config/editorConfigurationSchema.js';
+import { EditOperation, ISingleEditOperation } from '../../common/core/editOperation.js';
+import { IPosition, Position as Pos } from '../../common/core/position.js';
+import { Range } from '../../common/core/range.js';
+import { ITextModel, ITextSnapshot } from '../../common/model.js';
+import { IModelService } from '../../common/services/model.js';
+import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../common/services/resolverService.js';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from '../../common/services/textResourceConfiguration.js';
+import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
+import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from '../../../platform/configuration/common/configurationModels.js';
+import { IContextKeyService, ContextKeyExpression } from '../../../platform/contextkey/common/contextkey.js';
+import { IConfirmation, IConfirmationResult, IDialogService, IInputResult, IPrompt, IPromptResult, IPromptWithCustomCancel, IPromptResultWithCancel, IPromptWithDefaultCancel, IPromptBaseButton } from '../../../platform/dialogs/common/dialogs.js';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from '../../../platform/instantiation/common/instantiation.js';
+import { AbstractKeybindingService } from '../../../platform/keybinding/common/abstractKeybindingService.js';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from '../../../platform/keybinding/common/keybinding.js';
+import { KeybindingResolver } from '../../../platform/keybinding/common/keybindingResolver.js';
+import { IKeybindingItem, KeybindingsRegistry } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ResolvedKeybindingItem } from '../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent, Verbosity } from '../../../platform/label/common/label.js';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter } from '../../../platform/notification/common/notification.js';
+import { IProgressRunner, IEditorProgressService, IProgressService, IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from '../../../platform/progress/common/progress.js';
+import { ITelemetryService, TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder, STANDALONE_EDITOR_WORKSPACE_ID } from '../../../platform/workspace/common/workspace.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
+import { StandaloneServicesNLS } from '../../common/standaloneStrings.js';
+import { basename } from '../../../base/common/resources.js';
+import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
+import { ConsoleLogger, ILogService } from '../../../platform/log/common/log.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from '../../../platform/workspace/common/workspaceTrust.js';
+import { EditorOption } from '../../common/config/editorOptions.js';
+import { ICodeEditor, IDiffEditor } from '../../browser/editorBrowser.js';
+import { IContextMenuService, IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
+import { LanguageService } from '../../common/services/languageService.js';
+import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
+import { getSingletonServiceDescriptors, InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { OpenerService } from '../../browser/services/openerService.js';
+import { IEditorWorkerService } from '../../common/services/editorWorker.js';
+import { EditorWorkerService } from '../../browser/services/editorWorkerService.js';
+import { ILanguageService } from '../../common/languages/language.js';
+import { MarkerDecorationsService } from '../../common/services/markerDecorationsService.js';
+import { IMarkerDecorationsService } from '../../common/services/markerDecorations.js';
+import { ModelService } from '../../common/services/modelService.js';
+import { StandaloneQuickInputService } from './quickInput/standaloneQuickInputService.js';
+import { StandaloneThemeService } from './standaloneThemeService.js';
+import { IStandaloneThemeService } from '../common/standaloneTheme.js';
+import { AccessibilityService } from '../../../platform/accessibility/browser/accessibilityService.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { IMenuService } from '../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../platform/actions/common/menuService.js';
+import { BrowserClipboardService } from '../../../platform/clipboard/browser/clipboardService.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { InstantiationService } from '../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { IListService, ListService } from '../../../platform/list/browser/listService.js';
+import { IMarkerService } from '../../../platform/markers/common/markers.js';
+import { MarkerService } from '../../../platform/markers/common/markerService.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, InMemoryStorageService } from '../../../platform/storage/common/storage.js';
+import { DefaultConfiguration } from '../../../platform/configuration/common/configurations.js';
+import { WorkspaceEdit } from '../../common/languages.js';
+import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService, Sound } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
+import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
+import { LogService } from '../../../platform/log/common/logService.js';
+import { getEditorFeatures } from '../../common/editorFeatures.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from '../../../platform/environment/common/environment.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
+import { StandaloneTreeSitterParserService } from './standaloneTreeSitterService.js';
+import { IWorkerDescriptor } from '../../../base/common/worker/simpleWorker.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -249,7 +255,7 @@ class StandaloneDialogService implements IDialogService {
 		return {
 			confirmed,
 			checkboxChecked: false // unsupported
-		} as IConfirmationResult;
+		};
 	}
 
 	private doConfirm(message: string, detail?: string): boolean {
@@ -306,11 +312,9 @@ export class StandaloneNotificationService implements INotificationService {
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
-	readonly onDidChangeDoNotDisturbMode: Event<void> = Event.None;
+	readonly onDidChangeFilter: Event<void> = Event.None;
 
 	public _serviceBrand: undefined;
-
-	public doNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -349,6 +353,19 @@ export class StandaloneNotificationService implements INotificationService {
 	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
+
+
+	public setFilter(filter: NotificationsFilter | INotificationSourceFilter): void { }
+
+	public getFilter(source?: INotificationSource): NotificationsFilter {
+		return NotificationsFilter.OFF;
+	}
+
+	public getFilters(): INotificationSourceFilter[] {
+		return [];
+	}
+
+	public removeFilter(sourceId: string): void { }
 }
 
 export class StandaloneCommandService implements ICommandService {
@@ -528,7 +545,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _documentHasFocus(): boolean {
-		return document.hasFocus();
+		return mainWindow.document.hasFocus();
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
@@ -582,6 +599,13 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
 		// noop
 	}
+
+	/**
+	 * not yet supported
+	 */
+	public override enableKeybindingHoldMode(commandId: string): Promise<void> | undefined {
+		return undefined;
+	}
 }
 
 class DomNodeListeners extends Disposable {
@@ -610,9 +634,22 @@ export class StandaloneConfigurationService implements IConfigurationService {
 
 	private readonly _configuration: Configuration;
 
-	constructor() {
-		const defaultConfiguration = new DefaultConfiguration();
-		this._configuration = new Configuration(defaultConfiguration.reload(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+	constructor(
+		@ILogService private readonly logService: ILogService,
+	) {
+		const defaultConfiguration = new DefaultConfiguration(logService);
+		this._configuration = new Configuration(
+			defaultConfiguration.reload(),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			logService
+		);
 		defaultConfiguration.dispose();
 	}
 
@@ -641,9 +678,8 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		}
 
 		if (changedKeys.length > 0) {
-			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration);
+			const configurationChangeEvent = new ConfigurationChangeEvent({ keys: changedKeys, overrides: [] }, previous, this._configuration, undefined, this.logService);
 			configurationChangeEvent.source = ConfigurationTarget.MEMORY;
-			configurationChangeEvent.sourceConfig = null;
 			this._onDidChangeConfiguration.fire(configurationChangeEvent);
 		}
 
@@ -676,7 +712,8 @@ export class StandaloneConfigurationService implements IConfigurationService {
 			defaults: emptyModel,
 			policy: emptyModel,
 			application: emptyModel,
-			user: emptyModel,
+			userLocal: emptyModel,
+			userRemote: emptyModel,
 			workspace: emptyModel,
 			folders: []
 		};
@@ -759,6 +796,8 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly telemetryLevel = TelemetryLevel.NONE;
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
+	readonly devDeviceId = 'someValue.devDeviceId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
@@ -956,7 +995,7 @@ class StandaloneContextViewService extends ContextViewService {
 		super(layoutService);
 	}
 
-	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
+	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
 		if (!container) {
 			const codeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
 			if (codeEditor) {
@@ -1038,25 +1077,55 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-class StandaloneAudioService implements IAudioCueService {
+export const standaloneEditorWorkerDescriptor: IWorkerDescriptor = {
+	moduleId: 'vs/editor/common/services/editorSimpleWorker',
+	esmModuleLocation: undefined,
+	label: 'editorWorkerService'
+};
+
+class StandaloneEditorWorkerService extends EditorWorkerService {
+	constructor(
+		@IModelService modelService: IModelService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ILogService logService: ILogService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+	) {
+		super(standaloneEditorWorkerDescriptor, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
+	}
+}
+
+class StandaloneAccessbilitySignalService implements IAccessibilitySignalService {
 	_serviceBrand: undefined;
-	async playAudioCue(cue: AudioCue, options: {}): Promise<void> {
+	async playSignal(cue: AccessibilitySignal, options: {}): Promise<void> {
 	}
 
-	async playAudioCues(cues: AudioCue[]): Promise<void> {
+	async playSignals(cues: AccessibilitySignal[]): Promise<void> {
 	}
 
-	isEnabled(cue: AudioCue): boolean {
+	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean> {
+		return ValueWithChangeEvent.const(false);
+	}
+
+	getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality): number {
+		return 0;
+	}
+
+	isSoundEnabled(cue: AccessibilitySignal): boolean {
 		return false;
 	}
 
-	onEnabledChanged(cue: AudioCue): Event<void> {
+	isAnnouncementEnabled(cue: AccessibilitySignal): boolean {
+		return false;
+	}
+
+	onSoundEnabledChanged(cue: AccessibilitySignal): Event<void> {
 		return Event.None;
 	}
 
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
 	}
-	playAudioCueLoop(cue: AudioCue): IDisposable {
+	playSignalLoop(cue: AccessibilitySignal): IDisposable {
 		return toDisposable(() => { });
 	}
 }
@@ -1065,6 +1134,7 @@ export interface IEditorOverrideServices {
 	[index: string]: any;
 }
 
+registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourcePropertiesService, StandaloneResourcePropertiesService, InstantiationType.Eager);
@@ -1077,14 +1147,13 @@ registerSingleton(INotificationService, StandaloneNotificationService, Instantia
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Eager);
 registerSingleton(ILanguageService, StandaloneLanguageService, InstantiationType.Eager);
 registerSingleton(IStandaloneThemeService, StandaloneThemeService, InstantiationType.Eager);
-registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IModelService, ModelService, InstantiationType.Eager);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Eager);
 registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager);
 registerSingleton(IProgressService, StandaloneProgressService, InstantiationType.Eager);
 registerSingleton(IEditorProgressService, StandaloneEditorProgressService, InstantiationType.Eager);
 registerSingleton(IStorageService, InMemoryStorageService, InstantiationType.Eager);
-registerSingleton(IEditorWorkerService, EditorWorkerService, InstantiationType.Eager);
+registerSingleton(IEditorWorkerService, StandaloneEditorWorkerService, InstantiationType.Eager);
 registerSingleton(IBulkEditService, StandaloneBulkEditService, InstantiationType.Eager);
 registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService, InstantiationType.Eager);
 registerSingleton(ITextModelService, StandaloneTextModelService, InstantiationType.Eager);
@@ -1098,7 +1167,8 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Eager);
 registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.Eager);
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
-registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
+registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
+registerSingleton(ITreeSitterParserService, StandaloneTreeSitterParserService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

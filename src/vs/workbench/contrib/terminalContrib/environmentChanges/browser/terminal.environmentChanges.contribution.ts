@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentVariableMutator, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { URI } from '../../../../../base/common/uri.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentVariableMutator, IMergedEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
+import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
+import { TerminalCommandId } from '../../../terminal/common/terminal.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 // TODO: The rest of the terminal environment changes feature should move here https://github.com/microsoft/vscode/issues/177241
 
+// #region Actions
+
 registerActiveInstanceAction({
 	id: TerminalCommandId.ShowEnvironmentContributions,
-	title: { value: localize('workbench.action.terminal.showEnvironmentContributions', "Show Environment Contributions"), original: 'Show Environment Contributions' },
+	title: localize2('workbench.action.terminal.showEnvironmentContributions', 'Show Environment Contributions'),
 	run: async (activeInstance, c, accessor, arg) => {
 		const collection = activeInstance.extEnvironmentVariableCollection;
 		if (collection) {
@@ -45,6 +47,7 @@ registerActiveInstanceAction({
 	}
 });
 
+// #endregion
 
 function describeEnvironmentChanges(collection: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined): string {
 	let content = `# ${localize('envChanges', 'Terminal Environment Changes')}`;

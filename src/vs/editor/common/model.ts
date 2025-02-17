@@ -3,26 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { ThemeColor } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextChange } from 'vs/editor/common/core/textChange';
-import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { FormattingOptions } from 'vs/editor/common/languages';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
-import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
-import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { Event } from '../../base/common/event.js';
+import { IMarkdownString } from '../../base/common/htmlContent.js';
+import { IDisposable } from '../../base/common/lifecycle.js';
+import { equals } from '../../base/common/objects.js';
+import { ThemeColor } from '../../base/common/themables.js';
+import { URI } from '../../base/common/uri.js';
+import { ISingleEditOperation } from './core/editOperation.js';
+import { IPosition, Position } from './core/position.js';
+import { IRange, Range } from './core/range.js';
+import { Selection } from './core/selection.js';
+import { TextChange } from './core/textChange.js';
+import { WordCharacterClassifier } from './core/wordCharacterClassifier.js';
+import { IWordAtPosition } from './core/wordHelper.js';
+import { FormattingOptions } from './languages.js';
+import { ILanguageSelection } from './languages/language.js';
+import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from './textModelEvents.js';
+import { IGuidesTextModelPart } from './textModelGuides.js';
+import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
+import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
+import { TokenArray } from './tokens/tokenArray.js';
+import { IEditorModel } from './editorCommon.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -39,15 +41,48 @@ export enum OverviewRulerLane {
  */
 export enum GlyphMarginLane {
 	Left = 1,
-	Right = 2
+	Center = 2,
+	Right = 3,
+}
+
+export interface IGlyphMarginLanesModel {
+	/**
+	 * The number of lanes that should be rendered in the editor.
+	 */
+	readonly requiredLanes: number;
+
+	/**
+	 * Gets the lanes that should be rendered starting at a given line number.
+	 */
+	getLanesAtLine(lineNumber: number): GlyphMarginLane[];
+
+	/**
+	 * Resets the model and ensures it can contain at least `maxLine` lines.
+	 */
+	reset(maxLine: number): void;
+
+	/**
+	 * Registers that a lane should be visible at the Range in the model.
+	 * @param persist - if true, notes that the lane should always be visible,
+	 * even on lines where there's no specific request for that lane.
+	 */
+	push(lane: GlyphMarginLane, range: Range, persist?: boolean): void;
 }
 
 /**
  * Position in the minimap to render the decoration.
  */
-export enum MinimapPosition {
+export const enum MinimapPosition {
 	Inline = 1,
 	Gutter = 2
+}
+
+/**
+ * Section header style.
+ */
+export const enum MinimapSectionHeaderStyle {
+	Normal = 1,
+	Underlined = 2
 }
 
 export interface IDecorationOptions {
@@ -68,6 +103,12 @@ export interface IModelDecorationGlyphMarginOptions {
 	 * The position in the glyph margin.
 	 */
 	position: GlyphMarginLane;
+
+	/**
+	 * Whether the glyph margin lane in {@link position} should be rendered even
+	 * outside of this decoration's range.
+	 */
+	persistLane?: boolean;
 }
 
 /**
@@ -88,6 +129,14 @@ export interface IModelDecorationMinimapOptions extends IDecorationOptions {
 	 * The position in the minimap.
 	 */
 	position: MinimapPosition;
+	/**
+	 * If the decoration is for a section header, which header style.
+	 */
+	sectionHeaderStyle?: MinimapSectionHeaderStyle | null;
+	/**
+	 * If the decoration is for a section header, the header text.
+	 */
+	sectionHeaderText?: string | null;
 }
 
 /**
@@ -130,6 +179,10 @@ export interface IModelDecorationOptions {
 	 */
 	hoverMessage?: IMarkdownString | IMarkdownString[] | null;
 	/**
+	 * Array of MarkdownString to render as the line number message.
+	 */
+	lineNumberHoverMessage?: IMarkdownString | IMarkdownString[] | null;
+	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */
 	isWholeLine?: boolean;
@@ -169,6 +222,14 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
 	linesDecorationsClassName?: string | null;
+	/**
+	 * Controls the tooltip text of the line decoration.
+	 */
+	linesDecorationsTooltip?: string | null;
+	/**
+	 * If set, the decoration will be rendered on the line number.
+	 */
+	lineNumberClassName?: string | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
 	 */
@@ -226,6 +287,11 @@ export interface InjectedTextOptions {
 	 * Sets the text to inject. Must be a single line.
 	 */
 	readonly content: string;
+
+	/**
+	 * @internal
+	*/
+	readonly tokens?: TokenArray | null;
 
 	/**
 	 * If set, the decoration will be rendered inline with the text with this CSS class name.
@@ -800,6 +866,11 @@ export interface ITextModel {
 	validateRange(range: IRange): Range;
 
 	/**
+	 * Verifies the range is valid.
+	 */
+	isValidRange(range: IRange): boolean;
+
+	/**
 	 * Converts the position to a zero-based offset.
 	 *
 	 * The position will be [adjusted](#TextDocument.validatePosition).
@@ -1266,6 +1337,13 @@ export interface ITextModel {
 /**
  * @internal
  */
+export function isITextModel(obj: IEditorModel): obj is ITextModel {
+	return Boolean(obj && (obj as ITextModel).uri);
+}
+
+/**
+ * @internal
+ */
 export interface IAttachedView {
 	/**
 	 * @param stabilized Indicates if the visible lines are probably going to change soon or can be considered stable.
@@ -1369,9 +1447,16 @@ export interface IReadonlyTextBuffer {
 	getLineCharCode(lineNumber: number, index: number): number;
 	getCharCode(offset: number): number;
 	getLineLength(lineNumber: number): number;
+	getLineMinColumn(lineNumber: number): number;
+	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
+
+	/**
+	 * Get nearest chunk of text after `offset` in the text buffer.
+	 */
+	getNearestChunk(offset: number): string;
 }
 
 /**

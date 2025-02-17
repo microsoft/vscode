@@ -3,35 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventType } from 'vs/base/browser/dom';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh, OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
-import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalLinkResolver, ITerminalSimpleLink, OmitFirstArg, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalExternalLinkDetector';
-import { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
-import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkDetectorAdapter';
-import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkOpeners';
-import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLocalLinkDetector';
-import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalUriLinkDetector';
-import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalWordLinkDetector';
-import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalConfiguration, ITerminalProcessInfo, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { EventType } from '../../../../../base/browser/dom.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh, OS } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import * as nls from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
+import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalLinkResolver, ITerminalSimpleLink, OmitFirstArg, TerminalBuiltinLinkType, TerminalLinkType } from './links.js';
+import { TerminalExternalLinkDetector } from './terminalExternalLinkDetector.js';
+import { TerminalLink } from './terminalLink.js';
+import { TerminalLinkDetectorAdapter } from './terminalLinkDetectorAdapter.js';
+import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from './terminalLinkOpeners.js';
+import { TerminalLocalLinkDetector } from './terminalLocalLinkDetector.js';
+import { TerminalUriLinkDetector } from './terminalUriLinkDetector.js';
+import { TerminalWordLinkDetector } from './terminalWordLinkDetector.js';
+import { ITerminalConfigurationService, ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from '../../../terminal/browser/terminal.js';
+import { ILinkHoverTargetOptions, TerminalHover } from '../../../terminal/browser/widgets/terminalHoverWidget.js';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
+import { IXtermCore } from '../../../terminal/browser/xterm-private.js';
+import { ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalConfiguration, ITerminalProcessInfo, TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from '@xterm/xterm';
-import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { TerminalMultiLineLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalMultiLineLinkDetector';
+import { convertBufferRangeToViewport } from './terminalLinkHelpers.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalMultiLineLinkDetector } from './terminalMultiLineLinkDetector.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover.js';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -45,6 +46,8 @@ export class TerminalLinkManager extends DisposableStore {
 	private readonly _externalLinkProviders: IDisposable[] = [];
 	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
 
+	externalProvideLinksCb?: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>;
+
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processInfo: ITerminalProcessInfo,
@@ -52,8 +55,10 @@ export class TerminalLinkManager extends DisposableStore {
 		private readonly _linkResolver: ITerminalLinkResolver,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService notificationService: INotificationService,
+		@ITerminalConfigurationService terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
-		@ITunnelService private readonly _tunnelService: ITunnelService
+		@ITunnelService private readonly _tunnelService: ITunnelService,
 	) {
 		super();
 
@@ -70,11 +75,11 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 
 		// Setup link detectors in their order of priority
-		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._processInfo, this._linkResolver));
 		if (enableFileLinks) {
 			this._setupLinkDetector(TerminalMultiLineLinkDetector.id, this._instantiationService.createInstance(TerminalMultiLineLinkDetector, this._xterm, this._processInfo, this._linkResolver));
 			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processInfo, this._linkResolver));
 		}
+		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._processInfo, this._linkResolver));
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this.add(this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm)));
 
 		// Setup link openers
@@ -91,11 +96,36 @@ export class TerminalLinkManager extends DisposableStore {
 		let activeHoverDisposable: IDisposable | undefined;
 		let activeTooltipScheduler: RunOnceScheduler | undefined;
 		this.add(toDisposable(() => {
+			this._clearLinkProviders();
+			dispose(this._externalLinkProviders);
 			activeHoverDisposable?.dispose();
 			activeTooltipScheduler?.dispose();
 		}));
 		this._xterm.options.linkHandler = {
-			activate: (_, text) => {
+			allowNonHttpProtocols: true,
+			activate: (event, text) => {
+				if (!this._isLinkActivationModifierDown(event)) {
+					return;
+				}
+				const colonIndex = text.indexOf(':');
+				if (colonIndex === -1) {
+					throw new Error(`Could not find scheme in link "${text}"`);
+				}
+				const scheme = text.substring(0, colonIndex);
+				if (terminalConfigurationService.config.allowedLinkSchemes.indexOf(scheme) === -1) {
+					notificationService.prompt(Severity.Warning, nls.localize('scheme', 'Opening URIs can be insecure, do you want to allow opening links with the scheme {0}?', scheme), [
+						{
+							label: nls.localize('allow', 'Allow {0}', scheme),
+							run: () => {
+								const allowedLinkSchemes = [
+									...terminalConfigurationService.config.allowedLinkSchemes,
+									scheme
+								];
+								this._configurationService.updateValue(`terminal.integrated.allowedLinkSchemes`, allowedLinkSchemes);
+							}
+						}
+					]);
+				}
 				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
 					type: TerminalBuiltinLinkType.Url,
 					text,
@@ -347,20 +377,28 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _registerStandardLinkProviders(): void {
+		// Forward any external link provider requests to the registered provider if it exists. This
+		// helps maintain the relative priority of the link providers as it's defined by the order
+		// in which they're registered in xterm.js.
+		//
+		/**
+		 * There's a bit going on here but here's another view:
+		 * - {@link externalProvideLinksCb} The external callback that gives the links (eg. from
+		 *   exthost)
+		 * - {@link proxyLinkProvider} A proxy that forwards the call over to
+		 *   {@link externalProvideLinksCb}
+		 * - {@link wrappedLinkProvider} Wraps the above in an `TerminalLinkDetectorAdapter`
+		 */
+		const proxyLinkProvider: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']> = async (bufferLineNumber) => {
+			return this.externalProvideLinksCb?.(bufferLineNumber);
+		};
+		const detectorId = `extension-${this._externalLinkProviders.length}`;
+		const wrappedLinkProvider = this._setupLinkDetector(detectorId, new TerminalExternalLinkDetector(detectorId, this._xterm, proxyLinkProvider), true);
+		this._linkProvidersDisposables.push(this._xterm.registerLinkProvider(wrappedLinkProvider));
+
 		for (const p of this._standardLinkProviders.values()) {
 			this._linkProvidersDisposables.push(this._xterm.registerLinkProvider(p));
 		}
-	}
-
-	registerExternalLinkProvider(provideLinks: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>): IDisposable {
-		// Clear and re-register the standard link providers so they are a lower priority than the new one
-		this._clearLinkProviders();
-		const detectorId = `extension-${this._externalLinkProviders.length}`;
-		const wrappedLinkProvider = this._setupLinkDetector(detectorId, new TerminalExternalLinkDetector(detectorId, this._xterm, provideLinks), true);
-		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
-		this._externalLinkProviders.push(newLinkProvider);
-		this._registerStandardLinkProviders();
-		return newLinkProvider;
 	}
 
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
@@ -429,6 +467,6 @@ export interface ILineColumnInfo {
 export interface IDetectedLinks {
 	wordLinks?: ILink[];
 	webLinks?: ILink[];
-	fileLinks?: ILink[];
+	fileLinks?: (ILink | TerminalLink)[];
 	folderLinks?: ILink[];
 }

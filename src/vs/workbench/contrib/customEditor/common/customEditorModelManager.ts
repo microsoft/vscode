@@ -3,12 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICustomEditorModel, ICustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ICustomEditorModel, ICustomEditorModelManager } from './customEditor.js';
 
 export class CustomEditorModelManager implements ICustomEditorModelManager {
+	private readonly _uriIdentityService: IUriIdentityService;
+
+	constructor(
+		uriIdentityService: IUriIdentityService,
+	) {
+		this._uriIdentityService = uriIdentityService;
+	}
 
 	private readonly _references = new Map<string, {
 		readonly viewType: string;
@@ -46,7 +54,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			return {
 				object: model,
 				dispose: createSingleCallFunction(() => {
-					if (--entry!.counter <= 0) {
+					if (--entry.counter <= 0) {
 						entry.model.then(x => x.dispose());
 						this._references.delete(key);
 					}
@@ -76,6 +84,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 	}
 
 	private key(resource: URI, viewType: string): string {
+		resource = this._uriIdentityService.asCanonicalUri(resource);
 		return `${resource.toString()}@@@${viewType}`;
 	}
 }

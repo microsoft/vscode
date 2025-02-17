@@ -24,7 +24,7 @@ set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
 :: Launch Code
-%CODE% --inspect=5874 out\cli.js --ms-enable-electron-run-as-node %~dp0.. %*
+%CODE% --inspect=5874 out\cli.js %~dp0.. %*
 goto end
 
 :builtin

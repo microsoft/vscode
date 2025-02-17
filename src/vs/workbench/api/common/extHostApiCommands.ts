@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import * as languages from 'vs/editor/common/languages';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { validateWhenClauses } from 'vs/platform/contextkey/common/contextkey';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
-import { ICallHierarchyItemDto, IIncomingCallDto, IInlineValueContextDto, IOutgoingCallDto, IRawColorInfo, ITypeHierarchyItemDto, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import * as search from 'vs/workbench/contrib/search/common/search';
+import { isFalsyOrEmpty } from '../../../base/common/arrays.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Schemas, matchesSomeScheme } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { IPosition } from '../../../editor/common/core/position.js';
+import { IRange } from '../../../editor/common/core/range.js';
+import { ISelection } from '../../../editor/common/core/selection.js';
+import * as languages from '../../../editor/common/languages.js';
+import { decodeSemanticTokensDto } from '../../../editor/common/services/semanticTokensDto.js';
+import { validateWhenClauses } from '../../../platform/contextkey/common/contextkey.js';
+import { ITextEditorOptions } from '../../../platform/editor/common/editor.js';
+import { ICallHierarchyItemDto, IIncomingCallDto, IInlineValueContextDto, IOutgoingCallDto, IRawColorInfo, ITypeHierarchyItemDto, IWorkspaceEditDto } from './extHost.protocol.js';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from './extHostCommands.js';
+import { CustomCodeAction } from './extHostLanguageFeatures.js';
+import * as typeConverters from './extHostTypeConverters.js';
+import * as types from './extHostTypes.js';
+import { TransientCellMetadata, TransientDocumentMetadata } from '../../contrib/notebook/common/notebookCommon.js';
+import * as search from '../../contrib/search/common/search.js';
 import type * as vscode from 'vscode';
 
 //#region --- NEW world
@@ -89,7 +89,17 @@ const newCommands: ApiCommand[] = [
 		new ApiCommandResult<(languages.Location | languages.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
+		'vscode.experimental.executeDefinitionProvider_recursive', '_executeDefinitionProvider_recursive', 'Execute all definition providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<(languages.Location | languages.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
+	),
+	new ApiCommand(
 		'vscode.executeTypeDefinitionProvider', '_executeTypeDefinitionProvider', 'Execute all type definition providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<(languages.Location | languages.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
+	),
+	new ApiCommand(
+		'vscode.experimental.executeTypeDefinitionProvider_recursive', '_executeTypeDefinitionProvider_recursive', 'Execute all type definition providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
 		new ApiCommandResult<(languages.Location | languages.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
@@ -99,7 +109,17 @@ const newCommands: ApiCommand[] = [
 		new ApiCommandResult<(languages.Location | languages.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
+		'vscode.experimental.executeDeclarationProvider_recursive', '_executeDeclarationProvider_recursive', 'Execute all declaration providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<(languages.Location | languages.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
+	),
+	new ApiCommand(
 		'vscode.executeImplementationProvider', '_executeImplementationProvider', 'Execute all implementation providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<(languages.Location | languages.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
+	),
+	new ApiCommand(
+		'vscode.experimental.executeImplementationProvider_recursive', '_executeImplementationProvider_recursive', 'Execute all implementation providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
 		new ApiCommandResult<(languages.Location | languages.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
@@ -108,9 +128,19 @@ const newCommands: ApiCommand[] = [
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
 		new ApiCommandResult<languages.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
 	),
+	new ApiCommand(
+		'vscode.experimental.executeReferenceProvider', '_executeReferenceProvider_recursive', 'Execute all reference providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<languages.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+	),
 	// -- hover
 	new ApiCommand(
 		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<languages.Hover[], types.Hover[] | undefined>('A promise that resolves to an array of Hover-instances.', tryMapWith(typeConverters.Hover.to))
+	),
+	new ApiCommand(
+		'vscode.experimental.executeHoverProvider_recursive', '_executeHoverProvider_recursive', 'Execute all hover providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
 		new ApiCommandResult<languages.Hover[], types.Hover[] | undefined>('A promise that resolves to an array of Hover-instances.', tryMapWith(typeConverters.Hover.to))
 	),
@@ -432,6 +462,31 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
+	new ApiCommand(
+		'vscode.changes', '_workbench.changes', 'Opens a list of resources in the changes editor to compare their contents.',
+		[
+			ApiCommandArgument.String.with('title', 'Human readable title for the changes editor'),
+			new ApiCommandArgument<[URI, URI?, URI?][]>('resourceList', 'List of resources to compare',
+				resources => {
+					for (const resource of resources) {
+						if (resource.length !== 3) {
+							return false;
+						}
+
+						const [label, left, right] = resource;
+						if (!URI.isUri(label) ||
+							(!URI.isUri(left) && left !== undefined && left !== null) ||
+							(!URI.isUri(right) && right !== undefined && right !== null)) {
+							return false;
+						}
+					}
+
+					return true;
+				},
+				v => v)
+		],
+		ApiCommandResult.Void
+	),
 	// --- type hierarchy
 	new ApiCommand(
 		'vscode.prepareTypeHierarchy', '_executePrepareTypeHierarchy', 'Prepare type hierarchy at a position inside a document',
@@ -454,6 +509,16 @@ const newCommands: ApiCommand[] = [
 		[ApiCommandArgument.TestItem],
 		ApiCommandResult.Void
 	),
+	new ApiCommand(
+		'vscode.startContinuousTestRun', 'testing.startContinuousRunFromExtension', 'Starts running the given tests with continuous run mode.',
+		[ApiCommandArgument.TestProfile, ApiCommandArgument.Arr(ApiCommandArgument.TestItem)],
+		ApiCommandResult.Void
+	),
+	new ApiCommand(
+		'vscode.stopContinuousTestRun', 'testing.stopContinuousRunFromExtension', 'Stops running the given tests with continuous run mode.',
+		[ApiCommandArgument.Arr(ApiCommandArgument.TestItem)],
+		ApiCommandResult.Void
+	),
 	// --- continue edit session
 	new ApiCommand(
 		'vscode.experimental.editSession.continue', '_workbench.editSessions.actions.continueEditSession', 'Continue the current edit session in a different workspace',
@@ -469,26 +534,42 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
-	// --- mapped edits
+	// --- inline chat
 	new ApiCommand(
-		'vscode.executeMappedEditsProvider', '_executeMappedEditsProvider', 'Execute Mapped Edits Provider',
-		[
-			ApiCommandArgument.Uri,
-			ApiCommandArgument.StringArray,
-			new ApiCommandArgument(
-				'MappedEditsContext',
-				'Mapped Edits Context',
-				(v: unknown) => typeConverters.MappedEditsContext.is(v),
-				(v: vscode.MappedEditsContext) => typeConverters.MappedEditsContext.from(v)
-			)
-		],
-		new ApiCommandResult<IWorkspaceEditDto | null, vscode.WorkspaceEdit | null>(
-			'A promise that resolves to a workspace edit or null',
-			(value) => {
-				return value ? typeConverters.WorkspaceEdit.to(value) : null;
-			})
-	),
+		'vscode.editorChat.start', 'inlineChat.start', 'Invoke a new editor chat session',
+		[new ApiCommandArgument<InlineChatEditorApiArg | undefined, InlineChatRunOptions | undefined>('Run arguments', '', _v => true, v => {
+
+			if (!v) {
+				return undefined;
+			}
+
+			return {
+				initialRange: v.initialRange ? typeConverters.Range.from(v.initialRange) : undefined,
+				initialSelection: types.Selection.isSelection(v.initialSelection) ? typeConverters.Selection.from(v.initialSelection) : undefined,
+				message: v.message,
+				autoSend: v.autoSend,
+				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+			};
+		})],
+		ApiCommandResult.Void
+	)
 ];
+
+type InlineChatEditorApiArg = {
+	initialRange?: vscode.Range;
+	initialSelection?: vscode.Selection;
+	message?: string;
+	autoSend?: boolean;
+	position?: vscode.Position;
+};
+
+type InlineChatRunOptions = {
+	initialRange?: IRange;
+	initialSelection?: ISelection;
+	message?: string;
+	autoSend?: boolean;
+	position?: IPosition;
+};
 
 //#endregion
 

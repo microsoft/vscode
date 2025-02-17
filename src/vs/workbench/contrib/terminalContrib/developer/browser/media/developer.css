@@ -1,0 +1,33 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration {
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
+	visibility: hidden;
+}
+.monaco-workbench .xterm.dev-mode:hover .xterm-sequence-decoration {
+	visibility: visible !important;
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.left {
+	direction: rtl;
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.top.left {
+	transform: scale(.5) translate(-50%, -50%);
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.top.right {
+	transform: scale(.5) translate(50%, -50%);
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.bottom.left {
+	transform: scale(.5) translate(-50%, 50%);
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.bottom.right {
+	transform: scale(.5) translate(50%, 50%);
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.color-0 {
+	color: #FF4444;
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.color-1 {
+	color: #44FFFF;
+}

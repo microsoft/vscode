@@ -94,6 +94,16 @@ export function isSigPipeError(e: unknown): e is Error {
 	return cast.code === 'EPIPE' && cast.syscall?.toUpperCase() === 'WRITE';
 }
 
+/**
+ * This function should only be called with errors that indicate a bug in the product.
+ * E.g. buggy extensions/invalid user-input/network issues should not be able to trigger this code path.
+ * If they are, this indicates there is also a bug in the product.
+*/
+export function onBugIndicatingError(e: any): undefined {
+	errorHandler.onUnexpectedError(e);
+	return undefined;
+}
+
 export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isCancellationError(e)) {
@@ -116,24 +126,51 @@ export interface SerializedError {
 	readonly message: string;
 	readonly stack: string;
 	readonly noTelemetry: boolean;
+	readonly code?: string;
+	readonly cause?: SerializedError;
 }
+
+type ErrorWithCode = Error & {
+	code: string | undefined;
+};
 
 export function transformErrorForSerialization(error: Error): SerializedError;
 export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
-		const { name, message } = error;
+		const { name, message, cause } = error;
 		const stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,
 			name,
 			message,
 			stack,
-			noTelemetry: ErrorNoTelemetry.isErrorNoTelemetry(error)
+			noTelemetry: ErrorNoTelemetry.isErrorNoTelemetry(error),
+			cause: cause ? transformErrorForSerialization(cause) : undefined,
+			code: (<ErrorWithCode>error).code
 		};
 	}
 
 	// return as is
+	return error;
+}
+
+export function transformErrorFromSerialization(data: SerializedError): Error {
+	let error: Error;
+	if (data.noTelemetry) {
+		error = new ErrorNoTelemetry();
+	} else {
+		error = new Error();
+		error.name = data.name;
+	}
+	error.message = data.message;
+	error.stack = data.stack;
+	if (data.code) {
+		(<ErrorWithCode>error).code = data.code;
+	}
+	if (data.cause) {
+		error.cause = transformErrorFromSerialization(data.cause);
+	}
 	return error;
 }
 
@@ -284,7 +321,6 @@ export class BugIndicatingError extends Error {
 
 		// Because we know for sure only buggy code throws this,
 		// we definitely want to break here and fix the bug.
-		// eslint-disable-next-line no-debugger
 		// debugger;
 	}
 }

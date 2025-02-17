@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { Range } from 'vs/base/common/range';
-import { OmitOptional } from 'vs/base/common/types';
-import 'vs/css!./contextview';
+import { BrowserFeatures } from '../../canIUse.js';
+import * as DOM from '../../dom.js';
+import { StandardMouseEvent } from '../../mouseEvent.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import * as platform from '../../../common/platform.js';
+import { Range } from '../../../common/range.js';
+import { OmitOptional } from '../../../common/types.js';
+import './contextview.css';
 
 export const enum ContextViewDOMPosition {
 	ABSOLUTE = 1,
@@ -60,6 +60,9 @@ export interface IDelegate {
 	canRelayout?: boolean; // default: true
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
 	onHide?(data?: unknown): void;
+
+	// context views with higher layers are rendered over contet views with lower layers
+	layer?: number; // Default: 0
 }
 
 export interface IContextViewProvider {
@@ -136,48 +139,48 @@ export class ContextView extends Disposable {
 
 	private container: HTMLElement | null = null;
 	private view: HTMLElement;
-	private useFixedPosition: boolean;
-	private useShadowDOM: boolean;
+	private useFixedPosition = false;
+	private useShadowDOM = false;
 	private delegate: IDelegate | null = null;
 	private toDisposeOnClean: IDisposable = Disposable.None;
 	private toDisposeOnSetContainer: IDisposable = Disposable.None;
 	private shadowRoot: ShadowRoot | null = null;
 	private shadowRootHostElement: HTMLElement | null = null;
 
-	constructor(container: HTMLElement | null, domPosition: ContextViewDOMPosition) {
+	constructor(container: HTMLElement, domPosition: ContextViewDOMPosition) {
 		super();
 
 		this.view = DOM.$('.context-view');
-		this.useFixedPosition = false;
-		this.useShadowDOM = false;
-
 		DOM.hide(this.view);
 
 		this.setContainer(container, domPosition);
-
 		this._register(toDisposable(() => this.setContainer(null, ContextViewDOMPosition.ABSOLUTE)));
 	}
 
 	setContainer(container: HTMLElement | null, domPosition: ContextViewDOMPosition): void {
+		this.useFixedPosition = domPosition !== ContextViewDOMPosition.ABSOLUTE;
+		const usedShadowDOM = this.useShadowDOM;
+		this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW;
+
+		if (container === this.container && usedShadowDOM === this.useShadowDOM) {
+			return; // container is the same and no shadow DOM usage has changed
+		}
+
 		if (this.container) {
 			this.toDisposeOnSetContainer.dispose();
 
+			this.view.remove();
 			if (this.shadowRoot) {
-				this.shadowRoot.removeChild(this.view);
 				this.shadowRoot = null;
 				this.shadowRootHostElement?.remove();
 				this.shadowRootHostElement = null;
-			} else {
-				this.container.removeChild(this.view);
 			}
 
 			this.container = null;
 		}
+
 		if (container) {
 			this.container = container;
-
-			this.useFixedPosition = domPosition !== ContextViewDOMPosition.ABSOLUTE;
-			this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW;
 
 			if (this.useShadowDOM) {
 				this.shadowRootHostElement = DOM.$('.shadow-root-host');
@@ -217,10 +220,10 @@ export class ContextView extends Disposable {
 
 		// Show static box
 		DOM.clearNode(this.view);
-		this.view.className = 'context-view';
+		this.view.className = 'context-view monaco-component';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
-		this.view.style.zIndex = '2575';
+		this.view.style.zIndex = `${2575 + (delegate.layer ?? 0)}`;
 		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 
@@ -251,9 +254,7 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate!.layout) {
-			this.delegate!.layout!();
-		}
+		this.delegate?.layout?.();
 
 		this.doLayout();
 	}
@@ -271,7 +272,7 @@ export class ContextView extends Disposable {
 		let around: IView;
 
 		// Get the element's position and size (to anchor the view)
-		if (anchor instanceof HTMLElement) {
+		if (DOM.isHTMLElement(anchor)) {
 			const elementPosition = DOM.getDomNodePagePosition(anchor);
 
 			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
@@ -308,9 +309,9 @@ export class ContextView extends Disposable {
 		const viewSizeWidth = DOM.getTotalWidth(this.view);
 		const viewSizeHeight = DOM.getTotalHeight(this.view);
 
-		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
-		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
-		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment || AnchorAxisAlignment.VERTICAL;
+		const anchorPosition = this.delegate!.anchorPosition ?? AnchorPosition.BELOW;
+		const anchorAlignment = this.delegate!.anchorAlignment ?? AnchorAlignment.LEFT;
+		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment ?? AnchorAxisAlignment.VERTICAL;
 
 		let top: number;
 		let left: number;
@@ -413,7 +414,7 @@ const SHADOW_ROOT_CSS = /* css */ `
 	:host-context(.mac:lang(zh-Hans)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
 	:host-context(.mac:lang(zh-Hant)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
 	:host-context(.mac:lang(ja)) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif; }
 
 	:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
 	:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }

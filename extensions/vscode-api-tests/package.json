@@ -5,25 +5,28 @@
   "publisher": "vscode",
   "license": "MIT",
   "enabledApiProposals": [
+    "activeComment",
     "authSession",
-    "chatAgents2",
-    "chatVariables",
-    "contribViewsRemote",
+    "chatParticipantPrivate",
+    "chatProvider",
     "contribStatusBarItems",
-    "createFileSystemWatcher",
+    "contribViewsRemote",
     "customEditorMove",
+    "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
-    "documentPaste",
     "editorInsets",
+    "embeddings",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
     "fileSearchProvider",
+    "findFiles2",
     "findTextInFiles",
     "fsChunks",
     "interactive",
-    "mappedEditsProvider",
+    "languageStatusText",
+    "nativeWindowHandle",
     "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -31,29 +34,24 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "readonlyMessage",
-    "languageStatusText",
     "resolvers",
-    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
     "taskPresentationGroup",
+    "telemetry",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "tunnels",
-    "testCoverage",
     "testObserver",
+    "textDocumentEncoding",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
     "treeViewActiveItem",
     "treeViewReveal",
-    "workspaceTrust",
-    "telemetry",
-    "windowActivity",
-    "interactiveUserActions"
+    "tunnels",
+    "workspaceTrust"
   ],
   "private": true,
   "activationEvents": [],
@@ -63,6 +61,31 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "languageModels": [
+      {
+        "vendor": "test-lm-vendor"
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "api-test.participant",
+        "name": "participant",
+        "description": "test",
+        "isDefault": true,
+        "commands": [
+          {
+            "name": "hello",
+            "description": "Hello"
+          }
+        ]
+      },
+      {
+        "id": "api-test.participant2",
+        "name": "participant2",
+        "description": "test",
+        "commands": []
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "Test Config",
@@ -83,6 +106,13 @@
           "type": "string"
         },
         "farboo.get": {
+          "type": "string",
+          "default": "get-prop"
+        },
+        "integration-test.http.proxy": {
+          "type": "string"
+        },
+        "integration-test.http.proxyAuth": {
           "type": "string",
           "default": "get-prop"
         }
@@ -222,7 +252,10 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x"
+    "@types/node": "20.x",
+    "@types/node-forge": "^1.3.11",
+    "node-forge": "^1.3.1",
+    "straightforward": "^4.2.2"
   },
   "repository": {
     "type": "git",

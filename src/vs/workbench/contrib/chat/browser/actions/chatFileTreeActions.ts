@@ -3,31 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { isResponseVM, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize2 } from '../../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { CHAT_CATEGORY } from './chatActions.js';
+import { IChatWidgetService } from '../chat.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 
 export function registerChatFileTreeActions() {
 	registerAction2(class NextFileTreeAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.nextFileTree',
-				title: {
-					value: localize('interactive.nextFileTree.label', "Next File Tree"),
-					original: 'Next File Tree'
-				},
+				title: localize2('interactive.nextFileTree.label', "Next File Tree"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ChatContextKeys.inChatSession,
 				},
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -42,16 +39,13 @@ export function registerChatFileTreeActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.previousFileTree',
-				title: {
-					value: localize('interactive.previousFileTree.label', "Previous File Tree"),
-					original: 'Previous File Tree'
-				},
+				title: localize2('interactive.previousFileTree.label', "Previous File Tree"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ChatContextKeys.inChatSession,
 				},
-				precondition: CONTEXT_PROVIDER_EXISTS,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});

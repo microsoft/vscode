@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadFileSystemShape } from './extHost.protocol';
+import { MainContext, MainThreadFileSystemShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
-import * as files from 'vs/platform/files/common/files';
-import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceQueue } from 'vs/base/common/async';
-import { IExtUri, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import * as files from '../../../platform/files/common/files.js';
+import { FileSystemError } from './extHostTypes.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { IExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceQueue } from '../../../base/common/async.js';
+import { IExtUri, extUri, extUriIgnorePathCase } from '../../../base/common/resources.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
 export class ExtHostConsumerFileSystem {
 
@@ -110,7 +110,7 @@ export class ExtHostConsumerFileSystem {
 						// use shortcut
 						await that._proxy.$ensureActivation(uri.scheme);
 						await that.mkdirp(provider.impl, provider.extUri, provider.extUri.dirname(uri));
-						return await that._writeQueue.queueFor(uri).queue(() => Promise.resolve(provider.impl.writeFile(uri, content, { create: true, overwrite: true })));
+						return await that._writeQueue.queueFor(uri, () => Promise.resolve(provider.impl.writeFile(uri, content, { create: true, overwrite: true })));
 					} else {
 						return await that._proxy.$writeFile(uri, VSBuffer.wrap(content));
 					}
@@ -121,7 +121,7 @@ export class ExtHostConsumerFileSystem {
 			async delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean }): Promise<void> {
 				try {
 					const provider = that._fileSystemProvider.get(uri.scheme);
-					if (provider && !provider.isReadonly) {
+					if (provider && !provider.isReadonly && !options?.useTrash /* no shortcut: use trash */) {
 						// use shortcut
 						await that._proxy.$ensureActivation(uri.scheme);
 						return await provider.impl.delete(uri, { recursive: false, ...options });

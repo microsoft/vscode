@@ -28,6 +28,7 @@
 					'self'
 					'unsafe-eval'
 					blob:
+					'nonce-0c6a828f1297'
 				;
 				style-src
 					'self'
@@ -42,11 +43,13 @@
 					'self'
 					vscode-remote-resource:
 					vscode-managed-remote-resource:
+					https://*.vscode-unpkg.net
 				;
 				require-trusted-types-for
 					'script'
 				;
 				trusted-types
+					vscode-bootstrapImportMap
 					amdLoader
 					cellRendererEditorText
 					defaultWorkerFactory
@@ -59,6 +62,7 @@
 					notebookRenderer
 					stickyScrollViewLayer
 					tokenizeToString
+					notebookChatEditController
 				;
 		"/>
 	</head>
@@ -67,8 +71,6 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
-	<script src="../../../../bootstrap.js"></script>
-	<script src="../../../../vs/loader.js"></script>
 	<script src="../../../../bootstrap-window.js"></script>
-	<script src="workbench.js"></script>
+	<script src="./workbench.js"></script>
 </html>

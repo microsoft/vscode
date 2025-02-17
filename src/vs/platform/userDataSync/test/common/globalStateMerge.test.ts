@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { merge } from '../../common/globalStateMerge.js';
 
 suite('GlobalStateMerge', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge when local and remote are same with one value and local is not synced yet', async () => {
 		const local = { 'a': { version: 1, value: 'a' } };

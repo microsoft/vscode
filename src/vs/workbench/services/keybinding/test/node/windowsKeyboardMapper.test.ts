@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
-import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveKeybinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
-import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { KeyChord, KeyCode, KeyMod, ScanCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from '../../../../../base/common/keybindings.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { WindowsKeyboardMapper } from '../../common/windowsKeyboardMapper.js';
+import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveKeybinding, readRawMapping } from './keyboardMapperTestUtils.js';
+import { IWindowsKeyboardMapping } from '../../../../../platform/keyboardLayout/common/keyboardLayout.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
@@ -23,6 +24,8 @@ function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expe
 }
 
 suite('keyboardMapper - WINDOWS de_ch', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let mapper: WindowsKeyboardMapper;
 
@@ -338,6 +341,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 
 suite('keyboardMapper - WINDOWS en_us', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
@@ -563,6 +568,8 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 
 suite('keyboardMapper - WINDOWS por_ptb', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
@@ -628,6 +635,8 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 
 suite('keyboardMapper - WINDOWS ru', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let mapper: WindowsKeyboardMapper;
 
 	suiteSetup(async () => {
@@ -657,6 +666,9 @@ suite('keyboardMapper - WINDOWS ru', () => {
 });
 
 suite('keyboardMapper - misc', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #23513: Toggle Sidebar Visibility and Go to Line display same key mapping in Arabic keyboard', () => {
 		const mapper = new WindowsKeyboardMapper(false, {
 			'KeyB': {

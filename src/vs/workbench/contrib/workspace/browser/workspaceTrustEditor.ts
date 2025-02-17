@@ -3,62 +3,63 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { Action, IAction } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Schemas } from 'vs/base/common/network';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchTable } from 'vs/platform/list/browser/listService';
-import { Link } from 'vs/platform/opener/browser/link';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { asCssVariable, buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { posix, win32 } from 'vs/base/common/path';
-import { hasDriveLetter, toSlashes } from 'vs/base/common/extpath';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { isMacintosh } from 'vs/base/common/platform';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { basename, dirname } from 'vs/base/common/resources';
+import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ButtonBar } from '../../../../base/browser/ui/button/button.js';
+import { IMessage, InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { WorkbenchTable } from '../../../../platform/list/browser/listService.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { isVirtualResource, isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { asCssVariable, buttonBackground, buttonSecondaryBackground, editorErrorForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { IEditorOpenContext } from '../../../common/editor.js';
+import { debugIconStartForeground } from '../../debug/browser/debugColors.js';
+import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from '../../extensions/common/extensions.js';
+import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { WorkspaceTrustEditorInput } from '../../../services/workspaces/browser/workspaceTrustEditorInput.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { getExtensionDependencies } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { posix, win32 } from '../../../../base/common/path.js';
+import { hasDriveLetter, toSlashes } from '../../../../base/common/extpath.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 
 export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
@@ -155,6 +156,11 @@ class WorkspaceTrustedUrisTable extends Disposable {
 						return localize('trustedFolderWithHostAriaLabel', "{0} on {1}, trusted", this.labelService.getUriLabel(item.uri), hostLabel);
 					},
 					getWidgetAriaLabel: () => localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces")
+				},
+				identityProvider: {
+					getId(element: ITrustedUriItem) {
+						return element.uri.toString();
+					},
 				}
 			}
 		) as WorkbenchTable<ITrustedUriItem>;
@@ -336,8 +342,14 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	async delete(item: ITrustedUriItem) {
+		this.table.focusNext();
 		await this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
+
+		if (this.table.getFocus().length === 0) {
+			this.table.focusLast();
+		}
 		this._onDelete.fire(item);
+		this.table.domFocus();
 	}
 
 	async edit(item: ITrustedUriItem, usePickerIfPossible?: boolean) {
@@ -395,7 +407,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 
 	renderTemplate(container: HTMLElement): IActionsColumnTemplateData {
 		const element = container.appendChild($('.actions'));
-		const actionBar = new ActionBar(element, { animated: false });
+		const actionBar = new ActionBar(element);
 		return { actionBar };
 	}
 
@@ -419,7 +431,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	}
 
 	private createEditAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
+		return {
+			label: '',
 			class: ThemeIcon.asClassName(editIcon),
 			enabled: true,
 			id: 'editTrustedUri',
@@ -431,7 +444,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	}
 
 	private createPickerAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
+		return {
+			label: '',
 			class: ThemeIcon.asClassName(folderPickerIcon),
 			enabled: true,
 			id: 'pickerTrustedUri',
@@ -443,7 +457,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	}
 
 	private createDeleteAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
+		return {
+			label: '',
 			class: ThemeIcon.asClassName(removeIcon),
 			enabled: true,
 			id: 'deleteTrustedUri',
@@ -674,6 +689,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private workspaceTrustedUrisTable!: WorkspaceTrustedUrisTable;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -686,7 +702,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
+	) { super(WorkspaceTrustEditor.ID, group, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
@@ -828,7 +844,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private rendering = false;
-	private rerenderDisposables: DisposableStore = this._register(new DisposableStore());
+	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
 	@debounce(100)
 	private async render() {
 		if (this.rendering) {
@@ -873,7 +889,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			const property = configurationRegistry.getConfigurationProperties()[key];
 
 			// cannot be configured in workspace
-			if (property.scope === ConfigurationScope.APPLICATION || property.scope === ConfigurationScope.MACHINE) {
+			if (property.scope && (APPLICATION_SCOPES.includes(property.scope) || property.scope === ConfigurationScope.MACHINE)) {
 				return false;
 			}
 
@@ -1075,7 +1091,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
 		if (!this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
-			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the the trusted folders below.");
+			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the trusted folders below.");
 		} else {
 			textElement.innerText = localize('trustedForcedReason', "This window is trusted by nature of the workspace that is opened.");
 		}

@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import * as errors from './errors.js';
+import * as platform from './platform.js';
+import { equalsIgnoreCase, startsWithIgnoreCase } from './strings.js';
+import { URI } from './uri.js';
+import * as paths from './path.js';
 
 export namespace Schemas {
 
@@ -61,7 +63,10 @@ export namespace Schemas {
 
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
+	export const vscodeNotebookCellMetadataDiff = 'vscode-notebook-cell-metadata-diff';
 	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
+	export const vscodeNotebookCellOutputDiff = 'vscode-notebook-cell-output-diff';
+	export const vscodeNotebookMetadata = 'vscode-notebook-metadata';
 	export const vscodeInteractiveInput = 'vscode-interactive-input';
 
 	export const vscodeSettings = 'vscode-settings';
@@ -70,6 +75,13 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
+	/** Scheme used for code blocks in chat. */
+	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
+
+	/** Scheme used for LHS of code compare (aka diff) blocks in chat. */
+	export const vscodeChatCodeCompareBlock = 'vscode-chat-code-compare-block';
+
+	/** Scheme used for the chat input editor. */
 	export const vscodeChatSesssion = 'vscode-chat-editor';
 
 	/**
@@ -107,6 +119,38 @@ export namespace Schemas {
 	 * Scheme used for the Source Control commit input's text document
 	 */
 	export const vscodeSourceControl = 'vscode-scm';
+
+	/**
+	 * Scheme used for input box for creating comments.
+	 */
+	export const commentsInput = 'comment';
+
+	/**
+	 * Scheme used for special rendering of settings in the release notes
+	 */
+	export const codeSetting = 'code-setting';
+
+	/**
+	 * Scheme used for output panel resources
+	 */
+	export const outputChannel = 'output';
+
+	/**
+	 * Scheme used for the accessible view
+	 */
+	export const accessibleView = 'accessible-view';
+}
+
+export function matchesScheme(target: URI | string, scheme: string): boolean {
+	if (URI.isUri(target)) {
+		return equalsIgnoreCase(target.scheme, scheme);
+	} else {
+		return startsWithIgnoreCase(target, scheme + ':');
+	}
+}
+
+export function matchesSomeScheme(target: URI | string, ...schemes: string[]): boolean {
+	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
 export const connectionTokenCookieName = 'vscode-tkn';
@@ -118,7 +162,7 @@ class RemoteAuthoritiesImpl {
 	private readonly _connectionTokens: { [authority: string]: string | undefined } = Object.create(null);
 	private _preferredWebSchema: 'http' | 'https' = 'http';
 	private _delegate: ((uri: URI) => URI) | null = null;
-	private _remoteResourcesPath: string = `/${Schemas.vscodeRemoteResource}`;
+	private _serverRootPath: string = '/';
 
 	setPreferredWebSchema(schema: 'http' | 'https') {
 		this._preferredWebSchema = schema;
@@ -128,8 +172,16 @@ class RemoteAuthoritiesImpl {
 		this._delegate = delegate;
 	}
 
-	setServerRootPath(serverRootPath: string): void {
-		this._remoteResourcesPath = `${serverRootPath}/${Schemas.vscodeRemoteResource}`;
+	setServerRootPath(product: { quality?: string; commit?: string }, serverBasePath: string | undefined): void {
+		this._serverRootPath = paths.posix.join(serverBasePath ?? '/', getServerProductSegment(product));
+	}
+
+	getServerRootPath(): string {
+		return this._serverRootPath;
+	}
+
+	private get _remoteResourcesPath(): string {
+		return paths.posix.join(this._serverRootPath, Schemas.vscodeRemoteResource);
 	}
 
 	set(authority: string, host: string, port: number): void {
@@ -176,6 +228,10 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
+export function getServerProductSegment(product: { quality?: string; commit?: string }) {
+	return `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`;
+}
+
 /**
  * A string pointing to a path inside the app. It should not begin with ./ or ../
  */
@@ -205,7 +261,7 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = this.toUri(resourcePath, require);
+		const uri = this.toUri(resourcePath);
 		return this.uriToBrowserUri(uri);
 	}
 
@@ -229,7 +285,7 @@ class FileAccessImpl {
 				// ...and we run in native environments
 				platform.isNative ||
 				// ...or web worker extensions on desktop
-				(platform.isWebWorker && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
+				(platform.webWorkerOrigin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
 			)
 		) {
 			return uri.with({
@@ -252,7 +308,7 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = this.toUri(resourcePath, require);
+		const uri = this.toUri(resourcePath);
 		return this.uriToFileUri(uri);
 	}
 
@@ -277,12 +333,25 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
 
-		return URI.parse(moduleIdToUrl.toUrl(uriOrModule));
+		if (globalThis._VSCODE_FILE_ROOT) {
+			const rootUriOrPath = globalThis._VSCODE_FILE_ROOT;
+
+			// File URL (with scheme)
+			if (/^\w[\w\d+.-]*:\/\//.test(rootUriOrPath)) {
+				return URI.joinPath(URI.parse(rootUriOrPath, true), uriOrModule);
+			}
+
+			// File Path (no scheme)
+			const modulePath = paths.join(rootUriOrPath, uriOrModule);
+			return URI.file(modulePath);
+		}
+
+		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
 	}
 }
 

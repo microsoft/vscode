@@ -3,41 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { splitLines } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./standalone-tokens';
-import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/browser/services/webWorker';
-import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { EditorType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { NullState, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
-import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
-import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor2, StandaloneEditor, createTextModel } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
-import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
-import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { mainWindow } from '../../../base/browser/window.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { splitLines } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import './standalone-tokens.css';
+import { FontMeasurements } from '../../browser/config/fontMeasurements.js';
+import { ICodeEditor } from '../../browser/editorBrowser.js';
+import { EditorCommand, ServicesAccessor } from '../../browser/editorExtensions.js';
+import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
+import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from './standaloneWebWorker.js';
+import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from '../../common/config/editorOptions.js';
+import { EditorZoom } from '../../common/config/editorZoom.js';
+import { BareFontInfo, FontInfo } from '../../common/config/fontInfo.js';
+import { IPosition } from '../../common/core/position.js';
+import { IRange } from '../../common/core/range.js';
+import { EditorType, IDiffEditor } from '../../common/editorCommon.js';
+import * as languages from '../../common/languages.js';
+import { ILanguageService } from '../../common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../common/languages/modesRegistry.js';
+import { NullState, nullTokenize } from '../../common/languages/nullTokenize.js';
+import { FindMatch, ITextModel, TextModelResolvedOptions } from '../../common/model.js';
+import { IModelService } from '../../common/services/model.js';
+import * as standaloneEnums from '../../common/standalone/standaloneEnums.js';
+import { Colorizer, IColorizerElementOptions, IColorizerOptions } from './colorizer.js';
+import { IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor2, StandaloneEditor, createTextModel } from './standaloneCodeEditor.js';
+import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from './standaloneServices.js';
+import { StandaloneThemeService } from './standaloneThemeService.js';
+import { IStandaloneThemeData, IStandaloneThemeService } from '../common/standaloneTheme.js';
+import { IMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandHandler } from '../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { ITextResourceEditorInput } from '../../../platform/editor/common/editor.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { IMarker, IMarkerData, IMarkerService } from '../../../platform/markers/common/markers.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { MultiDiffEditorWidget } from '../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 
 /**
  * Create a new editor under `domElement`.
@@ -96,6 +97,11 @@ export function getDiffEditors(): readonly IDiffEditor[] {
 export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
 	const instantiationService = StandaloneServices.initialize(override || {});
 	return instantiationService.createInstance(StandaloneDiffEditor2, domElement, options);
+}
+
+export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices) {
+	const instantiationService = StandaloneServices.initialize(override || {});
+	return new MultiDiffEditorWidget(domElement, {}, instantiationService);
 }
 
 /**
@@ -326,7 +332,7 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T extends object>(opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), StandaloneServices.get(ILanguageConfigurationService), opts);
+	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), opts);
 }
 
 /**
@@ -346,7 +352,7 @@ export function colorizeElement(domNode: HTMLElement, options: IColorizerElement
 export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
 	const languageService = StandaloneServices.get(ILanguageService);
 	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
-	themeService.registerEditorContainer(document.body);
+	themeService.registerEditorContainer(mainWindow.document.body);
 	return Colorizer.colorize(languageService, text, languageId, options);
 }
 
@@ -355,7 +361,7 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
  */
 export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
 	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
-	themeService.registerEditorContainer(document.body);
+	themeService.registerEditorContainer(mainWindow.document.body);
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
 
@@ -543,6 +549,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
 		EndOfLineSequence: standaloneEnums.EndOfLineSequence,
 		MinimapPosition: standaloneEnums.MinimapPosition,
+		MinimapSectionHeaderStyle: standaloneEnums.MinimapSectionHeaderStyle,
 		MouseTargetType: standaloneEnums.MouseTargetType,
 		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
@@ -557,6 +564,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		InjectedTextCursorStops: standaloneEnums.InjectedTextCursorStops,
 		PositionAffinity: standaloneEnums.PositionAffinity,
+		ShowLightbulbIconMode: standaloneEnums.ShowLightbulbIconMode,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
@@ -566,6 +574,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>FindMatch,
 		ApplyUpdateResult: <any>ApplyUpdateResult,
 		EditorZoom: <any>EditorZoom,
+
+		createMultiFileDiffEditor: <any>createMultiFileDiffEditor,
 
 		// vars
 		EditorType: EditorType,

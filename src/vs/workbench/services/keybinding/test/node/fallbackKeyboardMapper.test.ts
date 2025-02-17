@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
-import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { FallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/fallbackKeyboardMapper';
-import { IResolvedKeybinding, assertResolveKeyboardEvent, assertResolveKeybinding } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
+import { KeyChord, KeyCode, KeyMod, ScanCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from '../../../../../base/common/keybindings.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { FallbackKeyboardMapper } from '../../common/fallbackKeyboardMapper.js';
+import { IResolvedKeybinding, assertResolveKeyboardEvent, assertResolveKeybinding } from './keyboardMapperTestUtils.js';
 
 suite('keyboardMapper - MAC fallback', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Macintosh);
 
@@ -228,6 +231,8 @@ suite('keyboardMapper - MAC fallback', () => {
 });
 
 suite('keyboardMapper - LINUX fallback', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Linux);
 

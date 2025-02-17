@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { cloneAndChange, safeStringify } from 'vs/base/common/objects';
-import { isObject } from 'vs/base/common/types';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { cloneAndChange, safeStringify } from '../../../base/common/objects.js';
+import { isObject } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { LoggerGroup } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { getRemoteName } from '../../remote/common/remoteHosts.js';
+import { verifyMicrosoftInternalDomain } from './commonProperties.js';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from './telemetry.js';
 
 /**
  * A special class used to denoting a telemetry value which should not be clean.
@@ -31,6 +31,8 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	readonly telemetryLevel = TelemetryLevel.NONE;
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
+	readonly devDeviceId = 'someValue.devDeviceId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	publicLog() { }
@@ -55,14 +57,14 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 }
 
 export const telemetryLogId = 'telemetry';
-export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
+export const TelemetryLogGroup: LoggerGroup = { id: telemetryLogId, name: localize('telemetryLogName', "Telemetry") };
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
-	flush(): Promise<any>;
+	flush(): Promise<void>;
 }
 
-export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
+export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(undefined) };
 
 
 /* __GDPR__FRAGMENT__
@@ -78,33 +80,6 @@ export interface URIDescriptor {
 	scheme?: string;
 	ext?: string;
 	path?: string;
-}
-
-export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
-	// Debounce the event by 1000 ms and merge all affected keys into one event
-	const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
-		const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
-		return { ...cur, affectedKeys: newAffectedKeys };
-	}, 1000, true);
-
-	return debouncedConfigService(event => {
-		if (event.source !== ConfigurationTarget.DEFAULT) {
-			type UpdateConfigurationClassification = {
-				owner: 'lramos15, sbatten';
-				comment: 'Event which fires when user updates settings';
-				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
-				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
-			};
-			type UpdateConfigurationEvent = {
-				configurationSource: string;
-				configurationKeys: string[];
-			};
-			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
-				configurationSource: ConfigurationTargetToString(event.source),
-				configurationKeys: Array.from(event.affectedKeys)
-			});
-		}
-	});
 }
 
 /**
@@ -359,7 +334,10 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 	const userDataRegexes = [
 		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
 		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
+		{ label: 'GitHub Token', regex: /(gh[psuro]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/ },
 		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
+		{ label: 'CLI Credentials', regex: /((login|psexec|(certutil|psexec)\.exe).{1,50}(\s-u(ser(name)?)?\s+.{3,100})?\s-(admin|user|vm|root)?p(ass(word)?)?\s+["']?[^$\-\/\s]|(^|[\s\r\n\\])net(\.exe)?.{1,5}(user\s+|share\s+\/user:| user -? secrets ? set) \s + [^ $\s \/])/ },
+		{ label: 'Microsoft Entra ID', regex: /eyJ(?:0eXAiOiJKV1Qi|hbGci|[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.)/ },
 		{ label: 'Email', regex: /@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+/ } // Regex which matches @*.site
 	];
 

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, DisposableMap } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, MainThreadDocumentContentProvidersShape } from '../common/extHost.protocol';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { dispose, DisposableMap } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { EditOperation } from '../../../editor/common/core/editOperation.js';
+import { Range } from '../../../editor/common/core/range.js';
+import { ITextModel } from '../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../editor/common/services/editorWorker.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { ITextModelService } from '../../../editor/common/services/resolverService.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, MainThreadDocumentContentProvidersShape } from '../common/extHost.protocol.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
 export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {
@@ -59,7 +59,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		this._resourceContentProvider.deleteAndDispose(handle);
 	}
 
-	$onVirtualDocumentChange(uri: UriComponents, value: string): void {
+	async $onVirtualDocumentChange(uri: UriComponents, value: string): Promise<void> {
 		const model = this._modelService.getModel(URI.revive(uri));
 		if (!model) {
 			return;
@@ -73,7 +73,9 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		const myToken = new CancellationTokenSource();
 		this._pendingUpdate.set(model.id, myToken);
 
-		this._editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: value, range: model.getFullModelRange() }]).then(edits => {
+		try {
+			const edits = await this._editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: value, range: model.getFullModelRange() }]);
+
 			// remove token
 			this._pendingUpdate.delete(model.id);
 
@@ -85,6 +87,8 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 				// use the evil-edit as these models show in readonly-editor only
 				model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 			}
-		}).catch(onUnexpectedError);
+		} catch (error) {
+			onUnexpectedError(error);
+		}
 	}
 }

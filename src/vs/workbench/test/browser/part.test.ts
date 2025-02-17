@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Part } from 'vs/workbench/browser/part';
-import { isEmptyObject } from 'vs/base/common/types';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { append, $, hide } from 'vs/base/browser/dom';
-import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import { Part } from '../../browser/part.js';
+import { isEmptyObject } from '../../../base/common/types.js';
+import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
+import { append, $, hide } from '../../../base/browser/dom.js';
+import { TestLayoutService } from './workbenchTestServices.js';
+import { StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../common/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 suite('Workbench parts', () => {
 
@@ -110,17 +111,17 @@ suite('Workbench parts', () => {
 	setup(() => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
-		document.body.appendChild(fixture);
+		mainWindow.document.body.appendChild(fixture);
 	});
 
 	teardown(() => {
-		document.body.removeChild(fixture);
+		fixture.remove();
 		disposables.clear();
 	});
 
 	test('Creation', () => {
 		const b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+		mainWindow.document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		let part = disposables.add(new MyPart(b));
@@ -157,26 +158,26 @@ suite('Workbench parts', () => {
 
 	test('Part Layout with Title and Content', function () {
 		const b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+		mainWindow.document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		const part = disposables.add(new MyPart2());
 		part.create(b);
 
-		assert(document.getElementById('myPart.title'));
-		assert(document.getElementById('myPart.content'));
+		assert(mainWindow.document.getElementById('myPart.title'));
+		assert(mainWindow.document.getElementById('myPart.content'));
 	});
 
 	test('Part Layout with Content only', function () {
 		const b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+		mainWindow.document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		const part = disposables.add(new MyPart3());
 		part.create(b);
 
-		assert(!document.getElementById('myPart.title'));
-		assert(document.getElementById('myPart.content'));
+		assert(!mainWindow.document.getElementById('myPart.title'));
+		assert(mainWindow.document.getElementById('myPart.content'));
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

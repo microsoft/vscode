@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution, IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MenuId, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor as InstantiationServicesAccessor, BrandedService, IInstantiationService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { assertType } from 'vs/base/common/types';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getActiveElement } from 'vs/base/browser/dom';
+import * as nls from '../../nls.js';
+import { URI } from '../../base/common/uri.js';
+import { ICodeEditor, IDiffEditor } from './editorBrowser.js';
+import { ICodeEditorService } from './services/codeEditorService.js';
+import { Position } from '../common/core/position.js';
+import { IEditorContribution, IDiffEditorContribution } from '../common/editorCommon.js';
+import { ITextModel } from '../common/model.js';
+import { IModelService } from '../common/services/model.js';
+import { ITextModelService } from '../common/services/resolverService.js';
+import { MenuId, MenuRegistry, Action2 } from '../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandMetadata } from '../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from '../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor as InstantiationServicesAccessor, BrandedService, IInstantiationService, IConstructorSignature } from '../../platform/instantiation/common/instantiation.js';
+import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { assertType } from '../../base/common/types.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { IDisposable } from '../../base/common/lifecycle.js';
+import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { getActiveElement } from '../../base/browser/dom.js';
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type EditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
@@ -181,7 +181,7 @@ export abstract class Command {
 /**
  * Potential override for a command.
  *
- * @return `true` if the command was successfully run. This stops other overrides from being executed.
+ * @return `true` or a Promise if the command was successfully run. This stops other overrides from being executed.
  */
 export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
 
@@ -334,11 +334,15 @@ export interface IEditorActionContextMenuOptions {
 	when?: ContextKeyExpression;
 	menuId?: MenuId;
 }
-export interface IActionOptions extends ICommandOptions {
+export type IActionOptions = ICommandOptions & {
+	contextMenuOpts?: IEditorActionContextMenuOptions | IEditorActionContextMenuOptions[];
+} & ({
+	label: nls.ILocalizedString;
+	alias?: string;
+} | {
 	label: string;
 	alias: string;
-	contextMenuOpts?: IEditorActionContextMenuOptions | IEditorActionContextMenuOptions[];
-}
+});
 
 export abstract class EditorAction extends EditorCommand {
 
@@ -358,7 +362,7 @@ export abstract class EditorAction extends EditorCommand {
 				item.menuId = MenuId.EditorContext;
 			}
 			if (!item.title) {
-				item.title = opts.label;
+				item.title = typeof opts.label === 'string' ? opts.label : opts.label.value;
 			}
 			item.when = ContextKeyExpr.and(opts.precondition, item.when);
 			return <ICommandMenuOptions>item;
@@ -379,8 +383,13 @@ export abstract class EditorAction extends EditorCommand {
 
 	constructor(opts: IActionOptions) {
 		super(EditorAction.convertOptions(opts));
-		this.label = opts.label;
-		this.alias = opts.alias;
+		if (typeof opts.label === 'string') {
+			this.label = opts.label;
+			this.alias = opts.alias ?? opts.label;
+		} else {
+			this.label = opts.label.value;
+			this.alias = opts.alias ?? opts.label.original;
+		}
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
@@ -466,7 +475,7 @@ export abstract class EditorAction2 extends Action2 {
 				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
 				return;
 			}
-			return this.runEditorCommand(editorAccessor, editor!, ...args);
+			return this.runEditorCommand(editorAccessor, editor, ...args);
 		});
 	}
 
@@ -643,6 +652,11 @@ export const UndoCommand = registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('undo', "Undo"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: '1_do',
+		title: nls.localize('undo', "Undo"),
+		order: 1
 	}]
 }));
 
@@ -667,6 +681,11 @@ export const RedoCommand = registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('redo', "Redo"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: '1_do',
+		title: nls.localize('redo', "Redo"),
+		order: 2
 	}]
 }));
 
@@ -688,6 +707,11 @@ export const SelectAllCommand = registerCommand(new MultiCommand({
 	}, {
 		menuId: MenuId.CommandPalette,
 		group: '',
+		title: nls.localize('selectAll', "Select All"),
+		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: '9_select',
 		title: nls.localize('selectAll', "Select All"),
 		order: 1
 	}]

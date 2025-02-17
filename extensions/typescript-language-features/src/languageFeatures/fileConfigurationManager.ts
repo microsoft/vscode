@@ -5,18 +5,25 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../tsServer/protocol/protocol';
-import { API } from '../tsServer/api';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../configuration/fileSchemes';
 import { isTypeScriptDocument } from '../configuration/languageIds';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { Disposable } from '../utils/dispose';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
 	readonly preferences: Proto.UserPreferences;
+}
+
+interface FormattingOptions {
+
+	readonly tabSize: number | undefined;
+
+	readonly insertSpaces: boolean | undefined;
 }
 
 function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration): boolean {
@@ -51,21 +58,21 @@ export default class FileConfigurationManager extends Disposable {
 		}
 	}
 
-	private getFormattingOptions(
-		document: vscode.TextDocument
-	): vscode.FormattingOptions | undefined {
-		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.fileName === document.fileName);
-		return editor
-			? {
-				tabSize: editor.options.tabSize,
-				insertSpaces: editor.options.insertSpaces
-			} as vscode.FormattingOptions
-			: undefined;
+	private getFormattingOptions(document: vscode.TextDocument): FormattingOptions | undefined {
+		const editor = vscode.window.visibleTextEditors.find(editor => editor.document.uri.toString() === document.uri.toString());
+		if (!editor) {
+			return undefined;
+		}
+
+		return {
+			tabSize: typeof editor.options.tabSize === 'number' ? editor.options.tabSize : undefined,
+			insertSpaces: typeof editor.options.insertSpaces === 'boolean' ? editor.options.insertSpaces : undefined,
+		};
 	}
 
 	public async ensureConfigurationOptions(
 		document: vscode.TextDocument,
-		options: vscode.FormattingOptions,
+		options: FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const file = this.client.toOpenTsFilePath(document);
@@ -122,7 +129,7 @@ export default class FileConfigurationManager extends Disposable {
 
 	private getFileOptions(
 		document: vscode.TextDocument,
-		options: vscode.FormattingOptions
+		options: FormattingOptions
 	): FileConfiguration {
 		return {
 			formatOptions: this.getFormatOptions(document, options),
@@ -132,7 +139,7 @@ export default class FileConfigurationManager extends Disposable {
 
 	private getFormatOptions(
 		document: vscode.TextDocument,
-		options: vscode.FormattingOptions
+		options: FormattingOptions
 	): Proto.FormatCodeSettings {
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
@@ -191,14 +198,16 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
-			// @ts-expect-error until 5.3 #56090
-			preferTypeOnlyAutoImports: config.get<boolean>('preferTypeOnlyAutoImports', false),
+			autoImportSpecifierExcludeRegexes: preferencesConfig.get<string[]>('autoImportSpecifierExcludeRegexes'),
+			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
 			disableLineTextInReferences: true,
 			interactiveInlayHints: true,
+			includeCompletionsForModuleExports: config.get<boolean>('suggest.autoImports'),
 			...getInlayHintsPreferences(config),
+			...this.getOrganizeImportsPreferences(preferencesConfig),
 		};
 
 		return preferences;
@@ -208,21 +217,50 @@ export default class FileConfigurationManager extends Disposable {
 		switch (config.get<string>('quoteStyle')) {
 			case 'single': return 'single';
 			case 'double': return 'double';
-			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
+			default: return 'auto';
 		}
 	}
 
 	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
 		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
 			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
-			const slashNormalized = p.replace(/\\/g, '/');
-			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
+			const isRelative = /^\.\.?($|[\/\\])/.test(p);
+			// In TypeScript < 5.3, the first path component cannot be a wildcard, so we need to prefix
+			// it with a path root (e.g. `/` or `c:\`)
+			const wildcardPrefix = this.client.apiVersion.gte(API.v540)
+				? ''
+				: path.parse(this.client.toTsFilePath(workspaceFolder)!).root;
 			return path.isAbsolute(p) ? p :
-				p.startsWith('*') ? '/' + slashNormalized :
-					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
-						'/**/' + slashNormalized;
+				p.startsWith('*') ? wildcardPrefix + p :
+					isRelative ? this.client.toTsFilePath(vscode.Uri.joinPath(workspaceFolder, p))! :
+						wildcardPrefix + '**' + path.sep + p;
 		});
 	}
+
+	private getOrganizeImportsPreferences(config: vscode.WorkspaceConfiguration): Proto.UserPreferences {
+		const organizeImportsCollation = config.get<'ordinal' | 'unicode'>('organizeImports.unicodeCollation');
+		const organizeImportsCaseSensitivity = config.get<'auto' | 'caseInsensitive' | 'caseSensitive'>('organizeImports.caseSensitivity');
+		return {
+			// More specific settings
+			organizeImportsTypeOrder: withDefaultAsUndefined(config.get<'auto' | 'last' | 'inline' | 'first'>('organizeImports.typeOrder', 'auto'), 'auto'),
+			organizeImportsIgnoreCase: organizeImportsCaseSensitivity === 'caseInsensitive' ? true
+				: organizeImportsCaseSensitivity === 'caseSensitive' ? false
+					: 'auto',
+			organizeImportsCollation,
+
+			// The rest of the settings are only applicable when using unicode collation
+			...(organizeImportsCollation === 'unicode' ? {
+				organizeImportsCaseFirst: organizeImportsCaseSensitivity === 'caseInsensitive' ? undefined : withDefaultAsUndefined(config.get<'default' | 'upper' | 'lower' | false>('organizeImports.caseFirst', false), 'default'),
+				organizeImportsAccentCollation: config.get<boolean>('organizeImports.accentCollation'),
+				organizeImportsLocale: config.get<string>('organizeImports.locale'),
+				organizeImportsNumericCollation: config.get<boolean>('organizeImports.numericCollation'),
+			} : {}),
+		};
+	}
+}
+
+function withDefaultAsUndefined<T, O extends T>(value: T, def: O): Exclude<T, O> | undefined {
+	return value === def ? undefined : value as Exclude<T, O>;
 }
 
 export class InlayHintSettingNames {

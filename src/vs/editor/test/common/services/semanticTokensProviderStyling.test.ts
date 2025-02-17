@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { createModelServices } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { SparseMultilineTokens } from '../../../common/tokens/sparseMultilineTokens.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { SemanticTokensProviderStyling, toMultilineTokens2 } from '../../../common/services/semanticTokensProviderStyling.js';
+import { createModelServices } from '../testTextModel.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IColorTheme, IThemeService, ITokenStyle } from '../../../../platform/theme/common/themeService.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ModelService', () => {
 	let disposables: DisposableStore;
@@ -38,9 +38,9 @@ suite('ModelService', () => {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9', 'st10'],
 			tokenModifiers: []
 		};
-		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+		instantiationService.stub(IThemeService, {
 			getColorTheme() {
-				return {
+				return <IColorTheme>{
 					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
 						return {
 							foreground: parseInt(tokenType.substr(2), 10),
@@ -90,9 +90,9 @@ suite('ModelService', () => {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9'],
 			tokenModifiers: ['stm0', 'stm1', 'stm2']
 		};
-		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+		instantiationService.stub(IThemeService, {
 			getColorTheme() {
-				return {
+				return <IColorTheme>{
 					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
 						return {
 							foreground: parseInt(tokenType.substr(2), 10),
@@ -142,9 +142,9 @@ suite('ModelService', () => {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5'],
 			tokenModifiers: ['stm0', 'stm1', 'stm2']
 		};
-		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+		instantiationService.stub(IThemeService, {
 			getColorTheme() {
-				return {
+				return <IColorTheme>{
 					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
 						return {
 							foreground: parseInt(tokenType.substr(2), 10),

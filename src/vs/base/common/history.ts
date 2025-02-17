@@ -3,18 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayNavigator, INavigator } from 'vs/base/common/navigator';
+import { SetWithKey } from './collections.js';
+import { Event } from './event.js';
+import { ArrayNavigator, INavigator } from './navigator.js';
+
+export interface IHistory<T> {
+	delete(t: T): boolean;
+	add(t: T): this;
+	has(t: T): boolean;
+	clear(): void;
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void;
+	replace?(t: T[]): void;
+	onDidChange?: Event<string[]>;
+}
 
 export class HistoryNavigator<T> implements INavigator<T> {
-
-	private _history!: Set<T>;
 	private _limit: number;
 	private _navigator!: ArrayNavigator<T>;
 
-	constructor(history: readonly T[] = [], limit: number = 10) {
-		this._initialize(history);
+	constructor(
+		private _history: IHistory<T> = new Set(),
+		limit: number = 10,
+	) {
 		this._limit = limit;
 		this._onChange();
+		if (this._history.onDidChange) {
+			this._history.onDidChange(() => this._onChange());
+		}
 	}
 
 	public getHistory(): T[] {
@@ -68,7 +83,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public clear(): void {
-		this._initialize([]);
+		this._history.clear();
 		this._onChange();
 	}
 
@@ -81,7 +96,12 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	private _reduceToLimit() {
 		const data = this._elements;
 		if (data.length > this._limit) {
-			this._initialize(data.slice(data.length - this._limit));
+			const replaceValue = data.slice(data.length - this._limit);
+			if (this._history.replace) {
+				this._history.replace(replaceValue);
+			} else {
+				this._history = new Set(replaceValue);
+			}
 		}
 	}
 
@@ -92,13 +112,6 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		}
 
 		return this._elements.indexOf(currentElement);
-	}
-
-	private _initialize(history: readonly T[]): void {
-		this._history = new Set();
-		for (const entry of history) {
-			this._history.add(entry);
-		}
 	}
 
 	private get _elements(): T[] {
@@ -114,6 +127,10 @@ interface HistoryNode<T> {
 	next: HistoryNode<T> | undefined;
 }
 
+/**
+ * The right way to use HistoryNavigator2 is for the last item in the list to be the user's uncommitted current text. eg empty string, or whatever has been typed. Then
+ * the user can navigate away from the last item through the list, and back to it. When updating the last item, call replaceLast.
+ */
 export class HistoryNavigator2<T> {
 
 	private valueSet: Set<T>;
@@ -123,7 +140,7 @@ export class HistoryNavigator2<T> {
 	private _size: number;
 	get size(): number { return this._size; }
 
-	constructor(history: readonly T[], private capacity: number = 10) {
+	constructor(history: readonly T[], private capacity: number = 10, private identityFn: (t: T) => unknown = t => t) {
 		if (history.length < 1) {
 			throw new Error('not supported');
 		}
@@ -135,7 +152,7 @@ export class HistoryNavigator2<T> {
 			next: undefined
 		};
 
-		this.valueSet = new Set<T>([history[0]]);
+		this.valueSet = new SetWithKey<T>([history[0]], identityFn);
 		for (let i = 1; i < history.length; i++) {
 			this.add(history[i]);
 		}
@@ -172,7 +189,7 @@ export class HistoryNavigator2<T> {
 	 * @returns old last value
 	 */
 	replaceLast(value: T): T {
-		if (this.tail.value === value) {
+		if (this.identityFn(this.tail.value) === this.identityFn(value)) {
 			return value;
 		}
 
@@ -252,8 +269,9 @@ export class HistoryNavigator2<T> {
 	private _deleteFromList(value: T): void {
 		let temp = this.head;
 
+		const valueKey = this.identityFn(value);
 		while (temp !== this.tail) {
-			if (temp.value === value) {
+			if (this.identityFn(temp.value) === valueKey) {
 				if (temp === this.head) {
 					this.head = this.head.next!;
 					this.head.previous = undefined;

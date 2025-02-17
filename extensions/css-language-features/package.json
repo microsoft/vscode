@@ -27,7 +27,7 @@
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
     "test": "node ../../node_modules/mocha/bin/mocha",
-    "install-client-next": "yarn add vscode-languageclient@next"
+    "install-client-next": "npm install vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"
@@ -994,11 +994,11 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1",
+    "vscode-languageclient": "^10.0.0-next.13",
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "repository": {
     "type": "git",

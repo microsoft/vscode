@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment, IStatusbarEntryPriority, StatusbarEntryKind } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { ThemeColor } from 'vs/base/common/themables';
-import { Command } from 'vs/editor/common/languages';
-import { IAccessibilityInformation, isAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
-import { hash } from 'vs/base/common/hash';
-import { Event, Emitter } from 'vs/base/common/event';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Iterable } from 'vs/base/common/iterator';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { asStatusBarItemIdentifier } from 'vs/workbench/api/common/extHostTypes';
-import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { localize } from '../../../nls.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { ExtensionsRegistry } from '../../services/extensions/common/extensionsRegistry.js';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment, IStatusbarEntryPriority, StatusbarEntryKind } from '../../services/statusbar/browser/statusbar.js';
+import { ThemeColor } from '../../../base/common/themables.js';
+import { Command } from '../../../editor/common/languages.js';
+import { IAccessibilityInformation, isAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
+import { IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent.js';
+import { getCodiconAriaLabel } from '../../../base/common/iconLabels.js';
+import { hash } from '../../../base/common/hash.js';
+import { Event, Emitter } from '../../../base/common/event.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { asStatusBarItemIdentifier } from '../common/extHostTypes.js';
+import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND } from '../../common/theme.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
 
 
 // --- service
@@ -49,7 +50,7 @@ export interface IExtensionStatusBarItemService {
 
 	onDidChange: Event<IExtensionStatusBarItemChangeEvent>;
 
-	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): StatusBarUpdateKind;
+	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined | IManagedHoverTooltipMarkdownString, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): StatusBarUpdateKind;
 
 	unsetEntry(id: string): void;
 
@@ -75,7 +76,8 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 	}
 
 	setOrUpdateEntry(entryId: string,
-		id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined,
+		id: string, extensionId: string | undefined, name: string, text: string,
+		tooltip: IMarkdownString | string | undefined | IManagedHoverTooltipMarkdownString,
 		command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined,
 		alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined
 	): StatusBarUpdateKind {
@@ -87,7 +89,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 			role = accessibilityInformation.role;
 		} else {
 			ariaLabel = getCodiconAriaLabel(text);
-			if (tooltip) {
+			if (typeof tooltip === 'string' || isMarkdownString(tooltip)) {
 				const tooltipString = typeof tooltip === 'string' ? tooltip : tooltip.value;
 				ariaLabel += `, ${tooltipString}`;
 			}
@@ -101,7 +103,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 				color = undefined;
 				backgroundColor = undefined;
 		}
-		const entry: IStatusbarEntry = { name, text, tooltip, command, color, backgroundColor, ariaLabel, role, kind };
+		const entry: IStatusbarEntry = { name, text, tooltip, command, color, backgroundColor, ariaLabel, role, kind, extensionId };
 
 		if (typeof priority === 'undefined') {
 			priority = 0;

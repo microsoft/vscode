@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { TestCodeEditorService, TestGlobalStyleSheet } from 'vs/editor/test/browser/editorTestServices';
-import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import assert from 'assert';
+import * as platform from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IDecorationRenderOptions } from '../../../common/editorCommon.js';
+import { TestCodeEditorService, TestGlobalStyleSheet } from '../editorTestServices.js';
+import { TestColorTheme, TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 
 suite('Decoration Render Options', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -44,7 +44,7 @@ suite('Decoration Render Options', () => {
 		const styleSheet = s.globalStyleSheet;
 		store.add(s.registerDecorationType('test', 'example', options));
 		const sheet = readStyleSheet(styleSheet);
-		assert(sheet.indexOf(`{background:url('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png') center center no-repeat;background-size:contain;}`) >= 0);
+		assert(sheet.indexOf(`{background:url('${CSS.escape('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png')}') center center no-repeat;background-size:contain;}`) >= 0);
 		assert(sheet.indexOf(`{background-color:red;border-color:yellow;box-sizing: border-box;}`) >= 0);
 	});
 
@@ -111,7 +111,7 @@ suite('Decoration Render Options', () => {
 
 		// URI, only minimal encoding
 		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('data:image/svg+xml;base64,PHN2ZyB4b+') });
-		assert(readStyleSheet(styleSheet).indexOf(`{background:url('data:image/svg+xml;base64,PHN2ZyB4b+') center center no-repeat;}`) > 0);
+		assert(readStyleSheet(styleSheet).indexOf(`{background:url('${CSS.escape('data:image/svg+xml;base64,PHN2ZyB4b+')}') center center no-repeat;}`) > 0);
 		s.removeDecorationType('example');
 
 		function assertBackground(url1: string, url2: string) {
@@ -125,27 +125,27 @@ suite('Decoration Render Options', () => {
 		if (platform.isWindows) {
 			// windows file path (used as string)
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
-			assertBackground('file:///c:/files/miles/more.png', 'vscode-file://vscode-app/c:/files/miles/more.png');
+			assertBackground(CSS.escape('file:///c:/files/miles/more.png'), CSS.escape('vscode-file://vscode-app/c:/files/miles/more.png'));
 			s.removeDecorationType('example');
 
 			// single quote must always be escaped/encoded
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('c:\\files\\foo\\b\'ar.png') });
-			assertBackground('file:///c:/files/foo/b%27ar.png', 'vscode-file://vscode-app/c:/files/foo/b%27ar.png');
+			assertBackground(CSS.escape('file:///c:/files/foo/b\'ar.png'), CSS.escape('vscode-file://vscode-app/c:/files/foo/b\'ar.png'));
 			s.removeDecorationType('example');
 		} else {
 			// unix file path (used as string)
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('/Users/foo/bar.png') });
-			assertBackground('file:///Users/foo/bar.png', 'vscode-file://vscode-app/Users/foo/bar.png');
+			assertBackground(CSS.escape('file:///Users/foo/bar.png'), CSS.escape('vscode-file://vscode-app/Users/foo/bar.png'));
 			s.removeDecorationType('example');
 
 			// single quote must always be escaped/encoded
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('/Users/foo/b\'ar.png') });
-			assertBackground('file:///Users/foo/b%27ar.png', 'vscode-file://vscode-app/Users/foo/b%27ar.png');
+			assertBackground(CSS.escape('file:///Users/foo/b\'ar.png'), CSS.escape('vscode-file://vscode-app/Users/foo/b\'ar.png'));
 			s.removeDecorationType('example');
 		}
 
 		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('http://test/pa\'th') });
-		assert(readStyleSheet(styleSheet).indexOf(`{background:url('http://test/pa%27th') center center no-repeat;}`) > 0);
+		assert(readStyleSheet(styleSheet).indexOf(`{background:url('${CSS.escape('http://test/pa\'th')}') center center no-repeat;}`) > 0);
 		s.removeDecorationType('example');
 	});
 });

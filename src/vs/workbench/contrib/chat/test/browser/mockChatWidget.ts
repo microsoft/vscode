@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
 
 export class MockChatWidgetService implements IChatWidgetService {
+	readonly onDidAddWidget: Event<IChatWidget> = Event.None;
+
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -14,18 +18,15 @@ export class MockChatWidgetService implements IChatWidgetService {
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
-	/**
-	 * Returns whether a view was successfully revealed.
-	 */
-	async revealViewForProvider(providerId: string): Promise<IChatWidget | undefined> {
-		return undefined;
-	}
-
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined {
 		return undefined;
 	}
 
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined {
 		return undefined;
+	}
+
+	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
+		return [];
 	}
 }

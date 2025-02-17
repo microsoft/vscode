@@ -7,8 +7,17 @@ import * as vscode from 'vscode';
 import { Command } from './commandManager';
 
 export interface OpenJsDocLinkCommand_Args {
-	readonly file: vscode.Uri;
-	readonly position: vscode.Position;
+	readonly file: {
+		readonly scheme: string;
+		readonly authority?: string;
+		readonly path?: string;
+		readonly query?: string;
+		readonly fragment?: string;
+	};
+	readonly position: {
+		readonly line: number;
+		readonly character: number;
+	};
 }
 
 /**
@@ -21,8 +30,10 @@ export class OpenJsDocLinkCommand implements Command {
 	public readonly id = OpenJsDocLinkCommand.id;
 
 	public async execute(args: OpenJsDocLinkCommand_Args): Promise<void> {
-		await vscode.commands.executeCommand('vscode.open', vscode.Uri.from(args.file), <vscode.TextDocumentShowOptions>{
-			selection: new vscode.Range(args.position, args.position),
-		});
+		const { line, character } = args.position;
+		const position = new vscode.Position(line, character);
+		await vscode.commands.executeCommand('vscode.open', vscode.Uri.from(args.file), {
+			selection: new vscode.Range(position, position),
+		} satisfies vscode.TextDocumentShowOptions);
 	}
 }

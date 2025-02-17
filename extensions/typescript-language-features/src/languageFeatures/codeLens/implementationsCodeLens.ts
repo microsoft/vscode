@@ -17,6 +17,20 @@ import { ExecutionTarget } from '../../tsServer/server';
 
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public constructor(
+		client: ITypeScriptServiceClient,
+		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+		private readonly language: LanguageDescription
+	) {
+		super(client, _cachedResponse);
+		this._register(
+			vscode.workspace.onDidChangeConfiguration(evt => {
+				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`)) {
+					this.changeEmitter.fire();
+				}
+			})
+		);
+	}
 
 	public async resolveCodeLens(
 		codeLens: ReferencesCodeLens,
@@ -71,8 +85,11 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	protected extractSymbol(
 		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
-		_parent: Proto.NavigationTree | undefined
+		parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
+		if (item.kind === PConst.Kind.method && parent && parent.kind === PConst.Kind.interface && vscode.workspace.getConfiguration(this.language.id).get<boolean>('implementationsCodeLens.showOnInterfaceMethods')) {
+			return getSymbolRange(document, item);
+		}
 		switch (item.kind) {
 			case PConst.Kind.interface:
 				return getSymbolRange(document, item);
@@ -102,6 +119,6 @@ export function register(
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,
-			new TypeScriptImplementationsCodeLensProvider(client, cachedResponse));
+			new TypeScriptImplementationsCodeLensProvider(client, cachedResponse, language));
 	});
 }

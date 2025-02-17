@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isIterable } from './types.js';
+
 export namespace Iterable {
 
 	export function is<T = any>(thing: any): thing is Iterable<T> {
@@ -44,9 +46,10 @@ export namespace Iterable {
 		return iterable[Symbol.iterator]().next().value;
 	}
 
-	export function some<T>(iterable: Iterable<T>, predicate: (t: T) => unknown): boolean {
+	export function some<T>(iterable: Iterable<T>, predicate: (t: T, i: number) => unknown): boolean {
+		let i = 0;
 		for (const element of iterable) {
-			if (predicate(element)) {
+			if (predicate(element, i++)) {
 				return true;
 			}
 		}
@@ -82,10 +85,19 @@ export namespace Iterable {
 		}
 	}
 
-	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
-		for (const iterable of iterables) {
-			for (const element of iterable) {
-				yield element;
+	export function* flatMap<T, R>(iterable: Iterable<T>, fn: (t: T, index: number) => Iterable<R>): Iterable<R> {
+		let index = 0;
+		for (const element of iterable) {
+			yield* fn(element, index++);
+		}
+	}
+
+	export function* concat<T>(...iterables: (Iterable<T> | T)[]): Iterable<T> {
+		for (const item of iterables) {
+			if (isIterable(item)) {
+				yield* item;
+			} else {
+				yield item;
 			}
 		}
 	}
@@ -102,6 +114,9 @@ export namespace Iterable {
 	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
 	 */
 	export function* slice<T>(arr: ReadonlyArray<T>, from: number, to = arr.length): Iterable<T> {
+		if (from < -arr.length) {
+			from = 0;
+		}
 		if (from < 0) {
 			from += arr.length;
 		}
@@ -141,5 +156,13 @@ export namespace Iterable {
 		}
 
 		return [consumed, { [Symbol.iterator]() { return iterator; } }];
+	}
+
+	export async function asyncToArray<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+		const result: T[] = [];
+		for await (const item of iterable) {
+			result.push(item);
+		}
+		return Promise.resolve(result);
 	}
 }

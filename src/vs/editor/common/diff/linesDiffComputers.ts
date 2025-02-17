@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
-import { ILinesDiffComputer } from 'vs/editor/common/diff/linesDiffComputer';
+import { LegacyLinesDiffComputer } from './legacyLinesDiffComputer.js';
+import { DefaultLinesDiffComputer } from './defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { ILinesDiffComputer } from './linesDiffComputer.js';
 
 export const linesDiffComputers = {
 	getLegacy: () => new LegacyLinesDiffComputer(),
