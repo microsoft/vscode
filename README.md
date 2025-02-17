@@ -77,3 +77,7 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 Copyright (c) Microsoft Corporation. All rights reserved.
 
 Licensed under the [MIT](LICENSE.txt) license.
+
+## Remote-SSH Extension
+
+The Remote-SSH extension is not supported in Code-OSS. It depends on non-OSS components that are not available in Code-OSS. For testing purposes, you can use the `TestResolver` in the Code-OSS window to create a fake remote window.
