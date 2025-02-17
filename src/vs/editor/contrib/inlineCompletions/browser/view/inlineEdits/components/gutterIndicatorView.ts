@@ -7,7 +7,8 @@ import { n, trackFocus } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, constObservable, derived, observableFromEvent, observableValue, runOnChange } from '../../../../../../../base/common/observable.js';
+import { debouncedObservable2 } from '../../../../../../../base/common/observableInternal/utils.js';
 import { localize } from '../../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -49,11 +50,22 @@ export class InlineEditsGutterIndicator extends Disposable {
 			minContentWidthInPx: constObservable(0),
 		}));
 
-		this._register(autorun(reader => {
-			if (!accessibilityService.isMotionReduced()) {
-				this._indicator.element.classList.toggle('wiggle', this._isHoveringOverInlineEdit.read(reader));
-			}
-		}));
+		if (!accessibilityService.isMotionReduced()) {
+			const debouncedIsHovering = debouncedObservable2(this._isHoveringOverInlineEdit, 100);
+			this._register(runOnChange(debouncedIsHovering, (isHovering) => {
+				if (!isHovering) {
+					return;
+				}
+				this._iconRef.element.animate([
+					{ transform: 'rotate(0) scale(1)', offset: 0 },
+					{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.15 },
+					{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.3 },
+					{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.45 },
+					{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.6 },
+					{ transform: 'rotate(0) scale(1)', offset: 1 }
+				], { duration: 800 });
+			}));
+		}
 	}
 
 	private readonly _originalRangeObs = mapOutFalsy(this._originalRange);
