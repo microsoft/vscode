@@ -70,11 +70,6 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof nodePty.spawn === 'function', testErrorMessage('node-pty'));
 	});
 
-	test('open', async () => {
-		const { default: open } = await import('open');
-		assert.ok(typeof open === 'function', testErrorMessage('open'));
-	});
-
 	test('@vscode/spdlog', async () => {
 		const spdlog = await import('@vscode/spdlog');
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('@vscode/spdlog'));
