@@ -38,6 +38,8 @@ declare module 'vscode' {
 
 		commands?: Command[];
 
+		action?: Command;
+
 		/**
 		 * Creates a new inline edit.
 		 *

@@ -8,7 +8,6 @@ import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconL
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
-import { localize } from '../../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -118,19 +117,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 			return;
 		}
 
-		const displayName = derived(this, reader => {
-			const state = this._model.read(reader)?.inlineEditState;
-			const item = state?.read(reader);
-			const completionSource = item?.inlineCompletion?.source;
-			// TODO: expose the provider (typed) and expose the provider the edit belongs totyping and get correct edit
-			const displayName = (completionSource?.inlineCompletions as any).edits[0]?.provider?.displayName ?? localize('inlineEdit', "Inline Edit");
-			return displayName;
-		});
-
 		const disposableStore = new DisposableStore();
 		const content = disposableStore.add(this._instantiationService.createInstance(
 			GutterIndicatorMenuContent,
-			displayName,
 			this._host,
 			(focusEditor) => {
 				if (focusEditor) {
@@ -138,7 +127,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				}
 				h?.dispose();
 			},
-			this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.source.inlineCompletions.commands),
+			this._editorObs,
 		).toDisposableLiveElement());
 
 		const focusTracker = disposableStore.add(trackFocus(content.element));
@@ -152,10 +141,10 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}) as HoverWidget | undefined;
 		if (h) {
 			this._hoverVisible = true;
-			h.onDispose(() => { // TODO:@hediet fix leak
-				disposableStore.dispose();
+			disposableStore.add(h.onDispose(() => {
 				this._hoverVisible = false;
-			});
+				disposableStore.dispose();
+			}));
 		} else {
 			disposableStore.dispose();
 		}

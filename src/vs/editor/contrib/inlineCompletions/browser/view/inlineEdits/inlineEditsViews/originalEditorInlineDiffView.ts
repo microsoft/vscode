@@ -58,9 +58,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 
 		const editor = observableCodeEditor(this._originalEditor);
 
-		console.log('et');
 		this._register(this._originalEditor.onMouseUp(e => {
-			console.log(e);
 			if (e.target.type === MouseTargetType.CONTENT_TEXT) {
 				const a = e.target.detail.injectedText?.options.attachedData;
 				if (a) {
