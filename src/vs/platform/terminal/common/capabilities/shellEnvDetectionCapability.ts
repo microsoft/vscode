@@ -66,9 +66,6 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 
 	// Make sure to update this.env to the latest, fire event if there is a diff
 	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void {
-		if (!isTrusted) {
-			return;
-		}
 
 		let envDiffers: boolean = false;
 
