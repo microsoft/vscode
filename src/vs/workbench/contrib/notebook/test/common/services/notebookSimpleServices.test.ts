@@ -495,6 +495,93 @@ suite('NotebookDiff Cell Matching', () => {
 		]);
 	});
 
+	test('Insert a md cell and modify the next 2 code cells', async () => {
+		const mapping = mapCells([
+			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+			['print("Hello world")', 'python', CellKind.Code, [], undefined],
+			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
+			['print("Foo Bar")', 'python', CellKind.Code, [], undefined],
+			['print("bar baz")', 'python', CellKind.Code, [], undefined]
+		]
+			, [
+				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+				['print("Hello world")', 'python', CellKind.Code, [], undefined],
+				['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
+				['# New Markdown cell', 'markdown', CellKind.Markup, [], undefined],
+				['print("Foo BaZ")', 'python', CellKind.Code, [], undefined],
+				['print("bar baz Modified")', 'python', CellKind.Code, [], undefined]
+			]
+			, disposables);
+
+		assert.deepStrictEqual(mapping, [
+			{ modified: 0, original: 0 },
+			{ modified: 1, original: 1 },
+			{ modified: 2, original: 2 },
+			{ modified: 3, original: -1 },
+			{ modified: 4, original: 3 },
+			{ modified: 5, original: 4 }
+		]);
+	});
+
+	test('Insert a md cell, delete a cell and modify the next 2 code cells', async () => {
+		const mapping = mapCells([
+			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+			['print("Hello world")', 'python', CellKind.Code, [], undefined],
+			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
+			['print("Foo Bar")', 'python', CellKind.Code, [], undefined],
+			['print("bar baz")', 'python', CellKind.Code, [], undefined],
+			['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
+		]
+			, [
+				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+				['print("Hello world")', 'python', CellKind.Code, [], undefined],
+				['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
+				['# New Markdown cell', 'markdown', CellKind.Markup, [], undefined],
+				// ['print("Foo BaZ")', 'python', CellKind.Code, [], undefined],
+				['print("bar baz Modified")', 'python', CellKind.Code, [], undefined],
+				['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
+			]
+			, disposables);
+
+		assert.deepStrictEqual(mapping, [
+			{ modified: 0, original: 0 },
+			{ modified: 1, original: 1 },
+			{ modified: 2, original: 2 },
+			{ modified: 3, original: -1 },
+			{ modified: 4, original: 4 },
+			{ modified: 5, original: 5 }
+		]);
+	});
+	test('Insert a md cell, delete a code cell and modify the next 2 code cells (deleted and inserted lineup)', async () => {
+		const mapping = mapCells([
+			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+			['print("Hello world")', 'python', CellKind.Code, [], undefined],
+			['import sys', 'python', CellKind.Code, [], undefined],
+			['print("Foo Bar")', 'python', CellKind.Code, [], undefined],
+			['print("bar baz")', 'python', CellKind.Code, [], undefined],
+			['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
+		]
+			, [
+				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+				['print("Hello world")', 'python', CellKind.Code, [], undefined],
+				['import sys', 'python', CellKind.Code, [], undefined],
+				['sys.executable', 'python', CellKind.Code, [], undefined],
+				// ['print("Foo BaZ")', 'python', CellKind.Code, [], undefined],
+				['print("bar baz Modified")', 'python', CellKind.Code, [], undefined],
+				['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
+			]
+			, disposables);
+
+		assert.deepStrictEqual(mapping, [
+			{ modified: 0, original: 0 },
+			{ modified: 1, original: 1 },
+			{ modified: 2, original: 2 },
+			{ modified: 3, original: 3 },
+			{ modified: 4, original: 4 },
+			{ modified: 5, original: 5 }
+		]);
+	});
+
 	test('Insert a few md cells and modify the next few code cells', async () => {
 		const mapping = mapCells([
 			['# Hello World', 'markdown', CellKind.Markup, [], undefined],

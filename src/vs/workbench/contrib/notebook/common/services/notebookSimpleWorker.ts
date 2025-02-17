@@ -408,7 +408,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			 * Just match A => a, B => b, C => c
 			 */
 			// Find the next cell that has been matched.
-			const previousMatchedCell = i > 0 ? results.slice(0, i - 1).reverse().find(r => r.original >= 0) : undefined;
+			const previousMatchedCell = i > 0 ? results.slice(0, i).reverse().find(r => r.original >= 0) : undefined;
 			const previousMatchedOriginalIndex = previousMatchedCell?.original ?? -1;
 			const previousMatchedModifiedIndex = previousMatchedCell?.modified ?? -1;
 			const matchedCell = results.slice(i + 1).find(r => r.original >= 0);
@@ -465,12 +465,21 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			 * I.e. index of D in Modified === index of d in Original, and index of A in Modified === index of a in Original.
 			 * Then this means there are absolutely no modifications.
 			 * Hence we can just assign the indexes as is.
+			 *
+			 * NOTE: For this, we must ensure we have exactly the same number of items on either side.
+			 * I.e. we have B, C remaining in Modified, and b, c remaining in Original.
+			 * Thats 2 Modified items === 2 Original Items.
+			 * If its not the same, then this means something has been deleted/inserted, and we cannot blindly map the indexes.
 			*/
 			if (previousMatchedOriginalIndex > 0 && previousMatchedModifiedIndex > 0 && previousMatchedOriginalIndex === previousMatchedModifiedIndex) {
-				if ((nextMatchedModifiedIndex ?? modifiedCells.length - 1) === (nextMatchedOriginalIndex ?? originalCells.length - 1) && !unavailableIndexes.has(i) && i < originalCells.length) {
-					trackMappedIndexes(i, i);
-					result.original = i;
-					return;
+				if ((nextMatchedModifiedIndex >= 0 ? nextMatchedModifiedIndex : modifiedCells.length - 1) === (nextMatchedOriginalIndex >= 0 ? nextMatchedOriginalIndex : originalCells.length - 1) && !unavailableIndexes.has(i) && i < originalCells.length) {
+					const remainingModifiedItems = (nextMatchedModifiedIndex >= 0 ? nextMatchedModifiedIndex : modifiedCells.length) - previousMatchedModifiedIndex;
+					const remainingOriginalItems = (nextMatchedOriginalIndex >= 0 ? nextMatchedOriginalIndex : originalCells.length) - previousMatchedOriginalIndex;
+					if (remainingModifiedItems === remainingOriginalItems && modifiedCell.cellKind === originalCells[i].cellKind) {
+						trackMappedIndexes(i, i);
+						result.original = i;
+						return;
+					}
 				}
 			}
 			/**
