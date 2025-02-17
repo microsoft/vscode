@@ -32,6 +32,7 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorBackground, editorSelectionBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -180,7 +181,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		if (kind === ChatEditKind.Created) {
@@ -657,7 +659,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	private _createEditorIntegration(editor: IEditorPane): ChatEditingCodeEditorIntegration {
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
-		return new ChatEditingCodeEditorIntegration(codeEditor, this);
+		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, codeEditor, this);
 	}
 }
 
