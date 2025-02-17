@@ -1188,6 +1188,8 @@ const enum CodePoint {
 	 * Combining Enclosing Keycap
 	 */
 	enclosingKeyCap = 0x20E3,
+
+	space = 0x0020,
 }
 
 export const noBreakWhitespace = '\xa0';
@@ -1332,7 +1334,7 @@ export class InvisibleCharacters {
 	public static containsInvisibleCharacter(str: string): boolean {
 		for (let i = 0; i < str.length; i++) {
 			const codePoint = str.codePointAt(i);
-			if (typeof codePoint === 'number' && (InvisibleCharacters.isInvisibleCharacter(codePoint) || codePoint === 20)) {
+			if (typeof codePoint === 'number' && (InvisibleCharacters.isInvisibleCharacter(codePoint) || codePoint === CodePoint.space)) {
 				return true;
 			}
 		}
