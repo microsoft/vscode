@@ -494,6 +494,31 @@ suite('NotebookDiff Cell Matching', () => {
 			{ modified: 5, original: 4 }
 		]);
 	});
+	test('Delete MD cell and insert code cell, both will not match', async () => {
+		const mapping = mapCells([
+			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+			['import sys', 'python', CellKind.Code, [], undefined],
+			['sys.executable', 'python', CellKind.Code, [], undefined],
+			['print("Hello world")', 'python', CellKind.Code, [], undefined],
+			['print("foo bar")', 'python', CellKind.Code, [], undefined],
+		]
+			, [
+				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+				['import sys', 'python', CellKind.Code, [], undefined],
+				['# Header', 'python', CellKind.Markup, [], undefined],
+				['print("Hello world")', 'python', CellKind.Code, [], undefined],
+				['print("foo bar")', 'python', CellKind.Code, [], undefined],
+			]
+			, disposables);
+
+		assert.deepStrictEqual(mapping, [
+			{ modified: 0, original: 0 },
+			{ modified: 1, original: 1 },
+			{ modified: 2, original: -1 },
+			{ modified: 3, original: 3 },
+			{ modified: 4, original: 4 }
+		]);
+	});
 
 	test('Insert a md cell and modify the next 2 code cells', async () => {
 		const mapping = mapCells([
@@ -656,6 +681,74 @@ suite('NotebookDiff Cell Matching', () => {
 			{ modified: 7, original: 5 },
 			{ modified: 8, original: 6 },
 			{ modified: 9, original: 7 },
+		]);
+	});
+	test('Modify, then insert ', async () => {
+		const mapping = mapCells([
+			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+			['print("Hello world")', 'python', CellKind.Code, [], undefined],
+			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
+			['print("foo bar")', 'python', CellKind.Code, [], undefined],
+			['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
+			['print("foo bar")', 'python', CellKind.Code, [], undefined],
+			['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
+			['print("foo bar")', 'python', CellKind.Code, [], undefined],
+		]
+			, [
+				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+				['print("Hello world")', 'python', CellKind.Code, [], undefined],
+				['# Foo BaZ', 'markdown', CellKind.Markup, [], undefined],
+				['# Header', 'markdown', CellKind.Markup, [], undefined],
+				['print("foo bar")', 'python', CellKind.Code, [], undefined],
+				['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
+				['print("foo bar")', 'python', CellKind.Code, [], undefined],
+				['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
+				['print("foo bar")', 'python', CellKind.Code, [], undefined],
+			]
+			, disposables);
+
+		assert.deepStrictEqual(mapping, [
+			{ modified: 0, original: 0 },
+			{ modified: 1, original: 1 },
+			{ modified: 2, original: 2 },
+			{ modified: 3, original: -1 },
+			{ modified: 4, original: 3 },
+			{ modified: 5, original: 4 },
+			{ modified: 6, original: 5 },
+			{ modified: 7, original: 6 },
+			{ modified: 8, original: 7 },
+		]);
+	});
+	test('Modify, then delete ', async () => {
+		const mapping = mapCells([
+			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+			['print("Hello world")', 'python', CellKind.Code, [], undefined],
+			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
+			['print("foo bar")', 'python', CellKind.Code, [], undefined],
+			['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
+			['import sys', 'python', CellKind.Code, [], undefined],
+			['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
+			['sys.executable', 'python', CellKind.Code, [], undefined],
+		]
+			, [
+				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
+				['print("Hello world")', 'python', CellKind.Code, [], undefined],
+				['# Foo BaZ', 'markdown', CellKind.Markup, [], undefined],
+				['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
+				['import sys', 'python', CellKind.Code, [], undefined],
+				['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
+				['sys.executable', 'python', CellKind.Code, [], undefined],
+			]
+			, disposables);
+
+		assert.deepStrictEqual(mapping, [
+			{ modified: 0, original: 0 },
+			{ modified: 1, original: 1 },
+			{ modified: 2, original: 2 },
+			{ modified: 3, original: 4 },
+			{ modified: 4, original: 5 },
+			{ modified: 5, original: 6 },
+			{ modified: 6, original: 7 },
 		]);
 	});
 	test('Update code cell', async () => {
@@ -14696,6 +14789,374 @@ suite('NotebookDiff Cell Matching', () => {
 			{ modified: 65, original: 67 },
 			{ modified: 66, original: 68 },
 			{ modified: 67, original: 69 },
+		]);
+	});
+	test('Insert a few cells (one on top), modify a few and completely misaligned', async () => {
+		const mapping = mapCells(
+			[
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"import requests\n",
+						"import pandas as pd\n",
+						"import matplotlib.pyplot as plt\n",
+						"from cachetools import cached, TTLCache\n",
+						"from dotenv import load_dotenv"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"import os\n",
+						"\n",
+						"GITHUB_API_URL = \"https://api.github.com\"\n",
+						"REPO_OWNER = \"microsoft\"\n",
+						"ISSUE = 123  # Replace with your milestone number\n",
+						"load_dotenv()\n",
+						"TOKEN = os.getenv(\"GH\")\n",
+						"\n",
+						"headers = {\n",
+						"    \"Authorization\": f\"Bearer {TOKEN}\",\n",
+						"    \"Accept\": \"application/vnd.github+json\"\n",
+						"}"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"import csv\n",
+						"from datetime import datetime\n",
+						"import os\n",
+						"\n",
+						"def append_information(repo, open_issues_count, ):\n",
+						"    file_exists = os.path.isfile(filename)\n",
+						"    timestamp = datetime.utcnow().isoformat()\n",
+						"\n",
+						"    # Open the file in append mode\n",
+						"    with open(filename, 'a', newline='', encoding='utf-8') as csvfile:\n",
+						"        writer = csv.writer(csvfile)\n",
+						"\n",
+						"        # If the file didn't exist before, write the header row\n",
+						"        if not file_exists:\n",
+						"            writer.writerow([\n",
+						"                \"timestamp\",\n",
+						"                \"repo\",\n",
+						"                \"open_issues_count\",\n",
+						"                \"open_prs_count\",\n",
+						"                \"bug_issues_count\",\n",
+						"                \"feature_request_issues_count\",\n",
+						"                \"invalid_issues_count\"\n",
+						"            ])\n"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"def get_repo_issue_stats(owner, repo, token):\n",
+						"    # Common GitHub GraphQL endpoint\n",
+						"    url = \"https://api.github.com/graphql\"\n",
+						"    headers = {\n",
+						"        \"Authorization\": f\"Bearer {token}\",\n",
+						"        \"Accept\": \"application/vnd.github.v4+json\"\n",
+						"    }\n",
+						"\n",
+						"    # First query: Get various issue/PR counts from the repository object\n",
+						"    query_repo = \"\"\"\n",
+						"    query ($owner: String!, $name: String!) {\n",
+						"      repository(owner: $owner, name: $name) {\n",
+						"        issues(states: OPEN) {\n",
+						"          totalCount\n",
+						"        }\n",
+						"        pullRequests(states: OPEN) {\n",
+						"          totalCount\n",
+						"        }\n",
+						"        bugIssues: issues(states: OPEN, labels: [\"bug\"]) {\n",
+						"          totalCount\n",
+						"        }\n",
+						"        featureRequestIssues: issues(states: OPEN, labels: [\"feature-request\"]) {\n",
+						"          totalCount\n",
+						"        }\n",
+						"      }\n",
+						"    }\n",
+						"    \"\"\"\n"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"for REPO in REPOS:\n",
+						"    stats = get_repo_issue_stats(OWNER, REPO, TOKEN)\n",
+						"    print(stats)\n",
+						"\n",
+						"    append_metrics_to_csv(\n",
+						"        filename=\"repo_metrics.csv\",\n",
+						"        repo=f\"{OWNER}/{REPO}\",\n",
+						"        open_issues_count=stats['open_issues_count'],\n",
+						"        open_prs_count=stats['open_prs_count'],\n",
+						"        bug_issues_count=stats['bug_issues_count'],\n",
+						"        feature_request_issues_count=stats['feature_request_issues_count'],\n",
+						"        invalid_issues_count=stats['invalid_issues_count']\n",
+						"    )"
+					]
+				},
+				{
+					"cell_type": "markdown",
+					"metadata": {},
+					"source": [
+						"# Plot"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"import pandas as pd\n",
+						"import plotly.graph_objs as go\n",
+						"from plotly.subplots import make_subplots\n",
+						"\n",
+						"def plot_repo_metrics(repo, csv_filename=\"repo_metrics.csv\"):\n",
+						"    # Load the CSV data\n",
+						"    df = pd.read_csv(csv_filename)\n",
+						"\n",
+						"    fig.add_trace(go.Scatter(\n",
+						"        x=df_repo['timestamp'],\n",
+						"        y=df_repo['open_issues_count'],\n",
+						"        mode='lines+markers',\n",
+						"        name='Open Issues',\n",
+						"        hovertemplate='Open Issues: %{y}<br>Time: %{x}<extra></extra>'\n",
+						"    ))\n"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"for REPO in REPOS:\n",
+						"    plot_repo_metrics(f\"{OWNER}/{REPO}\")"
+					]
+				}
+			]
+				.map(convertCell)
+			,
+			[
+				{
+					"cell_type": "markdown",
+					"metadata": {},
+					"source": [
+						"# Fetch Data"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"import requests\n",
+						"import sys\n",
+						"import pandas as pd\n",
+						"import matplotlib.pyplot as plt\n",
+						"from cachetools import cached, TTLCache\n",
+						"from dotenv import load_dotenv"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"import os\n",
+						"\n",
+						"GITHUB_API_URL = \"https://api.github.com\"\n",
+						"REPO_OWNER = \"microsoft\"\n",
+						"ISSUE = 123\n",
+						"load_dotenv()\n",
+						"TOKEN = os.getenv(\"GH\")\n",
+						"\n",
+						"headers = {\n",
+						"    \"Authorization\": f\"Bearer {TOKEN}\",\n",
+						"    \"Accept\": \"application/vnd.github+json\"\n",
+						"}"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"import csv\n",
+						"from datetime import datetime\n",
+						"import os\n",
+						"\n",
+						"def append_information(repo, open_issues_count, ):\n",
+						"    file_exists = os.path.isfile(filename)\n",
+						"    timestamp = datetime.utcnow().isoformat()\n",
+						"\n",
+						"    # Open the file in append mode\n",
+						"    with open(filename, 'a', newline='', encoding='utf-8') as csvfile:\n",
+						"        writer = csv.writer(csvfile)\n",
+						"\n",
+						"        # If the file didn't exist before, write the header row\n",
+						"        if not file_exists:\n",
+						"            writer.writerow([\n",
+						"                \"timestamp\",\n",
+						"                \"repo\",\n",
+						"                \"open_issues_count\",\n",
+						"                \"open_prs_count\",\n",
+						"                \"bug_issues_count\",\n",
+						"                \"feature_request_issues_count\",\n",
+						"                \"invalid_issues_count\"\n",
+						"            ])\n"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"def get_repo_issue_stats(owner, repo, token):\n",
+						"    # Common GitHub GraphQL endpoint\n",
+						"    url = \"https://api.github.com/graphql\"\n",
+						"    headers = {\n",
+						"        \"Authorization\": f\"Bearer {token}\",\n",
+						"        \"Accept\": \"application/vnd.github.v4+json\"\n",
+						"    }\n",
+						"\n",
+						"    # First query: Get various issue/PR counts from the repository object\n",
+						"    query_repo = \"\"\"\n",
+						"    query ($owner: String!, $name: String!) {\n",
+						"      repository(owner: $owner, name: $name) {\n",
+						"        issues(states: OPEN) {\n",
+						"          totalCount\n",
+						"        }\n",
+						"        pullRequests(states: OPEN) {\n",
+						"          totalCount\n",
+						"        }\n",
+						"        bugIssues: issues(states: OPEN, labels: [\"bug\"]) {\n",
+						"          totalCount\n",
+						"        }\n",
+						"        featureRequestIssues: issues(states: OPEN, labels: [\"feature-request\"]) {\n",
+						"          totalCount\n",
+						"        }\n",
+						"      }\n",
+						"    }\n",
+						"    \"\"\"\n"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"for REPO in REPOS:\n",
+						"    stats = get_repo_issue_stats(OWNER, REPO, TOKEN)\n",
+						"    print(stats)\n",
+						"\n",
+						"    append_metrics_to_csv(\n",
+						"        filename=\"repo_metrics.csv\",\n",
+						"        repo=f\"{OWNER}/{REPO}\",\n",
+						"        open_issues_count=stats['open_issues_count'],\n",
+						"        open_prs_count=stats['open_prs_count'],\n",
+						"        bug_issues_count=stats['bug_issues_count'],\n",
+						"        feature_request_issues_count=stats['feature_request_issues_count'],\n",
+						"        invalid_issues_count=stats['invalid_issues_count']\n",
+						"    )"
+					]
+				},
+				{
+					"cell_type": "markdown",
+					"metadata": {},
+					"source": [
+						"# Plot"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"import pandas as pd\n",
+						"import plotly.graph_objs as go\n",
+						"from plotly.subplots import make_subplots\n",
+						"\n",
+						"def plot_repo_metrics(repo, csv_filename=\"repo_metrics.csv\"):\n",
+						"    # Load the CSV data\n",
+						"    df = pd.read_csv(csv_filename)\n",
+						"\n",
+						"    fig.add_trace(go.Scatter(\n",
+						"        x=df_repo['timestamp'],\n",
+						"        y=df_repo['open_issues_count'],\n",
+						"        mode='lines+markers',\n",
+						"        name='Open Issues',\n",
+						"        hovertemplate='Open Issues: %{y}<br>Time: %{x}<extra></extra>'\n",
+						"    ))\n"
+					]
+				},
+				{
+					"cell_type": "markdown",
+					"metadata": {},
+					"source": [
+						"## Header"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"for REPO in REPOS:\n",
+						"    plot_repo_metrics(f\"{OWNER}/{REPO}\")"
+					]
+				},
+				{
+					"cell_type": "code",
+					"execution_count": null,
+					"metadata": {},
+					"outputs": [],
+					"source": [
+						"plot_repo_metrics(f\"{OWNER}/vscode\")"
+					]
+				}
+			].map(convertCell)
+			, disposables);
+
+		assert.deepStrictEqual(mapping, [
+			{ modified: 0, original: -1 },
+			{ modified: 1, original: 0 },
+			{ modified: 2, original: 1 },
+			{ modified: 3, original: 2 },
+			{ modified: 4, original: 3 },
+			{ modified: 5, original: 4 },
+			{ modified: 6, original: 5 },
+			{ modified: 7, original: 6 },
+			{ modified: 8, original: -1 },
+			{ modified: 9, original: 7 },
+			{ modified: 10, original: -1 }
 		]);
 	});
 });
