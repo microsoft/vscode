@@ -680,8 +680,8 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	const view = l10n.t('View Problems');
 
 	const message = changesDiagnostics.length === 1
-		? l10n.t('The following file has unresolved diagnostic information: \'{0}\'.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
-		: l10n.t('There are {0} files that have unresolved diagnostic information.\n\nHow would you like to proceed?', changesDiagnostics.length);
+		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
+		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', changesDiagnostics.length);
 
 	const choice = await window.showWarningMessage(message, { modal: true }, commit, view);
 
