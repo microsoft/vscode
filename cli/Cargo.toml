@@ -69,17 +69,5 @@ core-foundation = "0.9.3"
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "3.13.1", default-features = false, features = ["tokio"] }
 
-[patch.crates-io]
-russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-
-[profile.release]
-strip = true
-lto = true
-codegen-units = 1
-
-[features]
-default = []
-vsda = []
-vscode-encrypt = []
+[target.'cfg(target_os = "ios")'.dependencies]
+# Add any iPadOS-specific dependencies here

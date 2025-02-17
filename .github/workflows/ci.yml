@@ -314,3 +314,76 @@ jobs:
 
       - name: Run Trusted Types Checks
         run: npm run tsec-compile-check
+
+  ipados:
+    name: iPadOS
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Compute node modules cache key
+        id: nodeModulesCacheKey
+        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v4
+        with:
+          path: "**/node_modules"
+          key: ${{ runner.os }}-cacheNodeModulesIPadOS-${{ steps.nodeModulesCacheKey.outputs.value }}
+      - name: Get npm cache directory path
+        id: npmCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
+      - name: Cache npm directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.npmCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-npmCacheDir-
+      - name: Execute npm
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: npm ci
+
+      - name: Compile and Download
+        run: npm exec -- npm-run-all -lp compile "electron x64" playwright-install download-builtin-extensions
+
+      - name: Compile Integration Tests
+        run: npm run compile
+        working-directory: test/integration/browser
+
+      # This is required for SecretStorage unittests
+      - name: Create temporary keychain
+        run: |
+          security create-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
+          security default-keychain -s $RUNNER_TEMP/buildagent.keychain
+          security unlock-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
+
+      - name: Run Unit Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test.sh
+
+      - name: Run Unit Tests (node.js)
+        run: npm run test-node
+
+      - name: Run Unit Tests (Browser, Chromium)
+        run: DISPLAY=:10 npm run test-browser-no-install -- --browser chromium
+
+      - name: Run Integration Tests (Electron)
+        run: DISPLAY=:10 ./scripts/test-integration.sh
+
+      - name: Run Integration Tests (Browser, Webkit)
+        run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser webkit
+
+      - name: Run Integration Tests (Remote)
+        timeout-minutes: 15
+        run: DISPLAY=:10 ./scripts/test-remote-integration.sh

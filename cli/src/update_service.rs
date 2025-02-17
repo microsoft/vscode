@@ -220,6 +220,7 @@ pub enum Platform {
 	WindowsX64,
 	WindowsX86,
 	WindowsARM64,
+	IPadOS,
 }
 
 impl Platform {
@@ -233,6 +234,7 @@ impl Platform {
 			Platform::WindowsX64 => Some("win32-x64-archive".to_owned()),
 			Platform::WindowsX86 => Some("win32-archive".to_owned()),
 			Platform::WindowsARM64 => Some("win32-arm64-archive".to_owned()),
+			Platform::IPadOS => Some("ipados".to_owned()),
 			_ => None,
 		}
 	}
@@ -251,6 +253,7 @@ impl Platform {
 			Platform::WindowsX64 => "server-win32-x64",
 			Platform::WindowsX86 => "server-win32",
 			Platform::WindowsARM64 => "server-win32-arm64",
+			Platform::IPadOS => "server-ipados",
 		}
 		.to_owned()
 	}
@@ -270,6 +273,7 @@ impl Platform {
 			Platform::WindowsARM64 => "cli-win32-arm64",
 			Platform::WindowsX64 => "cli-win32-x64",
 			Platform::WindowsX86 => "cli-win32",
+			Platform::IPadOS => "cli-ipados",
 		}
 		.to_owned()
 	}
@@ -307,6 +311,8 @@ impl Platform {
 			Some(Platform::WindowsX86)
 		} else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
 			Some(Platform::WindowsARM64)
+		} else if cfg!(all(target_os = "ios", target_arch = "aarch64")) {
+			Some(Platform::IPadOS)
 		} else {
 			None
 		}
@@ -329,6 +335,7 @@ impl fmt::Display for Platform {
 			Platform::WindowsX64 => "WindowsX64",
 			Platform::WindowsX86 => "WindowsX86",
 			Platform::WindowsARM64 => "WindowsARM64",
+			Platform::IPadOS => "IPadOS",
 		})
 	}
 }

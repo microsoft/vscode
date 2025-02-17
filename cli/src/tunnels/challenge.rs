@@ -40,3 +40,24 @@ pub fn sign_challenge(challenge: &str) -> String {
 pub fn verify_challenge(challenge: &str, response: &str) -> bool {
 	vsda::validate(challenge, response)
 }
+
+#[cfg(target_os = "ios")]
+pub fn create_challenge() -> String {
+	use rand::distributions::{Alphanumeric, DistString};
+	Alphanumeric.sample_string(&mut rand::thread_rng(), 16)
+}
+
+#[cfg(target_os = "ios")]
+pub fn sign_challenge(challenge: &str) -> String {
+	use base64::{engine::general_purpose as b64, Engine as _};
+	use sha2::{Digest, Sha256};
+	let mut hash = Sha256::new();
+	hash.update(challenge.as_bytes());
+	let result = hash.finalize();
+	b64::URL_SAFE_NO_PAD.encode(result)
+}
+
+#[cfg(target_os = "ios")]
+pub fn verify_challenge(challenge: &str, response: &str) -> bool {
+	sign_challenge(challenge) == response
+}

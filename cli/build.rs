@@ -146,6 +146,11 @@ fn apply_build_environment_variables() {
 			}
 		}
 	};
+
+	// Handle iPadOS target
+	if cfg!(target_os = "ios") {
+		println!("cargo:rustc-cfg=target_os=\"ios\"");
+	}
 }
 
 fn ensure_file_headers(files: &[PathBuf]) -> Result<(), io::Error> {

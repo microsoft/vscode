@@ -57,6 +57,9 @@ pub type ServiceManagerImpl = super::service_linux::SystemdService;
 #[cfg(target_os = "macos")]
 pub type ServiceManagerImpl = super::service_macos::LaunchdService;
 
+#[cfg(target_os = "ios")]
+pub type ServiceManagerImpl = super::service_ios::IOSService;
+
 #[allow(unreachable_code)]
 #[allow(unused_variables)]
 pub fn create_service_manager(log: log::Logger, paths: &LauncherPaths) -> ServiceManagerImpl {
@@ -71,6 +74,10 @@ pub fn create_service_manager(log: log::Logger, paths: &LauncherPaths) -> Servic
 	#[cfg(target_os = "linux")]
 	{
 		super::service_linux::SystemdService::new(log, paths.clone())
+	}
+	#[cfg(target_os = "ios")]
+	{
+		super::service_ios::IOSService::new(log, paths)
 	}
 }
 

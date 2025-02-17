@@ -11,3 +11,6 @@ pub type SleepInhibitor = super::nosleep_linux::SleepInhibitor;
 
 #[cfg(target_os = "macos")]
 pub type SleepInhibitor = super::nosleep_macos::SleepInhibitor;
+
+#[cfg(target_os = "ios")]
+pub type SleepInhibitor = super::nosleep_ios::SleepInhibitor;

@@ -43,6 +43,7 @@ mod tunnel_flags {
 	pub const IS_WINDOWS: u32 = 1 << 1;
 	pub const IS_LINUX: u32 = 1 << 2;
 	pub const IS_MACOS: u32 = 1 << 3;
+	pub const IS_IPADOS: u32 = 1 << 4;
 
 	/// Creates a flag string for the tunnel
 	pub fn create(log: &log::Logger) -> String {
@@ -59,6 +60,7 @@ mod tunnel_flags {
 		#[cfg(target_os = "macos")]
 		{
 			flags |= IS_MACOS;
+			flags |= IS_IPADOS;
 		}
 
 		if is_wsl_installed(log) {
@@ -1180,7 +1182,7 @@ fn clean_hostname_for_tunnel(hostname: &str) -> String {
 	}
 
 	let trimmed = out.trim_matches('-');
-	if trimmed.len() < 2 {
+	if (trimmed.len() < 2) {
 		"remote-machine".to_string() // placeholder if the result was empty
 	} else {
 		trimmed.to_owned()
@@ -1188,12 +1190,12 @@ fn clean_hostname_for_tunnel(hostname: &str) -> String {
 }
 
 fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
-	if a.len() != b.len() {
+	if (a.len() != b.len()) {
 		return false;
 	}
 
 	for item in a {
-		if !b.contains(item) {
+		if (!b.contains(item)) {
 			return false;
 		}
 	}

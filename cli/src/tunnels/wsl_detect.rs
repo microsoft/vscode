@@ -5,7 +5,7 @@
 
 use crate::log;
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "ios")))]
 pub fn is_wsl_installed(_log: &log::Logger) -> bool {
 	false
 }
@@ -49,5 +49,10 @@ pub fn is_wsl_installed(log: &log::Logger) -> bool {
 
 	trace!(log, "wsl not detected");
 
+	false
+}
+
+#[cfg(target_os = "ios")]
+pub fn is_wsl_installed(_log: &log::Logger) -> bool {
 	false
 }
