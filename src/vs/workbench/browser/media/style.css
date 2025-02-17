@@ -45,10 +45,6 @@ body {
 	-webkit-user-select: none;
 }
 
-body.web {
-	position: fixed; /* prevent bounce effect */
-}
-
 .monaco-workbench {
 	font-size: 13px;
 	line-height: 1.4em;
@@ -60,6 +56,7 @@ body.web {
 
 .monaco-workbench.web {
 	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
+	overscroll-bahavior: none; /* Prevent bounce effect */
 }
 
 .monaco-workbench.border:not(.fullscreen) {
