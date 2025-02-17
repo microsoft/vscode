@@ -227,6 +227,13 @@ const enum VSCodeOscPt {
 	SetMark = 'SetMark',
 
 	/**
+	 * Clears any remaining environment variables in the cached environment
+	 *
+	 * Format: `OSC 633 ; EnvClear ; <Nonce>`
+	 */
+	EnvClear = 'EnvClear',
+
+	/**
 	 * Sends the shell's complete environment in JSON format.
 	 *
 	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce>`
@@ -468,6 +475,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.ContinuationEnd: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
+				return true;
+			}
+			case VSCodeOscPt.EnvClear: {
+				this._createOrGetShellEnvDetection().clearEnvironmentVars(args[0] === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.EnvJson: {

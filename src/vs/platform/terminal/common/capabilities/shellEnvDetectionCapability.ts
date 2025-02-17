@@ -64,6 +64,12 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		return;
 	}
 
+	clearEnvironmentVars(isTrusted: boolean): void {
+		this._pendingEnv?.clear();
+		this._env.clear();
+		return;
+	}
+
 	// Make sure to update this.env to the latest, fire event if there is a diff
 	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void {
 

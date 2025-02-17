@@ -153,24 +153,30 @@ function __vsc_update_env --on-event fish_prompt
 	# Note: There is no associative array in fish, so we use two arrays
 	__vsc_esc EnvSingleStart
 	# Two arrays are empty, do not diff, just add
-	if test (count $vsc_env_keys) -eq 0; and test (count $vsc_env_values) -eq 0
+	# if test (count $vsc_env_keys) -eq 0; and test (count $vsc_env_values) -eq 0
+	# 	for line in (env)
+	# 		set myVar (echo $line | awk -F= '{print $1}')
+	# 		set myVal (echo $line | awk -F= '{print $2}')
+	# 		__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
+
+	# 		# Append to the arrays
+	# 		set -a vsc_env_keys $myVar
+	# 		set -a vsc_env_values $myVal
+	# 	end
+	# else
+	# 	for line in (env)
+	# 		set key (echo $line | awk -F= '{print $1}')
+	# 		set value (echo $line | awk -F= '{print $2}')
+	# 		__updateEnvCache $key $value
+	# 	end
+	# 	__trackMissingEnvVars
+	# end
+		__vsc_esc EnvClear
 		for line in (env)
 			set myVar (echo $line | awk -F= '{print $1}')
 			set myVal (echo $line | awk -F= '{print $2}')
 			__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
-
-			# Append to the arrays
-			set -a vsc_env_keys $myVar
-			set -a vsc_env_values $myVal
 		end
-	else
-		for line in (env)
-			set key (echo $line | awk -F= '{print $1}')
-			set value (echo $line | awk -F= '{print $2}')
-			__updateEnvCache $key $value
-		end
-		__trackMissingEnvVars
-	end
 
 	__vsc_esc EnvSingleEnd
 end
