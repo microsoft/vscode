@@ -1042,6 +1042,10 @@ export class ListView<T> implements IListView<T> {
 
 	private removeItemFromDOM(index: number): void {
 		const item = this.items[index];
+		if (!item) {
+			throw new Error('Removing non-existent item from DOM');
+		}
+
 		item.dragStartDisposable.dispose();
 		item.checkedDisposable.dispose();
 
