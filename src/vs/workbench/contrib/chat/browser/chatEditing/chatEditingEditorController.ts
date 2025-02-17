@@ -6,7 +6,7 @@
 import '../media/chatEditorController.css';
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
@@ -41,7 +41,6 @@ import { TextEditorSelectionRevealType } from '../../../../../platform/editor/co
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
 
 export class ChatEditorController extends Disposable implements IEditorContribution {
 
@@ -110,19 +109,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			return undefined;
 		});
 
-		const lastRequest = derived(r => {
-			const entry = entryForEditor.read(r);
-			if (!entry) {
-				return undefined;
-			}
-			return observableFromEventOpts(
-				{ equalsFn: (a, b) => a?.id === b?.id },
-				entry.chatModel.onDidChange, () => entry.chatModel.getRequests().at(-1)
-			).read(r);
-		});
-
-		let lastRevealedResponse: IChatResponseModel | undefined;
-
 		this._register(autorun(r => {
 
 			const currentEditorEntry = entryForEditor.read(r);
@@ -164,11 +150,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					this._clearDiffRendering();
 				}
 
-				const response = lastRequest.read(r)?.response;
-				if (response?.isComplete && response !== lastRevealedResponse && !diff.identical) {
-					lastRevealedResponse = response;
-					this._reveal(true, false, ScrollType.Immediate);
-				}
+
 			}
 		}));
 
@@ -511,10 +493,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	revealNext(strict = false): boolean {
 		return this._reveal(true, strict);
-	}
-
-	revealPrevious(strict = false): boolean {
-		return this._reveal(false, strict);
 	}
 
 	private _reveal(next: boolean, strict: boolean, scrollType = ScrollType.Smooth): boolean {

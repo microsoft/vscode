@@ -687,27 +687,32 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			return result;
 		});
 
+		let lastModifyingRequestId: string | undefined;
+
 		store.add(autorun(r => {
 
+			const data = lineDecorationDataObs.read(r);
+
 			// update decorations
-			diffLineDecorations.set(lineDecorationDataObs.read(r));
+			diffLineDecorations.set(data);
 
 			// INIT current index
-			if (!this.isCurrentlyBeingModifiedBy.read(r) && currentIndex.read(r) === -1) {
+			if (!this.isCurrentlyBeingModifiedBy.read(r) && lastModifyingRequestId !== this.lastModifyingRequestId && data.length) {
+				lastModifyingRequestId = this.lastModifyingRequestId;
 				const position = codeEditor.getPosition() ?? new Position(1, 1);
 				const ranges = diffLineDecorations.getRanges();
 				let initialIndex = ranges.findIndex(r => r.containsPosition(position));
 				if (initialIndex < 0) {
 					initialIndex = 0;
-					for (const range of ranges) {
-						if (range.endLineNumber < position.lineNumber) {
-							initialIndex += 1;
-						} else {
+					for (; initialIndex < ranges.length - 1; initialIndex++) {
+						const range = ranges[initialIndex];
+						if (range.endLineNumber >= position.lineNumber) {
 							break;
 						}
 					}
 				}
 				currentIndex.set(initialIndex, undefined);
+				codeEditor.revealRange(ranges[initialIndex]);
 			}
 		}));
 
