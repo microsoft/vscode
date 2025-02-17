@@ -5,7 +5,7 @@
 
 import { raceCancellation, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
@@ -14,10 +14,8 @@ import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
-import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
@@ -41,9 +39,10 @@ import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRe
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IResolvedTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
-import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryNavigator, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 class AutoAcceptControl {
@@ -644,130 +643,21 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		});
 	}
 
-	private readonly _navigators = new Map<IEditorPane, IModifiedFileEntryNavigator>();
+	private readonly _editorIntegrations = this._register(new DisposableMap<IEditorPane, IModifiedFileEntryEditorIntegration>());
 
-	getChangeNavigator(pane: IEditorPane): IModifiedFileEntryNavigator {
-		let value = this._navigators.get(pane);
+	getEditorIntegration(pane: IEditorPane): IModifiedFileEntryEditorIntegration {
+		let value = this._editorIntegrations.get(pane);
 		if (!value) {
-			value = this._createChangeNavigator(pane);
-			this._navigators.set(pane, value);
+			value = this._createEditorIntegration(pane);
+			this._editorIntegrations.set(pane, value);
 		}
 		return value;
 	}
 
-	private _createChangeNavigator(editor: IEditorPane): IModifiedFileEntryNavigator {
+	private _createEditorIntegration(editor: IEditorPane): ChatEditingCodeEditorIntegration {
 		const codeEditor = getCodeEditor(editor.getControl());
-
 		assertType(codeEditor);
-
-		const store = this._store.add(new DisposableStore());
-
-		// invisible decorations for changes
-		const diffLineDecorationData = ModelDecorationOptions.register({ description: 'diff-line-decoration' });
-		const diffLineDecorations = codeEditor.createDecorationsCollection();
-		store.add(toDisposable(() => diffLineDecorations.clear()));
-
-		const codeEditorObs = observableCodeEditor(codeEditor);
-		const currentIndex = observableValue(this, -1);
-
-		const lineDecorationDataObs = derived(r => {
-			const result: IModelDeltaDecoration[] = [];
-			const model = codeEditorObs.model.read(r);
-
-			if (isEqual(model?.uri, this.modifiedURI)) {
-				const diff = this.diffInfo.read(r);
-
-				for (const diffEntry of diff.changes) {
-					result.push({
-						range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
-						options: diffLineDecorationData
-					});
-				}
-			}
-			return result;
-		});
-
-		let lastModifyingRequestId: string | undefined;
-
-		store.add(autorun(r => {
-
-			const data = lineDecorationDataObs.read(r);
-
-			// update decorations
-			diffLineDecorations.set(data);
-
-			// INIT current index
-			if (!this.isCurrentlyBeingModifiedBy.read(r) && lastModifyingRequestId !== this.lastModifyingRequestId && data.length) {
-				lastModifyingRequestId = this.lastModifyingRequestId;
-				const position = codeEditor.getPosition() ?? new Position(1, 1);
-				const ranges = diffLineDecorations.getRanges();
-				let initialIndex = ranges.findIndex(r => r.containsPosition(position));
-				if (initialIndex < 0) {
-					initialIndex = 0;
-					for (; initialIndex < ranges.length - 1; initialIndex++) {
-						const range = ranges[initialIndex];
-						if (range.endLineNumber >= position.lineNumber) {
-							break;
-						}
-					}
-				}
-				currentIndex.set(initialIndex, undefined);
-				codeEditor.revealRange(ranges[initialIndex]);
-			}
-		}));
-
-		const reveal = (next: boolean, strict: boolean) => {
-
-			const position = codeEditor.getPosition();
-			if (!position) {
-				currentIndex.set(-1, undefined);
-				return false;
-			}
-
-			const decorations = diffLineDecorations
-				.getRanges()
-				.sort((a, b) => Range.compareRangesUsingStarts(a, b));
-
-			if (decorations.length === 0) {
-				currentIndex.set(-1, undefined);
-				return false;
-			}
-
-			let newIndex: number = -1;
-			for (let i = 0; i < decorations.length; i++) {
-				const range = decorations[i];
-				if (range.containsPosition(position)) {
-					newIndex = i + (next ? 1 : -1);
-					break;
-				} else if (Position.isBefore(position, range.getStartPosition())) {
-					newIndex = next ? i : i - 1;
-					break;
-				}
-			}
-
-			if (strict && (newIndex < 0 || newIndex >= decorations.length)) {
-				// NO change
-				return false;
-			}
-
-			newIndex = (newIndex + decorations.length) % decorations.length;
-
-			currentIndex.set(newIndex, undefined);
-
-			const targetRange = decorations[newIndex];
-			const targetPosition = next ? targetRange.getStartPosition() : targetRange.getEndPosition();
-			codeEditor.setPosition(targetPosition);
-			codeEditor.revealPositionInCenter(targetPosition);
-			codeEditor.focus();
-
-			return true;
-		};
-
-		return {
-			currentIndex,
-			next: (wrap: boolean) => reveal(true, !wrap),
-			previous: (wrap: boolean) => reveal(false, !wrap),
-		};
+		return new ChatEditingCodeEditorIntegration(codeEditor, this);
 	}
 }
 

@@ -148,7 +148,7 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
-export interface IModifiedFileEntryNavigator {
+export interface IModifiedFileEntryEditorIntegration extends IDisposable {
 	currentIndex: IObservable<number>;
 	next(wrap: boolean): boolean;
 	previous(wrap: boolean): boolean;
@@ -184,7 +184,7 @@ export interface IModifiedFileEntry {
 	 */
 	readonly changesCount: IObservable<number>;
 
-	getChangeNavigator(editor: IEditorPane): IModifiedFileEntryNavigator;
+	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 }
 
 export interface IChatEditingSessionStream {

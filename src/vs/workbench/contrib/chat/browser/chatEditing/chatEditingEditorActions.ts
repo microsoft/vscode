@@ -81,11 +81,11 @@ abstract class NavigateAction extends Action2 {
 
 		const entry = session.getEntry(uri)!;
 
-		const navigation = entry.getChangeNavigator(editorService.activeEditorPane);
+		const ctrl = entry.getEditorIntegration(editorService.activeEditorPane);
 
 		const done = this.next
-			? navigation.next(false)
-			: navigation.previous(false);
+			? ctrl.next(false)
+			: ctrl.previous(false);
 
 		if (done) {
 			return;
@@ -95,8 +95,8 @@ abstract class NavigateAction extends Action2 {
 		if (!didOpenNext) {
 			// wrap inside the same file
 			this.next
-				? navigation.next(true)
-				: navigation.previous(true);
+				? ctrl.next(true)
+				: ctrl.previous(true);
 		}
 	}
 }
