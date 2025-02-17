@@ -56,7 +56,7 @@ body {
 
 .monaco-workbench.web {
 	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
-	overscroll-bahavior: none; /* Prevent bounce effect */
+	overscroll-behavior: none; /* Prevent bounce effect */
 }
 
 .monaco-workbench.border:not(.fullscreen) {
