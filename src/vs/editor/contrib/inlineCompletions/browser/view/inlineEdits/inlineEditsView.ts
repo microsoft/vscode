@@ -46,15 +46,6 @@ export class InlineEditsView extends Disposable {
 		editorWidth: number;
 	} | undefined;
 
-	private readonly _tabAction = derived<InlineEditTabAction>(this, reader => {
-		const m = this._model.read(reader);
-		if (this._editorObs.isFocused.read(reader)) {
-			if (m && m.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
-			if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
-		}
-		return InlineEditTabAction.Inactive;
-	});
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
@@ -131,7 +122,14 @@ export class InlineEditsView extends Disposable {
 	));
 
 	private readonly _host: IInlineEditsViewHost = {
-		tabAction: this._tabAction,
+		tabAction: derived<InlineEditTabAction>(this, reader => {
+			const m = this._model.read(reader);
+			if (this._editorObs.isFocused.read(reader)) {
+				if (m && m.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
+				if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
+			}
+			return InlineEditTabAction.Inactive;
+		}),
 		accept: () => {
 			this._model.get()?.accept();
 		}
@@ -156,7 +154,7 @@ export class InlineEditsView extends Disposable {
 			originalRange: s.state.originalRange,
 			deletions: s.state.deletions,
 		}) : undefined),
-		this._tabAction,
+		this._host,
 	));
 
 	protected readonly _insertion = this._register(this._instantiationService.createInstance(InlineEditsInsertionView,
@@ -166,7 +164,7 @@ export class InlineEditsView extends Disposable {
 			startColumn: s.state.column,
 			text: s.state.text,
 		}) : undefined),
-		this._tabAction,
+		this._host,
 	));
 
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
@@ -197,7 +195,7 @@ export class InlineEditsView extends Disposable {
 			modifiedLines: s.state.modifiedLines,
 			replacements: s.state.replacements,
 		}) : undefined),
-		this._tabAction
+		this._host
 	));
 
 	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useGutterIndicator);
@@ -235,7 +233,7 @@ export class InlineEditsView extends Disposable {
 				indicatorDisplayRange,
 				this._gutterIndicatorOffset,
 				this._model,
-				this._tabAction,
+				this._host,
 				this._inlineEditsIsHovered,
 				this._focusIsInMenu,
 			));

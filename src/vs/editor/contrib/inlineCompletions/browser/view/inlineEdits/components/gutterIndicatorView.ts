@@ -22,6 +22,7 @@ import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
+import { IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
 import { InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
@@ -32,7 +33,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _originalRange: IObservable<LineRange | undefined>,
 		private readonly _verticalOffset: IObservable<number>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
-		private readonly _tabAction: IObservable<InlineEditTabAction>,
+		private readonly _host: IInlineEditsViewHost,
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
@@ -130,7 +131,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const content = disposableStore.add(this._instantiationService.createInstance(
 			GutterIndicatorMenuContent,
 			displayName,
-			this._tabAction,
+			this._host,
 			(focusEditor) => {
 				if (focusEditor) {
 					this._editorObs.editor.focus();
@@ -200,14 +201,14 @@ export class InlineEditsGutterIndicator extends Disposable {
 				cursor: 'pointer',
 				zIndex: '1000',
 				position: 'absolute',
-				backgroundColor: this._tabAction.map(v => {
+				backgroundColor: this._host.tabAction.map(v => {
 					switch (v) {
 						case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryBackground);
 						case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryBackground);
 						case InlineEditTabAction.Accept: return asCssVariable(inlineEditIndicatorsuccessfulBackground);
 					}
 				}),
-				['--vscodeIconForeground' as any]: this._tabAction.map(v => {
+				['--vscodeIconForeground' as any]: this._host.tabAction.map(v => {
 					switch (v) {
 						case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryForeground);
 						case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryForeground);
@@ -236,7 +237,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					justifyContent: 'center',
 				}
 			}, [
-				this._tabAction.map(v => v === InlineEditTabAction.Accept ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
+				this._host.tabAction.map(v => v === InlineEditTabAction.Accept ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
 			])
 		]),
 	])).keepUpdated(this._store);

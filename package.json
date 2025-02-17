@@ -191,7 +191,7 @@
     "mime": "^1.4.1",
     "minimatch": "^3.0.4",
     "minimist": "^1.2.6",
-    "mocha": "^10.2.0",
+    "mocha": "^10.8.2",
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",
     "npm-run-all": "^4.1.5",
