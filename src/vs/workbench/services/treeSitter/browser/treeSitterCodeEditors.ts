@@ -10,6 +10,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { ITextModel } from '../../../../editor/common/model.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { ITreeSitterParserService } from '../../../../editor/common/services/treeSitterParserService.js';
 
 export interface IViewPortChangeEvent {
 	model: ITextModel;
@@ -22,18 +23,34 @@ export class TreeSitterCodeEditors extends Disposable {
 	public readonly onDidChangeViewport = this._onDidChangeViewport.event;
 
 	constructor(private readonly _languageId: string,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService) {
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@ITreeSitterParserService private readonly _treeSitterParserService: ITreeSitterParserService) {
 		super();
 		this._register(this._codeEditorService.onCodeEditorAdd(this._onCodeEditorAdd, this));
-		this._codeEditorService.listCodeEditors().forEach(this._onCodeEditorAdd, this);
 		this._register(this._codeEditorService.onCodeEditorRemove(this._onCodeEditorRemove, this));
+	}
+
+	public async getInitialViewPorts(): Promise<IViewPortChangeEvent[]> {
+		await this._treeSitterParserService.getLanguage(this._languageId);
+		const editors = this._codeEditorService.listCodeEditors();
+		const viewports: IViewPortChangeEvent[] = [];
+		for (const editor of editors) {
+			const model = await this.getEditorModel(editor);
+			if (model) {
+				viewports.push({
+					model,
+					ranges: this._nonIntersectingViewPortRanges(editor)
+				});
+			}
+		}
+		return viewports;
 	}
 
 	private _onCodeEditorRemove(editor: ICodeEditor): void {
 		this._editors.deleteAndDispose(editor);
 	}
 
-	private async _onCodeEditorAdd(editor: ICodeEditor): Promise<void> {
+	private async getEditorModel(editor: ICodeEditor): Promise<ITextModel | undefined> {
 		let model = editor.getModel() ?? undefined;
 		if (!model) {
 			const disposableStore: DisposableStore = this._register(new DisposableStore());
@@ -55,9 +72,15 @@ export class TreeSitterCodeEditors extends Disposable {
 		if (language !== this._languageId) {
 			return;
 		}
+		return model;
+	}
 
-		this._editors.set(editor, editor.onDidScrollChange(() => this._onViewportChange(editor), this));
-		this._onViewportChange(editor);
+	private async _onCodeEditorAdd(editor: ICodeEditor): Promise<void> {
+		const model = await this.getEditorModel(editor);
+		if (model) {
+			this._editors.set(editor, editor.onDidScrollChange(() => this._onViewportChange(editor), this));
+			this._onViewportChange(editor);
+		}
 	}
 
 	private async _onViewportChange(editor: ICodeEditor): Promise<void> {
