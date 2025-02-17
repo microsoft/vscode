@@ -168,6 +168,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					} else {
 						terminal.sendText('clear');
 					}
+					await timeout(200); // add a small delay to ensure the command is processed, see #240953
 				}
 			}
 
