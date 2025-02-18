@@ -39,7 +39,7 @@ import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overv
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { isDiffEditorForEntry } from './chatEditing.js';
-import { ChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
+import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 
 export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEditorIntegration {
 
@@ -60,7 +60,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _entry: ChatEditingModifiedFileEntry,
+		private readonly _entry: ChatEditingModifiedDocumentEntry,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -264,7 +264,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._diffVisualDecorations.clear();
 	}
 
-	private _updateDiffRendering(entry: ChatEditingModifiedFileEntry, diff: IDocumentDiff, reviewMode: boolean): void {
+	private _updateDiffRendering(entry: ChatEditingModifiedDocumentEntry, diff: IDocumentDiff, reviewMode: boolean): void {
 
 		const originalModel = entry.originalModel;
 
@@ -669,7 +669,7 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 
 
 	constructor(
-		readonly entry: ChatEditingModifiedFileEntry,
+		readonly entry: ChatEditingModifiedDocumentEntry,
 		private readonly _change: DetailedLineRangeMapping,
 		private readonly _versionId: number,
 		private readonly _editor: ICodeEditor,

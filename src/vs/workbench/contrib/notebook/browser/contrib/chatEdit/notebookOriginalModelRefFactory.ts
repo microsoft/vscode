@@ -9,7 +9,7 @@ import { INotebookService } from '../../../common/notebookService.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ChatEditingModifiedFileEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedFileEntry.js';
+import { ChatEditingModifiedDocumentEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 
 
 export const INotebookOriginalModelReferenceFactory = createDecorator<INotebookOriginalModelReferenceFactory>('INotebookOriginalModelReferenceFactory');
@@ -34,7 +34,7 @@ export class OriginalNotebookModelReferenceCollection extends ReferenceCollectio
 			return model;
 		}
 		// TODO@DonJayamanne FIX ME, don't use `originalModel`
-		const bytes = VSBuffer.fromString((fileEntry as ChatEditingModifiedFileEntry).originalModel.getValue());
+		const bytes = VSBuffer.fromString((fileEntry as ChatEditingModifiedDocumentEntry).originalModel.getValue());
 		const stream = bufferToStream(bytes);
 
 		return this.notebookService.createNotebookTextModel(viewType, uri, stream);

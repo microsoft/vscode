@@ -18,9 +18,10 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { IResolvedTextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
 import { ChatEditKind } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo } from './chatEditingModifiedFileEntry.js';
+import { IModifiedEntryTelemetryInfo } from './chatEditingModifiedFileEntry.js';
+import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 
-export class ChatEditingModifiedNotebookEntry extends ChatEditingModifiedFileEntry {
+export class ChatEditingModifiedNotebookEntry extends ChatEditingModifiedDocumentEntry {
 	private readonly resolveTextFileEditorModel: IResolvedTextFileEditorModel;
 
 	constructor(
