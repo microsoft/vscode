@@ -118,6 +118,11 @@ export class EditTool implements IToolImpl {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
+		model.acceptResponseProgress(request, {
+			kind: 'textEdit',
+			edits: [],
+			uri
+		});
 
 		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
 		if (!editSession) {

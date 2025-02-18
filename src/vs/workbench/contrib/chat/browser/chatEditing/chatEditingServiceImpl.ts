@@ -308,7 +308,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				let entry = editsSeen[i];
 				if (!entry) {
 					const codeBlockIndex = findLastIdx(codeBlockUrisSeen, e => e?.streaming && isEqual(e.uri, part.uri), i - 1);
-					if (codeBlockIndex) {
+					if (codeBlockIndex !== -1) {
 						entry = { seen: 0, streaming: codeBlockUrisSeen[codeBlockIndex]!.streaming! };
 						codeBlockUrisSeen[codeBlockIndex]!.streaming = undefined;
 					} else {
@@ -318,10 +318,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					editsSeen[i] = entry;
 				}
 
+				const isFirst = entry.seen === 0;
 				const newEdits = part.edits.slice(entry.seen).flat();
 				entry.seen = part.edits.length;
 
-				if (newEdits.length > 0) {
+				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
 						entry.streaming.pushNotebook(newEdits as ICellEditOperation[]);
 					} else if (part.kind === 'textEditGroup') {

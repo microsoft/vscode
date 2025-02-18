@@ -317,7 +317,7 @@ export function registerNewChatActions() {
 					group: 'navigation',
 					order: 1
 				}, {
-					id: MenuId.ChatCommandCenter,
+					id: MenuId.ChatTitleBarMenu,
 					group: 'a_open',
 					order: 2
 				}, {

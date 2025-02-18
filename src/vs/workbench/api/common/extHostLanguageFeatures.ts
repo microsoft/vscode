@@ -1394,12 +1394,21 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					command = this._commands.toInternal(item.command, disposableStore);
 				}
 
+				let action: languages.Command | undefined = undefined;
+				if (item.action) {
+					if (!disposableStore) {
+						disposableStore = new DisposableStore();
+					}
+					action = this._commands.toInternal(item.action, disposableStore);
+				}
+
 				const insertText = item.insertText;
 				return ({
 					insertText: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
 					filterText: item.filterText,
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
+					action,
 					idx: idx,
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 					isInlineEdit: this._isAdditionsProposedApiEnabled ? item.isInlineEdit : false,
@@ -1476,12 +1485,21 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					command = this._commands.toInternal(item.command, disposableStore);
 				}
 
+				let action: languages.Command | undefined = undefined;
+				if (item.action) {
+					if (!disposableStore) {
+						disposableStore = new DisposableStore();
+					}
+					action = this._commands.toInternal(item.action, disposableStore);
+				}
+
 				const insertText = item.insertText;
 				return ({
 					insertText: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
 					filterText: item.filterText,
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
+					action,
 					idx: idx,
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 				});
@@ -1581,6 +1599,14 @@ class InlineEditAdapter {
 			shownCommand = this._commands.toInternal(result.shown, disposableStore);
 		}
 
+		let action: languages.Command | undefined = undefined;
+		if (result.action) {
+			if (!disposableStore) {
+				disposableStore = new DisposableStore();
+			}
+			action = this._commands.toInternal(result.action, disposableStore);
+		}
+
 		if (!disposableStore) {
 			disposableStore = new DisposableStore();
 		}
@@ -1592,6 +1618,7 @@ class InlineEditAdapter {
 			accepted: acceptCommand,
 			rejected: rejectCommand,
 			shown: shownCommand,
+			action,
 			commands: result.commands?.map(c => this._commands.toInternal(c, disposableStore)),
 		};
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../../base/common/observable.js';
+import { Command } from '../../../../../common/languages.js';
 import { InlineEditTabAction } from './utils/utils.js';
 
 export interface IInlineEditsView {
@@ -11,6 +12,9 @@ export interface IInlineEditsView {
 }
 
 export interface IInlineEditsViewHost {
-	accept(): void;
+	displayName: IObservable<string>;
+	action: IObservable<Command | undefined>;
 	tabAction: IObservable<InlineEditTabAction>;
+	extensionCommands: IObservable<readonly Command[] | undefined>;
+	accept(): void;
 }
