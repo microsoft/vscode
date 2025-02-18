@@ -924,349 +924,358 @@ const editorOptionsCustomizationSchema: IConfigurationPropertySchema = {
 };
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-configurationRegistry.registerConfiguration({
-	id: 'notebook',
-	order: 100,
-	title: nls.localize('notebookConfigurationTitle', "Notebook"),
-	type: 'object',
-	properties: {
-		[NotebookSetting.displayOrder]: {
-			description: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
-			default: []
-		},
-		[NotebookSetting.cellToolbarLocation]: {
-			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
-			type: 'object',
-			additionalProperties: {
-				markdownDescription: nls.localize('notebook.cellToolbarLocation.viewType', "Configure the cell toolbar position for for specific file types"),
-				type: 'string',
-				enum: ['left', 'right', 'hidden']
-			},
-			default: {
-				'default': 'right'
-			},
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.showCellStatusBar]: {
-			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
-			type: 'string',
-			enum: ['hidden', 'visible', 'visibleAfterExecute'],
-			enumDescriptions: [
-				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell Status bar is always hidden."),
-				nls.localize('notebook.showCellStatusbar.visible.description', "The cell Status bar is always visible."),
-				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell Status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
-			default: 'visible',
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.cellExecutionTimeVerbosity]: {
-			description: nls.localize('notebook.cellExecutionTimeVerbosity.description', "Controls the verbosity of the cell execution time in the cell status bar."),
-			type: 'string',
-			enum: ['default', 'verbose'],
-			enumDescriptions: [
-				nls.localize('notebook.cellExecutionTimeVerbosity.default.description', "The cell execution duration is visible, with advanced information in the hover tooltip."),
-				nls.localize('notebook.cellExecutionTimeVerbosity.verbose.description', "The cell last execution timestamp and duration are visible, with advanced information in the hover tooltip.")],
-			default: 'default',
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.textDiffEditorPreview]: {
-			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.diffOverviewRuler]: {
-			description: nls.localize('notebook.diff.enableOverviewRuler.description', "Whether to render the overview ruler in the diff editor for notebook."),
-			type: 'boolean',
-			default: false,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.cellToolbarVisibility]: {
-			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
-			type: 'string',
-			enum: ['hover', 'click'],
-			default: 'click',
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.undoRedoPerCell]: {
-			description: nls.localize('notebook.undoRedoPerCell.description', "Whether to use separate undo/redo stack for each cell."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.compactView]: {
-			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. For example, when turned on, it will decrease the left margin width."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.focusIndicator]: {
-			description: nls.localize('notebook.focusIndicator.description', "Controls where the focus indicator is rendered, either along the cell borders or on the left gutter."),
-			type: 'string',
-			enum: ['border', 'gutter'],
-			default: 'gutter',
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.insertToolbarLocation]: {
-			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should appear."),
-			type: 'string',
-			enum: ['betweenCells', 'notebookToolbar', 'both', 'hidden'],
-			enumDescriptions: [
-				nls.localize('insertToolbarLocation.betweenCells', "A toolbar that appears on hover between cells."),
-				nls.localize('insertToolbarLocation.notebookToolbar', "The toolbar at the top of the notebook editor."),
-				nls.localize('insertToolbarLocation.both', "Both toolbars."),
-				nls.localize('insertToolbarLocation.hidden', "The insert actions don't appear anywhere."),
-			],
-			default: 'both',
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.globalToolbar]: {
-			description: nls.localize('notebook.globalToolbar.description', "Control whether to render a global toolbar inside the notebook editor."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.stickyScrollEnabled]: {
-			description: nls.localize('notebook.stickyScrollEnabled.description', "Experimental. Control whether to render notebook Sticky Scroll headers in the notebook editor."),
-			type: 'boolean',
-			default: false,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.stickyScrollMode]: {
-			description: nls.localize('notebook.stickyScrollMode.description', "Control whether nested sticky lines appear to stack flat or indented."),
-			type: 'string',
-			enum: ['flat', 'indented'],
-			enumDescriptions: [
-				nls.localize('notebook.stickyScrollMode.flat', "Nested sticky lines appear flat."),
-				nls.localize('notebook.stickyScrollMode.indented', "Nested sticky lines appear indented."),
-			],
-			default: 'indented',
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.consolidatedOutputButton]: {
-			description: nls.localize('notebook.consolidatedOutputButton.description', "Control whether outputs action should be rendered in the output toolbar."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.showFoldingControls]: {
-			description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
-			type: 'string',
-			enum: ['always', 'never', 'mouseover'],
-			enumDescriptions: [
-				nls.localize('showFoldingControls.always', "The folding controls are always visible."),
-				nls.localize('showFoldingControls.never', "Never show the folding controls and reduce the gutter size."),
-				nls.localize('showFoldingControls.mouseover', "The folding controls are visible only on mouseover."),
-			],
-			default: 'mouseover',
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.dragAndDropEnabled]: {
-			description: nls.localize('notebook.dragAndDrop.description', "Control whether the notebook editor should allow moving cells through drag and drop."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.consolidatedRunButton]: {
-			description: nls.localize('notebook.consolidatedRunButton.description', "Control whether extra actions are shown in a dropdown next to the run button."),
-			type: 'boolean',
-			default: false,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.globalToolbarShowLabel]: {
-			description: nls.localize('notebook.globalToolbarShowLabel', "Control whether the actions on the notebook toolbar should render label or not."),
-			type: 'string',
-			enum: ['always', 'never', 'dynamic'],
-			default: 'always',
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.textOutputLineLimit]: {
-			markdownDescription: nls.localize('notebook.textOutputLineLimit', "Controls how many lines of text are displayed in a text output. If {0} is enabled, this setting is used to determine the scroll height of the output.", '`#notebook.output.scrolling#`'),
-			type: 'number',
-			default: 30,
-			tags: ['notebookLayout', 'notebookOutputLayout'],
-			minimum: 1,
-		},
-		[NotebookSetting.LinkifyOutputFilePaths]: {
-			description: nls.localize('notebook.disableOutputFilePathLinks', "Control whether to disable filepath links in the output of notebook cells."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookOutputLayout']
-		},
-		[NotebookSetting.minimalErrorRendering]: {
-			description: nls.localize('notebook.minimalErrorRendering', "Control whether to render error output in a minimal style."),
-			type: 'boolean',
-			default: false,
-			tags: ['notebookOutputLayout']
-		},
-		[NotebookSetting.markupFontSize]: {
-			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
-			type: 'number',
-			default: 0,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.markdownLineHeight]: {
-			markdownDescription: nls.localize('notebook.markdown.lineHeight', "Controls the line height in pixels of markdown cells in notebooks. When set to {0}, {1} will be used", '`0`', '`normal`'),
-			type: 'number',
-			default: 0,
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.cellEditorOptionsCustomizations]: editorOptionsCustomizationSchema,
-		[NotebookSetting.interactiveWindowCollapseCodeCells]: {
-			markdownDescription: nls.localize('notebook.interactiveWindow.collapseCodeCells', "Controls whether code cells in the interactive window are collapsed by default."),
-			type: 'string',
-			enum: ['always', 'never', 'fromEditor'],
-			default: 'fromEditor'
-		},
-		[NotebookSetting.outputLineHeight]: {
-			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text within notebook cells.\n - When set to 0, editor line height is used.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
-			type: 'number',
-			default: 0,
-			tags: ['notebookLayout', 'notebookOutputLayout']
-		},
-		[NotebookSetting.outputFontSize]: {
-			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text within notebook cells. When set to 0, {0} is used.", '`#editor.fontSize#`'),
-			type: 'number',
-			default: 0,
-			tags: ['notebookLayout', 'notebookOutputLayout']
-		},
-		[NotebookSetting.outputFontFamily]: {
-			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family of the output text within notebook cells. When set to empty, the {0} is used.", '`#editor.fontFamily#`'),
-			type: 'string',
-			tags: ['notebookLayout', 'notebookOutputLayout']
-		},
-		[NotebookSetting.outputScrolling]: {
-			markdownDescription: nls.localize('notebook.outputScrolling', "Initially render notebook outputs in a scrollable region when longer than the limit."),
-			type: 'boolean',
-			tags: ['notebookLayout', 'notebookOutputLayout'],
-			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
-		},
-		[NotebookSetting.outputWordWrap]: {
-			markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),
-			type: 'boolean',
-			tags: ['notebookLayout', 'notebookOutputLayout'],
-			default: false
-		},
-		[NotebookSetting.defaultFormatter]: {
-			description: nls.localize('notebookFormatter.default', "Defines a default notebook formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
-			type: ['string', 'null'],
-			default: null,
-			enum: DefaultFormatter.extensionIds,
-			enumItemLabels: DefaultFormatter.extensionItemLabels,
-			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
-		},
-		[NotebookSetting.formatOnSave]: {
-			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available and the editor must not be shutting down. When {0} is set to `afterDelay`, the file will only be formatted when saved explicitly.", '`#files.autoSave#`'),
-			type: 'boolean',
-			tags: ['notebookLayout'],
-			default: false
-		},
-		[NotebookSetting.insertFinalNewline]: {
-			markdownDescription: nls.localize('notebook.insertFinalNewline', "When enabled, insert a final new line into the end of code cells when saving a notebook."),
-			type: 'boolean',
-			tags: ['notebookLayout'],
-			default: false
-		},
-		[NotebookSetting.formatOnCellExecution]: {
-			markdownDescription: nls.localize('notebook.formatOnCellExecution', "Format a notebook cell upon execution. A formatter must be available."),
-			type: 'boolean',
-			default: false
-		},
-		[NotebookSetting.confirmDeleteRunningCell]: {
-			markdownDescription: nls.localize('notebook.confirmDeleteRunningCell', "Control whether a confirmation prompt is required to delete a running cell."),
-			type: 'boolean',
-			default: true
-		},
-		[NotebookSetting.findFilters]: {
-			markdownDescription: nls.localize('notebook.findFilters', "Customize the Find Widget behavior for searching within notebook cells. When both markup source and markup preview are enabled, the Find Widget will search either the source code or preview based on the current state of the cell."),
+
+class NotebookSettingContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.notebookSetting';
+
+	constructor() {
+		configurationRegistry.registerConfiguration({
+			id: 'notebook',
+			order: 100,
+			title: nls.localize('notebookConfigurationTitle', "Notebook"),
 			type: 'object',
 			properties: {
-				markupSource: {
+				[NotebookSetting.displayOrder]: {
+					description: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
+					type: 'array',
+					items: {
+						type: 'string'
+					},
+					default: []
+				},
+				[NotebookSetting.cellToolbarLocation]: {
+					description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
+					type: 'object',
+					additionalProperties: {
+						markdownDescription: nls.localize('notebook.cellToolbarLocation.viewType', "Configure the cell toolbar position for for specific file types"),
+						type: 'string',
+						enum: ['left', 'right', 'hidden']
+					},
+					default: {
+						'default': 'right'
+					},
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.showCellStatusBar]: {
+					description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
+					type: 'string',
+					enum: ['hidden', 'visible', 'visibleAfterExecute'],
+					enumDescriptions: [
+						nls.localize('notebook.showCellStatusbar.hidden.description', "The cell Status bar is always hidden."),
+						nls.localize('notebook.showCellStatusbar.visible.description', "The cell Status bar is always visible."),
+						nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell Status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
+					default: 'visible',
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.cellExecutionTimeVerbosity]: {
+					description: nls.localize('notebook.cellExecutionTimeVerbosity.description', "Controls the verbosity of the cell execution time in the cell status bar."),
+					type: 'string',
+					enum: ['default', 'verbose'],
+					enumDescriptions: [
+						nls.localize('notebook.cellExecutionTimeVerbosity.default.description', "The cell execution duration is visible, with advanced information in the hover tooltip."),
+						nls.localize('notebook.cellExecutionTimeVerbosity.verbose.description', "The cell last execution timestamp and duration are visible, with advanced information in the hover tooltip.")],
+					default: 'default',
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.textDiffEditorPreview]: {
+					description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
+					type: 'boolean',
+					default: true,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.diffOverviewRuler]: {
+					description: nls.localize('notebook.diff.enableOverviewRuler.description', "Whether to render the overview ruler in the diff editor for notebook."),
+					type: 'boolean',
+					default: false,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.cellToolbarVisibility]: {
+					markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
+					type: 'string',
+					enum: ['hover', 'click'],
+					default: 'click',
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.undoRedoPerCell]: {
+					description: nls.localize('notebook.undoRedoPerCell.description', "Whether to use separate undo/redo stack for each cell."),
+					type: 'boolean',
+					default: true,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.compactView]: {
+					description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. For example, when turned on, it will decrease the left margin width."),
+					type: 'boolean',
+					default: true,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.focusIndicator]: {
+					description: nls.localize('notebook.focusIndicator.description', "Controls where the focus indicator is rendered, either along the cell borders or on the left gutter."),
+					type: 'string',
+					enum: ['border', 'gutter'],
+					default: 'gutter',
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.insertToolbarLocation]: {
+					description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should appear."),
+					type: 'string',
+					enum: ['betweenCells', 'notebookToolbar', 'both', 'hidden'],
+					enumDescriptions: [
+						nls.localize('insertToolbarLocation.betweenCells', "A toolbar that appears on hover between cells."),
+						nls.localize('insertToolbarLocation.notebookToolbar', "The toolbar at the top of the notebook editor."),
+						nls.localize('insertToolbarLocation.both', "Both toolbars."),
+						nls.localize('insertToolbarLocation.hidden', "The insert actions don't appear anywhere."),
+					],
+					default: 'both',
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.globalToolbar]: {
+					description: nls.localize('notebook.globalToolbar.description', "Control whether to render a global toolbar inside the notebook editor."),
+					type: 'boolean',
+					default: true,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.stickyScrollEnabled]: {
+					description: nls.localize('notebook.stickyScrollEnabled.description', "Experimental. Control whether to render notebook Sticky Scroll headers in the notebook editor."),
+					type: 'boolean',
+					default: false,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.stickyScrollMode]: {
+					description: nls.localize('notebook.stickyScrollMode.description', "Control whether nested sticky lines appear to stack flat or indented."),
+					type: 'string',
+					enum: ['flat', 'indented'],
+					enumDescriptions: [
+						nls.localize('notebook.stickyScrollMode.flat', "Nested sticky lines appear flat."),
+						nls.localize('notebook.stickyScrollMode.indented', "Nested sticky lines appear indented."),
+					],
+					default: 'indented',
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.consolidatedOutputButton]: {
+					description: nls.localize('notebook.consolidatedOutputButton.description', "Control whether outputs action should be rendered in the output toolbar."),
+					type: 'boolean',
+					default: true,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.showFoldingControls]: {
+					description: nls.localize('notebook.showFoldingControls.description', "Controls when the Markdown header folding arrow is shown."),
+					type: 'string',
+					enum: ['always', 'never', 'mouseover'],
+					enumDescriptions: [
+						nls.localize('showFoldingControls.always', "The folding controls are always visible."),
+						nls.localize('showFoldingControls.never', "Never show the folding controls and reduce the gutter size."),
+						nls.localize('showFoldingControls.mouseover', "The folding controls are visible only on mouseover."),
+					],
+					default: 'mouseover',
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.dragAndDropEnabled]: {
+					description: nls.localize('notebook.dragAndDrop.description', "Control whether the notebook editor should allow moving cells through drag and drop."),
+					type: 'boolean',
+					default: true,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.consolidatedRunButton]: {
+					description: nls.localize('notebook.consolidatedRunButton.description', "Control whether extra actions are shown in a dropdown next to the run button."),
+					type: 'boolean',
+					default: false,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.globalToolbarShowLabel]: {
+					description: nls.localize('notebook.globalToolbarShowLabel', "Control whether the actions on the notebook toolbar should render label or not."),
+					type: 'string',
+					enum: ['always', 'never', 'dynamic'],
+					default: 'always',
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.textOutputLineLimit]: {
+					markdownDescription: nls.localize('notebook.textOutputLineLimit', "Controls how many lines of text are displayed in a text output. If {0} is enabled, this setting is used to determine the scroll height of the output.", '`#notebook.output.scrolling#`'),
+					type: 'number',
+					default: 30,
+					tags: ['notebookLayout', 'notebookOutputLayout'],
+					minimum: 1,
+				},
+				[NotebookSetting.LinkifyOutputFilePaths]: {
+					description: nls.localize('notebook.disableOutputFilePathLinks', "Control whether to disable filepath links in the output of notebook cells."),
+					type: 'boolean',
+					default: true,
+					tags: ['notebookOutputLayout']
+				},
+				[NotebookSetting.minimalErrorRendering]: {
+					description: nls.localize('notebook.minimalErrorRendering', "Control whether to render error output in a minimal style."),
+					type: 'boolean',
+					default: false,
+					tags: ['notebookOutputLayout']
+				},
+				[NotebookSetting.markupFontSize]: {
+					markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
+					type: 'number',
+					default: 0,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.markdownLineHeight]: {
+					markdownDescription: nls.localize('notebook.markdown.lineHeight', "Controls the line height in pixels of markdown cells in notebooks. When set to {0}, {1} will be used", '`0`', '`normal`'),
+					type: 'number',
+					default: 0,
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.cellEditorOptionsCustomizations]: editorOptionsCustomizationSchema,
+				[NotebookSetting.interactiveWindowCollapseCodeCells]: {
+					markdownDescription: nls.localize('notebook.interactiveWindow.collapseCodeCells', "Controls whether code cells in the interactive window are collapsed by default."),
+					type: 'string',
+					enum: ['always', 'never', 'fromEditor'],
+					default: 'fromEditor'
+				},
+				[NotebookSetting.outputLineHeight]: {
+					markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text within notebook cells.\n - When set to 0, editor line height is used.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
+					type: 'number',
+					default: 0,
+					tags: ['notebookLayout', 'notebookOutputLayout']
+				},
+				[NotebookSetting.outputFontSize]: {
+					markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text within notebook cells. When set to 0, {0} is used.", '`#editor.fontSize#`'),
+					type: 'number',
+					default: 0,
+					tags: ['notebookLayout', 'notebookOutputLayout']
+				},
+				[NotebookSetting.outputFontFamily]: {
+					markdownDescription: nls.localize('notebook.outputFontFamily', "The font family of the output text within notebook cells. When set to empty, the {0} is used.", '`#editor.fontFamily#`'),
+					type: 'string',
+					tags: ['notebookLayout', 'notebookOutputLayout']
+				},
+				[NotebookSetting.outputScrolling]: {
+					markdownDescription: nls.localize('notebook.outputScrolling', "Initially render notebook outputs in a scrollable region when longer than the limit."),
+					type: 'boolean',
+					tags: ['notebookLayout', 'notebookOutputLayout'],
+					default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
+				},
+				[NotebookSetting.outputWordWrap]: {
+					markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),
+					type: 'boolean',
+					tags: ['notebookLayout', 'notebookOutputLayout'],
+					default: false
+				},
+				[NotebookSetting.defaultFormatter]: {
+					description: nls.localize('notebookFormatter.default', "Defines a default notebook formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
+					type: ['string', 'null'],
+					default: null,
+					enum: DefaultFormatter.extensionIds,
+					enumItemLabels: DefaultFormatter.extensionItemLabels,
+					markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
+				},
+				[NotebookSetting.formatOnSave]: {
+					markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available and the editor must not be shutting down. When {0} is set to `afterDelay`, the file will only be formatted when saved explicitly.", '`#files.autoSave#`'),
+					type: 'boolean',
+					tags: ['notebookLayout'],
+					default: false
+				},
+				[NotebookSetting.insertFinalNewline]: {
+					markdownDescription: nls.localize('notebook.insertFinalNewline', "When enabled, insert a final new line into the end of code cells when saving a notebook."),
+					type: 'boolean',
+					tags: ['notebookLayout'],
+					default: false
+				},
+				[NotebookSetting.formatOnCellExecution]: {
+					markdownDescription: nls.localize('notebook.formatOnCellExecution', "Format a notebook cell upon execution. A formatter must be available."),
+					type: 'boolean',
+					default: false
+				},
+				[NotebookSetting.confirmDeleteRunningCell]: {
+					markdownDescription: nls.localize('notebook.confirmDeleteRunningCell', "Control whether a confirmation prompt is required to delete a running cell."),
 					type: 'boolean',
 					default: true
 				},
-				markupPreview: {
+				[NotebookSetting.findFilters]: {
+					markdownDescription: nls.localize('notebook.findFilters', "Customize the Find Widget behavior for searching within notebook cells. When both markup source and markup preview are enabled, the Find Widget will search either the source code or preview based on the current state of the cell."),
+					type: 'object',
+					properties: {
+						markupSource: {
+							type: 'boolean',
+							default: true
+						},
+						markupPreview: {
+							type: 'boolean',
+							default: true
+						},
+						codeSource: {
+							type: 'boolean',
+							default: true
+						},
+						codeOutput: {
+							type: 'boolean',
+							default: true
+						}
+					},
+					default: {
+						markupSource: true,
+						markupPreview: true,
+						codeSource: true,
+						codeOutput: true
+					},
+					tags: ['notebookLayout']
+				},
+				[NotebookSetting.remoteSaving]: {
+					markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks between processes and across Remote connections. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
+					type: 'boolean',
+					default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
+					tags: ['experimental']
+				},
+				[NotebookSetting.scrollToRevealCell]: {
+					markdownDescription: nls.localize('notebook.scrolling.revealNextCellOnExecute.description', "How far to scroll when revealing the next cell upon running {0}.", 'notebook.cell.executeAndSelectBelow'),
+					type: 'string',
+					enum: ['fullCell', 'firstLine', 'none'],
+					markdownEnumDescriptions: [
+						nls.localize('notebook.scrolling.revealNextCellOnExecute.fullCell.description', 'Scroll to fully reveal the next cell.'),
+						nls.localize('notebook.scrolling.revealNextCellOnExecute.firstLine.description', 'Scroll to reveal the first line of the next cell.'),
+						nls.localize('notebook.scrolling.revealNextCellOnExecute.none.description', 'Do not scroll.'),
+					],
+					default: 'fullCell'
+				},
+				[NotebookSetting.cellGenerate]: {
+					markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline chat enabled."),
 					type: 'boolean',
 					default: true
 				},
-				codeSource: {
+				[NotebookSetting.notebookVariablesView]: {
+					markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
+					type: 'boolean',
+					default: false
+				},
+				[NotebookSetting.notebookInlineValues]: {
+					markdownDescription: nls.localize('notebook.inlineValues.description', "Control whether to show inline values within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared via the Clear All Outputs toolbar button or the `Notebook: Clear Inline Values` command."),
+					type: 'string',
+					enum: ['on', 'auto', 'off'],
+					enumDescriptions: [
+						nls.localize('notebook.inlineValues.on', "Always show inline values, with a regex fallback if no inline value provider is registered. Note: There may be a performance impact in larger cells if the fallback is used."),
+						nls.localize('notebook.inlineValues.auto', "Show inline values only when an inline value provider is registered."),
+						nls.localize('notebook.inlineValues.off', "Never show inline values."),
+					],
+					default: 'off'
+				},
+				[NotebookSetting.cellFailureDiagnostics]: {
+					markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Show available diagnostics for cell failures."),
 					type: 'boolean',
 					default: true
 				},
-				codeOutput: {
+				[NotebookSetting.outputBackupSizeLimit]: {
+					markdownDescription: nls.localize('notebook.backup.sizeLimit', "The limit of notebook output size in kilobytes (KB) where notebook files will no longer be backed up for hot reload. Use 0 for unlimited."),
+					type: 'number',
+					default: 10000
+				},
+				[NotebookSetting.multiCursor]: {
+					markdownDescription: nls.localize('notebook.multiCursor.enabled', "Experimental. Enables a limited set of multi cursor controls across multiple cells in the notebook editor. Currently supported are core editor actions (typing/cut/copy/paste/composition) and a limited subset of editor commands."),
 					type: 'boolean',
-					default: true
+					default: false
+				},
+				[NotebookSetting.markupFontFamily]: {
+					markdownDescription: nls.localize('notebook.markup.fontFamily', "Controls the font family of rendered markup in notebooks. When left blank, this will fall back to the default workbench font family."),
+					type: 'string',
+					default: '',
+					tags: ['notebookLayout']
 				}
-			},
-			default: {
-				markupSource: true,
-				markupPreview: true,
-				codeSource: true,
-				codeOutput: true
-			},
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.remoteSaving]: {
-			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks between processes and across Remote connections. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
-			type: 'boolean',
-			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
-			tags: ['experimental']
-		},
-		[NotebookSetting.scrollToRevealCell]: {
-			markdownDescription: nls.localize('notebook.scrolling.revealNextCellOnExecute.description', "How far to scroll when revealing the next cell upon running {0}.", 'notebook.cell.executeAndSelectBelow'),
-			type: 'string',
-			enum: ['fullCell', 'firstLine', 'none'],
-			markdownEnumDescriptions: [
-				nls.localize('notebook.scrolling.revealNextCellOnExecute.fullCell.description', 'Scroll to fully reveal the next cell.'),
-				nls.localize('notebook.scrolling.revealNextCellOnExecute.firstLine.description', 'Scroll to reveal the first line of the next cell.'),
-				nls.localize('notebook.scrolling.revealNextCellOnExecute.none.description', 'Do not scroll.'),
-			],
-			default: 'fullCell'
-		},
-		[NotebookSetting.cellGenerate]: {
-			markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline chat enabled."),
-			type: 'boolean',
-			default: true
-		},
-		[NotebookSetting.notebookVariablesView]: {
-			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
-			type: 'boolean',
-			default: false
-		},
-		[NotebookSetting.notebookInlineValues]: {
-			markdownDescription: nls.localize('notebook.inlineValues.description', "Control whether to show inline values within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared via the Clear All Outputs toolbar button or the `Notebook: Clear Inline Values` command."),
-			type: 'string',
-			enum: ['on', 'auto', 'off'],
-			enumDescriptions: [
-				nls.localize('notebook.inlineValues.on', "Always show inline values, with a regex fallback if no inline value provider is registered. Note: There may be a performance impact in larger cells if the fallback is used."),
-				nls.localize('notebook.inlineValues.auto', "Show inline values only when an inline value provider is registered."),
-				nls.localize('notebook.inlineValues.off', "Never show inline values."),
-			],
-			default: 'off'
-		},
-		[NotebookSetting.cellFailureDiagnostics]: {
-			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Show available diagnostics for cell failures."),
-			type: 'boolean',
-			default: true
-		},
-		[NotebookSetting.outputBackupSizeLimit]: {
-			markdownDescription: nls.localize('notebook.backup.sizeLimit', "The limit of notebook output size in kilobytes (KB) where notebook files will no longer be backed up for hot reload. Use 0 for unlimited."),
-			type: 'number',
-			default: 10000
-		},
-		[NotebookSetting.multiCursor]: {
-			markdownDescription: nls.localize('notebook.multiCursor.enabled', "Experimental. Enables a limited set of multi cursor controls across multiple cells in the notebook editor. Currently supported are core editor actions (typing/cut/copy/paste/composition) and a limited subset of editor commands."),
-			type: 'boolean',
-			default: false
-		},
-		[NotebookSetting.markupFontFamily]: {
-			markdownDescription: nls.localize('notebook.markup.fontFamily', "Controls the font family of rendered markup in notebooks. When left blank, this will fall back to the default workbench font family."),
-			type: 'string',
-			default: '',
-			tags: ['notebookLayout']
-		}
+			}
+		});
 	}
-});
+}
+
+registerWorkbenchContribution2(NotebookSettingContribution.ID, NotebookSettingContribution, WorkbenchPhase.BlockStartup);
