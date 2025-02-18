@@ -71,10 +71,14 @@ declare module 'vscode' {
 		 */
 		commandLine: string;
 		/**
-		 * The index of the
-		 * cursor in the command line.
+		 * The index of the cursor in the command line.
 		 */
 		cursorPosition: number;
+		/**
+		 * Whether completions should be provided when it is not clear to what type of completion is
+		 * well known.
+		 */
+		allowFallbackCompletions: boolean;
 	}
 
 	export namespace window {
