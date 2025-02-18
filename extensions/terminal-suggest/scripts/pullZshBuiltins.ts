@@ -8,10 +8,17 @@ import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+const shortDescriptions: Map<string, string> = new Map([
+	['.', 'Source a file'],
+	['alias', 'Define or view aliases'],
+	['autoload', 'Autoload a function'],
+	['bg', 'Put a job in the background'],
+]);
+
 const execAsync = promisify(exec);
 let zshBuiltinsCommandDescriptionsCache = new Map<string, { description: string; args: string | undefined }>();
 async function createCommandDescriptionsCache(): Promise<void> {
-	const cachedCommandDescriptions: Map<string, { description: string; args: string | undefined }> = new Map();
+	const cachedCommandDescriptions: Map<string, { shortDescription?: string; description: string; args: string | undefined }> = new Map();
 	let output = '';
 	try {
 		output = await execAsync('man zshbuiltins').then(r => r.stdout);
@@ -24,8 +31,8 @@ async function createCommandDescriptionsCache(): Promise<void> {
 		const lines = output.split('\n');
 
 		let command: string | undefined;
-		let description: string[] = [];
-		let args: string | undefined;
+		let desc: string[] = [];
+		let argsRaw: string | undefined;
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
@@ -34,31 +41,42 @@ async function createCommandDescriptionsCache(): Promise<void> {
 			const cmdMatch = line.match(/^\s{7}(\S+)(?:\s+(.*))?/);
 			if (cmdMatch?.length && cmdMatch.length > 1) {
 				command = cmdMatch[1];
-				args = cmdMatch[2];
+				argsRaw = cmdMatch[2];
 
 				// Store the previous command, args, and its description
-				if (command && description.length) {
-					cachedCommandDescriptions.set(command, {
-						description: description.join(' ').trim(),
-						args: `${command} ${args}`
-					});
+				if (command && desc.length) {
+					const shortDescription = shortDescriptions.get(command);
+					const description = desc.join(' ').trim();
+					const args = `${command} ${argsRaw}`;
+					if (shortDescription) {
+						cachedCommandDescriptions.set(command, {
+							shortDescription,
+							description,
+							args
+						});
+					} else {
+						cachedCommandDescriptions.set(command, {
+							description,
+							args
+						});
+					}
 				}
 
 				// Capture the new command name
 				command = cmdMatch[1];
-				description = [];
+				desc = [];
 				// Move to the next line to check for description
 				continue;
 			}
 
 			// Capture description lines (14 spaces indentation)
 			if (command && line.match(/^\s{14}/)) {
-				description.push(line.trim());
+				desc.push(line.trim());
 			}
 		}
 		// Store the last command, its args, and description
-		if (command && description.length) {
-			cachedCommandDescriptions.set(command, { description: description.join(' ').trim(), args });
+		if (command && desc.length) {
+			cachedCommandDescriptions.set(command, { description: desc.join(' ').trim(), args: argsRaw });
 		}
 	}
 	zshBuiltinsCommandDescriptionsCache = cachedCommandDescriptions;
