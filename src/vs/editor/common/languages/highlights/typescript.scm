@@ -25,20 +25,6 @@
 (regex) @string.regexp
 (number) @constant.numeric
 
-; Template TODO: These don't seem to be working
-
-(template_substitution
-  "${" @punctuation.definition.template-expression.begin
-  "}" @punctuation.definition.template-expression.end)
-
-(template_type
-  "${" @punctuation.definition.template-expression.begin
-  "}" @punctuation.definition.template-expression.end)
-
-(type_arguments
-  "<" @punctuation.bracket
-  ">" @punctuation.bracket)
-
 ; Properties
 
 (member_expression
@@ -122,11 +108,6 @@
 ; Tokens
 
 [
-  "{"
-  "}"
-] @punctuation
-
-[
   ";"
   "?."
   "."
@@ -202,6 +183,27 @@
   "&"
   "|"
 ] @keyword.operator
+
+[
+  "{"
+  "}"
+  "("
+  ")"
+  "["
+  "]"
+] @punctuation
+
+(template_substitution
+  "${" @punctuation.definition.template-expression.begin
+  "}" @punctuation.definition.template-expression.end)
+
+(template_type
+  "${" @punctuation.definition.template-expression.begin
+  "}" @punctuation.definition.template-expression.end)
+
+(type_arguments
+  "<" @punctuation.bracket
+  ">" @punctuation.bracket)
 
 ; Keywords
 
