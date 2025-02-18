@@ -42,6 +42,10 @@ export class ChatAttachmentModel extends Disposable {
 		return this._attachments.size;
 	}
 
+	get fileAttachments() {
+		return this.attachments.filter(attachment => attachment.isFile);
+	}
+
 	getAttachmentIDs() {
 		return new Set(this._attachments.keys());
 	}
@@ -90,50 +94,5 @@ export class ChatAttachmentModel extends Disposable {
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {
 		this.clear();
 		this.addContext(...attachments);
-	}
-}
-
-export class EditsAttachmentModel extends ChatAttachmentModel {
-
-	private _onFileLimitExceeded = this._register(new Emitter<void>());
-	readonly onFileLimitExceeded = this._onFileLimitExceeded.event;
-
-	get fileAttachments() {
-		return this.attachments.filter(attachment => attachment.isFile);
-	}
-
-	private readonly _excludedFileAttachments: IChatRequestVariableEntry[] = [];
-	get excludedFileAttachments(): IChatRequestVariableEntry[] {
-		return this._excludedFileAttachments;
-	}
-
-	constructor(
-		@IInstantiationService _initService: IInstantiationService,
-	) {
-		super(_initService);
-	}
-
-	override addContext(...attachments: IChatRequestVariableEntry[]) {
-		const currentAttachmentIds = this.getAttachmentIDs();
-		const fileAttachments = attachments.filter(attachment => attachment.isFile);
-		const otherAttachments = attachments.filter(attachment => !attachment.isFile);
-
-		// deduplicate file attachments
-		const newFileAttachments = [];
-		const newFileAttachmentIds = new Set<string>();
-		for (const attachment of fileAttachments) {
-			if (newFileAttachmentIds.has(attachment.id) || currentAttachmentIds.has(attachment.id)) {
-				continue;
-			}
-			newFileAttachmentIds.add(attachment.id);
-			newFileAttachments.push(attachment);
-		}
-
-		super.addContext(...otherAttachments, ...newFileAttachments);
-	}
-
-	override clear(): void {
-		this._excludedFileAttachments.splice(0, this._excludedFileAttachments.length);
-		super.clear();
 	}
 }
