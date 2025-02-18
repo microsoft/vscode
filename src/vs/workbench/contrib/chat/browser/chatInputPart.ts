@@ -1361,18 +1361,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const hoverDelegate = getDefaultHoverDelegate('element');
 
-		const button = this._chatEditsActionsDisposables.add(new Button(addFilesElement, {
-			supportIcons: true,
-			secondary: true,
-			hoverDelegate
-		}));
-		button.label = localize('chatAddFiles', '{0} Add Files...', '$(add)');
-		button.setTitle(button.enabled ? localize('addFiles.label', 'Add files to your working set') : localize('chatEditingSession.fileLimitReached', 'You have reached the maximum number of files that can be added to the working set.'));
-		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
-			this.commandService.executeCommand('workbench.action.chat.editing.attachFiles', { widget: chatWidget });
-		}));
-		dom.append(addFilesElement, button.element);
-
 		// RELATED files (after Add Files...)
 		for (const [uri, metadata] of chatEditingSession.workingSet) {
 			if (metadata.state !== WorkingSetEntryState.Suggested) {
