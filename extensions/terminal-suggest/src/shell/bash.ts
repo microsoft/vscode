@@ -41,7 +41,7 @@ export async function getBuiltins(
 			try {
 				const helpOutput = (await execHelper(`help ${cmd}`, options))?.trim();
 				const helpLines = helpOutput?.split('\n');
-				const description = helpLines?.[1]?.split(' ').slice(2).join(' ').trim();
+				const description = helpLines.splice(1).join('');
 				const args = helpLines?.[0]?.split(' ').slice(1).join(' ').trim();
 				const { detail, documentation } = generateDetailAndDocs(description, args);
 				completions.push({

@@ -99,8 +99,7 @@ export function generateDetailAndDocs(description?: string, args?: string): { de
 	let detail, documentation = '';
 	const firstSentence = (text: string): string => text.split('. ')[0] + '.';
 	const lengthOfInfo = (description?.length || 0) + (args?.length || 0);
-	if (lengthOfInfo > 94 && description) {
-		// detail capped at 94 chars
+	if (lengthOfInfo > 50 && description) {
 		detail = args ? [firstSentence(description), args].join('\n') : firstSentence(description);
 		documentation = description;
 	} else if (description) {
