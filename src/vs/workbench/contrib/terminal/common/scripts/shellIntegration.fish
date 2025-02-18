@@ -150,81 +150,14 @@ function __vsc_update_cwd --on-event fish_prompt
 end
 
 function __vsc_update_env --on-event fish_prompt
-	# Note: There is no associative array in fish, so we use two arrays
+	__vsc_esc EnvClear
 	__vsc_esc EnvSingleStart
-	# Two arrays are empty, do not diff, just add
-	# if test (count $vsc_env_keys) -eq 0; and test (count $vsc_env_values) -eq 0
-	# 	for line in (env)
-	# 		set myVar (echo $line | awk -F= '{print $1}')
-	# 		set myVal (echo $line | awk -F= '{print $2}')
-	# 		__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
-
-	# 		# Append to the arrays
-	# 		set -a vsc_env_keys $myVar
-	# 		set -a vsc_env_values $myVal
-	# 	end
-	# else
-	# 	for line in (env)
-	# 		set key (echo $line | awk -F= '{print $1}')
-	# 		set value (echo $line | awk -F= '{print $2}')
-	# 		__updateEnvCache $key $value
-	# 	end
-	# 	__trackMissingEnvVars
-	# end
-		__vsc_esc EnvClear
-		for line in (env)
-			set myVar (echo $line | awk -F= '{print $1}')
-			set myVal (echo $line | awk -F= '{print $2}')
-			__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
-		end
-
-	__vsc_esc EnvSingleEnd
-end
-
-function __updateEnvCache
-	set key $argv[1]
-	set value $argv[2]
-
-	for i in (seq (count $vsc_env_keys))
-		if test $vsc_env_keys[$i] = $key
-			if test $vsc_env_values[$i] != $value
-				set -g vsc_env_values[$i] $value
-				__vsc_esc EnvSingleEntry $key (__vsc_escape_value "$value")
-			end
-			return
-		end
-	end
-
-	set -g vsc_env_keys $vsc_env_keys $key
-	set -g vsc_env_values $vsc_env_values $value
-	__vsc_esc EnvSingleEntry $key (__vsc_escape_value "$value")
-end
-
-function __trackMissingEnvVars
-	set current_env_keys
-
 	for line in (env)
-		set key (echo $line | awk -F= '{print $1}')
-		set current_env_keys $current_env_keys $key
+		set myVar (echo $line | awk -F= '{print $1}')
+		set myVal (echo $line | awk -F= '{print $2}')
+		__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
 	end
-
-	for key in $vsc_env_keys
-		set found 0
-		for env_key in $current_env_keys
-			if test $key = $env_key
-				set found 1
-				break
-			end
-		end
-		if test $found = 0
-			set index (contains -i $key $vsc_env_keys)
-			if test $index -ne 0
-				__vsc_esc EnvSingleDelete $key (__vsc_escape_value $vsc_env_values[$index])
-				set -e vsc_env_keys[$index]
-				set -e vsc_env_values[$index]
-			end
-		end
-	end
+	__vsc_esc EnvSingleEnd
 end
 
 # Sent at the start of the prompt.
