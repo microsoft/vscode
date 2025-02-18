@@ -137,7 +137,7 @@ class Snapper {
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const token = tokens[i];
 			const scopes = token.t.split(' ');
-			const metadata = findMetadata(colorThemeData, scopes, this.languageService.languageIdCodec.encodeLanguageId(languageId));
+			const metadata = findMetadata(colorThemeData, scopes, this.languageService.languageIdCodec.encodeLanguageId(languageId), false);
 			const color = TokenMetadata.getForeground(metadata);
 
 			result[i] = {

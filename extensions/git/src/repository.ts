@@ -1294,20 +1294,7 @@ export class Repository implements Disposable {
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
 			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
 
-		if (this.mergeInProgress) {
-			await this.run(
-				Operation.MergeContinue,
-				async () => {
-					if (opts.all) {
-						const addOpts = opts.all === 'tracked' ? { update: true } : {};
-						await this.repository.add([], addOpts);
-					}
-
-					await this.repository.mergeContinue();
-					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
-				},
-				() => this.commitOperationGetOptimisticResourceGroups(opts));
-		} else if (this.rebaseCommit) {
+		if (this.rebaseCommit) {
 			await this.run(
 				Operation.RebaseContinue,
 				async () => {

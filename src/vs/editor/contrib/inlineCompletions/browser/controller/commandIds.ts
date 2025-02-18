@@ -13,4 +13,4 @@ export const jumpToNextInlineEditId = 'editor.action.inlineSuggest.jump';
 
 export const hideInlineCompletionId = 'editor.action.inlineSuggest.hide';
 
-export const togglePressToRevealId = 'editor.action.inlineSuggest.togglePressToReveal';
+export const toggleShowCollapsedId = 'editor.action.inlineSuggest.toggleShowCollapsed';

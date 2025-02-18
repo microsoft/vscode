@@ -456,6 +456,9 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			ghostTextIndex = this._scanForGhostTextAdvanced(buffer, line, cursorIndex);
 		}
 
+		if (ghostTextIndex > -1 && this.value.substring(ghostTextIndex).endsWith(' ')) {
+			this._value = this.value.trim();
+		}
 		return ghostTextIndex;
 	}
 

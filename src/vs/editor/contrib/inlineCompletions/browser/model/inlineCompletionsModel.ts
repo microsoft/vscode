@@ -62,7 +62,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
 	private readonly _inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
 	private readonly _inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
-	private readonly _inlineEditsPressToReveal = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.pressToReveal);
+	private readonly _inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -545,7 +545,7 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		if (this._inlineEditsPressToReveal.read(reader)) {
+		if (this._inlineEditsShowCollapsed.read(reader)) {
 			return !this._jumpedTo.read(reader);
 		}
 
@@ -557,7 +557,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (!s) {
 			return false;
 		}
-		if (this._inlineEditsPressToReveal.read(reader)) {
+		if (this._inlineEditsShowCollapsed.read(reader)) {
 			return this._jumpedTo.read(reader);
 		}
 		if (s.inlineEdit.range.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {

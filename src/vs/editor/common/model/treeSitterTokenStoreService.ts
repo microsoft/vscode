@@ -50,14 +50,17 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 			storeInfo.guessVersion = e.versionId;
 			for (const change of e.changes) {
 				if (change.text.length > change.rangeLength) {
-					const oldToken = storeInfo.store.getTokenAt(change.rangeOffset);
+					// If possible, use the token before the change as the starting point for the new token.
+					// This is more likely to let the new text be the correct color as typeing is usually at the end of the token.
+					const offset = change.rangeOffset > 0 ? change.rangeOffset - 1 : change.rangeOffset;
+					const oldToken = storeInfo.store.getTokenAt(offset);
 					let newToken: TokenUpdate;
 					if (oldToken) {
 						// Insert. Just grow the token at this position to include the insert.
 						newToken = { startOffsetInclusive: oldToken.startOffsetInclusive, length: oldToken.length + change.text.length - change.rangeLength, token: oldToken.token };
 					} else {
 						// The document got larger and the change is at the end of the document.
-						newToken = { startOffsetInclusive: change.rangeOffset, length: change.text.length, token: 0 };
+						newToken = { startOffsetInclusive: offset, length: change.text.length + 1, token: 0 };
 					}
 					storeInfo.store.update(oldToken?.length ?? 0, [newToken], TokenQuality.EditGuess);
 				} else if (change.text.length < change.rangeLength) {
