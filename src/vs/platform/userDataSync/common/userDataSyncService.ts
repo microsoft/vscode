@@ -23,6 +23,7 @@ import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfil
 import { ExtensionsSynchroniser } from './extensionsSync.js';
 import { GlobalStateSynchroniser } from './globalStateSync.js';
 import { KeybindingsSynchroniser } from './keybindingsSync.js';
+import { PromptsSynchronizer } from './promptsSync/promptsSync.js';
 import { SettingsSynchroniser } from './settingsSync.js';
 import { SnippetsSynchroniser } from './snippetsSync.js';
 import { TasksSynchroniser } from './tasksSync.js';
@@ -708,6 +709,7 @@ class ProfileSynchronizer extends Disposable {
 			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser, this.profile, this.collection);
 			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser, this.profile, this.collection);
 			case SyncResource.Snippets: return this.instantiationService.createInstance(SnippetsSynchroniser, this.profile, this.collection);
+			case SyncResource.Prompts: return this.instantiationService.createInstance(PromptsSynchronizer, this.profile, this.collection);
 			case SyncResource.Tasks: return this.instantiationService.createInstance(TasksSynchroniser, this.profile, this.collection);
 			case SyncResource.GlobalState: return this.instantiationService.createInstance(GlobalStateSynchroniser, this.profile, this.collection);
 			case SyncResource.Extensions: return this.instantiationService.createInstance(ExtensionsSynchroniser, this.profile, this.collection);
@@ -860,11 +862,12 @@ class ProfileSynchronizer extends Disposable {
 			case SyncResource.Settings: return 0;
 			case SyncResource.Keybindings: return 1;
 			case SyncResource.Snippets: return 2;
-			case SyncResource.Tasks: return 3;
-			case SyncResource.GlobalState: return 4;
-			case SyncResource.Extensions: return 5;
-			case SyncResource.Profiles: return 6;
-			case SyncResource.WorkspaceState: return 7;
+			case SyncResource.Prompts: return 3; // TODO: @legomushroom - is this is the correct order?
+			case SyncResource.Tasks: return 4;
+			case SyncResource.GlobalState: return 5;
+			case SyncResource.Extensions: return 6;
+			case SyncResource.Profiles: return 7;
+			case SyncResource.WorkspaceState: return 8;
 		}
 	}
 
