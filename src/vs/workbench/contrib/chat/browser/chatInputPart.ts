@@ -121,7 +121,6 @@ interface IChatInputPartOptions {
 		telemetrySource?: string;
 	};
 	editorOverflowWidgetsDomNode?: HTMLElement;
-	enableImplicitContext?: boolean;
 	renderWorkingSet?: boolean;
 }
 
@@ -706,10 +705,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.renderAttachedContext();
-		if (this.options.enableImplicitContext) {
-			this._implicitContext = this._register(new ChatImplicitContext());
-			this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
-		}
+		this._implicitContext = this._register(new ChatImplicitContext());
+		this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
 
 		this._register(this._attachmentModel.onDidChangeContext(() => this._handleAttachedContextChange()));
 		this.renderChatEditingSessionState(null, widget);

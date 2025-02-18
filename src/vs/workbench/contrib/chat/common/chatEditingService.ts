@@ -88,7 +88,7 @@ export interface IChatEditingSession extends IDisposable {
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
-	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
+	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
 	markIsReadonly(uri: URI, isReadonly?: boolean): void;
@@ -135,7 +135,7 @@ export const enum WorkingSetEntryState {
 	Modified,
 	Accepted,
 	Rejected,
-	Transient,
+	Transient, // TODO@joyceerhl remove this
 	Attached,
 	Sent, // TODO@joyceerhl remove this
 	Suggested,

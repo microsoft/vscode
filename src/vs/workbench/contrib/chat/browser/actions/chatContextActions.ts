@@ -48,7 +48,7 @@ import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../searc
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
@@ -515,26 +515,21 @@ export class AttachContextAction extends Action2 {
 						});
 					}
 				} else {
-					// file attachment
-					if (chatEditingService) {
-						getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(pick.resource);
-					} else {
-						let isOmitted = false;
-						try {
-							const createdModel = await textModelService.createModelReference(pick.resource);
-							createdModel.dispose();
-						} catch {
-							isOmitted = true;
-						}
-
-						toAttach.push({
-							id: this._getFileContextId({ resource: pick.resource }),
-							value: pick.resource,
-							name: pick.label,
-							isFile: true,
-							isOmitted
-						});
+					let isOmitted = false;
+					try {
+						const createdModel = await textModelService.createModelReference(pick.resource);
+						createdModel.dispose();
+					} catch {
+						isOmitted = true;
 					}
+
+					toAttach.push({
+						id: this._getFileContextId({ resource: pick.resource }),
+						value: pick.resource,
+						name: pick.label,
+						isFile: true,
+						isOmitted
+					});
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
 				toAttach.push({
@@ -548,31 +543,23 @@ export class AttachContextAction extends Action2 {
 				for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput || e instanceof NotebookEditorInput)) {
 					const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
 					if (uri) {
-						if (chatEditingService) {
-							getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(uri);
-						} else {
-							toAttach.push({
-								id: this._getFileContextId({ resource: uri }),
-								value: uri,
-								name: labelService.getUriBasenameLabel(uri),
-								isFile: true,
-							});
-						}
+						toAttach.push({
+							id: this._getFileContextId({ resource: uri }),
+							value: uri,
+							name: labelService.getUriBasenameLabel(uri),
+							isFile: true,
+						});
 					}
 				}
 			} else if (isISearchResultsQuickPickItem(pick)) {
 				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
 				for (const result of searchView.model.searchResult.matches()) {
-					if (chatEditingService) {
-						getEditingSession(chatEditingService, widget)?.addFileToWorkingSet(result.resource);
-					} else {
-						toAttach.push({
-							id: this._getFileContextId({ resource: result.resource }),
-							value: result.resource,
-							name: labelService.getUriBasenameLabel(result.resource),
-							isFile: true,
-						});
-					}
+					toAttach.push({
+						id: this._getFileContextId({ resource: result.resource }),
+						value: result.resource,
+						name: labelService.getUriBasenameLabel(result.resource),
+						isFile: true,
+					});
 				}
 			} else if (isRelatedFileQuickPickItem(pick)) {
 				// Get all provider results and show them in a second tier picker
@@ -862,13 +849,6 @@ export class AttachContextAction extends Action2 {
 			filter: (item: IChatContextQuickPickItem | IQuickPickSeparator) => {
 				// Avoid attaching the same context twice
 				const attachedContext = widget.attachmentModel.getAttachmentIDs();
-				if (chatEditingService) {
-					for (const [file, state] of getEditingSession(chatEditingService, widget)?.workingSet.entries() ?? []) {
-						if (state.state !== WorkingSetEntryState.Suggested) {
-							attachedContext.add(this._getFileContextId({ resource: file }));
-						}
-					}
-				}
 
 				if (isIOpenEditorsQuickPickItem(item)) {
 					for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput)) {

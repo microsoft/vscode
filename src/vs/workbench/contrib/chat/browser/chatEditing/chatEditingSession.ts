@@ -17,7 +17,6 @@ import { asyncTransaction, autorun, derived, IObservable, IReader, ITransaction,
 import { autorunDelta, autorunIterableDelta } from '../../../../../base/common/observableInternal/autorun.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { IOffsetEdit, ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -35,14 +34,13 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IEditorCloseEvent, SaveReason } from '../../../../common/editor.js';
+import { SaveReason } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
-import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedFileEntry, IStreamingEdits, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement, IChatResponseModel } from '../../common/chatModel.js';
@@ -199,12 +197,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._state.set(ChatEditingSessionState.Idle, undefined);
 		}
 
-		// Add the currently active editors to the working set
-		this._trackCurrentEditorsInWorkingSet();
 		this._triggerSaveParticipantsOnAccept();
-		this._register(this._editorService.onDidVisibleEditorsChange(() => {
-			this._trackCurrentEditorsInWorkingSet();
-		}));
 		this._register(autorun(reader => {
 			const entries = this.entries.read(reader);
 			entries.forEach(entry => {
@@ -269,58 +262,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 			}
 		));
-	}
-
-	private _trackCurrentEditorsInWorkingSet(e?: IEditorCloseEvent) {
-		const existingTransientEntries = new ResourceSet();
-		for (const file of this._workingSet.keys()) {
-			if (this._workingSet.get(file)?.state === WorkingSetEntryState.Transient) {
-				existingTransientEntries.add(file);
-			}
-		}
-
-		const activeEditors = new ResourceSet();
-		this._editorGroupsService.groups.forEach((group) => {
-			if (!group.activeEditorPane) {
-				return;
-			}
-			let uri;
-			if (isNotebookEditorInput(group.activeEditorPane.input)) {
-				uri = group.activeEditorPane.input.resource;
-			} else {
-				let activeEditorControl = group.activeEditorPane.getControl();
-				if (isDiffEditor(activeEditorControl)) {
-					activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
-				}
-				if ((isCodeEditor(activeEditorControl)) && activeEditorControl.hasModel()) {
-					uri = activeEditorControl.getModel().uri;
-				}
-			}
-			if (!uri) {
-				return;
-			}
-			if (existingTransientEntries.has(uri)) {
-				existingTransientEntries.delete(uri);
-			} else if ((!this._workingSet.has(uri) || this._workingSet.get(uri)?.state === WorkingSetEntryState.Suggested) && !this._removedTransientEntries.has(uri)) {
-				// Don't add as a transient entry if it's already a confirmed part of the working set
-				// or if the user has intentionally removed it from the working set
-				activeEditors.add(uri);
-			}
-		});
-
-		let didChange = false;
-		for (const entry of existingTransientEntries) {
-			didChange = this._workingSet.delete(entry) || didChange;
-		}
-
-		for (const entry of activeEditors) {
-			this._workingSet.set(entry, { state: WorkingSetEntryState.Transient, description: localize('chatEditing.transient', "Open Editor") });
-			didChange = true;
-		}
-
-		if (didChange) {
-			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-		}
 	}
 
 	private _findSnapshot(requestId: string): IChatEditingSessionSnapshot | undefined {
@@ -529,7 +470,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			const state = this._workingSet.get(uri);
 			if (state !== undefined) {
 				didRemoveUris = this._workingSet.delete(uri) || didRemoveUris;
-				if (reason === WorkingSetEntryRemovalReason.User && (state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested)) {
+				if (reason === WorkingSetEntryRemovalReason.User && state.state === WorkingSetEntryState.Suggested) {
 					this._removedTransientEntries.add(uri);
 				}
 			}
@@ -545,7 +486,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	markIsReadonly(resource: URI, isReadonly?: boolean): void {
 		const entry = this._workingSet.get(resource);
 		if (entry) {
-			if (entry.state === WorkingSetEntryState.Transient || entry.state === WorkingSetEntryState.Suggested) {
+			if (entry.state === WorkingSetEntryState.Suggested) {
 				entry.state = WorkingSetEntryState.Attached;
 			}
 			entry.isMarkedReadonly = isReadonly ?? !entry.isMarkedReadonly;
@@ -764,7 +705,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Suggested });
 			this._trackUntitledWorkingSetEntry(resource);
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-		} else if (state === undefined || state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested) {
+		} else if (state === undefined || state.state === WorkingSetEntryState.Suggested) {
 			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Attached });
 			this._trackUntitledWorkingSetEntry(resource);
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
