@@ -267,7 +267,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
 	private actionToolBarElement!: HTMLElement;
 
-	private globalToolbarMenu = this.menuService.createMenu(MenuId.TitleBar, this.contextKeyService);
+	private globalToolbarMenu = this._register(this.menuService.createMenu(MenuId.TitleBar, this.contextKeyService));
 	private layoutToolbarMenu: IMenu | undefined;
 
 	private readonly globalToolbarMenuDisposables = this._register(new DisposableStore());
