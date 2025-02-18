@@ -29,7 +29,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { hash } from '../../../../base/common/hash.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
-import { HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from './statusbarActions.js';
+import { HideStatusbarEntryAction, ManageExtensionAction, ToggleStatusbarEntryVisibilityAction } from './statusbarActions.js';
 import { IStatusbarViewModelEntry, StatusbarViewModel } from './statusbarModel.js';
 import { StatusbarEntryItem } from './statusbarItem.js';
 import { StatusBarFocused } from '../../../common/contextkeys.js';
@@ -259,6 +259,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		// View model entry
 		const viewModelEntry: IStatusbarViewModelEntry = new class implements IStatusbarViewModelEntry {
 			readonly id = id;
+			readonly extensionId = entry.extensionId;
 			readonly alignment = alignment;
 			readonly priority = priority;
 			readonly container = itemContainer;
@@ -600,6 +601,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		if (statusEntryUnderMouse) {
 			actions.push(new Separator());
+			if (statusEntryUnderMouse.extensionId) {
+				actions.push(this.instantiationService.createInstance(ManageExtensionAction, statusEntryUnderMouse.extensionId));
+			}
 			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, statusEntryUnderMouse.name, this.viewModel));
 		}
 

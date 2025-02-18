@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from '../../dnd.js';
-import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getDocument, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
+import { $, addDisposableListener, animate, Dimension, getActiveElement, getContentHeight, getContentWidth, getDocument, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
 import { DomEmitter } from '../../event.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
 import { EventType as TouchEventType, Gesture, GestureEvent } from '../../touch.js';
@@ -87,6 +87,7 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly transformOptimization?: boolean;
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
+	readonly scrollToActiveElement?: boolean;
 }
 
 const DefaultOptions = {
@@ -324,6 +325,7 @@ export class ListView<T> implements IListView<T> {
 	private onDragLeaveTimeout: IDisposable = Disposable.None;
 	private currentSelectionDisposable: IDisposable = Disposable.None;
 	private currentSelectionBounds: IRange | undefined;
+	private activeElement: HTMLElement | undefined;
 
 	private readonly disposables: DisposableStore = new DisposableStore();
 
@@ -439,9 +441,15 @@ export class ListView<T> implements IListView<T> {
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		this.disposables.add(addDisposableListener(this.rowsContainer, TouchEventType.Change, e => this.onTouchChange(e as GestureEvent)));
 
-		// Prevent the monaco-scrollable-element from scrolling
-		// https://github.com/microsoft/vscode/issues/44181
-		this.disposables.add(addDisposableListener(this.scrollableElement.getDomNode(), 'scroll', e => (e.target as HTMLElement).scrollTop = 0));
+		this.disposables.add(addDisposableListener(this.scrollableElement.getDomNode(), 'scroll', e => {
+			// Make sure the active element is scrolled into view
+			const element = (e.target as HTMLElement);
+			const scrollValue = element.scrollTop;
+			element.scrollTop = 0;
+			if (options.scrollToActiveElement) {
+				this.setScrollTop(this.scrollTop + scrollValue);
+			}
+		}));
 
 		this.disposables.add(addDisposableListener(this.domNode, 'dragover', e => this.onDragOver(this.toDragEvent(e))));
 		this.disposables.add(addDisposableListener(this.domNode, 'drop', e => this.onDrop(this.toDragEvent(e))));
@@ -460,6 +468,33 @@ export class ListView<T> implements IListView<T> {
 		this.dnd = options.dnd ?? this.disposables.add(DefaultOptions.dnd);
 
 		this.layout(options.initialSize?.height, options.initialSize?.width);
+		if (options.scrollToActiveElement) {
+			this._setupFocusObserver(container);
+		}
+	}
+
+	private _setupFocusObserver(container: HTMLElement): void {
+		this.disposables.add(addDisposableListener(container, 'focus', () => {
+			const element = getActiveElement() as HTMLElement | null;
+			if (this.activeElement !== element && element !== null) {
+				this.activeElement = element;
+				this._scrollToActiveElement(this.activeElement, container);
+			}
+		}, true));
+	}
+
+	private _scrollToActiveElement(element: HTMLElement, container: HTMLElement) {
+		// The scroll event on the list only fires when scrolling down.
+		// If the active element is above the viewport, we need to scroll up.
+		const containerRect = container.getBoundingClientRect();
+		const elementRect = element.getBoundingClientRect();
+
+		const topOffset = elementRect.top - containerRect.top;
+
+		if (topOffset < 0) {
+			// Scroll up
+			this.setScrollTop(this.scrollTop + topOffset);
+		}
 	}
 
 	updateOptions(options: IListViewOptionsUpdate) {
@@ -1193,9 +1228,11 @@ export class ListView<T> implements IListView<T> {
 		// Selection events also don't tell us where the input doing the selection is. So, make a poor
 		// assumption that a user is using the mouse, and base our events on that.
 		movementStore.add(addDisposableListener(this.domNode, 'selectstart', () => {
-			this.setupDragAndDropScrollTopAnimation(e);
-
-			movementStore.add(addDisposableListener(doc, 'mousemove', e => this.setupDragAndDropScrollTopAnimation(e)));
+			movementStore.add(addDisposableListener(doc, 'mousemove', e => {
+				if (doc.getSelection()?.isCollapsed === false) {
+					this.setupDragAndDropScrollTopAnimation(e);
+				}
+			}));
 
 			// The selection is cleared either on mouseup if there's no selection, or on next mousedown
 			// when `this.currentSelectionDisposable` is reset.
@@ -1223,6 +1260,7 @@ export class ListView<T> implements IListView<T> {
 
 		movementStore.add(addDisposableListener(doc, 'mouseup', () => {
 			movementStore.dispose();
+			this.teardownDragAndDropScrollTopAnimation();
 
 			if (doc.getSelection()?.isCollapsed !== false) {
 				selectionStore.dispose();

@@ -20,7 +20,7 @@ export const enum OperationKind {
 	Config = 'Config',
 	DeleteBranch = 'DeleteBranch',
 	DeleteRef = 'DeleteRef',
-	DeleteRemoteTag = 'DeleteRemoteTag',
+	DeleteRemoteRef = 'DeleteRemoteRef',
 	DeleteTag = 'DeleteTag',
 	Diff = 'Diff',
 	Fetch = 'Fetch',
@@ -67,7 +67,7 @@ export const enum OperationKind {
 
 export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchOperation | CheckIgnoreOperation | CherryPickOperation |
 	CheckoutOperation | CheckoutTrackingOperation | CleanOperation | CommitOperation | ConfigOperation | DeleteBranchOperation |
-	DeleteRefOperation | DeleteRemoteTagOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
+	DeleteRefOperation | DeleteRemoteRefOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
 	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetObjectFilesOperation | GetRefsOperation |
 	GetRemoteRefsOperation | HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation |
 	MergeBaseOperation | MergeContinueOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation |
@@ -89,7 +89,7 @@ export type CommitOperation = BaseOperation & { kind: OperationKind.Commit };
 export type ConfigOperation = BaseOperation & { kind: OperationKind.Config };
 export type DeleteBranchOperation = BaseOperation & { kind: OperationKind.DeleteBranch };
 export type DeleteRefOperation = BaseOperation & { kind: OperationKind.DeleteRef };
-export type DeleteRemoteTagOperation = BaseOperation & { kind: OperationKind.DeleteRemoteTag };
+export type DeleteRemoteRefOperation = BaseOperation & { kind: OperationKind.DeleteRemoteRef };
 export type DeleteTagOperation = BaseOperation & { kind: OperationKind.DeleteTag };
 export type DiffOperation = BaseOperation & { kind: OperationKind.Diff };
 export type FetchOperation = BaseOperation & { kind: OperationKind.Fetch };
@@ -147,7 +147,7 @@ export const Operation = {
 	Config: (readOnly: boolean) => ({ kind: OperationKind.Config, blocking: false, readOnly, remote: false, retry: false, showProgress: false } as ConfigOperation),
 	DeleteBranch: { kind: OperationKind.DeleteBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchOperation,
 	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
-	DeleteRemoteTag: { kind: OperationKind.DeleteRemoteTag, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteTagOperation,
+	DeleteRemoteRef: { kind: OperationKind.DeleteRemoteRef, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteRefOperation,
 	DeleteTag: { kind: OperationKind.DeleteTag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteTagOperation,
 	Diff: { kind: OperationKind.Diff, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as DiffOperation,
 	Fetch: (showProgress: boolean) => ({ kind: OperationKind.Fetch, blocking: false, readOnly: false, remote: true, retry: true, showProgress } as FetchOperation),

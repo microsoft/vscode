@@ -323,7 +323,7 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	/** @override  */
-	public override getActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
+	public override createActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TestCommandId.FilterAction:
 				this.filter.value = this.instantiationService.createInstance(TestingExplorerFilter, action, options);
@@ -337,7 +337,7 @@ export class TestingExplorerView extends ViewPane {
 			case TestCommandId.StopContinousRun:
 				return this.getContinuousRunDropdown(action, options);
 			default:
-				return super.getActionViewItem(action, options);
+				return super.createActionViewItem(action, options);
 		}
 	}
 
@@ -444,7 +444,7 @@ export class TestingExplorerView extends ViewPane {
 	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction, options: IActionViewItemOptions) {
 		const dropdownActions = this.getTestConfigGroupActions(group);
 		if (dropdownActions.numberOfProfiles < 2) {
-			return super.getActionViewItem(defaultAction, options);
+			return super.createActionViewItem(defaultAction, options);
 		}
 
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
@@ -476,7 +476,7 @@ export class TestingExplorerView extends ViewPane {
 		})];
 
 		if (allProfiles.length <= 1) {
-			return super.getActionViewItem(defaultAction, options);
+			return super.createActionViewItem(defaultAction, options);
 		}
 
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
@@ -530,7 +530,7 @@ export class TestingExplorerView extends ViewPane {
 
 	private createFilterActionBar() {
 		const bar = new ActionBar(this.treeHeader, {
-			actionViewItemProvider: (action, options) => this.getActionViewItem(action, options),
+			actionViewItemProvider: (action, options) => this.createActionViewItem(action, options),
 			triggerKeys: { keyDown: false, keys: [] },
 		});
 		bar.push(new Action(TestCommandId.FilterAction));

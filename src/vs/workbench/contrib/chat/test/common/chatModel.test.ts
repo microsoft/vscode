@@ -163,8 +163,8 @@ suite('ChatModel', () => {
 
 		assert.strictEqual(request1.isCompleteAddedRequest, true);
 		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);
-		assert.strictEqual(request1.isHidden, false);
-		assert.strictEqual(request1.response!.isHidden, false);
+		assert.strictEqual(request1.shouldBeRemovedOnSend, undefined);
+		assert.strictEqual(request1.response!.shouldBeRemovedOnSend, undefined);
 	});
 });
 

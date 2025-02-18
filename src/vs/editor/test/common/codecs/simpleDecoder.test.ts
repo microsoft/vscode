@@ -8,6 +8,7 @@ import { Range } from '../../../common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { newWriteableStream } from '../../../../base/common/stream.js';
 import { Tab } from '../../../common/codecs/simpleCodec/tokens/tab.js';
+import { Hash } from '../../../common/codecs/simpleCodec/tokens/hash.js';
 import { Word } from '../../../common/codecs/simpleCodec/tokens/word.js';
 import { Space } from '../../../common/codecs/simpleCodec/tokens/space.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
@@ -16,6 +17,8 @@ import { VerticalTab } from '../../../common/codecs/simpleCodec/tokens/verticalT
 import { CarriageReturn } from '../../../common/codecs/linesCodec/tokens/carriageReturn.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SimpleDecoder, TSimpleToken } from '../../../common/codecs/simpleCodec/simpleDecoder.js';
+import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/tokens/brackets.js';
+import { LeftParenthesis, RightParenthesis } from '../../../common/codecs/simpleCodec/tokens/parentheses.js';
 
 /**
  * A reusable test utility that asserts that a `SimpleDecoder` instance
@@ -57,7 +60,7 @@ suite('SimpleDecoder', () => {
 		);
 
 		await test.run(
-			' hello world\nhow are\t you?\v\n\n   (test)  [!@#$%^&*_+=]\f  \n\t\t🤗❤ \t\n hey\vthere\r\n\r\n',
+			' hello world\nhow are\t you?\v\n\n   (test)  [!@#$%^🦄&*_+=]\f  \n\t\t🤗❤ \t\n hey\vthere\r\n\r\n',
 			[
 				// first line
 				new Space(new Range(1, 1, 1, 2)),
@@ -80,14 +83,20 @@ suite('SimpleDecoder', () => {
 				new Space(new Range(4, 1, 4, 2)),
 				new Space(new Range(4, 2, 4, 3)),
 				new Space(new Range(4, 3, 4, 4)),
-				new Word(new Range(4, 4, 4, 10), '(test)'),
+				new LeftParenthesis(new Range(4, 4, 4, 5)),
+				new Word(new Range(4, 5, 4, 5 + 4), 'test'),
+				new RightParenthesis(new Range(4, 9, 4, 10)),
 				new Space(new Range(4, 10, 4, 11)),
 				new Space(new Range(4, 11, 4, 12)),
-				new Word(new Range(4, 12, 4, 25), '[!@#$%^&*_+=]'),
-				new FormFeed(new Range(4, 25, 4, 26)),
-				new Space(new Range(4, 26, 4, 27)),
-				new Space(new Range(4, 27, 4, 28)),
-				new NewLine(new Range(4, 28, 4, 29)),
+				new LeftBracket(new Range(4, 12, 4, 13)),
+				new Word(new Range(4, 13, 4, 13 + 2), '!@'),
+				new Hash(new Range(4, 15, 4, 16)),
+				new Word(new Range(4, 16, 4, 16 + 10), '$%^🦄&*_+='),
+				new RightBracket(new Range(4, 26, 4, 27)),
+				new FormFeed(new Range(4, 27, 4, 28)),
+				new Space(new Range(4, 28, 4, 29)),
+				new Space(new Range(4, 29, 4, 30)),
+				new NewLine(new Range(4, 30, 4, 31)),
 				// fifth line
 				new Tab(new Range(5, 1, 5, 2)),
 				new Tab(new Range(5, 2, 5, 3)),

@@ -12,7 +12,10 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
 import { request } from '../../../../base/parts/request/common/requestImpl.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { ILoggerService } from '../../../../platform/log/common/log.js';
+import { localize } from '../../../../nls.js';
+import { LogService } from '../../../../platform/log/common/logService.js';
+import { windowLogGroup } from '../../log/common/logConstants.js';
 
 export class BrowserRequestService extends AbstractRequestService implements IRequestService {
 
@@ -21,15 +24,19 @@ export class BrowserRequestService extends AbstractRequestService implements IRe
 	constructor(
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService logService: ILogService,
+		@ILoggerService loggerService: ILoggerService,
 	) {
+		const logger = loggerService.createLogger(`network`, { name: localize('network', "Network"), group: windowLogGroup });
+		const logService = new LogService(logger);
 		super(logService);
+		this._register(logger);
+		this._register(logService);
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		try {
 			if (!options.proxyAuthorization) {
-				options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
+				options.proxyAuthorization = this.configurationService.inspect<string>('http.proxyAuthorization').userLocalValue;
 			}
 			const context = await this.logAndRequest(options, () => request(options, token, () => navigator.onLine));
 

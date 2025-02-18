@@ -18,7 +18,7 @@ import { assertType } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { Location } from '../../../editor/common/languages.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, IChatWelcomeMessageContent } from '../../contrib/chat/common/chatAgents.js';
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
@@ -224,12 +224,12 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				detectedParticipant(participant, command) {
-					throwIfDone(this.detectedParticipant);
+				notebookEdit(target, edits) {
+					throwIfDone(this.notebookEdit);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const part = new extHostTypes.ChatResponseDetectedParticipantPart(participant, command);
-					const dto = typeConvert.ChatResponseDetectedParticipantPart.from(part);
+					const part = new extHostTypes.ChatResponseNotebookEditPart(target, Array.isArray(edits) ? edits : []);
+					const dto = typeConvert.ChatResponseNotebookEditPart.from(part);
 					_report(dto);
 					return this;
 				},
@@ -247,8 +247,8 @@ class ChatAgentResponseStream {
 
 					if (
 						part instanceof extHostTypes.ChatResponseTextEditPart ||
+						part instanceof extHostTypes.ChatResponseNotebookEditPart ||
 						part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart ||
-						part instanceof extHostTypes.ChatResponseDetectedParticipantPart ||
 						part instanceof extHostTypes.ChatResponseWarningPart ||
 						part instanceof extHostTypes.ChatResponseConfirmationPart ||
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
@@ -296,6 +296,11 @@ class ChatAgentResponseStream {
 	}
 }
 
+interface InFlightChatRequest {
+	requestId: string;
+	extRequest: vscode.ChatRequest;
+}
+
 export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsShape2 {
 
 	private static _idPool = 0;
@@ -311,6 +316,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
+
+	private readonly _inFlightRequests = new Set<InFlightChatRequest>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -387,15 +394,15 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
-		const { request, location, history } = await this._createRequest(requestDto, context);
-
 		const detector = this._participantDetectionProviders.get(handle);
 		if (!detector) {
 			return undefined;
 		}
 
+		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
+
 		const model = await this.getModelForRequest(request, detector.extension);
-		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model);
+		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, isProposedApiEnabled(detector.extension, 'chatReadonlyPromptReference'));
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -405,9 +412,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		);
 	}
 
-	private async _createRequest(requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }) {
+	private async _createRequest(requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, extension: IExtensionDescription) {
 		const request = revive<IChatAgentRequest>(requestDto);
-		const convertedHistory = await this.prepareHistoryTurns(request.agentId, context);
+		const convertedHistory = await this.prepareHistoryTurns(extension, request.agentId, context);
 
 		// in-place converting for location-data
 		let location: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined;
@@ -443,6 +450,20 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return model;
 	}
 
+	async $setRequestPaused(handle: number, requestId: string, isPaused: boolean) {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return;
+		}
+
+		const inFlight = Iterable.find(this._inFlightRequests, r => r.requestId === requestId);
+		if (!inFlight) {
+			return;
+		}
+
+		agent.setChatRequestPauseState({ request: inFlight.extRequest, isPaused });
+	}
+
 	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -450,9 +471,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		let stream: ChatAgentResponseStream | undefined;
+		let inFlightRequest: InFlightChatRequest | undefined;
 
 		try {
-			const { request, location, history } = await this._createRequest(requestDto, context);
+			const { request, location, history } = await this._createRequest(requestDto, context, agent.extension);
 
 			// Init session disposables
 			let sessionDisposables = this._sessionDisposables.get(request.sessionId);
@@ -464,7 +486,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
 			const model = await this.getModelForRequest(request, agent.extension);
-			const extRequest = typeConvert.ChatAgentRequest.to(request, location, model);
+			const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, isProposedApiEnabled(agent.extension, 'chatReadonlyPromptReference'));
+			inFlightRequest = { requestId: requestDto.requestId, extRequest };
+			this._inFlightRequests.add(inFlightRequest);
 
 			const task = agent.invoke(
 				extRequest,
@@ -507,11 +531,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded } };
 
 		} finally {
+			if (inFlightRequest) {
+				this._inFlightRequests.delete(inFlightRequest);
+			}
 			stream?.close();
 		}
 	}
 
-	private async prepareHistoryTurns(agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
+	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
 		const res: (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] = [];
 
 		for (const h of context.history) {
@@ -521,9 +548,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
+			const hasReadonlyProposal = isProposedApiEnabled(extension, 'chatReadonlyPromptReference');
 			const varsWithoutTools = h.request.variables.variables
 				.filter(v => !v.isTool)
-				.map(typeConvert.ChatPromptReference.to);
+				.map(v => typeConvert.ChatPromptReference.to(v, hasReadonlyProposal));
 			const toolReferences = h.request.variables.variables
 				.filter(v => v.isTool)
 				.map(typeConvert.ChatLanguageModelToolReference.to);
@@ -549,7 +577,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const request = revive<IChatAgentRequest>(requestDto);
-		const convertedHistory = await this.prepareHistoryTurns(agent.id, context);
+		const convertedHistory = await this.prepareHistoryTurns(agent.extension, agent.id, context);
 
 		const ehResult = typeConvert.ChatAgentResult.to(result);
 		return (await agent.provideFollowups(ehResult, { history: convertedHistory }, token))
@@ -642,7 +670,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return;
 		}
 
-		const history = await this.prepareHistoryTurns(agent.id, { history: context });
+		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
 		return await agent.provideTitle({ history }, token);
 	}
 
@@ -686,7 +714,7 @@ class ExtHostChatAgent {
 	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
-	private _supportsSlowReferences: boolean | undefined;
+	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -702,6 +730,10 @@ class ExtHostChatAgent {
 
 	acceptAction(event: vscode.ChatUserActionEvent) {
 		this._onDidPerformAction.fire(event);
+	}
+
+	setChatRequestPauseState(pauseState: vscode.ChatParticipantPauseStateEvent) {
+		this._pauseStateEmitter.fire(pauseState);
 	}
 
 	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatCompletionItem[]> {
@@ -794,7 +826,6 @@ class ExtHostChatAgent {
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
 					requester: this._requester,
-					supportsSlowVariables: this._supportsSlowReferences,
 				});
 				updateScheduled = false;
 			});
@@ -909,6 +940,10 @@ class ExtHostChatAgent {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._titleProvider;
 			},
+			get onDidChangePauseState() {
+				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
+				return that._pauseStateEmitter.event;
+			},
 			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatParticipantAdditions')
 				? undefined!
 				: this._onDidPerformAction.event
@@ -919,15 +954,6 @@ class ExtHostChatAgent {
 			},
 			get requester() {
 				return that._requester;
-			},
-			set supportsSlowReferences(v) {
-				checkProposedApiEnabled(that.extension, 'chatParticipantPrivate');
-				that._supportsSlowReferences = v;
-				updateMetadataSoon();
-			},
-			get supportsSlowReferences() {
-				checkProposedApiEnabled(that.extension, 'chatParticipantPrivate');
-				return that._supportsSlowReferences;
 			},
 			dispose() {
 				disposed = true;

@@ -327,6 +327,7 @@ export class InlineCompletionItem {
 			insertText,
 			inlineCompletion.command,
 			inlineCompletion.shownCommand,
+			inlineCompletion.action,
 			range,
 			insertText,
 			snippetInfo,
@@ -337,12 +338,15 @@ export class InlineCompletionItem {
 		);
 	}
 
+	static ID = 1;
+
 	private _didCallShow = false;
 
 	constructor(
 		readonly filterText: string,
 		readonly command: Command | undefined,
 		readonly shownCommand: Command | undefined,
+		readonly action: Command | undefined,
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
@@ -362,7 +366,10 @@ export class InlineCompletionItem {
 		 * Used for event data to ensure referential equality.
 		*/
 		readonly source: InlineCompletionList,
+
+		readonly id = `InlineCompletion:${InlineCompletionItem.ID++}`,
 	) {
+		// TODO: these statements are no-ops
 		filterText = filterText.replace(/\r\n|\r/g, '\n');
 		insertText = filterText.replace(/\r\n|\r/g, '\n');
 	}
@@ -379,6 +386,7 @@ export class InlineCompletionItem {
 			this.filterText,
 			this.command,
 			this.shownCommand,
+			this.action,
 			updatedRange,
 			this.insertText,
 			this.snippetInfo,
@@ -386,6 +394,24 @@ export class InlineCompletionItem {
 			this.additionalTextEdits,
 			this.sourceInlineCompletion,
 			this.source,
+			this.id,
+		);
+	}
+
+	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {
+		return new InlineCompletionItem(
+			updatedFilterText,
+			this.command,
+			this.shownCommand,
+			this.action,
+			updatedRange,
+			updatedInsertText,
+			this.snippetInfo,
+			this.cursorShowRange,
+			this.additionalTextEdits,
+			this.sourceInlineCompletion,
+			this.source,
+			this.id,
 		);
 	}
 

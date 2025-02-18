@@ -772,9 +772,25 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 		codespan
 	*/
 
+	const listEndsInHeading = (list: marked.Tokens.List): boolean => {
+		// A list item can be rendered as a heading for some reason when it has a subitem where we haven't rendered the text yet like this:
+		// 1. list item
+		//    -
+		const lastItem = list.items.at(-1);
+		const lastToken = lastItem?.tokens.at(-1);
+		return lastToken?.type === 'heading' || lastToken?.type === 'list' && listEndsInHeading(lastToken as marked.Tokens.List);
+	};
+
 	let newToken: marked.Token | undefined;
 	if (lastListSubToken?.type === 'text' && !('inRawBlock' in lastListItem)) { // Why does Tag have a type of 'text'
 		newToken = completeSingleLinePattern(lastListSubToken as marked.Tokens.Text);
+	} else if (listEndsInHeading(list)) {
+		const newList = marked.lexer(list.raw.trim() + ' &nbsp;')[0] as marked.Tokens.List;
+		if (newList.type !== 'list') {
+			// Something went wrong
+			return;
+		}
+		return newList;
 	}
 
 	if (!newToken || newToken.type !== 'paragraph') { // 'text' item inside the list item turns into paragraph

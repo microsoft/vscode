@@ -10,7 +10,6 @@
   "enabledApiProposals": [
     "workspaceTrust",
     "multiDocumentHighlightProvider",
-    "mappedEditsProvider",
     "codeActionAI",
     "codeActionRanges",
     "editorHoverVerbosityLevel"
@@ -526,6 +525,12 @@
           ]
         },
         "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
+        },
+        "javascript.format.indentSwitchCase": {
           "type": "boolean",
           "default": true,
           "description": "%format.indentSwitchCase%",

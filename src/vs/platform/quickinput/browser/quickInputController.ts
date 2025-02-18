@@ -19,7 +19,7 @@ import { isString } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
-import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey } from './quickInput.js';
+import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey, QuickInputAlignmentContextKey } from './quickInput.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -29,6 +29,10 @@ import './quickInputActions.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { Platform, platform } from '../../../base/common/platform.js';
+import { getTitleBarStyle, TitlebarStyle } from '../../window/common/window.js';
+import { getZoomFactor } from '../../../base/browser/browser.js';
 
 const $ = dom.$;
 
@@ -258,6 +262,11 @@ export class QuickInputController extends Disposable {
 			if (this.endOfQuickInputBoxContext.get() !== value) {
 				this.endOfQuickInputBoxContext.set(value);
 			}
+			// Allow screenreaders to read what's in the input
+			// Note: this works for arrow keys and selection changes,
+			// but not for deletions since that often triggers a
+			// change in the list.
+			inputBox.removeAttribute('aria-activedescendant');
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
@@ -309,21 +318,14 @@ export class QuickInputController extends Disposable {
 							selectors.push('.quick-input-html-widget');
 						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
-						if (event.shiftKey && event.target === stops[0]) {
-							// Clear the focus from the list in order to allow
-							// screen readers to read operations in the input box.
-							dom.EventHelper.stop(event, true);
-							list.clearFocus();
-						} else if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
+						if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
 							dom.EventHelper.stop(event, true);
 							stops[0].focus();
 						}
-					}
-					break;
-				case KeyCode.Space:
-					if (event.ctrlKey) {
-						dom.EventHelper.stop(event, true);
-						this.getUI().list.toggleHover();
+						if (event.shiftKey && dom.isAncestor(event.target, stops[0])) {
+							dom.EventHelper.stop(event, true);
+							stops[stops.length - 1].focus();
+						}
 					}
 					break;
 			}
@@ -331,7 +333,21 @@ export class QuickInputController extends Disposable {
 
 		// Drag and Drop support
 		this.dndController = this._register(this.instantiationService.createInstance(
-			QuickInputDragAndDropController, this._container, container, [titleBar, title, headerContainer]));
+			QuickInputDragAndDropController,
+			this._container,
+			container,
+			[
+				{
+					node: titleBar,
+					includeChildren: true
+				},
+				{
+					node: headerContainer,
+					includeChildren: false
+				}
+			],
+			this.viewState
+		));
 
 		// DnD update layout
 		this._register(autorun(reader => {
@@ -607,6 +623,10 @@ export class QuickInputController extends Disposable {
 		return new InputBox(ui);
 	}
 
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void {
+		this.dndController?.setAlignment(alignment);
+	}
+
 	createQuickWidget(): IQuickWidget {
 		const ui = this.getUI(true);
 		return new QuickWidget(ui);
@@ -649,6 +669,7 @@ export class QuickInputController extends Disposable {
 
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.dndController?.layoutContainer();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
 	}
@@ -736,6 +757,12 @@ export class QuickInputController extends Disposable {
 	toggle() {
 		if (this.isVisible() && this.controller instanceof QuickPick && this.controller.canSelectMany) {
 			this.getUI().list.toggleCheckbox();
+		}
+	}
+
+	toggleHover() {
+		if (this.isVisible() && this.controller instanceof QuickPick) {
+			this.getUI().list.toggleHover();
 		}
 	}
 
@@ -879,132 +906,186 @@ class QuickInputDragAndDropController extends Disposable {
 	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean } | undefined>(this, undefined);
 
 	private readonly _snapThreshold = 20;
-	private readonly _snapLineHorizontalRatio = 0.15;
-	private readonly _snapLineHorizontal: HTMLElement;
-	private readonly _snapLineVertical1: HTMLElement;
-	private readonly _snapLineVertical2: HTMLElement;
+	private readonly _snapLineHorizontalRatio = 0.25;
+
+	private readonly _controlsOnLeft: boolean;
+	private readonly _controlsOnRight: boolean;
+
+	private _quickInputAlignmentContext = QuickInputAlignmentContextKey.bindTo(this._contextKeyService);
 
 	constructor(
 		private _container: HTMLElement,
 		private readonly _quickInputContainer: HTMLElement,
-		private _quickInputDragAreas: HTMLElement[],
-		@ILayoutService private readonly _layoutService: ILayoutService
+		private _quickInputDragAreas: { node: HTMLElement; includeChildren: boolean }[],
+		initialViewState: QuickInputViewState | undefined,
+		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+		const customTitleBar = getTitleBarStyle(this.configurationService) === TitlebarStyle.CUSTOM;
 
-		this._snapLineHorizontal = dom.append(this._container, $('.quick-input-widget-snapline.horizontal.hidden'));
-		this._snapLineVertical1 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
-		this._snapLineVertical2 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
-
+		// Do not allow the widget to overflow or underflow window controls.
+		// Use CSS calculations to avoid having to force layout with `.clientWidth`
+		this._controlsOnLeft = customTitleBar && platform === Platform.Mac;
+		this._controlsOnRight = customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
+		this._registerLayoutListener();
 		this.registerMouseListeners();
+		this.dndViewState.set({ ...initialViewState, done: true }, undefined);
 	}
 
 	reparentUI(container: HTMLElement): void {
 		this._container = container;
-		this._snapLineHorizontal.remove();
-		this._snapLineVertical1.remove();
-		this._snapLineVertical2.remove();
-		dom.append(this._container, this._snapLineHorizontal);
-		dom.append(this._container, this._snapLineVertical1);
-		dom.append(this._container, this._snapLineVertical2);
 	}
 
-	private registerMouseListeners(): void {
-		for (const dragArea of this._quickInputDragAreas) {
-			let top: number | undefined;
-			let left: number | undefined;
-
-			// Double click
-			this._register(dom.addDisposableGenericMouseUpListener(dragArea, (event: MouseEvent) => {
-				const originEvent = new StandardMouseEvent(dom.getWindow(dragArea), event);
-
-				// Ignore event if the target is not the drag area
-				if (originEvent.target !== dragArea) {
-					return;
-				}
-
-				if (originEvent.detail === 2) {
-					top = undefined;
-					left = undefined;
-
-					this.dndViewState.set({ top, left, done: true }, undefined);
-				}
-			}));
-
-			// Mouse down
-			this._register(dom.addDisposableGenericMouseDownListener(dragArea, (e: MouseEvent) => {
-				const activeWindow = dom.getWindow(this._layoutService.activeContainer);
-				const originEvent = new StandardMouseEvent(activeWindow, e);
-
-				// Ignore event if the target is not the drag area
-				if (originEvent.target !== dragArea) {
-					return;
-				}
-
-				// Mouse position offset relative to dragArea
-				const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
-				const dragOffsetX = originEvent.browserEvent.clientX - dragAreaRect.left;
-				const dragOffsetY = originEvent.browserEvent.clientY - dragAreaRect.top;
-
-				// Snap lines
-				let snapLinesVisible = false;
-				const snapCoordinateYTop = this._layoutService.activeContainerOffset.quickPickTop;
-				const snapCoordinateY = Math.round(this._container.clientHeight * this._snapLineHorizontalRatio);
-				const snapCoordinateX = Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
-
-				// Mouse move
-				const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
-					const mouseMoveEvent = new StandardMouseEvent(activeWindow, e);
-					mouseMoveEvent.preventDefault();
-
-					if (!snapLinesVisible) {
-						this._showSnapLines(snapCoordinateY, snapCoordinateX);
-						snapLinesVisible = true;
-					}
-
-					let topCoordinate = e.clientY - dragOffsetY;
-					topCoordinate = Math.max(0, Math.min(topCoordinate, this._container.clientHeight - this._quickInputContainer.clientHeight));
-					topCoordinate = Math.abs(topCoordinate - snapCoordinateYTop) < this._snapThreshold ? snapCoordinateYTop : topCoordinate;
-					topCoordinate = Math.abs(topCoordinate - snapCoordinateY) < this._snapThreshold ? snapCoordinateY : topCoordinate;
-					top = topCoordinate / this._container.clientHeight;
-
-					let leftCoordinate = e.clientX - dragOffsetX;
-					leftCoordinate = Math.max(0, Math.min(leftCoordinate, this._container.clientWidth - this._quickInputContainer.clientWidth));
-					leftCoordinate = Math.abs(leftCoordinate - snapCoordinateX) < this._snapThreshold ? snapCoordinateX : leftCoordinate;
-					left = (leftCoordinate + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth;
-
-					this.dndViewState.set({ top, left, done: false }, undefined);
-				});
-
-				// Mouse up
-				const mouseUpListener = dom.addDisposableGenericMouseUpListener(activeWindow, (e: MouseEvent) => {
-					// Hide snaplines
-					this._hideSnapLines();
-
-					// Save position
-					this.dndViewState.set({ top, left, done: true }, undefined);
-
-					// Dispose listeners
-					mouseMoveListener.dispose();
-					mouseUpListener.dispose();
-				});
-			}));
+	layoutContainer(dimension = this._layoutService.activeContainerDimension): void {
+		const state = this.dndViewState.get();
+		const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
+		if (state?.top && state?.left) {
+			const a = Math.round(state.left * 1e2) / 1e2;
+			const b = dimension.width;
+			const c = dragAreaRect.width;
+			const d = a * b - c / 2;
+			this._layout(state.top * dimension.height, d);
 		}
 	}
 
-	private _showSnapLines(horizontal: number, vertical: number) {
-		this._snapLineHorizontal.style.top = `${horizontal}px`;
-		this._snapLineVertical1.style.left = `${vertical}px`;
-		this._snapLineVertical2.style.left = `${vertical + this._quickInputContainer.clientWidth}px`;
-
-		this._snapLineHorizontal.classList.remove('hidden');
-		this._snapLineVertical1.classList.remove('hidden');
-		this._snapLineVertical2.classList.remove('hidden');
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }, done = true): void {
+		if (alignment === 'top') {
+			this.dndViewState.set({
+				top: this._getTopSnapValue() / this._container.clientHeight,
+				left: (this._getCenterXSnapValue() + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth,
+				done
+			}, undefined);
+			this._quickInputAlignmentContext.set('top');
+		} else if (alignment === 'center') {
+			this.dndViewState.set({
+				top: this._getCenterYSnapValue() / this._container.clientHeight,
+				left: (this._getCenterXSnapValue() + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth,
+				done
+			}, undefined);
+			this._quickInputAlignmentContext.set('center');
+		} else {
+			this.dndViewState.set({ top: alignment.top, left: alignment.left, done }, undefined);
+			this._quickInputAlignmentContext.set(undefined);
+		}
 	}
 
-	private _hideSnapLines() {
-		this._snapLineHorizontal.classList.add('hidden');
-		this._snapLineVertical1.classList.add('hidden');
-		this._snapLineVertical2.classList.add('hidden');
+	private _registerLayoutListener() {
+		this._register(Event.filter(this._layoutService.onDidLayoutContainer, e => e.container === this._container)((e) => this.layoutContainer(e.dimension)));
+	}
+
+	private registerMouseListeners(): void {
+		const dragArea = this._quickInputContainer;
+
+		// Double click
+		this._register(dom.addDisposableGenericMouseUpListener(dragArea, (event: MouseEvent) => {
+			const originEvent = new StandardMouseEvent(dom.getWindow(dragArea), event);
+			if (originEvent.detail !== 2) {
+				return;
+			}
+
+			// Ignore event if the target is not the drag area
+			if (!this._quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target as HTMLElement, node) : originEvent.target === node)) {
+				return;
+			}
+
+			this.dndViewState.set({ top: undefined, left: undefined, done: true }, undefined);
+		}));
+
+		// Mouse down
+		this._register(dom.addDisposableGenericMouseDownListener(dragArea, (e: MouseEvent) => {
+			const activeWindow = dom.getWindow(this._layoutService.activeContainer);
+			const originEvent = new StandardMouseEvent(activeWindow, e);
+
+			// Ignore event if the target is not the drag area
+			if (!this._quickInputDragAreas.some(({ node, includeChildren }) => includeChildren ? dom.isAncestor(originEvent.target as HTMLElement, node) : originEvent.target === node)) {
+				return;
+			}
+
+			// Mouse position offset relative to dragArea
+			const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
+			const dragOffsetX = originEvent.browserEvent.clientX - dragAreaRect.left;
+			const dragOffsetY = originEvent.browserEvent.clientY - dragAreaRect.top;
+
+			let isMovingQuickInput = false;
+			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
+				const mouseMoveEvent = new StandardMouseEvent(activeWindow, e);
+				mouseMoveEvent.preventDefault();
+
+				if (!isMovingQuickInput) {
+					isMovingQuickInput = true;
+				}
+
+				this._layout(e.clientY - dragOffsetY, e.clientX - dragOffsetX);
+			});
+			const mouseUpListener = dom.addDisposableGenericMouseUpListener(activeWindow, (e: MouseEvent) => {
+				if (isMovingQuickInput) {
+					// Save position
+					const state = this.dndViewState.get();
+					this.dndViewState.set({ top: state?.top, left: state?.left, done: true }, undefined);
+				}
+
+				// Dispose listeners
+				mouseMoveListener.dispose();
+				mouseUpListener.dispose();
+			});
+		}));
+	}
+
+	private _layout(topCoordinate: number, leftCoordinate: number) {
+		const snapCoordinateYTop = this._getTopSnapValue();
+		const snapCoordinateY = this._getCenterYSnapValue();
+		const snapCoordinateX = this._getCenterXSnapValue();
+		// Make sure the quick input is not moved outside the container
+		topCoordinate = Math.max(0, Math.min(topCoordinate, this._container.clientHeight - this._quickInputContainer.clientHeight));
+
+		if (topCoordinate < this._layoutService.activeContainerOffset.top) {
+			if (this._controlsOnLeft) {
+				leftCoordinate = Math.max(leftCoordinate, 80 / getZoomFactor(dom.getActiveWindow()));
+			} else if (this._controlsOnRight) {
+				leftCoordinate = Math.min(leftCoordinate, this._container.clientWidth - this._quickInputContainer.clientWidth - (140 / getZoomFactor(dom.getActiveWindow())));
+			}
+		}
+
+		const snappingToTop = Math.abs(topCoordinate - snapCoordinateYTop) < this._snapThreshold;
+		topCoordinate = snappingToTop ? snapCoordinateYTop : topCoordinate;
+		const snappingToCenter = Math.abs(topCoordinate - snapCoordinateY) < this._snapThreshold;
+		topCoordinate = snappingToCenter ? snapCoordinateY : topCoordinate;
+		const top = topCoordinate / this._container.clientHeight;
+
+		// Make sure the quick input is not moved outside the container
+		leftCoordinate = Math.max(0, Math.min(leftCoordinate, this._container.clientWidth - this._quickInputContainer.clientWidth));
+		const snappingToCenterX = Math.abs(leftCoordinate - snapCoordinateX) < this._snapThreshold;
+		leftCoordinate = snappingToCenterX ? snapCoordinateX : leftCoordinate;
+
+		const b = this._container.clientWidth;
+		const c = this._quickInputContainer.clientWidth;
+		const d = leftCoordinate;
+		const left = (d + c / 2) / b;
+
+		this.dndViewState.set({ top, left, done: false }, undefined);
+		if (snappingToCenterX) {
+			if (snappingToTop) {
+				this._quickInputAlignmentContext.set('top');
+				return;
+			} else if (snappingToCenter) {
+				this._quickInputAlignmentContext.set('center');
+				return;
+			}
+		}
+		this._quickInputAlignmentContext.set(undefined);
+	}
+
+	private _getTopSnapValue() {
+		return this._layoutService.activeContainerOffset.quickPickTop;
+	}
+
+	private _getCenterYSnapValue() {
+		return Math.round(this._container.clientHeight * this._snapLineHorizontalRatio);
+	}
+
+	private _getCenterXSnapValue() {
+		return Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
 	}
 }

@@ -26,7 +26,6 @@ import { NotificationService } from '../services/notification/common/notificatio
 import { NotificationsCenter } from './parts/notifications/notificationsCenter.js';
 import { NotificationsAlerts } from './parts/notifications/notificationsAlerts.js';
 import { NotificationsStatus } from './parts/notifications/notificationsStatus.js';
-import { NotificationsTelemetry } from './parts/notifications/notificationsTelemetry.js';
 import { registerNotificationCommands } from './parts/notifications/notificationsCommands.js';
 import { NotificationsToasts } from './parts/notifications/notificationsToasts.js';
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
@@ -320,11 +319,6 @@ export class Workbench extends Layout {
 		]);
 
 		this.mainContainer.classList.add(...workbenchClasses);
-		mainWindow.document.body.classList.add(platformClass); // used by our fonts
-
-		if (isWeb) {
-			mainWindow.document.body.classList.add('web');
-		}
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
@@ -376,7 +370,6 @@ export class Workbench extends Layout {
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.mainContainer, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
-		this._register(instantiationService.createInstance(NotificationsTelemetry));
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {

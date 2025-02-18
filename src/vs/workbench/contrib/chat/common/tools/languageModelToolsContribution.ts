@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { DisposableMap, Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
-import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IExtensionFeatureTableRenderer, IRenderedData, ITableData, IRowData, IExtensionFeaturesRegistry, Extensions } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
+import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
+import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
+import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
 
 export interface IRawToolContribution {
 	name: string;
@@ -66,8 +67,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				name: {
 					description: localize('toolName', "A unique name for this tool. This name must be a globally unique identifier, and is also used as a name when presenting this tool to a language model."),
 					type: 'string',
-					// Borrow OpenAI's requirement for tool names
-					pattern: '^[\\w-]+$'
+					// [\\w-]+ is OpenAI's requirement for tool names
+					pattern: '^(?!copilot_|vscode_)[\\w-]+$'
 				},
 				toolReferenceName: {
 					markdownDescription: localize('toolName2', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeReferencedInPrompt`'),
@@ -121,7 +122,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand, or they may want to pick a tag that can be used to identify just the tools contributed by this extension."),
 					type: 'array',
 					items: {
-						type: 'string'
+						type: 'string',
+						pattern: '^(?!copilot_|vscode_)'
 					}
 				}
 			}
@@ -157,6 +159,16 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					if (rawTool.canBeReferencedInPrompt && !rawTool.toolReferenceName) {
 						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with 'canBeReferencedInPrompt' set without a 'toolReferenceName': ${JSON.stringify(rawTool)}`);
+						continue;
+					}
+
+					if ((rawTool.name.startsWith('copilot_') || rawTool.name.startsWith('vscode_')) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with name starting with "vscode_" or "copilot_"`);
+						continue;
+					}
+
+					if (rawTool.tags?.some(tag => tag.startsWith('copilot_') || tag.startsWith('vscode_')) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tags starting with "vscode_" or "copilot_"`);
 						continue;
 					}
 

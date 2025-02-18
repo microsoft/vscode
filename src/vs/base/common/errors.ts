@@ -126,8 +126,13 @@ export interface SerializedError {
 	readonly message: string;
 	readonly stack: string;
 	readonly noTelemetry: boolean;
+	readonly code?: string;
 	readonly cause?: SerializedError;
 }
+
+type ErrorWithCode = Error & {
+	code: string | undefined;
+};
 
 export function transformErrorForSerialization(error: Error): SerializedError;
 export function transformErrorForSerialization(error: any): any;
@@ -141,7 +146,8 @@ export function transformErrorForSerialization(error: any): any {
 			message,
 			stack,
 			noTelemetry: ErrorNoTelemetry.isErrorNoTelemetry(error),
-			cause: cause ? transformErrorForSerialization(cause) : undefined
+			cause: cause ? transformErrorForSerialization(cause) : undefined,
+			code: (<ErrorWithCode>error).code
 		};
 	}
 
@@ -159,6 +165,9 @@ export function transformErrorFromSerialization(data: SerializedError): Error {
 	}
 	error.message = data.message;
 	error.stack = data.stack;
+	if (data.code) {
+		(<ErrorWithCode>error).code = data.code;
+	}
 	if (data.cause) {
 		error.cause = transformErrorFromSerialization(data.cause);
 	}

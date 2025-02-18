@@ -111,7 +111,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IProductService protected readonly _productService: IProductService,
 		@IWorkbenchExtensionManagementService protected readonly _extensionManagementService: IWorkbenchExtensionManagementService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@ILogService protected readonly _logService: ILogService,
 		@IRemoteAgentService protected readonly _remoteAgentService: IRemoteAgentService,
@@ -762,26 +762,16 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 				this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
 
-				let overrideVeto = false;
-				await this._dialogService.prompt({
+				const { confirmed } = await this._dialogService.confirm({
 					type: Severity.Warning,
-					message: nls.localize('extensionStopVetoMessage', "Restart of extensions was prevented but is required for: {0}. Do you want to proceed anyways?", reason),
+					message: nls.localize('extensionStopVetoMessage', "Please confirm restart of extensions."),
 					detail: vetoReasonsArray.length === 1 ?
-						nls.localize('extensionStopVetoDetailsOne', "Reason: {0}", vetoReasonsArray[0]) :
-						nls.localize('extensionStopVetoDetailsMany', "Reasons:\n- {0}", vetoReasonsArray.join('\n -')),
-					buttons: [
-						{
-							label: nls.localize('ok', "OK"),
-							run: () => { /* noop */ }
-						},
-						{
-							label: nls.localize('proceedAnyways', "Proceed Anyways"),
-							run: () => overrideVeto = true
-						}
-					]
+						vetoReasonsArray[0] :
+						vetoReasonsArray.join('\n -'),
+					primaryButton: nls.localize('proceedAnyways', "Restart Anyway")
 				});
 
-				if (overrideVeto) {
+				if (confirmed) {
 					return true;
 				}
 			}

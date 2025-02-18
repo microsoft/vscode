@@ -294,10 +294,12 @@ async function loadTests(opts) {
 		// should not have unexpected errors
 		const errors = _unexpectedErrors.concat(_loaderErrors);
 		if (errors.length) {
+			const msg = [];
 			for (const error of errors) {
 				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
+				msg.push(String(error))
 			}
-			assert.ok(false, 'Error: Test run should not have unexpected errors.');
+			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
 		}
 	});
 

@@ -54,11 +54,15 @@ export function substringPos(text: string, pos: Position): string {
 }
 
 export function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
+	const newRanges = getModifiedRangesAfterApplying(edits);
+	return newRanges.map(range => range.getEndPosition());
+}
+
+export function getModifiedRangesAfterApplying(edits: readonly SingleTextEdit[]): Range[] {
 	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
 	const edit = new TextEdit(sortPerm.apply(edits));
 	const sortedNewRanges = edit.getNewRanges();
-	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
-	return newRanges.map(range => range.getEndPosition());
+	return sortPerm.inverse().apply(sortedNewRanges);
 }
 
 export function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, store: DisposableStore): IObservable<IObservable<T>[]> {

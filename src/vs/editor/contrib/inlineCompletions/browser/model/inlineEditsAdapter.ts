@@ -58,6 +58,7 @@ export class InlineEditsAdapter extends Disposable {
 					const inlineEdits = await Promise.all(allInlineEditProvider.map(async provider => {
 						const result = await provider.provideInlineEdit(model, {
 							triggerKind: InlineEditTriggerKind.Automatic,
+							requestUuid: context.requestUuid
 						}, token);
 						if (!result) { return undefined; }
 						return { result, provider };
@@ -73,11 +74,13 @@ export class InlineEditsAdapter extends Disposable {
 								insertText: e.result.text,
 								command: e.result.accepted,
 								shownCommand: e.result.shown,
+								action: e.result.action,
 								isInlineEdit: true,
 								edit: e.result,
 							};
 						}),
 						commands: definedEdits.flatMap(e => e.result.commands ?? []),
+						enableForwardStability: true,
 					};
 				},
 				handleRejection: (completions: InlineCompletions, item: InlineCompletionsAndEdits['items'][number]): void => {

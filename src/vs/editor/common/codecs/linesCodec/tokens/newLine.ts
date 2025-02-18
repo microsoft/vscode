@@ -25,6 +25,13 @@ export class NewLine extends BaseToken {
 	public static readonly byte = VSBuffer.fromString(NewLine.symbol);
 
 	/**
+	 * Return text representation of the token.
+	 */
+	public get text(): string {
+		return NewLine.symbol;
+	}
+
+	/**
 	 * The byte representation of the token.
 	 */
 	public get byte() {
