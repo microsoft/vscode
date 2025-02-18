@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { safeInnerHtml } from '../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -78,10 +79,12 @@ export class IssueFormService implements IIssueFormService {
 		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: issueReporterBounds, nativeTitlebar: true, disableFullscreen: true }));
 
+		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
+
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
-			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench');
+			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
 
 			// custom issue reporter wrapper
 			const div = document.createElement('div');
