@@ -51,7 +51,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
+	private readonly _contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 
 	constructor(
 		private readonly variables: IChatRequestVariableEntry[],
