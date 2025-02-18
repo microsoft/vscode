@@ -413,6 +413,7 @@ class ESRPReleaseService {
 	): Promise<ReleaseSubmitResponse> {
 		const size = fs.statSync(filePath).size;
 		const hash = await hashStream('sha256', fs.createReadStream(filePath));
+		const blobUrl = `${blobClient.url}?${this.stagingSasToken}`;
 
 		const message: ReleaseRequestMessage = {
 			customerCorrelationId: correlationId,
@@ -445,11 +446,11 @@ class ESRPReleaseService {
 			files: [{
 				name: path.basename(filePath),
 				friendlyFileName,
-				tenantFileLocation: blobClient.url,
+				tenantFileLocation: blobUrl,
 				tenantFileLocationType: 'AzureBlob',
 				sourceLocation: {
 					type: 'azureBlob',
-					blobUrl: `${blobClient.url}?${this.stagingSasToken}`
+					blobUrl
 				},
 				hashType: 'sha256',
 				hash: Array.from(hash),
