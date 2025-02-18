@@ -308,7 +308,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				let entry = editsSeen[i];
 				if (!entry) {
 					const codeBlockIndex = findLastIdx(codeBlockUrisSeen, e => e?.streaming && isEqual(e.uri, part.uri), i - 1);
-					if (codeBlockIndex) {
+					if (codeBlockIndex !== -1) {
 						entry = { seen: 0, streaming: codeBlockUrisSeen[codeBlockIndex]!.streaming! };
 						codeBlockUrisSeen[codeBlockIndex]!.streaming = undefined;
 					} else {
