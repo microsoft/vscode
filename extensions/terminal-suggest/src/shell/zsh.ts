@@ -10,7 +10,7 @@ import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 
-let zshBuiltinsCommandDescriptionsCache: Map<string, string> | undefined;
+let zshBuiltinsCommandDescriptionsCache: Map<string, { description: string; args: string | undefined }> | undefined;
 
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
@@ -42,9 +42,11 @@ async function getBuiltins(
 	for (const cmd of builtins) {
 		if (typeof cmd === 'string') {
 			try {
+				const result = getCommandDescription(cmd);
 				completions.push({
 					label: cmd,
-					documentation: getCommandDescription(cmd),
+					documentation: result?.description,
+					detail: result?.args,
 					kind: vscode.TerminalCompletionItemKind.Method
 				});
 
@@ -62,7 +64,7 @@ async function getBuiltins(
 	return completions;
 }
 
-export function getCommandDescription(command: string): string | undefined {
+export function getCommandDescription(command: string): { description: string; args: string | undefined } | undefined {
 	if (!zshBuiltinsCommandDescriptionsCache) {
 		const cacheFilePath = path.join(__dirname, 'zshBuiltinsCache.json');
 		if (fs.existsSync(cacheFilePath)) {

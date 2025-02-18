@@ -39,9 +39,12 @@ export async function getBuiltins(
 	for (const cmd of builtins) {
 		if (typeof cmd === 'string') {
 			try {
+				const helpOutput = (await execHelper(`help ${cmd}`, options))?.trim();
+				const helpLines = helpOutput?.split('\n');
 				completions.push({
 					label: cmd,
-					documentation: (await execHelper(`help ${cmd}`, options))?.trim(),
+					documentation: helpLines?.[1]?.split(' ').slice(2).join(' ').trim(),
+					detail: helpLines?.[0]?.split(' ').slice(2).join(' ').trim(),
 					kind: vscode.TerminalCompletionItemKind.Method
 				});
 

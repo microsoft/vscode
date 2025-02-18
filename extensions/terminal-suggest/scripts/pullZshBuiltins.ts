@@ -9,9 +9,9 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 const execAsync = promisify(exec);
-let zshBuiltinsCommandDescriptionsCache = new Map<string, string>();
+let zshBuiltinsCommandDescriptionsCache = new Map<string, { description: string; args: string | undefined }>();
 async function createCommandDescriptionsCache(): Promise<void> {
-	const cachedCommandDescriptions: Map<string, string> = new Map();
+	const cachedCommandDescriptions: Map<string, { description: string; args: string | undefined }> = new Map();
 	let output = '';
 	try {
 		output = await execAsync('man zshbuiltins').then(r => r.stdout);
@@ -25,18 +25,20 @@ async function createCommandDescriptionsCache(): Promise<void> {
 
 		let command: string | undefined;
 		let description: string[] = [];
+		let args: string | undefined;
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 
 			// Detect command names (lines starting with exactly 7 spaces)
-			const cmdMatch = line.match(/^\s{7}(\S+)/);
+			const cmdMatch = line.match(/^\s{7}(\S+)(?:\s+(.*))?/);
 			if (cmdMatch?.length && cmdMatch.length > 1) {
 				command = cmdMatch[1];
+				args = cmdMatch[2];
 
-				// Store the previous command and its description
+				// Store the previous command, args, and its description
 				if (command && description.length) {
-					cachedCommandDescriptions.set(command, description.join(' ').trim());
+					cachedCommandDescriptions.set(command, { description: description.join(' ').trim(), args });
 				}
 
 				// Capture the new command name
@@ -50,6 +52,10 @@ async function createCommandDescriptionsCache(): Promise<void> {
 			if (command && line.match(/^\s{14}/)) {
 				description.push(line.trim());
 			}
+		}
+		// Store the last command, its args, and description
+		if (command && description.length) {
+			cachedCommandDescriptions.set(command, { description: description.join(' ').trim(), args });
 		}
 	}
 	zshBuiltinsCommandDescriptionsCache = cachedCommandDescriptions;
