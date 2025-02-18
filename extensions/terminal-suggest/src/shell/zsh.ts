@@ -86,6 +86,12 @@ export function getCommandDescription(command: string): { documentation?: string
 			args: result.args,
 			documentation: result.description
 		};
+	} else {
+		return {
+			description: result?.description,
+			args: result?.args,
+			documentation: result.description
+		};
 	}
 	return result;
 }

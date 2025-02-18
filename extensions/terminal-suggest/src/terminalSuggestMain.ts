@@ -234,9 +234,11 @@ export async function getCompletionItemsFromSpecs(
 
 	if (tokenType === TokenType.Command) {
 		// Include builitin/available commands in the results
-		const labels = new Set(items.map((i) => i.label));
+		const labels = new Set(items.map((i) => typeof i.label === 'string' ? i.label : i.label.label));
 		for (const command of availableCommands) {
-			if (!labels.has(command.label)) {
+			const commandTextLabel = typeof command.label === 'string' ? command.label : command.label.label;
+			if (!labels.has(commandTextLabel)) {
+				//TODO: maybe prioritize builtin label over spec's
 				items.push(createCompletionItem(
 					terminalContext.cursorPosition,
 					prefix,
