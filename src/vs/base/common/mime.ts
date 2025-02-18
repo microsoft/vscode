@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extname } from 'vs/base/common/path';
+import { extname } from './path.js';
 
 export const Mimes = Object.freeze({
 	text: 'text/plain',

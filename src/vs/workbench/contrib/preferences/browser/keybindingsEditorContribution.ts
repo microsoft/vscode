@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Range } from 'vs/editor/common/core/range';
-import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
-import { DefineKeybindingOverlayWidget } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
-import { parseTree, Node } from 'vs/base/common/json';
-import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ThemeColor } from 'vs/base/common/themables';
-import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/core/editorColorRegistry';
-import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { assertIsDefined } from 'vs/base/common/types';
-import { isEqual } from 'vs/base/common/resources';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, IDefineKeybindingEditorContribution } from 'vs/workbench/services/preferences/common/preferences';
+import * as nls from '../../../../nls.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { registerEditorContribution, EditorContributionInstantiation } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { SmartSnippetInserter } from '../common/smartSnippetInserter.js';
+import { DefineKeybindingOverlayWidget } from './keybindingWidgets.js';
+import { parseTree, Node } from '../../../../base/common/json.js';
+import { WindowsNativeResolvedKeybinding } from '../../../services/keybinding/common/windowsKeyboardMapper.js';
+import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
+import { ThemeColor } from '../../../../base/common/themables.js';
+import { overviewRulerInfo, overviewRulerError } from '../../../../editor/common/core/editorColorRegistry.js';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from '../../../../editor/common/model.js';
+import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, IDefineKeybindingEditorContribution } from '../../../services/preferences/common/preferences.js';
 
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
 

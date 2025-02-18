@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
-import { hasNativeTitlebar } from 'vs/platform/window/common/window';
-import { IBaseWindow, WindowMode } from 'vs/platform/window/electron-main/window';
-import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
+import { isLinux, isWindows } from '../../../base/common/platform.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateService } from '../../state/node/state.js';
+import { hasNativeTitlebar, TitlebarStyle } from '../../window/common/window.js';
+import { IBaseWindow, WindowMode } from '../../window/electron-main/window.js';
+import { BaseWindow } from '../../windows/electron-main/windowImpl.js';
 
 export interface IAuxiliaryWindow extends IBaseWindow {
 	readonly parentId: number;
@@ -52,7 +52,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			return; // already disposed
 		}
 
-		this.doTryClaimWindow();
+		this.doTryClaimWindow(options);
 
 		if (options && !this.stateApplied) {
 			this.stateApplied = true;
@@ -62,9 +62,9 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 				y: options.y,
 				width: options.width,
 				height: options.height,
-				// TODO@bpasero We currently do not support restoring fullscreen state for
-				// auxiliary windows because we do not get hold of the original `features`
-				// string that contains that info in `window-fullscreen`. However, we can
+				// We currently do not support restoring fullscreen state for auxiliary
+				// windows because we do not get hold of the original `features` string
+				// that contains that info in `window-fullscreen`. However, we can
 				// probe the `options.show` value for whether the window should be maximized
 				// or not because we never show maximized windows initially to reduce flicker.
 				mode: options.show === false ? WindowMode.Maximized : WindowMode.Normal
@@ -72,7 +72,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		}
 	}
 
-	private doTryClaimWindow(): void {
+	private doTryClaimWindow(options?: BrowserWindowConstructorOptions): void {
 		if (this._win) {
 			return; // already claimed
 		}
@@ -82,11 +82,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			this.logService.trace('[aux window] Claimed browser window instance');
 
 			// Remember
-			this.setWin(window);
+			this.setWin(window, options);
 
 			// Disable Menu
 			window.setMenu(null);
-			if ((isWindows || isLinux) && hasNativeTitlebar(this.configurationService)) {
+			if ((isWindows || isLinux) && hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */)) {
 				window.setAutoHideMenuBar(true); // Fix for https://github.com/microsoft/vscode/issues/200615
 			}
 

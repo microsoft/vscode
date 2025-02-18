@@ -67,10 +67,6 @@
 	justify-content: flex-end;
 }
 
-.scm-view .monaco-editor .selected-text {
-	border-radius: 0;
-}
-
 /**
  * The following rules are very specific because of inline drop down menus
  * https://github.com/microsoft/vscode/issues/101410
@@ -114,6 +110,10 @@
 	line-height: 22px;
 }
 
+.scm-view .monaco-list-row .monaco-icon-label-container {
+	height: 22px;
+}
+
 .scm-view .monaco-list-row .history,
 .scm-view .monaco-list-row .history-item-group,
 .scm-view .monaco-list-row .resource-group {
@@ -133,49 +133,66 @@
 	align-items: center;
 }
 
-.scm-view .monaco-list-row .history-item .stats-container {
+.scm-view .monaco-list-row .history-item > .graph-container {
 	display: flex;
-	font-size: 11px;
-	line-height: 11px;
-	margin-left: 6px;
+	flex-shrink: 0;
+	height: 22px;
+}
+
+.scm-view .monaco-list-row .history-item > .graph-container.current > .graph > circle:last-child {
+	fill: var(--vscode-sideBar-background);
+}
+
+.scm-view .monaco-list-row:hover .history-item > .graph-container.current > .graph > circle:last-child {
+	fill: var(--vscode-list-hoverBackground);
+}
+
+.scm-view .monaco-list-row .history-item > .graph-container > .graph > circle {
+	stroke: var(--vscode-sideBar-background);
+}
+
+.scm-view .monaco-list-row:hover .history-item > .graph-container > .graph > circle:first-of-type {
+	stroke: transparent;
+}
+
+.scm-view .monaco-list-row .history-item > .label-container {
+	display: flex;
+	flex-shrink: 0;
 	gap: 4px;
 }
 
-.scm-view .monaco-list-row .history-item .stats-container {
-	min-height: 18px;
-	padding: 0 4px;
-	border-radius: 2px;
-	border: 1px solid var(--vscode-scm-historyItemStatisticsBorder);
-}
-
-.scm-view .monaco-list-row.focused .history-item .stats-container,
-.scm-view .monaco-list-row.selected .history-item .stats-container {
-	border: 1px solid var(--vscode-scm-historyItemSelectedStatisticsBorder);
-}
-
-.scm-view .monaco-list-row .history-item .stats-container > .files-label,
-.scm-view .monaco-list-row .history-item .stats-container > .insertions-label,
-.scm-view .monaco-list-row .history-item .stats-container > .deletions-label {
+.scm-view .monaco-list-row .history-item > .label-container > .label {
 	display: flex;
 	align-items: center;
-	opacity: 0.75;
+	border-radius: 10px;
+	line-height: 18px;
 }
 
-.scm-view .monaco-list-row .history-item .stats-container > .insertions-label {
-	color: var(--vscode-scm-historyItemAdditionsForeground);
+.scm-view .monaco-list-row .history-item > .label-container > .label > .count {
+	font-size: 12px;
+	margin-left: 0;
+	padding-left: 4px;
 }
 
-.scm-view .monaco-list-row .history-item .stats-container > .deletions-label {
-	color: var(--vscode-scm-historyItemDeletionsForeground);
+.scm-view .monaco-list-row .history-item > .label-container > .label > .codicon {
+	font-size: 14px;
+	color: inherit !important;
+	padding: 2px;
 }
 
-.scm-view .monaco-list-row .history-item .stats-container.hidden,
-.scm-view .monaco-list-row .history-item .stats-container > .insertions-label.hidden,
-.scm-view .monaco-list-row .history-item .stats-container > .deletions-label.hidden {
-	display: none;
+.scm-view .monaco-list-row .history-item > .label-container > .label > .codicon.codicon-git-branch {
+	font-size: 12px;
+	padding: 3px;
 }
 
-.scm-view .monaco-list-row .history-item-group .monaco-icon-label .icon-container,
+.scm-view .monaco-list-row .history-item > .label-container > .label > .description {
+	font-size: 12px;
+	padding-right: 4px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100px;
+}
+
 .scm-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
 	display: flex;
 	padding-right: 4px;
@@ -187,35 +204,15 @@
 	border-radius: 14px;
 }
 
-.scm-view .monaco-list-row .separator-container {
-	display: flex;
-	align-items: center;
-	padding-left: 11px;
+.scm-view .monaco-list-row .history-item .monaco-icon-label.history-item-current .label-name {
+	font-weight: 600;
 }
 
-.scm-view .monaco-list-row .separator-container .label-name {
-	font-size: 10px;
-}
-
-.scm-view .monaco-list-row.focused .separator-container .label-name,
-.scm-view .monaco-list-row.selected .separator-container .label-name {
-	color: var(--vscode-foreground);
-}
-
-.scm-view .monaco-list-row .separator-container .separator {
-	display: flex;
-	flex-grow: 1;
-	height: 0;
-	margin-left: 6px;
-	border-top: 1px solid var(--vscode-sideBar-border);
-}
-
-.scm-view .monaco-list-row .separator-container .actions {
-	padding-left: 6px;
+.scm-view .monaco-list-row .history-item .monaco-icon-label.history-item-current .label-description {
+	font-weight: 500;
 }
 
 .scm-view .monaco-list-row .history > .name,
-.scm-view .monaco-list-row .history-item-group > .name,
 .scm-view .monaco-list-row .resource-group > .name {
 	flex: 1;
 	overflow: hidden;
@@ -259,8 +256,6 @@
 
 .scm-view .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions,
-.scm-view .monaco-list .monaco-list-row .separator-container > .actions,
-.scm-view .monaco-list .monaco-list-row .history-item-group > .actions,
 .scm-view .monaco-list .monaco-list-row .history-item > .actions {
 	display: none;
 	max-width: fit-content;
@@ -271,10 +266,6 @@
 .scm-view .monaco-list .monaco-list-row:hover .resource > .name > .monaco-icon-label > .actions,
 .scm-view .monaco-list .monaco-list-row.focused .resource > .name > .monaco-icon-label > .actions,
 .scm-view .monaco-list:not(.selection-multiple) .monaco-list-row .resource:hover > .actions,
-.scm-view .monaco-list .monaco-list-row:hover .separator-container > .actions,
-.scm-view .monaco-list .monaco-list-row.focused .separator-container > .actions,
-.scm-view .monaco-list .monaco-list-row:hover .history-item-group > .actions,
-.scm-view .monaco-list .monaco-list-row.focused .history-item-group > .actions,
 .scm-view .monaco-list .monaco-list-row:hover .history-item > .actions,
 .scm-view .monaco-list .monaco-list-row.focused .history-item > .actions {
 	display: block;
@@ -295,8 +286,6 @@
 .scm-view.show-actions > .monaco-list .monaco-list-row .scm-input > .scm-editor > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions,
-.scm-view.show-actions > .monaco-list .monaco-list-row .separator-container > .actions,
-.scm-view.show-actions > .monaco-list .monaco-list-row .history-item-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .history-item > .actions {
 	display: block;
 }
@@ -330,10 +319,6 @@
 
 .scm-view .scm-editor-container .monaco-editor {
 	border-radius: 2px;
-}
-
-.scm-view .scm-editor-container .monaco-editor .focused .selected-text {
-	background-color: var(--vscode-editor-selectionBackground);
 }
 
 .scm-view .scm-editor {
@@ -475,22 +460,6 @@
 	margin-top: 1px;
 }
 
-.scm-view .scm-editor-placeholder {
-	position: absolute;
-	pointer-events: none;
-	z-index: 1;
-	padding: 2px 6px;
-	box-sizing: border-box;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	color: var(--vscode-input-placeholderForeground);
-}
-
-.scm-view .scm-editor-placeholder.hidden {
-	display: none;
-}
-
 .scm-view .scm-editor-container .monaco-editor-background,
 .scm-view .scm-editor-container .monaco-editor,
 .scm-view .scm-editor-container .monaco-editor .margin,
@@ -505,6 +474,10 @@
 	color: var(--vscode-input-foreground);
 }
 
+.scm-view .scm-editor-container .placeholder-text.mtk1 {
+	color: var(--vscode-input-placeholderForeground);
+}
+
 /* Repositories */
 
 .scm-repositories-view .scm-provider {
@@ -514,4 +487,166 @@
 
 .scm-repositories-view .scm-provider > .label > .name {
 	font-weight: normal;
+}
+
+/* History item hover */
+
+.monaco-hover.history-item-hover p:first-child {
+	margin-top: 4px;
+}
+
+.monaco-hover.history-item-hover p:last-child {
+	margin-bottom: 2px !important;
+}
+
+.monaco-hover.history-item-hover p:last-child span:not(.codicon) {
+	padding: 2px 0;
+}
+
+.monaco-hover.history-item-hover hr {
+	margin-top: 4px;
+	margin-bottom: 4px;
+}
+
+.monaco-hover.history-item-hover hr + p {
+	margin: 4px 0;
+}
+
+.monaco-hover.history-item-hover span:not(.codicon) {
+	margin-bottom: 0 !important;
+}
+
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-git-branch {
+	font-size: 12px;
+	margin-bottom: 2px !important;
+}
+
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-tag,
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-target {
+	font-size: 14px;
+	margin-bottom: 2px !important;
+}
+
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-cloud {
+	font-size: 14px;
+	margin-bottom: 1px !important;
+}
+
+.monaco-hover.history-item-hover .hover-row.status-bar .action {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-hover.history-item-hover .hover-row.status-bar .action .codicon {
+	color: inherit;
+	font-size: 12px;
+}
+
+/* Graph */
+
+.pane-header .scm-graph-view-badge-container {
+	display: flex;
+	align-items: center;
+	min-width: fit-content;
+}
+
+.pane-header .scm-graph-view-badge-container > .scm-graph-view-badge.monaco-count-badge.long {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border: 1px solid var(--vscode-contrastBorder);
+	margin: 0 6px;
+	padding: 2px 4px;
+}
+
+.monaco-workbench .part.sidebar > .title > .title-actions .action-label.scm-graph-repository-picker,
+.monaco-workbench .part.sidebar > .title > .title-actions .action-label.scm-graph-history-item-picker,
+.monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-repository-picker,
+.monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-history-item-picker,
+.monaco-workbench .part.panel > .title > .title-actions .action-label.scm-graph-repository-picker,
+.monaco-workbench .part.panel > .title > .title-actions .action-label.scm-graph-history-item-picker {
+	display: flex;
+}
+
+.monaco-toolbar .action-item > .action-label.scm-graph-repository-picker,
+.monaco-toolbar .action-item > .action-label.scm-graph-history-item-picker {
+	color: var(--vscode-icon-foreground);
+	align-items: center;
+	font-weight: normal;
+	line-height: 16px;
+}
+
+.monaco-toolbar .action-item.disabled > .action-label.scm-graph-repository-picker,
+.monaco-toolbar .action-item.disabled > .action-label.scm-graph-history-item-picker {
+	color: var(--vscode-disabledForeground);
+}
+
+.monaco-toolbar .action-label.scm-graph-repository-picker .codicon,
+.monaco-toolbar .action-label.scm-graph-history-item-picker .codicon {
+	font-size: 14px;
+	color: inherit;
+}
+
+.monaco-toolbar .action-label.scm-graph-repository-picker > .name,
+.monaco-toolbar .action-label.scm-graph-history-item-picker > .name {
+	max-width: 100px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.scm-history-view .scm-provider .label-name {
+	font-weight: bold;
+}
+
+.scm-history-view .scm-provider .monaco-icon-label {
+	align-items: center;
+}
+
+.scm-history-view .scm-provider .state-label.monaco-count-badge.long {
+	display: flex;
+	font-size: 0.8em;
+	margin: 0 10px;
+	color: var(--vscode-debugView-stateLabelForeground);
+	background: var(--vscode-debugView-stateLabelBackground);
+	border-radius: 2px;
+}
+
+.scm-history-view .scm-provider .actions {
+	display: flex;
+	flex-grow: 1;
+}
+
+.scm-history-view .history-item-load-more {
+	display: flex;
+	height: 22px;
+}
+
+.scm-history-view .history-item-load-more .graph-placeholder {
+	mask-image: linear-gradient(black, transparent);
+}
+
+.scm-history-view .history-item-load-more .history-item-placeholder {
+	flex-grow: 1;
+}
+
+.scm-history-view .history-item-load-more .history-item-placeholder .monaco-highlighted-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-textLink-foreground)
+}
+
+.scm-history-view .history-item-load-more .history-item-placeholder .monaco-highlighted-label .codicon {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground)
+}
+
+.scm-history-view .history-item-load-more .history-item-placeholder.shimmer {
+	padding: 2px 0;
+}
+
+.scm-history-view .history-item-load-more .history-item-placeholder.shimmer .monaco-icon-label-container {
+	height: 18px;
+	background: var(--vscode-scmGraph-historyItemHoverDefaultLabelBackground);
+	border-radius: 2px;
+	opacity: 0.5;
 }

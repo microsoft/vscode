@@ -3,113 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestDynamicVariablePart, ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
-
-interface IChatData {
-	data: IChatVariableData;
-	resolver: IChatVariableResolver;
-}
+import { coalesce } from '../../../../base/common/arrays.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChatAgentLocation } from '../common/chatAgents.js';
+import { IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
+import { ChatRequestDynamicVariablePart, ChatRequestToolPart, IParsedChatRequest } from '../common/chatParserTypes.js';
+import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
+import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
+import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 export class ChatVariablesService implements IChatVariablesService {
 	declare _serviceBrand: undefined;
 
-	private _resolver = new Map<string, IChatData>();
-
 	constructor(
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
+	resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableData {
 		let resolvedVariables: IChatRequestVariableEntry[] = [];
-		const jobs: Promise<any>[] = [];
 
 		prompt.parts
 			.forEach((part, i) => {
-				if (part instanceof ChatRequestVariablePart) {
-					const data = this._resolver.get(part.variableName.toLowerCase());
-					if (data) {
-						const references: IChatContentReference[] = [];
-						const variableProgressCallback = (item: IChatVariableResolverProgress) => {
-							if (item.kind === 'reference') {
-								references.push(item);
-								return;
-							}
-							progress(item);
-						};
-						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(value => {
-							if (value) {
-								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references };
-							}
-						}).catch(onUnexpectedExternalError));
-					}
-				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data };
+				if (part instanceof ChatRequestDynamicVariablePart) {
+					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon, isFile: part.isFile };
+				} else if (part instanceof ChatRequestToolPart) {
+					resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined, fullName: part.displayName };
 				}
 			});
 
-		attachedContextVariables
-			?.forEach((attachment, i) => {
-				const data = this._resolver.get(attachment.name.toLowerCase());
-				if (data) {
-					const references: IChatContentReference[] = [];
-					const variableProgressCallback = (item: IChatVariableResolverProgress) => {
-						if (item.kind === 'reference') {
-							references.push(item);
-							return;
-						}
-						progress(item);
-					};
-					jobs.push(data.resolver(prompt.text, '', model, variableProgressCallback, token).then(value => {
-						if (value) {
-							resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
-						}
-					}).catch(onUnexpectedExternalError));
-				}
-			});
-
-		await Promise.allSettled(jobs);
-
+		// Make array not sparse
 		resolvedVariables = coalesce<IChatRequestVariableEntry>(resolvedVariables);
 
 		// "reverse", high index first so that replacement is simple
 		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
 
+		if (attachedContextVariables) {
+			// attachments not in the prompt
+			resolvedVariables.push(...attachedContextVariables);
+		}
+
+
 		return {
 			variables: resolvedVariables,
 		};
-	}
-
-	async resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined> {
-		const data = this._resolver.get(variableName.toLowerCase());
-		if (!data) {
-			return undefined;
-		}
-
-		return (await data.resolver(promptText, undefined, model, progress, token));
-	}
-
-	hasVariable(name: string): boolean {
-		return this._resolver.has(name.toLowerCase());
-	}
-
-	getVariable(name: string): IChatVariableData | undefined {
-		return this._resolver.get(name.toLowerCase())?.data;
-	}
-
-	getVariables(): Iterable<Readonly<IChatVariableData>> {
-		const all = Iterable.map(this._resolver.values(), data => data.data);
-		return Iterable.filter(all, data => !data.hidden);
 	}
 
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable> {
@@ -130,14 +71,24 @@ export class ChatVariablesService implements IChatVariablesService {
 		return model.variables;
 	}
 
-	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
-		const key = data.name.toLowerCase();
-		if (this._resolver.has(key)) {
-			throw new Error(`A chat variable with the name '${data.name}' already exists.`);
+	async attachContext(name: string, value: string | URI | Location, location: ChatAgentLocation) {
+		if (location !== ChatAgentLocation.Panel && location !== ChatAgentLocation.EditingSession) {
+			return;
 		}
-		this._resolver.set(key, { data, resolver });
-		return toDisposable(() => {
-			this._resolver.delete(key);
-		});
+
+		const widget = location === ChatAgentLocation.EditingSession
+			? await showEditsView(this.viewsService)
+			: (this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService));
+		if (!widget || !widget.viewModel) {
+			return;
+		}
+
+		const key = name.toLowerCase();
+		if (key === 'file' && typeof value !== 'string') {
+			const uri = URI.isUri(value) ? value : value.uri;
+			const range = 'range' in value ? value.range : undefined;
+			widget.attachmentModel.addFile(uri, range);
+			return;
+		}
 	}
 }

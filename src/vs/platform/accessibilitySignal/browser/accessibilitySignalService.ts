@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CachedFunction } from 'vs/base/common/cache';
-import { getStructuralKey } from 'vs/base/common/equals';
-import { Event, IValueWithChangeEvent } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { derived, observableFromEvent } from 'vs/base/common/observable';
-import { ValueWithChangeEventFromObservable } from 'vs/base/common/observableInternal/utils';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CachedFunction } from '../../../base/common/cache.js';
+import { getStructuralKey } from '../../../base/common/equals.js';
+import { Event, IValueWithChangeEvent } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { derived, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../base/common/observable.js';
+import { localize } from '../../../nls.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { observableConfigValue } from '../../observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalService>('accessibilitySignalService');
 
@@ -26,7 +25,7 @@ export interface IAccessibilitySignalService {
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 
 	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean>;
-
+	getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality, mode: 'line' | 'positional'): number;
 	/**
 	 * Avoid this method and prefer `.playSignal`!
 	 * Only use it when you want to play the sound regardless of enablement, e.g. in the settings quick pick.
@@ -67,7 +66,7 @@ export interface IAccessbilitySignalOptions {
 export class AccessibilitySignalService extends Disposable implements IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	private readonly sounds: Map<string, HTMLAudioElement> = new Map();
-	private readonly screenReaderAttached = observableFromEvent(
+	private readonly screenReaderAttached = observableFromEvent(this,
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
 	);
@@ -145,7 +144,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	}
 
 	private getVolumeInPercent(): number {
-		const volume = this.configurationService.getValue<number>('accessibilitySignals.volume');
+		const volume = this.configurationService.getValue<number>('accessibility.signalOptions.volume');
 		if (typeof volume !== 'number') {
 			return 50;
 		}
@@ -240,6 +239,21 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	public onSoundEnabledChanged(signal: AccessibilitySignal): Event<void> {
 		return this.getEnabledState(signal, false).onDidChange;
 	}
+
+	public getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality, mode: 'line' | 'positional'): number {
+		if (!this.configurationService.getValue('accessibility.signalOptions.debouncePositionChanges')) {
+			return 0;
+		}
+		let value: { sound: number; announcement: number };
+		if (signal.name === AccessibilitySignal.errorAtPosition.name && mode === 'positional') {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.errorAtPosition');
+		} else if (signal.name === AccessibilitySignal.warningAtPosition.name && mode === 'positional') {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.warningAtPosition');
+		} else {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.general');
+		}
+		return modality === 'sound' ? value.sound : value.announcement;
+	}
 }
 
 type EnabledState = 'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never';
@@ -290,11 +304,11 @@ export class Sound {
 	public static readonly diffLineInserted = Sound.register({ fileName: 'diffLineInserted.mp3' });
 	public static readonly diffLineDeleted = Sound.register({ fileName: 'diffLineDeleted.mp3' });
 	public static readonly diffLineModified = Sound.register({ fileName: 'diffLineModified.mp3' });
-	public static readonly chatRequestSent = Sound.register({ fileName: 'chatRequestSent.mp3' });
-	public static readonly chatResponseReceived1 = Sound.register({ fileName: 'chatResponseReceived1.mp3' });
-	public static readonly chatResponseReceived2 = Sound.register({ fileName: 'chatResponseReceived2.mp3' });
-	public static readonly chatResponseReceived3 = Sound.register({ fileName: 'chatResponseReceived3.mp3' });
-	public static readonly chatResponseReceived4 = Sound.register({ fileName: 'chatResponseReceived4.mp3' });
+	public static readonly requestSent = Sound.register({ fileName: 'requestSent.mp3' });
+	public static readonly responseReceived1 = Sound.register({ fileName: 'responseReceived1.mp3' });
+	public static readonly responseReceived2 = Sound.register({ fileName: 'responseReceived2.mp3' });
+	public static readonly responseReceived3 = Sound.register({ fileName: 'responseReceived3.mp3' });
+	public static readonly responseReceived4 = Sound.register({ fileName: 'responseReceived4.mp3' });
 	public static readonly clear = Sound.register({ fileName: 'clear.mp3' });
 	public static readonly save = Sound.register({ fileName: 'save.mp3' });
 	public static readonly format = Sound.register({ fileName: 'format.mp3' });
@@ -327,7 +341,7 @@ export class AccessibilitySignal {
 		public readonly legacySoundSettingsKey: string | undefined,
 		public readonly settingsKey: string,
 		public readonly legacyAnnouncementSettingsKey: string | undefined,
-		public readonly announcementMessage: string | undefined,
+		public readonly announcementMessage: string | undefined
 	) { }
 
 	private static _signals = new Set<AccessibilitySignal>();
@@ -344,6 +358,7 @@ export class AccessibilitySignal {
 		settingsKey: string;
 		legacyAnnouncementSettingsKey?: string;
 		announcementMessage?: string;
+		delaySettingsKey?: string;
 	}): AccessibilitySignal {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
 		const signal = new AccessibilitySignal(
@@ -367,12 +382,14 @@ export class AccessibilitySignal {
 		sound: Sound.error,
 		announcementMessage: localize('accessibility.signals.positionHasError', 'Error'),
 		settingsKey: 'accessibility.signals.positionHasError',
+		delaySettingsKey: 'accessibility.signalOptions.delays.errorAtPosition'
 	});
 	public static readonly warningAtPosition = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.positionHasWarning.name', 'Warning at Position'),
 		sound: Sound.warning,
 		announcementMessage: localize('accessibility.signals.positionHasWarning', 'Warning'),
 		settingsKey: 'accessibility.signals.positionHasWarning',
+		delaySettingsKey: 'accessibility.signalOptions.delays.warningAtPosition'
 	});
 
 	public static readonly errorOnLine = AccessibilitySignal.register({
@@ -524,9 +541,16 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.diffLineModified',
 	});
 
+	public static readonly chatEditModifiedFile = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.chatEditModifiedFile', 'Chat Edit Modified File'),
+		sound: Sound.success,
+		announcementMessage: localize('accessibility.signals.chatEditModifiedFile', 'File Modified from Chat Edits'),
+		settingsKey: 'accessibility.signals.chatEditModifiedFile',
+	});
+
 	public static readonly chatRequestSent = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.chatRequestSent', 'Chat Request Sent'),
-		sound: Sound.chatRequestSent,
+		sound: Sound.requestSent,
 		legacySoundSettingsKey: 'audioCues.chatRequestSent',
 		legacyAnnouncementSettingsKey: 'accessibility.alert.chatRequestSent',
 		announcementMessage: localize('accessibility.signals.chatRequestSent', 'Chat Request Sent'),
@@ -538,14 +562,31 @@ export class AccessibilitySignal {
 		legacySoundSettingsKey: 'audioCues.chatResponseReceived',
 		sound: {
 			randomOneOf: [
-				Sound.chatResponseReceived1,
-				Sound.chatResponseReceived2,
-				Sound.chatResponseReceived3,
-				Sound.chatResponseReceived4
+				Sound.responseReceived1,
+				Sound.responseReceived2,
+				Sound.responseReceived3,
+				Sound.responseReceived4
 			]
 		},
 		settingsKey: 'accessibility.signals.chatResponseReceived'
 	});
+
+	public static readonly codeActionTriggered = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.codeActionRequestTriggered', 'Code Action Request Triggered'),
+		sound: Sound.voiceRecordingStarted,
+		legacySoundSettingsKey: 'audioCues.codeActionRequestTriggered',
+		legacyAnnouncementSettingsKey: 'accessibility.alert.codeActionRequestTriggered',
+		announcementMessage: localize('accessibility.signals.codeActionRequestTriggered', 'Code Action Request Triggered'),
+		settingsKey: 'accessibility.signals.codeActionTriggered',
+	});
+
+	public static readonly codeActionApplied = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.codeActionApplied', 'Code Action Applied'),
+		legacySoundSettingsKey: 'audioCues.codeActionApplied',
+		sound: Sound.voiceRecordingStopped,
+		settingsKey: 'accessibility.signals.codeActionApplied'
+	});
+
 
 	public static readonly progress = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.progress', 'Progress'),
@@ -597,4 +638,3 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.voiceRecordingStopped'
 	});
 }
-

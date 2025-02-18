@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument } from 'vs/base/browser/dom';
-import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { $, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from '../../browser/dom.js';
+import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
+import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
+import { DeferredPromise, timeout } from '../../common/async.js';
+import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('dom', () => {
 	test('hasClass', () => {
@@ -85,7 +86,7 @@ suite('dom', () => {
 		test('should build simple nodes', () => {
 			const div = $('div');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert(!div.firstChild);
 		});
@@ -93,7 +94,7 @@ suite('dom', () => {
 		test('should build nodes with id', () => {
 			const div = $('div#foo');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert.strictEqual(div.id, 'foo');
 		});
@@ -101,7 +102,7 @@ suite('dom', () => {
 		test('should build nodes with class-name', () => {
 			const div = $('div.foo');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert.strictEqual(div.className, 'foo');
 		});
@@ -136,15 +137,15 @@ suite('dom', () => {
 	suite('h', () => {
 		test('should build simple nodes', () => {
 			const div = h('div');
-			assert(div.root instanceof HTMLElement);
+			assert(isHTMLElement(div.root));
 			assert.strictEqual(div.root.tagName, 'DIV');
 
 			const span = h('span');
-			assert(span.root instanceof HTMLElement);
+			assert(isHTMLElement(span.root));
 			assert.strictEqual(span.root.tagName, 'SPAN');
 
 			const img = h('img');
-			assert(img.root instanceof HTMLElement);
+			assert(isHTMLElement(img.root));
 			assert.strictEqual(img.root.tagName, 'IMG');
 		});
 
@@ -404,6 +405,39 @@ suite('dom', () => {
 			interval.dispose();
 			await timeout(5);
 			assert.strictEqual(count, 0);
+		});
+	});
+
+	suite('SafeTriangle', () => {
+		const fakeElement = (left: number, right: number, top: number, bottom: number): HTMLElement => {
+			return { getBoundingClientRect: () => ({ left, right, top, bottom }) } as any;
+		};
+
+		test('works', () => {
+			const safeTriangle = new SafeTriangle(0, 0, fakeElement(10, 20, 10, 20));
+
+			assert.strictEqual(safeTriangle.contains(5, 5), true); // in triangle region
+			assert.strictEqual(safeTriangle.contains(15, 5), false);
+			assert.strictEqual(safeTriangle.contains(25, 5), false);
+
+			assert.strictEqual(safeTriangle.contains(5, 15), false);
+			assert.strictEqual(safeTriangle.contains(15, 15), true);
+			assert.strictEqual(safeTriangle.contains(25, 15), false);
+
+			assert.strictEqual(safeTriangle.contains(5, 25), false);
+			assert.strictEqual(safeTriangle.contains(15, 25), false);
+			assert.strictEqual(safeTriangle.contains(25, 25), false);
+		});
+
+		test('other dirations', () => {
+			const a = new SafeTriangle(30, 30, fakeElement(10, 20, 10, 20));
+			assert.strictEqual(a.contains(25, 25), true);
+
+			const b = new SafeTriangle(0, 30, fakeElement(10, 20, 10, 20));
+			assert.strictEqual(b.contains(5, 25), true);
+
+			const c = new SafeTriangle(30, 0, fakeElement(10, 20, 10, 20));
+			assert.strictEqual(c.contains(25, 5), true);
 		});
 	});
 

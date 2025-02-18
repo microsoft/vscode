@@ -20,12 +20,13 @@ import {
 	itemData,
 } from './testTree';
 import { BrowserTestRunner, PlatformTestRunner, VSCodeTestRunner } from './vscodeTestRunner';
+import { ImportGraph } from './importGraph';
 
 const TEST_FILE_PATTERN = 'src/vs/**/*.{test,integrationTest}.ts';
 
 const getWorkspaceFolderForTestFile = (uri: vscode.Uri) =>
 	(uri.path.endsWith('.test.ts') || uri.path.endsWith('.integrationTest.ts')) &&
-	uri.path.includes('/src/vs/')
+		uri.path.includes('/src/vs/')
 		? vscode.workspace.getWorkspaceFolder(uri)
 		: undefined;
 
@@ -41,9 +42,25 @@ export async function activate(context: vscode.ExtensionContext) {
 	const ctrl = vscode.tests.createTestController('selfhost-test-controller', 'VS Code Tests');
 	const fileChangedEmitter = new vscode.EventEmitter<FileChangeEvent>();
 
-	ctrl.resolveHandler = async test => {
+	context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
+		async provideFollowup(_result, test, taskIndex, messageIndex, _token) {
+			return [{
+				title: '$(sparkle) Fix with Copilot',
+				command: 'github.copilot.tests.fixTestFailure',
+				arguments: [{ source: 'peekFollowup', test, message: test.taskStates[taskIndex].messages[messageIndex] }]
+			}];
+		},
+	}));
+
+	let initialWatchPromise: Promise<vscode.Disposable> | undefined;
+	const resolveHandler = async (test?: vscode.TestItem) => {
 		if (!test) {
-			context.subscriptions.push(await startWatchingWorkspace(ctrl, fileChangedEmitter));
+			if (!initialWatchPromise) {
+				initialWatchPromise = startWatchingWorkspace(ctrl, fileChangedEmitter);
+				context.subscriptions.push(await initialWatchPromise);
+			} else {
+				await initialWatchPromise;
+			}
 			return;
 		}
 
@@ -55,14 +72,29 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	};
 
+	ctrl.resolveHandler = resolveHandler;
+
 	guessWorkspaceFolder().then(folder => {
-		if (folder) {
-			context.subscriptions.push(new FailureTracker(context, folder.uri.fsPath));
+		if (!folder) {
+			return;
 		}
+
+		const graph = new ImportGraph(
+			folder.uri, async () => {
+				await resolveHandler();
+				return [...ctrl.items].map(([, item]) => item);
+			}, uri => ctrl.items.get(uri.toString().toLowerCase()));
+		ctrl.relatedCodeProvider = graph;
+
+		if (context.storageUri) {
+			context.subscriptions.push(new FailureTracker(context.storageUri.fsPath, folder.uri.fsPath));
+		}
+
+		context.subscriptions.push(fileChangedEmitter.event(e => graph.didChange(e.uri, e.removed)));
 	});
 
 	const createRunHandler = (
-		runnerCtor: { new (folder: vscode.WorkspaceFolder): VSCodeTestRunner },
+		runnerCtor: { new(folder: vscode.WorkspaceFolder): VSCodeTestRunner },
 		kind: vscode.TestRunProfileKind,
 		args: string[] = []
 	) => {
@@ -108,7 +140,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				map,
 				task,
 				kind === vscode.TestRunProfileKind.Debug
-					? await runner.debug(currentArgs, req.include)
+					? await runner.debug(task, currentArgs, req.include)
 					: await runner.run(currentArgs, req.include),
 				coverageDir,
 				cancellationToken
@@ -185,13 +217,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		true
 	);
 
-	coverage.loadDetailedCoverage = async (_run, coverage) => {
-		if (coverage instanceof V8CoverageFile) {
-			return coverage.details;
-		}
-
-		return [];
-	};
+	coverage.loadDetailedCoverage = async (_run, coverage) => coverage instanceof V8CoverageFile ? coverage.details : [];
+	coverage.loadDetailedCoverageForTest = async (_run, coverage, test) => coverage instanceof V8CoverageFile ? coverage.testDetails(test) : [];
 
 	for (const [name, arg] of browserArgs) {
 		const cfg = ctrl.createRunProfile(

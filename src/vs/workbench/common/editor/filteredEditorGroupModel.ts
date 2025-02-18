@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder, GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Emitter } from 'vs/base/common/event';
-import { IGroupModelChangeEvent, IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder, GroupIdentifier } from '../editor.js';
+import { EditorInput } from './editorInput.js';
+import { Emitter } from '../../../base/common/event.js';
+import { IGroupModelChangeEvent, IReadonlyEditorGroupModel } from './editorGroupModel.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyEditorGroupModel {
 
@@ -42,7 +42,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	isTransient(editorOrIndex: EditorInput | number): boolean { return this.model.isTransient(editorOrIndex); }
 	isSticky(editorOrIndex: EditorInput | number): boolean { return this.model.isSticky(editorOrIndex); }
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean { return this.model.isActive(editor); }
-	isSelected(editor: EditorInput | number): boolean { return this.model.isSelected(editor); }
+	isSelected(editorOrIndex: EditorInput | number): boolean { return this.model.isSelected(editorOrIndex); }
 
 	isFirst(editor: EditorInput): boolean {
 		return this.model.isFirst(editor, this.getEditors(EditorsOrder.SEQUENTIAL));

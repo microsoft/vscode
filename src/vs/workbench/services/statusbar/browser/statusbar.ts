@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/base/common/themables';
-import { Command } from 'vs/editor/common/languages';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeColor } from '../../../../base/common/themables.js';
+import { Command } from '../../../../editor/common/languages.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
+import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from '../../../browser/parts/statusbar/statusbarPart.js';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -111,6 +112,19 @@ export interface IStatusbarStyleOverride {
 export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
 export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
 
+export type TooltipContent = string | IMarkdownString | IManagedHoverTooltipMarkdownString | HTMLElement;
+
+export interface ITooltipWithCommands {
+	readonly content: TooltipContent;
+	readonly commands: Command[];
+}
+
+export function isTooltipWithCommands(thing: unknown): thing is ITooltipWithCommands {
+	const candidate = thing as ITooltipWithCommands | undefined;
+
+	return !!candidate?.content && Array.isArray(candidate?.commands);
+}
+
 /**
  * A declarative way of describing a status bar entry
  */
@@ -141,9 +155,11 @@ export interface IStatusbarEntry {
 	readonly role?: string;
 
 	/**
-	 * An optional tooltip text to show when you hover over the entry
+	 * An optional tooltip text to show when you hover over the entry.
+	 *
+	 * Use `ITooltipWithCommands` to show a tooltip with commands in hover footer area.
 	 */
-	readonly tooltip?: string | IMarkdownString | HTMLElement;
+	readonly tooltip?: TooltipContent | ITooltipWithCommands;
 
 	/**
 	 * An optional color to use for the entry.
@@ -174,9 +190,9 @@ export interface IStatusbarEntry {
 
 	/**
 	 * Will enable a spinning icon in front of the text to indicate progress. When `true` is
-	 * specified, `syncing` will be used.
+	 * specified, `loading` will be used.
 	 */
-	readonly showProgress?: boolean | 'syncing' | 'loading';
+	readonly showProgress?: boolean | 'loading' | 'syncing';
 
 	/**
 	 * The kind of status bar entry. This applies different colors to the entry.
@@ -188,6 +204,12 @@ export interface IStatusbarEntry {
 	 * the entry to new auxiliary windows opening.
 	 */
 	readonly showInAllWindows?: boolean;
+
+	/**
+	 * If provided, signals what extension is providing the status bar entry. This allows for
+	 * more actions to manage the extension from the status bar entry.
+	 */
+	readonly extensionId?: string;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

@@ -15,9 +15,6 @@
   "categories": [
     "Programming Languages"
   ],
-  "enabledApiProposals": [
-    "documentPaste"
-  ],
   "activationEvents": [
     "onLanguage:markdown",
     "onCommand:markdown.api.render",
@@ -126,6 +123,11 @@
         "category": "Markdown"
       },
       {
+        "command": "_markdown.openImage",
+        "title": "%markdown.openImage.title%",
+        "category": "Markdown"
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -189,7 +191,11 @@
       "webview/context": [
         {
           "command": "_markdown.copyImage",
-          "when": "webviewId == 'markdown.preview' && webviewSection == 'image'"
+          "when": "webviewId == 'markdown.preview' && (webviewSection == 'image' || webviewSection == 'localImage')"
+        },
+        {
+          "command": "_markdown.openImage",
+          "when": "webviewId == 'markdown.preview' && webviewSection == 'localImage'"
         }
       ],
       "editor/title": [
@@ -244,6 +250,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "_markdown.openImage",
+          "when": "false"
+        },
         {
           "command": "_markdown.copyImage",
           "when": "false"
@@ -708,14 +718,11 @@
             "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
           ]
         },
-        "markdown.experimental.updateLinksOnPaste": {
+        "markdown.editor.updateLinksOnPaste.enabled": {
           "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.markdown.experimental.updateLinksOnPaste%",
+          "markdownDescription": "%configuration.markdown.editor.updateLinksOnPaste.enabled%",
           "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "default": true
         }
       }
     },
@@ -756,8 +763,8 @@
     ]
   },
   "scripts": {
-    "compile": "gulp compile-extension:markdown-language-features-languageService && gulp compile-extension:markdown-language-features-server && gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
-    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService watch-extension:markdown-language-features-server",
+    "compile": "gulp compile-extension:markdown-language-features-languageService && gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
+    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
     "build-notebook": "node ./esbuild-notebook",
@@ -766,25 +773,27 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.0",
-    "dompurify": "^3.0.5",
+    "@vscode/extension-telemetry": "^0.9.8",
+    "dompurify": "^3.2.4",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.4",
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
+    "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-markdown-languageserver": "^0.5.0-alpha.9",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/dompurify": "^3.0.2",
+    "@types/dompurify": "^3.0.5",
     "@types/lodash.throttle": "^4.1.3",
     "@types/markdown-it": "12.2.3",
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
-    "@vscode/markdown-it-katex": "^1.0.2",
+    "@vscode/markdown-it-katex": "^1.1.1",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
     "vscode-markdown-languageservice": "^0.3.0-alpha.3"

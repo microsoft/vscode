@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { WellDefinedPrefixTree } from '../../common/prefixTree.js';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('WellDefinedPrefixTree', () => {
 	let tree: WellDefinedPrefixTree<number>;
@@ -157,6 +157,33 @@ suite('WellDefinedPrefixTree', () => {
 		assert.strictEqual(tree.size, 1);
 
 		assert.deepStrictEqual([...tree.deleteRecursive(key4)], [45]);
+		assert.strictEqual(tree.size, 0);
+	});
+
+	test('insert and delete root', () => {
+		assert.strictEqual(tree.size, 0);
+		tree.insert([], 1234);
+		assert.strictEqual(tree.size, 1);
+		assert.strictEqual(tree.find([]), 1234);
+		assert.strictEqual(tree.delete([]), 1234);
+		assert.strictEqual(tree.size, 0);
+
+		assert.strictEqual(tree.find([]), undefined);
+		assert.strictEqual(tree.delete([]), undefined);
+		assert.strictEqual(tree.size, 0);
+	});
+
+	test('insert and deleteRecursive root', () => {
+		assert.strictEqual(tree.size, 0);
+		tree.insert([], 1234);
+		tree.insert(['a'], 4567);
+		assert.strictEqual(tree.size, 2);
+		assert.strictEqual(tree.find([]), 1234);
+		assert.deepStrictEqual([...tree.deleteRecursive([])], [1234, 4567]);
+		assert.strictEqual(tree.size, 0);
+
+		assert.strictEqual(tree.find([]), undefined);
+		assert.deepStrictEqual([...tree.deleteRecursive([])], []);
 		assert.strictEqual(tree.size, 0);
 	});
 });

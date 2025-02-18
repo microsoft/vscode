@@ -3,62 +3,71 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ICreateTerminalOptions, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalSettingId, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { ActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { Event } from 'vs/base/common/event';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import * as nls from '../../../../nls.js';
+import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
+import * as cssJs from '../../../../base/browser/cssValue.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from './terminalActions.js';
+import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
+import { ICreateTerminalOptions, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from './terminal.js';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from '../common/terminal.js';
+import { TerminalSettingId, ITerminalProfile, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { ActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { asCssVariable, selectBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { TerminalTabbedView } from './terminalTabbedView.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { getColorForSeverity } from './terminalStatusList.js';
+import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { DisposableMap, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { getColorClass, getUriClasses } from './terminalIcon.js';
+import { getTerminalActionBarArgs } from './terminalMenus.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { getInstanceHoverInfo } from './terminalTooltip.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { Event } from '../../../../base/common/event.js';
+import { IHoverDelegate, IHoverDelegateOptions } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { InstanceContext, TerminalContextActionRunner } from './terminalContextMenu.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _isInitialized: boolean = false;
-	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
+	/**
+	 * Tracks an active promise of terminal creation requested by this component. This helps prevent
+	 * double creation for example when toggling a terminal's visibility and focusing it.
+	 */
+	private _isTerminalBeingCreated: boolean = false;
+	private readonly _newDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
 	private readonly _disposableStore = this._register(new DisposableStore());
+	private readonly _actionDisposables: DisposableMap<TerminalCommandId> = this._register(new DisposableMap());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -118,13 +127,13 @@ export class TerminalViewPane extends ViewPane {
 				this._updateForShellIntegration(this._parentDomElement);
 			}
 		}));
-		this._register(this._terminalService.onDidCreateInstance((i) => {
-			i.capabilities.onDidAddCapabilityType(c => {
-				if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
-					this._parentDomElement?.classList.add('shell-integration');
-				}
-			});
-		}));
+		const shellIntegrationDisposable = this._register(new MutableDisposable());
+		shellIntegrationDisposable.value = this._terminalService.onAnyInstanceAddedCapabilityType(c => {
+			if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
+				this._parentDomElement?.classList.add('shell-integration');
+				shellIntegrationDisposable.clear();
+			}
+		});
 	}
 
 	private _updateForShellIntegration(container: HTMLElement) {
@@ -161,7 +170,8 @@ export class TerminalViewPane extends ViewPane {
 			if (!wasInitialized) {
 				switch (hideOnStartup) {
 					case 'never':
-						this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+						this._isTerminalBeingCreated = true;
+						this._terminalService.createTerminal({ location: TerminalLocation.Panel }).finally(() => this._isTerminalBeingCreated = false);
 						break;
 					case 'whenEmpty':
 						if (this._terminalService.restoredGroupCount === 0) {
@@ -172,7 +182,10 @@ export class TerminalViewPane extends ViewPane {
 				return;
 			}
 
-			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+			if (!this._isTerminalBeingCreated) {
+				this._isTerminalBeingCreated = true;
+				this._terminalService.createTerminal({ location: TerminalLocation.Panel }).finally(() => this._isTerminalBeingCreated = false);
+			}
 		}
 	}
 
@@ -185,7 +198,7 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
-		dom.createStyleSheet(this._parentDomElement);
+		domStylesheetsJs.createStyleSheet(this._parentDomElement);
 		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
@@ -229,7 +242,7 @@ export class TerminalViewPane extends ViewPane {
 		if (!this._parentDomElement) {
 			return;
 		}
-		this._terminalTabbedView = this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement);
+		this._terminalTabbedView = this._register(this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement));
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -238,17 +251,17 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalTabbedView?.layout(width, height);
 	}
 
-	override getActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+	override createActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
 				const that = this;
-				const panelOnlySplitAction = new class extends Action {
+				const store = new DisposableStore();
+				const panelOnlySplitAction = store.add(new class extends Action {
 					constructor() {
 						super(action.id, action.label, action.class, action.enabled);
 						this.checked = action.checked;
 						this.tooltip = action.tooltip;
-						this._register(action);
 					}
 					override async run() {
 						const instance = that._terminalGroupService.activeInstance;
@@ -258,42 +271,35 @@ export class TerminalViewPane extends ViewPane {
 						}
 						return;
 					}
-				};
-				return new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) });
+				});
+				const item = store.add(new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) }));
+				this._actionDisposables.set(action.id, store);
+				return item;
 			}
 			case TerminalCommandId.SwitchTerminal: {
-				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
+				const item = this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
+				this._actionDisposables.set(action.id, item);
+				return item;
 			}
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
-					const actions: IAction[] = [];
-					createAndFillInContextMenuActions(this._singleTabMenu, { shouldForwardArgs: true }, actions);
-					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
+					const actions = getFlatContextMenuActions(this._singleTabMenu.getActions({ shouldForwardArgs: true }));
+					const item = this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
+					this._actionDisposables.set(action.id, item);
+					return item;
 				}
+				break;
 			}
 			case TerminalCommandId.New: {
 				if (action instanceof MenuItemAction) {
-					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
-					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
-					this._newDropdown?.dispose();
-					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, { hoverDelegate: options.hoverDelegate }, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
-					this._updateTabActionBar(this._terminalProfileService.availableProfiles);
-					return this._newDropdown;
+					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
+					this._newDropdown.value = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate }, this._contextMenuService, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
+					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
+					return this._newDropdown.value;
 				}
 			}
 		}
-		return super.getActionViewItem(action, options);
-	}
-
-	/**
-	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
-	 */
-	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
-		this._disposableStore.clear();
-		if (dropdownAction instanceof Action) {
-			this._disposableStore.add(dropdownAction);
-		}
-		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._disposableStore.add(a));
+		return super.createActionViewItem(action, options);
 	}
 
 	private _getDefaultProfileName(): string {
@@ -311,14 +317,17 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
-		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
-		this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
-		this._newDropdown?.update(actions.dropdownAction, actions.dropdownMenuActions);
+		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
+		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
 	override focus() {
 		super.focus();
 		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			if (this._terminalGroupService.instances.length === 0 && !this._isTerminalBeingCreated) {
+				this._isTerminalBeingCreated = true;
+				this._terminalService.createTerminal({ location: TerminalLocation.Panel }).finally(() => this._isTerminalBeingCreated = false);
+			}
 			this._terminalGroupService.showPanel(true);
 			return;
 		}
@@ -433,7 +442,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				last.add(e);
 			}
 			return last;
-		})(merged => {
+		}, MicrotaskDelay)(merged => {
 			for (const e of merged) {
 				this.updateLabel(e);
 			}
@@ -584,8 +593,8 @@ class TerminalThemeIconStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = dom.createStyleSheet(container);
-		this._register(toDisposable(() => container.removeChild(this._styleElement)));
+		this._styleElement = domStylesheetsJs.createStyleSheet(container);
+		this._register(toDisposable(() => this._styleElement.remove()));
 		this.updateStyles();
 	}
 
@@ -618,7 +627,7 @@ class TerminalThemeIconStyle extends Themable {
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
 					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon` +
-					`{background-image: ${dom.asCSSUrl(uri)};}`
+					`{background-image: ${cssJs.asCSSUrl(uri)};}`
 				);
 			}
 		}
@@ -631,9 +640,9 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
-				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
+				// exclude status icons (file-icon) and inline action icons (trashcan, horizontalSplit, rerunTask)
 				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
+					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):not(.codicon-rerun-task)` +
 					`{ color: ${color} !important; }`
 				);
 			}

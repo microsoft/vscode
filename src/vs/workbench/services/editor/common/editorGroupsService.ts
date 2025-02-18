@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { IRectangle } from 'vs/platform/window/common/window';
-import { IMenuChangeEvent } from 'vs/platform/actions/common/actions';
-import { DeepPartial } from 'vs/base/common/types';
+import { Event } from '../../../../base/common/event.js';
+import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IGroupModelChangeEvent } from '../../../common/editor/editorGroupModel.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
+import { IMenuChangeEvent } from '../../../../platform/actions/common/actions.js';
+import { DeepPartial } from '../../../../base/common/types.js';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -101,6 +101,13 @@ export const enum MergeGroupMode {
 export interface IMergeGroupOptions {
 	mode?: MergeGroupMode;
 	readonly index?: number;
+
+	/**
+	 * Set this to prevent editors already present in the
+	 * target group from moving to a different index as
+	 * they are in the source group.
+	 */
+	readonly preserveExistingIndex?: boolean;
 }
 
 export interface ICloseEditorOptions {
@@ -439,6 +446,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	readonly onDidScroll: Event<void>;
 
 	/**
+	 * An event for when the editor part is disposed.
+	 */
+	readonly onWillDispose: Event<void>;
+
+	/**
 	 * The identifier of the window the editor part is contained in.
 	 */
 	readonly windowId: number;
@@ -480,15 +492,31 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	close(): boolean;
 }
 
-export interface IAuxiliaryEditorPartCreateEvent {
-	readonly part: IAuxiliaryEditorPart;
-	readonly instantiationService: IInstantiationService;
-	readonly disposables: DisposableStore;
-}
-
 export interface IEditorWorkingSet {
 	readonly id: string;
 	readonly name: string;
+}
+
+export interface IEditorWorkingSetOptions {
+	readonly preserveFocus?: boolean;
+}
+
+export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
+
+	/**
+	 * The context key that needs to be set for each editor group context and the global context.
+	 */
+	readonly contextKey: RawContextKey<T>;
+
+	/**
+	 * Retrieves the context key value for the given editor group.
+	 */
+	readonly getGroupContextKeyValue: (group: IEditorGroup) => T;
+
+	/**
+	 * An event that is fired when there was a change leading to the context key value to be re-evaluated.
+	 */
+	readonly onDidChange?: Event<void>;
 }
 
 /**
@@ -501,7 +529,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	/**
 	 * An event for when a new auxiliary editor part is created.
 	 */
-	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
+	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart>;
 
 	/**
 	 * Provides access to the main window editor part.
@@ -540,6 +568,14 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
 
 	/**
+	 * Returns the instantiation service that is scoped to the
+	 * provided editor part. Use this method when building UI
+	 * that contributes to auxiliary editor parts to ensure the
+	 * UI is scoped to that part.
+	 */
+	getScopedInstantiationService(part: IEditorPart): IInstantiationService;
+
+	/**
 	 * Save a new editor working set from the currently opened
 	 * editors and group layout.
 	 */
@@ -555,12 +591,20 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 *
 	 * @returns `true` when the working set as applied.
 	 */
-	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean>;
+	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean>;
 
 	/**
 	 * Deletes a working set.
 	 */
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void;
+
+	/**
+	 * Registers a context key provider. This provider sets a context key for each scoped editor group context and the global context.
+	 *
+	 * @param provider - The context key provider to be registered.
+	 * @returns - A disposable object to unregister the provider.
+	 */
+	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable;
 }
 
 export const enum OpenEditorContext {
@@ -774,31 +818,18 @@ export interface IEditorGroup {
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
 
 	/**
-	 * Selects the editor in the group. If active is set to true,
-	 * it will be the active editor in the group.
-	 */
-	selectEditor(editor: EditorInput, active?: boolean): Promise<void>;
-
-	/**
-	 * Selects the editors in the group. If activeEditor is provided,
-	 * it will be the active editor in the group.
-	 */
-	selectEditors(editors: EditorInput[], activeEditor?: EditorInput): Promise<void>;
-
-	/**
-	 * Unselects the editor in the group. If the editor is not specified, unselects the active editor.
-	 */
-	unSelectEditor(editor: EditorInput): Promise<void>;
-
-	/**
-	 * Unselects the editors in the group. If the editor is not specified, unselects the active editor.
-	 */
-	unSelectEditors(editors: EditorInput[]): Promise<void>;
-
-	/**
 	 * Whether the editor is selected in the group.
 	 */
 	isSelected(editor: EditorInput): boolean;
+
+	/**
+	 * Set a new selection for this group. This will replace the current
+	 * selection with the new selection.
+	 *
+	 * @param activeSelectedEditor the editor to set as active selected editor
+	 * @param inactiveSelectedEditors the inactive editors to set as selected
+	 */
+	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): Promise<void>;
 
 	/**
 	 * Find out if a certain editor is included in the group.

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, type IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { EDITOR_FONT_DEFAULTS, type IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
+import type { IXtermCore } from './xterm-private.js';
+import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 // #region TerminalConfigurationService
 
@@ -18,7 +19,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 
 	protected _fontMetrics: TerminalFontMetrics;
 
-	private _config!: Readonly<ITerminalConfiguration>;
+	protected _config!: Readonly<ITerminalConfiguration>;
 	get config() { return this._config; }
 
 	private readonly _onConfigChanged = new Emitter<void>();
@@ -29,7 +30,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 	) {
 		super();
 
-		this._fontMetrics = this._register(new TerminalFontMetrics(this, _configurationService));
+		this._fontMetrics = this._register(new TerminalFontMetrics(this, this._configurationService));
 
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
@@ -67,7 +68,7 @@ const enum FontConstants {
 	MaximumFontSize = 100,
 }
 
-class TerminalFontMetrics extends Disposable {
+export class TerminalFontMetrics extends Disposable {
 	private _panelContainer: HTMLElement | undefined;
 	private _charMeasureElement: HTMLElement | undefined;
 	private _lastFontMeasurement: ITerminalFont | undefined;
@@ -107,7 +108,7 @@ class TerminalFontMetrics extends Disposable {
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
-		let fontFamily = this._terminalConfigurationService.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+		let fontFamily = this._terminalConfigurationService.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily || 'monospace';
 		let fontSize = clampInt(this._terminalConfigurationService.config.fontSize, FontConstants.MinimumFontSize, FontConstants.MaximumFontSize, EDITOR_FONT_DEFAULTS.fontSize);
 
 		// Work around bad font on Fedora/Ubuntu
@@ -125,6 +126,13 @@ class TerminalFontMetrics extends Disposable {
 
 		// Always fallback to monospace, otherwise a proportional font may become the default
 		fontFamily += ', monospace';
+
+		// Always fallback to AppleBraille on macOS, otherwise braille will render with filled and
+		// empty circles in all 8 positions, instead of just filled circles
+		// See https://github.com/microsoft/vscode/issues/174521
+		if (isMacintosh) {
+			fontFamily += ', AppleBraille';
+		}
 
 		const letterSpacing = this._terminalConfigurationService.config.letterSpacing ? Math.max(Math.floor(this._terminalConfigurationService.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this._terminalConfigurationService.config.lineHeight ? Math.max(this._terminalConfigurationService.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;

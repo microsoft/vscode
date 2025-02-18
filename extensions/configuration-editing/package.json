@@ -11,7 +11,9 @@
   "icon": "images/icon.png",
   "activationEvents": [
     "onProfile",
-    "onProfile:github"
+    "onProfile:github",
+    "onLanguage:json",
+    "onLanguage:jsonc"
   ],
   "enabledApiProposals": [
     "profileContentHandlers"
@@ -23,8 +25,8 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
+    "@octokit/rest": "^21.1.1",
     "jsonc-parser": "^3.2.0",
-    "@octokit/rest": "19.0.4",
     "tunnel": "^0.0.6"
   },
   "capabilities": {
@@ -54,7 +56,8 @@
           "devcontainer.json",
           ".devcontainer.json"
         ]
-      }, {
+      },
+      {
         "id": "json",
         "extensions": [
           ".code-profile"

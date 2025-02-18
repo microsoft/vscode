@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { parseNextChatResponseChunk } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { parseNextChatResponseChunk } from '../../electron-sandbox/actions/voiceChatActions.js';
 
 suite('VoiceChatActions', function () {
 

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./iconSelectBox';
-import * as dom from 'vs/base/browser/dom';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IInputBoxStyles, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { IMatch } from 'vs/base/common/filters';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import './iconSelectBox.css';
+import * as dom from '../../dom.js';
+import { alert } from '../aria/aria.js';
+import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
+import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
+import { Emitter } from '../../../common/event.js';
+import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../common/lifecycle.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { localize } from '../../../../nls.js';
+import { IMatch } from '../../../common/filters.js';
+import { ScrollbarVisibility } from '../../../common/scrollable.js';
+import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
 
 export interface IIconSelectBoxOptions {
 	readonly icons: ThemeIcon[];

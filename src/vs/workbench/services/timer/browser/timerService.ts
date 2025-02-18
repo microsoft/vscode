@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as perf from 'vs/base/common/performance';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Barrier, timeout } from 'vs/base/common/async';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { isWeb } from 'vs/base/common/platform';
-import { createBlobWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITerminalBackendRegistry, TerminalExtensions } from 'vs/platform/terminal/common/terminal';
+import * as perf from '../../../../base/common/performance.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IUpdateService } from '../../../../platform/update/common/update.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { createBlobWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ITerminalBackendRegistry, TerminalExtensions } from '../../../../platform/terminal/common/terminal.js';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -37,7 +37,6 @@ export interface IMemoryInfo {
 
 /* __GDPR__FRAGMENT__
 	"IStartupMetrics" : {
-		"version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isLatestVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"didUseCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -49,6 +48,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedLoadMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedRunMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedCrashReporter" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedMainServer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowCreate" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -86,11 +86,6 @@ export interface IMemoryInfo {
 	}
 */
 export interface IStartupMetrics {
-
-	/**
-	 * The version of these metrics.
-	 */
-	readonly version: 2;
 
 	/**
 	 * If this started the main process and renderer or just a renderer (new or reloaded).
@@ -187,6 +182,14 @@ export interface IStartupMetrics {
 		 * * Measured with the `willLoadMainBundle` and `didLoadMainBundle` performance marks.
 		 */
 		readonly ellapsedLoadMainBundle?: number;
+
+		/**
+		 * The time it took to run the main bundle.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `didStartMain` and `didRunMainBundle` performance marks.
+		 */
+		readonly ellapsedRunMainBundle?: number;
 
 		/**
 		 * The time it took to start the crash reporter.
@@ -446,6 +449,12 @@ export interface ITimerService {
 	 * @param to to mark name
 	 */
 	getDuration(from: string, to: string): number;
+
+	/**
+	 * Return the timestamp of a mark.
+	 * @param mark mark name
+	 */
+	getStartTime(mark: string): number;
 }
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
@@ -469,6 +478,11 @@ class PerfMarks {
 			return 0;
 		}
 		return toEntry.startTime - fromEntry.startTime;
+	}
+
+	getStartTime(mark: string): number {
+		const entry = this._findEntry(mark);
+		return entry ? entry.startTime : -1;
 	}
 
 	private _findEntry(name: string): perf.PerformanceMark | void {
@@ -555,8 +569,7 @@ export abstract class AbstractTimerService implements ITimerService {
 					const t1 = performance.now();
 					fib(24);
 					const value = Math.round(performance.now() - t1);
-					// eslint-disable-next-line no-restricted-globals
-					postMessage({ value: tooSlow ? -1 : value });
+					self.postMessage({ value: tooSlow ? -1 : value });
 
 				}).toString();
 
@@ -599,6 +612,10 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	getDuration(from: string, to: string): number {
 		return this._marks.getDuration(from, to);
+	}
+
+	getStartTime(mark: string): number {
+		return this._marks.getStartTime(mark);
 	}
 
 	private _reportStartupTimes(metrics: IStartupMetrics): void {
@@ -661,7 +678,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		const info: Writeable<IStartupMetrics> = {
-			version: 2,
+
 			ellapsed: this._marks.getDuration(startMark, 'code/didStartWorkbench'),
 
 			// reflections
@@ -678,6 +695,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedAppReady: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/mainAppReady') : undefined,
 				ellapsedNlsGeneration: initialStartup ? this._marks.getDuration('code/willGenerateNls', 'code/didGenerateNls') : undefined,
 				ellapsedLoadMainBundle: initialStartup ? this._marks.getDuration('code/willLoadMainBundle', 'code/didLoadMainBundle') : undefined,
+				ellapsedRunMainBundle: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/didRunMainBundle') : undefined,
 				ellapsedCrashReporter: initialStartup ? this._marks.getDuration('code/willStartCrashReporter', 'code/didStartCrashReporter') : undefined,
 				ellapsedMainServer: initialStartup ? this._marks.getDuration('code/willStartMainServer', 'code/didStartMainServer') : undefined,
 				ellapsedWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateCodeWindow', 'code/didCreateCodeWindow') : undefined,

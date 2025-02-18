@@ -3,27 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelResolveOrCreateOptions, ITextFileResolveEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceMap } from 'vs/base/common/map';
-import { IFileService, FileChangesEvent, FileOperation, FileChangeType, IFileSystemProviderRegistrationEvent, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
-import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { TextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textFileSaveParticipant';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { ITextSnapshot } from 'vs/editor/common/model';
-import { extname, joinPath } from 'vs/base/common/resources';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { localize } from '../../../../nls.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { TextFileEditorModel } from './textFileEditorModel.js';
+import { dispose, IDisposable, Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelResolveOrCreateOptions, ITextFileResolveEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from './textfiles.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IFileService, FileChangesEvent, FileOperation, FileChangeType, IFileSystemProviderRegistrationEvent, IFileSystemProviderCapabilitiesChangeEvent } from '../../../../platform/files/common/files.js';
+import { Promises, ResourceQueue } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { TextFileSaveParticipant } from './textFileSaveParticipant.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService, WorkingCopyFileEvent } from '../../workingCopy/common/workingCopyFileService.js';
+import { ITextSnapshot } from '../../../../editor/common/model.js';
+import { extname, joinPath } from '../../../../base/common/resources.js';
+import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel.js';
+import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+
+interface ITextFileEditorModelToRestore {
+	readonly source: URI;
+	readonly target: URI;
+	readonly snapshot?: ITextSnapshot;
+	readonly language?: {
+		readonly id: string;
+		readonly explicit: boolean;
+	};
+	readonly encoding?: string;
+}
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -170,13 +182,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[]>();
+	private readonly mapCorrelationIdToModelsToRestore = new Map<number, ITextFileEditorModelToRestore[]>();
 
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: remember models to restore after the operation
 		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
-			const modelsToRestore: { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[] = [];
+			const modelsToRestore: ITextFileEditorModelToRestore[] = [];
 
 			for (const { source, target } of e.files) {
 				if (source) {
@@ -209,10 +221,14 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 							targetModelResource = joinPath(target, sourceModelResource.path.substr(source.path.length + 1));
 						}
 
+						const languageId = sourceModel.getLanguageId();
 						modelsToRestore.push({
 							source: sourceModelResource,
 							target: targetModelResource,
-							languageId: sourceModel.getLanguageId(),
+							language: languageId ? {
+								id: languageId,
+								explicit: sourceModel.languageChangeSource === 'user'
+							} : undefined,
 							encoding: sourceModel.getEncoding(),
 							snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
 						});
@@ -285,16 +301,22 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 								encoding: modelToRestore.encoding
 							});
 
-							// restore previous language only if the language is now unspecified and it was specified
-							// but not when the file was explicitly stored with the plain text extension
-							// (https://github.com/microsoft/vscode/issues/125795)
-							if (
-								modelToRestore.languageId &&
-								modelToRestore.languageId !== PLAINTEXT_LANGUAGE_ID &&
-								restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID &&
-								extname(target) !== PLAINTEXT_EXTENSION
-							) {
-								restoredModel.updateTextEditorModel(undefined, modelToRestore.languageId);
+							// restore model language only if it is specific
+							if (modelToRestore.language?.id && modelToRestore.language.id !== PLAINTEXT_LANGUAGE_ID) {
+
+								// an explicitly set language is restored via `setLanguageId`
+								// to preserve it as explicitly set by the user.
+								// (https://github.com/microsoft/vscode/issues/203648)
+								if (modelToRestore.language.explicit) {
+									restoredModel.setLanguageId(modelToRestore.language.id);
+								}
+
+								// otherwise, a model language is applied via lower level
+								// APIs to not confuse it with an explicitly set language.
+								// (https://github.com/microsoft/vscode/issues/125795)
+								else if (restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID && extname(target) !== PLAINTEXT_EXTENSION) {
+									restoredModel.updateTextEditorModel(undefined, modelToRestore.language.id);
+								}
 							}
 						}));
 					}
@@ -372,7 +394,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						try {
 							await model.resolve(options);
 						} catch (error) {
-							onUnexpectedError(error);
+							if (!model.isDisposed()) {
+								onUnexpectedError(error); // only log if the model is still around
+							}
 						}
 					})();
 				}
@@ -540,8 +564,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: ITextFileEditorModel, context: IStoredFileWorkingCopySaveParticipantContext, token: CancellationToken): Promise<void> {
-		return this.saveParticipants.participate(model, context, token);
+	runSaveParticipants(model: ITextFileEditorModel, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+		return this.saveParticipants.participate(model, context, progress, token);
 	}
 
 	//#endregion

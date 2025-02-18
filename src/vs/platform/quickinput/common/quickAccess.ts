@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { coalesce } from '../../../base/common/arrays.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickItem, IQuickPickSeparator } from './quickInput.js';
+import { Registry } from '../../registry/common/platform.js';
 
 /**
  * Provider specific options for this particular showing of the
@@ -16,6 +16,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 export interface IQuickAccessProviderRunOptions {
 	readonly from?: string;
 	readonly placeholder?: string;
+	/**
+	 * A handler to invoke when an item is accepted for
+	 * this particular showing of the quick access.
+	 * @param item The item that was accepted.
+	 */
+	readonly handleAccept?: (item: IQuickPickItem, isBackgroundAccept: boolean) => void;
 }
 
 /**
@@ -23,8 +29,7 @@ export interface IQuickAccessProviderRunOptions {
  */
 export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
 	readonly includeHelp?: boolean;
-	readonly filter?: (item: unknown) => boolean;
-	readonly includeSymbols?: boolean;
+	readonly filter?: (item: IQuickPickItem | IQuickPickSeparator) => boolean;
 	/**
 	 * @deprecated - temporary for Dynamic Chat Variables (see usage) until it has built-in UX for file picking
 	 * Useful for adding items to the top of the list that might contain actions.
@@ -65,7 +70,7 @@ export interface IQuickAccessOptions {
 
 	/**
 	 * A placeholder to use for this particular showing of the quick access.
-	 */
+	*/
 	readonly placeholder?: string;
 }
 
@@ -124,7 +129,7 @@ export interface IQuickAccessProvider {
 	 * @return a disposable that will automatically be disposed when the picker
 	 * closes or is replaced by another picker.
 	 */
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, options?: IQuickAccessProviderRunOptions): IDisposable;
+	provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, options?: IQuickAccessProviderRunOptions): IDisposable;
 }
 
 export interface IQuickAccessProviderHelp {

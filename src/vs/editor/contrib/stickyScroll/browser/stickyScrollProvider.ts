@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/cancellation';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Range } from 'vs/editor/common/core/range';
-import { binarySearch } from 'vs/base/common/arrays';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { StickyModelProvider, IStickyModelProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollModelProvider';
-import { StickyElement, StickyModel, StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { CancellationToken, CancellationTokenSource, } from '../../../../base/common/cancellation.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Range } from '../../../common/core/range.js';
+import { binarySearch } from '../../../../base/common/arrays.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { StickyModelProvider, IStickyModelProvider } from './stickyScrollModelProvider.js';
+import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement.js';
 
 export class StickyLineCandidate {
 	constructor(

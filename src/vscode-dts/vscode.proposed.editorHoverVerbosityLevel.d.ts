@@ -33,9 +33,9 @@ declare module 'vscode' {
 	export interface HoverContext {
 
 		/**
-		 * Whether to increase or decrease the hover's verbosity
+		 * The delta by which to increase/decrease the hover verbosity level
 		 */
-		readonly action?: HoverVerbosityAction;
+		readonly verbosityDelta?: number;
 
 		/**
 		 * The previous hover sent for the same position

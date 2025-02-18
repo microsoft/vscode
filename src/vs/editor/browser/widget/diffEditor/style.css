@@ -276,8 +276,12 @@
 	background-color: var(--vscode-diffEditorGutter-insertedLineBackground, var(--vscode-diffEditor-insertedLineBackground), var(--vscode-diffEditor-insertedTextBackground));
 }
 
-.monaco-editor .char-delete, .monaco-diff-editor .char-delete {
+.monaco-editor .char-delete, .monaco-diff-editor .char-delete, .monaco-editor .inline-deleted-text {
 	background-color: var(--vscode-diffEditor-removedTextBackground);
+}
+
+.monaco-editor .inline-deleted-text {
+	text-decoration: line-through;
 }
 
 .monaco-editor .line-delete, .monaco-diff-editor .line-delete {
@@ -328,6 +332,10 @@
 	flex-shrink: 0;
 	flex-grow: 0;
 
+	& > div {
+		position: absolute;
+	}
+
 	.gutterItem {
 		opacity: 0;
 		transition: opacity 0.7s;
@@ -354,7 +362,7 @@
 			left: 50%;
 			width: 1px;
 
-			border-left: 2px var(--vscode-menu-border) solid;
+			border-left: 2px var(--vscode-menu-separatorBackground) solid;
 		}
 
 		.buttons {
@@ -374,8 +382,7 @@
 					.actions-container {
 						width: fit-content;
 						border-radius: 4px;
-						border: 1px var(--vscode-menu-border) solid;
-						background: var(--vscode-editor-background);
+						background: var(--vscode-editorGutter-commentRangeForeground);
 
 						.action-item {
 							&:hover {
@@ -383,12 +390,38 @@
 							}
 
 							.action-label {
-								padding: 0.5px 1px;
+								padding: 1px 2px;
 							}
 						}
 					}
 				}
 			}
 		}
+	}
+}
+
+
+.monaco-diff-editor .diff-hidden-lines-compact {
+	display: flex;
+	height: 11px;
+	.line-left, .line-right {
+		height: 1px;
+		border-top: 1px solid;
+		border-color: var(--vscode-editorCodeLens-foreground);
+		opacity: 0.5;
+		margin: auto;
+		width: 100%;
+	}
+
+	.line-left {
+		width: 20px;
+	}
+
+	.text {
+		color: var(--vscode-editorCodeLens-foreground);
+		text-wrap: nowrap;
+		font-size: 11px;
+		line-height: 11px;
+		margin: 0 4px;
 	}
 }

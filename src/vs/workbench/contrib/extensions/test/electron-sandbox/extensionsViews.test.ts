@@ -3,54 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
+import assert from 'assert';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ExtensionsListView } from '../../browser/extensionsViews.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IExtensionsWorkbenchService } from '../../common/extensions.js';
+import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	getTargetPlatform, IExtensionInfo, SortBy
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { Event } from 'vs/base/common/event';
-import { IPager } from 'vs/base/common/paging';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestMenuService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { URI } from 'vs/base/common/uri';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+	getTargetPlatform, SortBy
+} from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionRecommendationsService, ExtensionRecommendationReason } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { getGalleryExtensionId } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { TestExtensionEnablementService } from '../../../../services/extensionManagement/test/browser/extensionEnablementService.test.js';
+import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
+import { IURLService } from '../../../../../platform/url/common/url.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IPager } from '../../../../../base/common/paging.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IExtensionService, toExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { TestMenuService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestSharedProcessService } from '../../../../test/electron-sandbox/workbenchTestServices.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SinonStub } from 'sinon';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
-import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Schemas } from 'vs/base/common/network';
-import { platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { RemoteAgentService } from '../../../../services/remote/electron-sandbox/remoteAgentService.js';
+import { ExtensionType, IExtension } from '../../../../../platform/extensions/common/extensions.js';
+import { ISharedProcessService } from '../../../../../platform/ipc/electron-sandbox/services.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { platform } from '../../../../../base/common/platform.js';
+import { arch } from '../../../../../base/common/process.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfileService.js';
+import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 
 suite('ExtensionsViews Tests', () => {
 
@@ -67,7 +70,8 @@ suite('ExtensionsViews Tests', () => {
 	const builtInTheme = aLocalExtension('my-theme', { categories: ['Themes'], contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
 	const builtInBasic = aLocalExtension('my-lang', { categories: ['Programming Languages'], contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
 
-	const galleryEnabledLanguage = aGalleryExtension(localEnabledLanguage.manifest.name, { ...localEnabledLanguage.manifest, version: '1.0.1', identifier: localDisabledLanguage.identifier });
+	let queryPage = aPage([]);
+	const galleryExtensions: IGalleryExtension[] = [];
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
@@ -97,10 +101,11 @@ suite('ExtensionsViews Tests', () => {
 			onDidUninstallExtension: Event.None,
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
+			onProfileAwareDidInstallExtensions: Event.None,
 			async getInstalled() { return []; },
 			async getInstalledWorkspaceExtensions() { return []; },
 			async canInstall() { return true; },
-			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
+			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); },
 			async updateMetadata(local) { return local; }
 		});
@@ -122,6 +127,7 @@ suite('ExtensionsViews Tests', () => {
 		});
 
 		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
+		instantiationService.stub(IUserDataProfileService, disposableStore.add(new UserDataProfileService(toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache')))));
 
 		const reasons: { [key: string]: any } = {};
 		reasons[workspaceRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
@@ -165,10 +171,27 @@ suite('ExtensionsViews Tests', () => {
 
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensgetExtensionsControlManifestionsReport', {});
-		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(galleryEnabledLanguage));
-		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', galleryEnabledLanguage);
-		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [galleryEnabledLanguage]);
+
+		instantiationService.stub(IExtensionGalleryService, <Partial<IExtensionGalleryService>>{
+			query: async () => {
+				return queryPage;
+			},
+			getCompatibleExtension: async (gallery) => {
+				return gallery;
+			},
+			getExtensions: async (infos) => {
+				const result: IGalleryExtension[] = [];
+				for (const info of infos) {
+					const extension = galleryExtensions.find(e => e.identifier.id === info.id);
+					if (extension) {
+						result.push(extension);
+					}
+				}
+				return result;
+			},
+			isEnabled: () => true,
+			isExtensionCompatible: async () => true,
+		});
 
 		instantiationService.stub(IViewDescriptorService, {
 			getViewLocationById(): ViewContainerLocation {
@@ -195,6 +218,17 @@ suite('ExtensionsViews Tests', () => {
 		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
+		queryPage = aPage([]);
+
+		galleryExtensions.splice(0, galleryExtensions.length, ...[
+			workspaceRecommendationA,
+			workspaceRecommendationB,
+			configBasedRecommendationA,
+			configBasedRecommendationB,
+			fileBasedRecommendationA,
+			fileBasedRecommendationB,
+			otherRecommendationA
+		]);
 	});
 
 	test('Test query types', () => {
@@ -213,36 +247,35 @@ suite('ExtensionsViews Tests', () => {
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates searchText'), true);
 	});
 
-	test('Test empty query equates to sort by install count', () => {
+	test('Test empty query equates to sort by install count', async () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		return testableView.show('').then(() => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, SortBy.InstallCount);
-		});
+		await testableView.show('');
+		assert.ok(target.calledOnce);
+		const options: IQueryOptions = target.args[0][0];
+		assert.strictEqual(options.sortBy, SortBy.InstallCount);
 	});
 
-	test('Test non empty query without sort doesnt use sortBy', () => {
+	test('Test non empty query without sort doesnt use sortBy', async () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		return testableView.show('some extension').then(() => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, undefined);
-		});
+		await testableView.show('some extension');
+		assert.ok(target.calledOnce);
+		const options: IQueryOptions = target.args[0][0];
+		assert.strictEqual(options.sortBy, undefined);
 	});
 
-	test('Test query with sort uses sortBy', () => {
+	test('Test query with sort uses sortBy', async () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		return testableView.show('some extension @sort:rating').then(() => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, SortBy.WeightedRating);
-		});
+		await testableView.show('some extension @sort:rating');
+		assert.ok(target.calledOnce);
+		const options: IQueryOptions = target.args[0][0];
+		assert.strictEqual(options.sortBy, SortBy.WeightedRating);
 	});
 
 	test('Test default view actions required sorting', async () => {
+		queryPage = aPage([aGalleryExtension(localEnabledLanguage.manifest.name, { ...localEnabledLanguage.manifest, version: '1.0.1', identifier: localDisabledLanguage.identifier })]);
+
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const extension = (await workbenchService.queryLocal()).find(ex => ex.identifier === localEnabledLanguage.identifier);
+		const extension = (await workbenchService.queryLocal()).find(ex => ex.identifier.id === localEnabledLanguage.identifier.id);
 
 		await new Promise<void>(c => {
 			const disposable = workbenchService.onChange(() => {
@@ -393,42 +426,32 @@ suite('ExtensionsViews Tests', () => {
 			workspaceRecommendationB,
 			configBasedRecommendationA,
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', workspaceRecommendedExtensions);
 
 		return testableView.show('@recommended:workspace').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
-			assert.strictEqual(extensionInfos.length, workspaceRecommendedExtensions.length);
 			assert.strictEqual(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
-				assert.strictEqual(extensionInfos[i].id, workspaceRecommendedExtensions[i].identifier.id);
 				assert.strictEqual(result.get(i).identifier.id, workspaceRecommendedExtensions[i].identifier.id);
 			}
 		});
 	});
 
-	test('Test @recommended query', () => {
+	test('Test @recommended query', async () => {
 		const allRecommendedExtensions = [
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
 			configBasedRecommendationB,
 			otherRecommendationA
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
-		return testableView.show('@recommended').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
-
-			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
-			assert.strictEqual(result.length, allRecommendedExtensions.length);
-			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.strictEqual(extensionInfos[i].id, allRecommendedExtensions[i].identifier.id);
-				assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
-			}
-		});
+		const result = await testableView.show('@recommended');
+		assert.strictEqual(result.length, allRecommendedExtensions.length);
+		for (let i = 0; i < allRecommendedExtensions.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
+		}
 	});
 
 
-	test('Test @recommended:all query', () => {
+	test('Test @recommended:all query', async () => {
 		const allRecommendedExtensions = [
 			workspaceRecommendationA,
 			workspaceRecommendationB,
@@ -438,109 +461,80 @@ suite('ExtensionsViews Tests', () => {
 			configBasedRecommendationB,
 			otherRecommendationA,
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
-		return testableView.show('@recommended:all').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[0][0];
-
-			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
-			assert.strictEqual(result.length, allRecommendedExtensions.length);
-			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.strictEqual(extensionInfos[i].id, allRecommendedExtensions[i].identifier.id);
-				assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
-			}
-		});
+		const result = await testableView.show('@recommended:all');
+		assert.strictEqual(result.length, allRecommendedExtensions.length);
+		for (let i = 0; i < allRecommendedExtensions.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
+		}
 	});
 
-	test('Test search', () => {
-		const searchText = 'search-me';
+	test('Test search', async () => {
 		const results = [
 			fileBasedRecommendationA,
 			workspaceRecommendationA,
 			otherRecommendationA,
 			workspaceRecommendationB
 		];
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...results));
-		return testableView.show('search-me').then(result => {
-			const options: IQueryOptions = queryTarget.args[0][0];
-
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.text, searchText);
-			assert.strictEqual(result.length, results.length);
-			for (let i = 0; i < results.length; i++) {
-				assert.strictEqual(result.get(i).identifier.id, results[i].identifier.id);
-			}
-		});
+		queryPage = aPage(results);
+		const result = await testableView.show('search-me');
+		assert.strictEqual(result.length, results.length);
+		for (let i = 0; i < results.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, results[i].identifier.id);
+		}
 	});
 
-	test('Test preferred search experiment', () => {
-		const searchText = 'search-me';
-		const actual = [
+	test('Test preferred search experiment', async () => {
+		queryPage = aPage([
 			fileBasedRecommendationA,
 			workspaceRecommendationA,
 			otherRecommendationA,
 			workspaceRecommendationB
-		];
+		], 5);
+		const notInFirstPage = aGalleryExtension('not-in-first-page');
+		galleryExtensions.push(notInFirstPage);
 		const expected = [
 			workspaceRecommendationA,
+			notInFirstPage,
 			workspaceRecommendationB,
 			fileBasedRecommendationA,
-			otherRecommendationA
+			otherRecommendationA,
 		];
 
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...actual));
-		const experimentTarget = <SinonStub>instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
+		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
 			malicious: [], deprecated: {},
 			search: [{
 				query: 'search-me',
 				preferredResults: [
 					workspaceRecommendationA.identifier.id,
-					'something-that-wasnt-in-first-page',
+					notInFirstPage.identifier.id,
 					workspaceRecommendationB.identifier.id
 				]
 			}]
 		});
 
-		testableView.dispose();
-		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
-
-		return testableView.show('search-me').then(result => {
-			const options: IQueryOptions = queryTarget.args[0][0];
-
-			assert.ok(experimentTarget.calledTwice);
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.text, searchText);
-			assert.strictEqual(result.length, expected.length);
-			for (let i = 0; i < expected.length; i++) {
-				assert.strictEqual(result.get(i).identifier.id, expected[i].identifier.id);
-			}
-		});
+		const testObject = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
+		const result = await testObject.show('search-me');
+		assert.strictEqual(result.length, expected.length);
+		for (let i = 0; i < expected.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, expected[i].identifier.id);
+		}
 	});
 
-	test('Skip preferred search experiment when user defines sort order', () => {
-		const searchText = 'search-me';
+	test('Skip preferred search experiment when user defines sort order', async () => {
 		const realResults = [
 			fileBasedRecommendationA,
 			workspaceRecommendationA,
 			otherRecommendationA,
 			workspaceRecommendationB
 		];
+		queryPage = aPage(realResults);
 
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
-
-		testableView.dispose();
-		disposableStore.add(testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
-
-		return testableView.show('search-me @sort:installs').then(result => {
-			const options: IQueryOptions = queryTarget.args[0][0];
-
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.text, searchText);
-			assert.strictEqual(result.length, realResults.length);
-			for (let i = 0; i < realResults.length; i++) {
-				assert.strictEqual(result.get(i).identifier.id, realResults[i].identifier.id);
-			}
-		});
+		const result = await testableView.show('search-me @sort:installs');
+		assert.strictEqual(result.length, realResults.length);
+		for (let i = 0; i < realResults.length; i++) {
+			assert.strictEqual(result.get(i).identifier.id, realResults[i].identifier.id);
+		}
 	});
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
@@ -550,7 +544,8 @@ suite('ExtensionsViews Tests', () => {
 			location: URI.file(`pub.${name}`),
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
 			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' },
-			...properties
+			...properties,
+			isValid: properties.isValid ?? true,
 		};
 		properties.isBuiltin = properties.type === ExtensionType.System;
 		return <ILocalExtension>Object.create({ manifest, ...properties });
@@ -565,9 +560,8 @@ suite('ExtensionsViews Tests', () => {
 		return <IGalleryExtension>galleryExtension;
 	}
 
-	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
+	function aPage<T>(objects: IGalleryExtension[] = [], total?: number): IPager<IGalleryExtension> {
+		return { firstPage: objects, total: total ?? objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 
 });
-

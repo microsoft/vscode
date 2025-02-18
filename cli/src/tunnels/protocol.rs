@@ -299,10 +299,40 @@ pub enum PortPrivacy {
 	Private,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Copy, Eq, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum PortProtocol {
+	Auto,
+	Http,
+	Https,
+}
+
+impl std::fmt::Display for PortProtocol {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.to_contract_str())
+	}
+}
+
+impl Default for PortProtocol {
+	fn default() -> Self {
+		Self::Auto
+	}
+}
+
+impl PortProtocol {
+	pub fn to_contract_str(&self) -> &'static str {
+		match *self {
+			Self::Auto => tunnels::contracts::TUNNEL_PROTOCOL_AUTO,
+			Self::Http => tunnels::contracts::TUNNEL_PROTOCOL_HTTP,
+			Self::Https => tunnels::contracts::TUNNEL_PROTOCOL_HTTPS,
+		}
+	}
+}
+
 pub mod forward_singleton {
 	use serde::{Deserialize, Serialize};
 
-	use super::PortPrivacy;
+	use super::{PortPrivacy, PortProtocol};
 
 	pub const METHOD_SET_PORTS: &str = "set_ports";
 
@@ -310,6 +340,7 @@ pub mod forward_singleton {
 	pub struct PortRec {
 		pub number: u16,
 		pub privacy: PortPrivacy,
+		pub protocol: PortProtocol,
 	}
 
 	pub type PortList = Vec<PortRec>;

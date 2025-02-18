@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { isNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import * as nls from '../../../../../nls.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { INotebookEditorService } from '../services/notebookEditorService.js';
+import { NotebookSetting } from '../../common/notebookCommon.js';
+import { isNotebookEditorInput } from '../../common/notebookEditorInput.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 export class NotebookIndentUsingTabs extends Action2 {
 	public static readonly ID = 'notebook.action.indentUsingTabs';

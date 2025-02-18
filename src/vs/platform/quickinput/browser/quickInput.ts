@@ -3,41 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { equals } from 'vs/base/common/arrays';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./media/quickInput';
-import { localize } from 'vs/nls';
-import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickInputType } from 'vs/platform/quickinput/common/quickInput';
-import { QuickInputBox } from './quickInputBox';
-import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
-import { QuickPickFocus } from '../common/quickInput';
-import type { IHoverOptions } from 'vs/base/browser/ui/hover/hover';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as dom from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { Button, IButtonStyles } from '../../../base/browser/ui/button/button.js';
+import { CountBadge, ICountBadgeStyles } from '../../../base/browser/ui/countBadge/countBadge.js';
+import { IHoverDelegate, IHoverDelegateOptions } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { IInputBoxStyles } from '../../../base/browser/ui/inputbox/inputBox.js';
+import { IKeybindingLabelStyles } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IListStyles } from '../../../base/browser/ui/list/listWidget.js';
+import { IProgressBarStyles, ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
+import { IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
+import { equals } from '../../../base/common/arrays.js';
+import { TimeoutTimer } from '../../../base/common/async.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { Emitter, Event, EventBufferer } from '../../../base/common/event.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { isIOS } from '../../../base/common/platform.js';
+import Severity from '../../../base/common/severity.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import './media/quickInput.css';
+import { localize } from '../../../nls.js';
+import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
+import { QuickInputBox } from './quickInputBox.js';
+import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../hover/browser/hover.js';
+import { QuickInputTree } from './quickInputTree.js';
+import type { IHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import { ContextKeyExpr, RawContextKey } from '../../contextkey/common/contextkey.js';
 
 export const inQuickInputContextKeyValue = 'inQuickInput';
 export const InQuickInputContextKey = new RawContextKey<boolean>(inQuickInputContextKeyValue, false, localize('inQuickInput', "Whether keyboard focus is inside the quick input control"));
 export const inQuickInputContext = ContextKeyExpr.has(inQuickInputContextKeyValue);
+
+export const quickInputAlignmentContextKeyValue = 'quickInputAlignment';
+export const QuickInputAlignmentContextKey = new RawContextKey<'top' | 'center' | undefined>(quickInputAlignmentContextKeyValue, 'top', localize('quickInputAlignment', "The alignment of the quick input"));
 
 export const quickInputTypeContextKeyValue = 'quickInputType';
 export const QuickInputTypeContextKey = new RawContextKey<QuickInputType>(quickInputTypeContextKeyValue, undefined, localize('quickInputType', "The type of the currently visible quick input"));
@@ -100,6 +102,7 @@ export interface QuickInputUI {
 	description2: HTMLElement;
 	widget: HTMLElement;
 	rightActionBar: ActionBar;
+	inlineActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
@@ -157,7 +160,9 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 	private _contextKey: string | undefined;
 	private _busy = false;
 	private _ignoreFocusOut = false;
-	private _buttons: IQuickInputButton[] = [];
+	private _leftButtons: IQuickInputButton[] = [];
+	private _rightButtons: IQuickInputButton[] = [];
+	private _inlineButtons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
 	private _toggles: IQuickInputToggle[] = [];
 	private togglesUpdated = false;
@@ -206,7 +211,7 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 	}
 
 	set widget(widget: unknown | undefined) {
-		if (!(widget instanceof HTMLElement)) {
+		if (!(dom.isHTMLElement(widget))) {
 			return;
 		}
 		if (this._widget !== widget) {
@@ -273,12 +278,24 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 		}
 	}
 
+	protected get titleButtons() {
+		return this._leftButtons.length
+			? [...this._leftButtons, this._rightButtons]
+			: this._rightButtons;
+	}
+
 	get buttons() {
-		return this._buttons;
+		return [
+			...this._leftButtons,
+			...this._rightButtons,
+			...this._inlineButtons
+		];
 	}
 
 	set buttons(buttons: IQuickInputButton[]) {
-		this._buttons = buttons;
+		this._leftButtons = buttons.filter(b => b === backButton);
+		this._rightButtons = buttons.filter(b => b !== backButton && b.location !== QuickInputButtonLocation.Inline);
+		this._inlineButtons = buttons.filter(b => b.location === QuickInputButtonLocation.Inline);
 		this.buttonsUpdated = true;
 		this.update();
 	}
@@ -407,8 +424,7 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 		if (this.buttonsUpdated) {
 			this.buttonsUpdated = false;
 			this.ui.leftActionBar.clear();
-			const leftButtons = this.buttons
-				.filter(button => button === backButton)
+			const leftButtons = this._leftButtons
 				.map((button, index) => quickInputButtonToAction(
 					button,
 					`id-${index}`,
@@ -416,14 +432,21 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 				));
 			this.ui.leftActionBar.push(leftButtons, { icon: true, label: false });
 			this.ui.rightActionBar.clear();
-			const rightButtons = this.buttons
-				.filter(button => button !== backButton)
+			const rightButtons = this._rightButtons
 				.map((button, index) => quickInputButtonToAction(
 					button,
 					`id-${index}`,
 					async () => this.onDidTriggerButtonEmitter.fire(button)
 				));
 			this.ui.rightActionBar.push(rightButtons, { icon: true, label: false });
+			this.ui.inlineActionBar.clear();
+			const inlineButtons = this._inlineButtons
+				.map((button, index) => quickInputButtonToAction(
+					button,
+					`id-${index}`,
+					async () => this.onDidTriggerButtonEmitter.fire(button)
+				));
+			this.ui.inlineActionBar.push(inlineButtons, { icon: true, label: false });
 		}
 		if (this.togglesUpdated) {
 			this.togglesUpdated = false;
@@ -507,7 +530,7 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 	}
 }
 
-export class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPick<T> {
+export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: boolean } = { useSeparators: false }> extends QuickInput implements IQuickPick<T, O> {
 
 	private static readonly DEFAULT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
@@ -518,7 +541,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	private readonly onWillAcceptEmitter = this._register(new Emitter<IQuickPickWillAcceptEvent>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<IQuickPickDidAcceptEvent>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
-	private _items: Array<T | IQuickPickSeparator> = [];
+	private _items: O extends { useSeparators: true } ? Array<T | IQuickPickSeparator> : Array<T> = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
 	private _canAcceptInBackground = false;
@@ -542,6 +565,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _ok: boolean | 'default' = 'default';
+	private _okLabel: string | undefined;
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
@@ -625,7 +649,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		this.ui.list.scrollTop = scrollTop;
 	}
 
-	set items(items: Array<T | IQuickPickSeparator>) {
+	set items(items: O extends { useSeparators: true } ? Array<T | IQuickPickSeparator> : Array<T>) {
 		this._items = items;
 		this.itemsUpdated = true;
 		this.update();
@@ -792,6 +816,15 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		this.update();
 	}
 
+	get okLabel() {
+		return this._okLabel ?? localize('ok', "OK");
+	}
+
+	set okLabel(okLabel: string | undefined) {
+		this._okLabel = okLabel;
+		this.update();
+	}
+
 	inputHasFocus(): boolean {
 		return this.visible ? this.ui.inputBox.hasFocus() : false;
 	}
@@ -895,7 +928,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				}
 			}));
 			this.visibleDisposables.add(this.ui.list.onChangedCheckedElements(checkedItems => {
-				if (!this.canSelectMany) {
+				if (!this.canSelectMany || !this.visible) {
 					return;
 				}
 				if (this.selectedItemsToConfirm !== this._selectedItems && equals(checkedItems, this._selectedItems, (a, b) => a === b)) {
@@ -986,7 +1019,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		const scrollTopBefore = this.keepScrollPosition ? this.scrollTop : 0;
 		const hasDescription = !!this.description;
 		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step || !!this.buttons.length,
+			title: !!this.title || !!this.step || !!this.titleButtons.length,
 			description: hasDescription,
 			checkAll: this.canSelectMany && !this._hideCheckAll,
 			checkBox: this.canSelectMany,
@@ -1036,9 +1069,6 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				// We want focus to exist in the list if there are items so that space can be used to toggle
 				this.ui.list.shouldLoop = !this.canSelectMany;
 				this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-				this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
-				this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
-				this.ui.count.setCount(this.ui.list.getCheckedCount());
 				switch (this._itemActivation) {
 					case ItemActivation.NONE:
 						this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
@@ -1084,6 +1114,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				this.selectedItemsToConfirm = null;
 			}
 		}
+		this.ui.ok.label = this.okLabel || '';
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
 		if (!visibilities.inputBox) {
@@ -1216,7 +1247,7 @@ export class InputBox extends QuickInput implements IInputBox {
 
 		this.ui.container.classList.remove('hidden-input');
 		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step || !!this.buttons.length,
+			title: !!this.title || !!this.step || !!this.titleButtons.length,
 			description: !!this.description || !!this.step,
 			inputBox: true,
 			message: true,
@@ -1250,7 +1281,7 @@ export class QuickWidget extends QuickInput implements IQuickWidget {
 		}
 
 		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step || !!this.buttons.length,
+			title: !!this.title || !!this.step || !!this.titleButtons.length,
 			description: !!this.description || !!this.step
 		};
 
@@ -1271,7 +1302,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
 		// Only show the hover hint if the content is of a decent size
 		const showHoverHint = (
-			options.content instanceof HTMLElement
+			dom.isHTMLElement(options.content)
 				? options.content.textContent ?? ''
 				: typeof options.content === 'string'
 					? options.content

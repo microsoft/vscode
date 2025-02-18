@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IWorkbenchColorTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { IWorkbenchColorTheme, IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
+import { WebviewStyles } from './webview.js';
 
 interface WebviewThemeData {
 	readonly activeTheme: string;
@@ -37,7 +37,7 @@ export class WebviewThemeDataProvider extends Disposable {
 			this._reset();
 		}));
 
-		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize'];
+		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize', 'accessibility.underlineLinks'];
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (webviewConfigurationKeys.some(key => e.affectsConfiguration(key))) {
 				this._reset();
@@ -55,6 +55,7 @@ export class WebviewThemeDataProvider extends Disposable {
 			const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 			const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
 			const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
+			const linkUnderlines = this._configurationService.getValue('accessibility.underlineLinks');
 
 			const theme = this._themeService.getColorTheme();
 			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce<Record<string, string>>((colors, entry) => {
@@ -72,6 +73,7 @@ export class WebviewThemeDataProvider extends Disposable {
 				'vscode-editor-font-family': editorFontFamily,
 				'vscode-editor-font-weight': editorFontWeight,
 				'vscode-editor-font-size': editorFontSize + 'px',
+				'text-link-decoration': linkUnderlines ? 'underline' : 'none',
 				...exportedColors
 			};
 

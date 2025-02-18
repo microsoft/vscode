@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IpcMainEvent, MessagePortMain } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { Barrier, DeferredPromise } from 'vs/base/common/async';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
-import { Emitter } from 'vs/base/common/event';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { Barrier, DeferredPromise } from '../../../base/common/async.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { ISharedProcessConfiguration } from '../node/sharedProcess.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { IPolicyService } from '../../policy/common/policy.js';
+import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
+import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
+import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
+import { parseSharedProcessDebugPort } from '../../environment/node/environmentService.js';
+import { assertIsDefined } from '../../../base/common/types.js';
+import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from '../common/sharedProcess.js';
+import { Emitter } from '../../../base/common/event.js';
 
 export class SharedProcess extends Disposable {
 
@@ -34,6 +34,7 @@ export class SharedProcess extends Disposable {
 	constructor(
 		private readonly machineId: string,
 		private readonly sqmId: string,
+		private readonly devDeviceId: string,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -168,8 +169,9 @@ export class SharedProcess extends Disposable {
 
 		this.utilityProcess.start({
 			type: 'shared-process',
-			entryPoint: 'vs/code/node/sharedProcess/sharedProcessMain',
+			entryPoint: 'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
+			respondToAuthRequestsFromMainProcess: true,
 			execArgv
 		});
 
@@ -180,6 +182,7 @@ export class SharedProcess extends Disposable {
 		return {
 			machineId: this.machineId,
 			sqmId: this.sqmId,
+			devDeviceId: this.devDeviceId,
 			codeCachePath: this.environmentMainService.codeCachePath,
 			profiles: {
 				home: this.userDataProfilesService.profilesHome,
@@ -187,7 +190,7 @@ export class SharedProcess extends Disposable {
 			},
 			args: this.environmentMainService.args,
 			logLevel: this.loggerMainService.getLogLevel(),
-			loggers: this.loggerMainService.getRegisteredLoggers(),
+			loggers: this.loggerMainService.getGlobalLoggers(),
 			policiesData: this.policyService.serialize()
 		};
 	}

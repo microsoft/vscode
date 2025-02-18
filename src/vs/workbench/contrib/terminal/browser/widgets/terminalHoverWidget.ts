@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
-import * as dom from 'vs/base/browser/dom';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Widget } from '../../../../../base/browser/ui/widget.js';
+import { ITerminalWidget } from './widgets.js';
+import * as dom from '../../../../../base/browser/dom.js';
 import type { IViewportRange } from '@xterm/xterm';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import type { IHoverAction, IHoverTarget } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import type { IHoverAction, IHoverTarget } from '../../../../../base/browser/ui/hover/hover.js';
 
 const $ = dom.$;
 
@@ -31,7 +31,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		private readonly _targetOptions: ILinkHoverTargetOptions,
 		private readonly _text: IMarkdownString,
 		private readonly _actions: IHoverAction[] | undefined,
-		private readonly _linkHandler: (url: string) => any,
+		private readonly _linkHandler: (url: string) => unknown,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {

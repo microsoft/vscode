@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { AccessibleViewType, AdvancedContentProvider, ExtensionContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { AccessibleViewType, AccessibleContentProvider, ExtensionContentProvider } from './accessibleView.js';
+import { ContextKeyExpression } from '../../contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../instantiation/common/instantiation.js';
 
-export interface IAccessibleViewImplentation {
+export interface IAccessibleViewImplementation {
 	type: AccessibleViewType;
 	priority: number;
 	name: string;
 	/**
 	 * @returns the provider or undefined if the view should not be shown
 	 */
-	getProvider: (accessor: ServicesAccessor) => AdvancedContentProvider | ExtensionContentProvider | undefined;
+	getProvider: (accessor: ServicesAccessor) => AccessibleContentProvider | ExtensionContentProvider | undefined;
 	when?: ContextKeyExpression | undefined;
 }
 
 export const AccessibleViewRegistry = new class AccessibleViewRegistry {
-	_implementations: IAccessibleViewImplentation[] = [];
+	_implementations: IAccessibleViewImplementation[] = [];
 
-	register(implementation: IAccessibleViewImplentation): IDisposable {
+	register(implementation: IAccessibleViewImplementation): IDisposable {
 		this._implementations.push(implementation);
 		return {
 			dispose: () => {
@@ -34,21 +34,8 @@ export const AccessibleViewRegistry = new class AccessibleViewRegistry {
 		};
 	}
 
-	getImplementations(): IAccessibleViewImplentation[] {
+	getImplementations(): IAccessibleViewImplementation[] {
 		return this._implementations;
 	}
 };
 
-export function alertAccessibleViewFocusChange(index: number | undefined, length: number | undefined, type: 'next' | 'previous'): void {
-	if (index === undefined || length === undefined) {
-		return;
-	}
-	const number = index + 1;
-
-	if (type === 'next' && number + 1 <= length) {
-		alert(`Focused ${number + 1} of ${length}`);
-	} else if (type === 'previous' && number - 1 > 0) {
-		alert(`Focused ${number - 1} of ${length}`);
-	}
-	return;
-}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
+import { localize, localize2 } from '../../../../nls.js';
 
 /**
  * An object holding strings shared by multiple parts of the terminal

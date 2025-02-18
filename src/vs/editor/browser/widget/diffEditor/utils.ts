@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDimension } from 'vs/base/browser/dom';
-import { findLast } from 'vs/base/common/arraysFind';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { TextLength } from 'vs/editor/common/core/textLength';
+import { IDimension } from '../../../../base/browser/dom.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IObservableWithChange, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableValue, transaction } from '../../../../base/common/observable.js';
+import { ElementSizeObserver } from '../../config/elementSizeObserver.js';
+import { ICodeEditor, IOverlayWidget, IViewZone } from '../../editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
+import { IModelDeltaDecoration } from '../../../common/model.js';
+import { TextLength } from '../../../common/core/textLength.js';
 
 export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelector: (val: T) => number, combine: (v1: T, v2: T) => T): readonly T[] {
 	if (arr1.length === 0) {
@@ -76,14 +75,14 @@ export function applyObservableDecorations(editor: ICodeEditor, decorations: IOb
 export function appendRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
 	parent.appendChild(child);
 	return toDisposable(() => {
-		parent.removeChild(child);
+		child.remove();
 	});
 }
 
 export function prependRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
 	parent.prepend(child);
 	return toDisposable(() => {
-		parent.removeChild(child);
+		child.remove();
 	});
 }
 
@@ -95,6 +94,9 @@ export class ObservableElementSizeObserver extends Disposable {
 
 	private readonly _height: ISettableObservable<number>;
 	public get height(): IObservable<number> { return this._height; }
+
+	private _automaticLayout: boolean = false;
+	public get automaticLayout(): boolean { return this._automaticLayout; }
 
 	constructor(element: HTMLElement | null, dimension: IDimension | undefined) {
 		super();
@@ -115,6 +117,7 @@ export class ObservableElementSizeObserver extends Disposable {
 	}
 
 	public setAutomaticLayout(automaticLayout: boolean): void {
+		this._automaticLayout = automaticLayout;
 		if (automaticLayout) {
 			this.elementSizeObserver.startObserving();
 		} else {
@@ -123,7 +126,7 @@ export class ObservableElementSizeObserver extends Disposable {
 	}
 }
 
-export function animatedObservable(targetWindow: Window, base: IObservable<number, boolean>, store: DisposableStore): IObservable<number> {
+export function animatedObservable(targetWindow: Window, base: IObservableWithChange<number, boolean>, store: DisposableStore): IObservable<number> {
 	let targetVal = base.get();
 	let startVal = targetVal;
 	let curVal = targetVal;
@@ -176,7 +179,7 @@ function easeOutExpo(t: number, b: number, c: number, d: number): number {
 }
 
 export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
-	const result = {} as T;
+	const result = {} as any as T;
 	for (const key in source1) {
 		result[key] = source1[key];
 	}
@@ -292,29 +295,6 @@ export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof
 			domNode.style[key as any] = val as any;
 		}
 	});
-}
-
-export function readHotReloadableExport<T>(value: T, reader: IReader | undefined): T {
-	observeHotReloadableExports([value], reader);
-	return value;
-}
-
-export function observeHotReloadableExports(values: any[], reader: IReader | undefined): void {
-	if (isHotReloadEnabled()) {
-		const o = observableSignalFromEvent(
-			'reload',
-			event => registerHotReloadHandler(({ oldExports }) => {
-				if (![...Object.values(oldExports)].some(v => values.includes(v))) {
-					return undefined;
-				}
-				return (_newExports) => {
-					event(undefined);
-					return true;
-				};
-			})
-		);
-		o.read(reader);
-	}
 }
 
 export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObservableViewZone[]>, setIsUpdating?: (isUpdatingViewZones: boolean) => void, zoneIds?: Set<string>): IDisposable {
@@ -434,4 +414,105 @@ export function filterWithPrevious<T>(arr: T[], filter: (cur: T, prev: T | undef
 		prev = cur;
 		return result;
 	});
+}
+
+export interface IRefCounted extends IDisposable {
+	createNewRef(): this;
+}
+
+export abstract class RefCounted<T> implements IDisposable, IReference<T> {
+	public static create<T extends IDisposable>(value: T, debugOwner: object | undefined = undefined): RefCounted<T> {
+		return new BaseRefCounted(value, value, debugOwner);
+	}
+
+	public static createWithDisposable<T extends IDisposable>(value: T, disposable: IDisposable, debugOwner: object | undefined = undefined): RefCounted<T> {
+		const store = new DisposableStore();
+		store.add(disposable);
+		store.add(value);
+		return new BaseRefCounted(value, store, debugOwner);
+	}
+
+	public static createOfNonDisposable<T>(value: T, disposable: IDisposable, debugOwner: object | undefined = undefined): RefCounted<T> {
+		return new BaseRefCounted(value, disposable, debugOwner);
+	}
+
+	public abstract createNewRef(debugOwner?: object | undefined): RefCounted<T>;
+
+	public abstract dispose(): void;
+
+	public abstract get object(): T;
+}
+
+class BaseRefCounted<T> extends RefCounted<T> {
+	private _refCount = 1;
+	private _isDisposed = false;
+	private readonly _owners: object[] = [];
+
+	constructor(
+		public override readonly object: T,
+		private readonly _disposable: IDisposable,
+		private readonly _debugOwner: object | undefined,
+	) {
+		super();
+
+		if (_debugOwner) {
+			this._addOwner(_debugOwner);
+		}
+	}
+
+	private _addOwner(debugOwner: object | undefined) {
+		if (debugOwner) {
+			this._owners.push(debugOwner);
+		}
+	}
+
+	public createNewRef(debugOwner?: object | undefined): RefCounted<T> {
+		this._refCount++;
+		if (debugOwner) {
+			this._addOwner(debugOwner);
+		}
+		return new ClonedRefCounted(this, debugOwner);
+	}
+
+	public dispose(): void {
+		if (this._isDisposed) { return; }
+		this._isDisposed = true;
+		this._decreaseRefCount(this._debugOwner);
+	}
+
+	public _decreaseRefCount(debugOwner?: object | undefined): void {
+		this._refCount--;
+		if (this._refCount === 0) {
+			this._disposable.dispose();
+		}
+
+		if (debugOwner) {
+			const idx = this._owners.indexOf(debugOwner);
+			if (idx !== -1) {
+				this._owners.splice(idx, 1);
+			}
+		}
+	}
+}
+
+class ClonedRefCounted<T> extends RefCounted<T> {
+	private _isDisposed = false;
+	constructor(
+		private readonly _base: BaseRefCounted<T>,
+		private readonly _debugOwner: object | undefined,
+	) {
+		super();
+	}
+
+	public get object(): T { return this._base.object; }
+
+	public createNewRef(debugOwner?: object | undefined): RefCounted<T> {
+		return this._base.createNewRef(debugOwner);
+	}
+
+	public dispose(): void {
+		if (this._isDisposed) { return; }
+		this._isDisposed = true;
+		this._base._decreaseRefCount(this._debugOwner);
+	}
 }

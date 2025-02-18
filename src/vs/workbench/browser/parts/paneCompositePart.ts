@@ -3,43 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/paneCompositePart';
-import { Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { Extensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IView } from 'vs/base/browser/ui/grid/grid';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { IPaneCompositeBarOptions, PaneCompositeBar } from 'vs/workbench/browser/parts/paneCompositeBar';
-import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IComposite } from 'vs/workbench/common/composite';
-import { localize } from 'vs/nls';
-import { CompositeDragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-import { IPartOptions } from 'vs/workbench/browser/part';
-import { CompositeMenuActions } from 'vs/workbench/browser/actions';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
-import { Composite } from 'vs/workbench/browser/composite';
-import { ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { HiddenItemStrategy, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import './media/paneCompositePart.css';
+import { Event } from '../../../base/common/event.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
+import { Extensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from '../panecomposite.js';
+import { IPaneComposite } from '../../common/panecomposite.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
+import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { IView } from '../../../base/browser/ui/grid/grid.js';
+import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { CompositePart, ICompositeTitleLabel } from './compositePart.js';
+import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
+import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { IComposite } from '../../common/composite.js';
+import { localize } from '../../../nls.js';
+import { CompositeDragAndDropObserver, toggleDropEffect } from '../dnd.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../common/theme.js';
+import { IPartOptions } from '../part.js';
+import { CompositeMenuActions } from '../actions.js';
+import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
+import { ActionsOrientation, prepareActions } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { Gesture, EventType as GestureEventType } from '../../../base/browser/touch.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { IAction, SubmenuAction } from '../../../base/common/actions.js';
+import { Composite } from '../composite.js';
+import { ViewsSubMenu } from './views/viewPaneContainer.js';
+import { getActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { HiddenItemStrategy, WorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 
 export enum CompositeBarPosition {
 	TOP,
@@ -98,6 +98,11 @@ export interface IPaneCompositePart extends IView {
 	 * Returns id of visible view containers following the visual order.
 	 */
 	getVisiblePaneCompositeIds(): string[];
+
+	/**
+	 * Returns id of all view containers following the visual order.
+	 */
+	getPaneCompositeIds(): string[];
 }
 
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
@@ -137,6 +142,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		nameForTelemetry: string,
 		compositeCSSClass: string,
 		titleForegroundColor: string | undefined,
+		titleBorderColor: string | undefined,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -177,6 +183,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			nameForTelemetry,
 			compositeCSSClass,
 			titleForegroundColor,
+			titleBorderColor,
 			partId,
 			partOptions
 		);
@@ -268,7 +275,21 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.emptyPaneMessageElement.appendChild(messageElement);
 		parent.appendChild(this.emptyPaneMessageElement);
 
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.emptyPaneMessageElement, {
+		const setDropBackgroundFeedback = (visible: boolean) => {
+			const updateActivityBarBackground = !this.getActiveComposite() || !visible;
+			const backgroundColor = visible ? this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)?.toString() || '' : '';
+
+			if (this.titleContainer && updateActivityBarBackground) {
+				this.titleContainer.style.backgroundColor = backgroundColor;
+			}
+			if (this.headerFooterCompositeBarContainer && updateActivityBarBackground) {
+				this.headerFooterCompositeBarContainer.style.backgroundColor = backgroundColor;
+			}
+
+			this.emptyPaneMessageElement!.style.backgroundColor = backgroundColor;
+		};
+
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragOver: (e) => {
 				EventHelper.stop(e.eventData, true);
 				if (this.paneCompositeBar.value) {
@@ -280,22 +301,44 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				EventHelper.stop(e.eventData, true);
 				if (this.paneCompositeBar.value) {
 					const validDropTarget = this.paneCompositeBar.value.dndHandler.onDragEnter(e.dragAndDropData, undefined, e.eventData);
-					this.emptyPaneMessageElement!.style.backgroundColor = validDropTarget ? this.theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)?.toString() || '' : '';
+					setDropBackgroundFeedback(validDropTarget);
 				}
 			},
 			onDragLeave: (e) => {
 				EventHelper.stop(e.eventData, true);
-				this.emptyPaneMessageElement!.style.backgroundColor = '';
+				setDropBackgroundFeedback(false);
 			},
 			onDragEnd: (e) => {
 				EventHelper.stop(e.eventData, true);
-				this.emptyPaneMessageElement!.style.backgroundColor = '';
+				setDropBackgroundFeedback(false);
 			},
 			onDrop: (e) => {
 				EventHelper.stop(e.eventData, true);
-				this.emptyPaneMessageElement!.style.backgroundColor = '';
+				setDropBackgroundFeedback(false);
 				if (this.paneCompositeBar.value) {
 					this.paneCompositeBar.value.dndHandler.drop(e.dragAndDropData, undefined, e.eventData);
+				} else {
+					// Allow opening views/composites if the composite bar is hidden
+					const dragData = e.dragAndDropData.getData();
+
+					if (dragData.type === 'composite') {
+						const currentContainer = this.viewDescriptorService.getViewContainerById(dragData.id)!;
+						this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.location, undefined, 'dnd');
+						this.openPaneComposite(currentContainer.id, true);
+					}
+
+					else if (dragData.type === 'view') {
+						const viewToMove = this.viewDescriptorService.getViewDescriptorById(dragData.id)!;
+						if (viewToMove && viewToMove.canMoveView) {
+							this.viewDescriptorService.moveViewToLocation(viewToMove, this.location, 'dnd');
+
+							const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
+
+							this.openPaneComposite(newContainer.id, true).then(composite => {
+								composite?.openView(viewToMove.id, true);
+							});
+						}
+					}
 				}
 			},
 		}));
@@ -344,14 +387,14 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return titleLabel;
 	}
 
-	protected updateCompositeBar(): void {
+	protected updateCompositeBar(updateCompositeBarOption: boolean = false): void {
 		const wasCompositeBarVisible = this.compositeBarPosition !== undefined;
 		const isCompositeBarVisible = this.shouldShowCompositeBar();
 		const previousPosition = this.compositeBarPosition;
 		const newPosition = isCompositeBarVisible ? this.getCompositeBarPosition() : undefined;
 
-		// Only update if the visibility or position has changed
-		if (previousPosition === newPosition) {
+		// Only update if the visibility or position has changed or if the composite bar options should be updated
+		if (!updateCompositeBarOption && previousPosition === newPosition) {
 			return;
 		}
 
@@ -401,6 +444,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		this.compositeBarPosition = newPosition;
+
+		if (updateCompositeBarOption) {
+			this.layoutCompositeBar();
+		}
 	}
 
 	protected override createHeaderArea(): HTMLElement {
@@ -510,6 +557,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return this.paneCompositeBar.value?.getVisiblePaneCompositeIds() ?? [];
 	}
 
+	getPaneCompositeIds(): string[] {
+		return this.paneCompositeBar.value?.getPaneCompositeIds() ?? [];
+	}
+
 	getActivePaneComposite(): IPaneComposite | undefined {
 		return <IPaneComposite>this.getActiveComposite();
 	}
@@ -559,7 +610,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private layoutEmptyMessage(): void {
 		const visible = !this.getActiveComposite();
-		this.emptyPaneMessageElement?.classList.toggle('visible', visible);
+		this.element.classList.toggle('empty', visible);
 		if (visible) {
 			this.titleLabel?.updateTitle('', '');
 		}
@@ -626,11 +677,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const viewPaneContainer = (this.getActivePaneComposite() as PaneComposite)?.getViewPaneContainer();
 		if (viewPaneContainer) {
 			const disposables = new DisposableStore();
-			const viewsActions: IAction[] = [];
 			const scopedContextKeyService = disposables.add(this.contextKeyService.createScoped(this.element));
 			scopedContextKeyService.createKey('viewContainer', viewPaneContainer.viewContainer.id);
-			const menu = disposables.add(this.menuService.createMenu(ViewsSubMenu, scopedContextKeyService));
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true, renderShortTitle: true }, { primary: viewsActions, secondary: [] }, () => true);
+			const menu = this.menuService.getMenuActions(ViewsSubMenu, scopedContextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
+			const viewsActions = getActionBarActions(menu, () => true).primary;
 			disposables.dispose();
 			return viewsActions.length > 1 && viewsActions.some(a => a.enabled) ? new SubmenuAction('views', localize('views', "Views"), viewsActions) : undefined;
 		}
@@ -640,5 +690,4 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected abstract shouldShowCompositeBar(): boolean;
 	protected abstract getCompositeBarOptions(): IPaneCompositeBarOptions;
 	protected abstract getCompositeBarPosition(): CompositeBarPosition;
-
 }

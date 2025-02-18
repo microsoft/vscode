@@ -3,49 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeyCodeChord } from 'vs/base/common/keybindings';
-import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType, isObject } from 'vs/base/common/types';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind } from 'vs/editor/common/languages';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
-import { WordContextKey } from 'vs/editor/contrib/suggest/browser/wordContextKey';
-import * as nls from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CompletionItem, Context as SuggestContext, ISuggestItemPreselector, suggestWidgetStatusbarMenu } from './suggest';
-import { SuggestAlternatives } from './suggestAlternatives';
-import { CommitCharacterController } from './suggestCommitCharacters';
-import { State, SuggestModel } from './suggestModel';
-import { OvertypingCapturer } from './suggestOvertypingCapturer';
-import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { basename, extname } from 'vs/base/common/resources';
-import { hash } from 'vs/base/common/hash';
-import { WindowIdleValue, getWindow } from 'vs/base/browser/dom';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../base/common/keybindings.js';
+import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import * as platform from '../../../../base/common/platform.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { assertType, isObject } from '../../../../base/common/types.js';
+import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
+import { CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind } from '../../../common/languages.js';
+import { SnippetController2 } from '../../snippet/browser/snippetController2.js';
+import { SnippetParser } from '../../snippet/browser/snippetParser.js';
+import { ISuggestMemoryService } from './suggestMemory.js';
+import { WordContextKey } from './wordContextKey.js';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CompletionItem, Context as SuggestContext, ISuggestItemPreselector, suggestWidgetStatusbarMenu } from './suggest.js';
+import { SuggestAlternatives } from './suggestAlternatives.js';
+import { CommitCharacterController } from './suggestCommitCharacters.js';
+import { State, SuggestModel } from './suggestModel.js';
+import { OvertypingCapturer } from './suggestOvertypingCapturer.js';
+import { ISelectedSuggestion, SuggestWidget } from './suggestWidget.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { basename, extname } from '../../../../base/common/resources.js';
+import { hash } from '../../../../base/common/hash.js';
+import { WindowIdleValue, getWindow } from '../../../../base/browser/dom.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -509,19 +509,34 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync);
+			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync, event.index, event.model.items);
 
 			this.model.clear();
 			cts.dispose();
 		});
 	}
 
-	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number) {
-
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number, index: number, completionItems: CompletionItem[]): void {
 		if (Math.floor(Math.random() * 100) === 0) {
 			// throttle telemetry event because accepting completions happens a lot
 			return;
 		}
+
+		const labelMap = new Map<string, number[]>();
+
+		for (let i = 0; i < Math.min(30, completionItems.length); i++) {
+			const label = completionItems[i].textLabel;
+
+			if (labelMap.has(label)) {
+				labelMap.get(label)!.push(i);
+			} else {
+				labelMap.set(label, [i]);
+			}
+		}
+
+		const firstIndexArray = labelMap.get(item.textLabel);
+		const hasDuplicates = firstIndexArray && firstIndexArray.length > 1;
+		const firstIndex = hasDuplicates ? firstIndexArray[0] : -1;
 
 		type AcceptedSuggestion = {
 			extensionId: string; providerId: string;
@@ -529,6 +544,7 @@ export class SuggestController implements IEditorContribution {
 			resolveInfo: number; resolveDuration: number;
 			commandDuration: number;
 			additionalEditsAsync: number;
+			index: number; firstIndex: number;
 		};
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
@@ -543,6 +559,8 @@ export class SuggestController implements IEditorContribution {
 			resolveDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long resolving took to finish' };
 			commandDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long a completion item command took' };
 			additionalEditsAsync: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about asynchronously applying additional edits' };
+			index: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the completion item in the sorted list.' };
+			firstIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When there are multiple completions, the index of the first instance.' };
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
@@ -555,7 +573,9 @@ export class SuggestController implements IEditorContribution {
 			resolveInfo: !item.provider.resolveCompletionItem ? -1 : itemResolved ? 1 : 0,
 			resolveDuration: item.resolveDuration,
 			commandDuration: commandExectionDuration,
-			additionalEditsAsync: additionalEditsAppliedAsync
+			additionalEditsAsync: additionalEditsAppliedAsync,
+			index,
+			firstIndex,
 		});
 	}
 
@@ -784,8 +804,7 @@ export class TriggerSuggestAction extends EditorAction {
 	constructor() {
 		super({
 			id: TriggerSuggestAction.id,
-			label: nls.localize('suggest.trigger.label', "Trigger Suggest"),
-			alias: 'Trigger Suggest',
+			label: nls.localize2('suggest.trigger.label', "Trigger Suggest"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider, SuggestContext.Visible.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -1005,13 +1024,13 @@ registerEditorCommand(new SuggestCommand({
 		group: 'right',
 		order: 1,
 		when: ContextKeyExpr.and(SuggestContext.DetailsVisible, SuggestContext.CanResolve),
-		title: nls.localize('detail.more', "show less")
+		title: nls.localize('detail.more', "Show Less")
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'right',
 		order: 1,
 		when: ContextKeyExpr.and(SuggestContext.DetailsVisible.toNegated(), SuggestContext.CanResolve),
-		title: nls.localize('detail.less', "show more")
+		title: nls.localize('detail.less', "Show More")
 	}]
 }));
 
@@ -1099,8 +1118,7 @@ registerEditorAction(class extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.resetSuggestSize',
-			label: nls.localize('suggest.reset.label', "Reset Suggest Widget Size"),
-			alias: 'Reset Suggest Widget Size',
+			label: nls.localize2('suggest.reset.label', "Reset Suggest Widget Size"),
 			precondition: undefined
 		});
 	}

@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
-import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { AccessibilityProgressSignalScheduler } from '../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
+import { IChatAccessibilityService } from './chat.js';
+import { IChatResponseViewModel } from '../common/chatViewModel.js';
+import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -21,7 +24,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	private _requestId: number = 0;
 
-	constructor(@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService, @IInstantiationService private readonly _instantiationService: IInstantiationService) {
+	constructor(
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
 		super();
 	}
 	acceptRequest(): number {
@@ -30,16 +37,18 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		this._pendingSignalMap.set(this._requestId, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
 		return this._requestId;
 	}
-	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void {
+	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
-		const responseContent = typeof response === 'string' ? response : response?.response.asString();
+		const responseContent = typeof response === 'string' ? response : response?.response.toString();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatResponseReceived, { allowManyInParallel: true });
 		if (!response || !responseContent) {
 			return;
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
-		status(renderStringAsPlaintext(responseContent) + errorDetails);
+		const plainTextResponse = renderStringAsPlaintext(new MarkdownString(responseContent));
+		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
+			status(plainTextResponse + errorDetails);
+		}
 	}
 }
-

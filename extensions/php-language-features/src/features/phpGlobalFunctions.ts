@@ -1360,7 +1360,7 @@ export const globalfunctions: IEntries = {
 	},
 	date_add: {
 		description: 'Adds an amount of days, months, years, hours, minutes and seconds to a   DateTime object',
-		signature: '( DateInterval $interval , DateTime $object ): DateTime'
+		signature: '( DateTime $object , DateInterval $interval ): DateTime'
 	},
 	date_create: {
 		description: 'Returns new DateTime object',
@@ -1376,31 +1376,31 @@ export const globalfunctions: IEntries = {
 	},
 	date_modify: {
 		description: 'Alters the timestamp',
-		signature: '( string $modify , DateTime $object ): DateTime'
+		signature: '( DateTime $object , string $modify ): DateTime'
 	},
 	date_date_set: {
 		description: 'Sets the date',
-		signature: '( int $year , int $month , int $day , DateTime $object ): DateTime'
+		signature: '( DateTime $object , int $year , int $month , int $day ): DateTime'
 	},
 	date_isodate_set: {
 		description: 'Sets the ISO date',
-		signature: '( int $year , int $week [, int $day = 1 , DateTime $object ]): DateTime'
+		signature: '( DateTime $object , int $year , int $week [, int $day = 1 ]): DateTime'
 	},
 	date_time_set: {
 		description: 'Sets the time',
-		signature: '( int $hour , int $minute [, int $second = 0 [, int $microseconds = 0 , DateTime $object ]]): DateTime'
+		signature: '( DateTime $object , int $hour , int $minute [, int $second = 0 [, int $microseconds = 0 ]]): DateTime'
 	},
 	date_timestamp_set: {
 		description: 'Sets the date and time based on an Unix timestamp',
-		signature: '( int $unixtimestamp , DateTime $object ): DateTime'
+		signature: '( DateTime $object , int $unixtimestamp ): DateTime'
 	},
 	date_timezone_set: {
 		description: 'Sets the time zone for the DateTime object',
-		signature: '( DateTimeZone $timezone , DateTime $object ): object'
+		signature: '( DateTime $object , DateTimeZone $timezone ): object'
 	},
 	date_sub: {
 		description: 'Subtracts an amount of days, months, years, hours, minutes and seconds from   a DateTime object',
-		signature: '( DateInterval $interval , DateTime $object ): DateTime'
+		signature: '( DateTime $object , DateInterval $interval ): DateTime'
 	},
 	date_create_immutable: {
 		description: 'Returns new DateTimeImmutable object',

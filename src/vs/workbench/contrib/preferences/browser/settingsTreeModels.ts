@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
-import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IProductService } from 'vs/platform/product/common/productService';
+import * as arrays from '../../../../base/common/arrays.js';
+import { escapeRegExpCharacters, isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { isUndefinedOrNull } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ConfigurationTarget, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
+import { SettingsTarget } from './preferencesWidgets.js';
+import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from './settingsLayout.js';
+import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers } from '../common/preferences.js';
+import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from '../../../services/preferences/common/preferences.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from '../../../services/configuration/common/configuration.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { USER_LOCAL_AND_REMOTE_SETTINGS } from '../../../../platform/request/common/request.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -41,7 +42,7 @@ export abstract class SettingsTreeElement extends Disposable {
 	parent?: SettingsTreeGroupElement;
 
 	private _tabbable = false;
-	protected readonly _onDidChangeTabbable = new Emitter<void>();
+	protected readonly _onDidChangeTabbable = this._register(new Emitter<void>());
 	readonly onDidChangeTabbable = this._onDidChangeTabbable.event;
 
 	constructor(_id: string) {
@@ -135,7 +136,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 * The source of the default value to display.
 	 * This value also accounts for extension-contributed language-specific default value overrides.
 	 */
-	defaultValueSource: string | IExtensionInfo | undefined;
+	defaultValueSource: ConfigurationDefaultValueSource | undefined;
 
 	/**
 	 * Whether the setting is configured in the selected scope.
@@ -203,7 +204,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	private initLabels(): void {
 		if (this.setting.title) {
 			this._displayLabel = this.setting.title;
-			this._displayCategory = '';
+			this._displayCategory = this.setting.categoryLabel ?? null;
 			return;
 		}
 		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id, this.setting.isLanguageTagSetting);
@@ -253,16 +254,21 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			} else {
 				this.valueType = SettingValueType.Complex;
 			}
-		} else if (isObjectSetting(this.setting)) {
-			if (this.setting.allKeysAreBoolean) {
-				this.valueType = SettingValueType.BooleanObject;
-			} else {
-				this.valueType = SettingValueType.Object;
-			}
-		} else if (this.setting.isLanguageTagSetting) {
-			this.valueType = SettingValueType.LanguageTag;
 		} else {
-			this.valueType = SettingValueType.Complex;
+			const schemaType = getObjectSettingSchemaType(this.setting);
+			if (schemaType) {
+				if (this.setting.allKeysAreBoolean) {
+					this.valueType = SettingValueType.BooleanObject;
+				} else if (schemaType === 'simple') {
+					this.valueType = SettingValueType.Object;
+				} else {
+					this.valueType = SettingValueType.ComplexObject;
+				}
+			} else if (this.setting.isLanguageTagSetting) {
+				this.valueType = SettingValueType.LanguageTag;
+			} else {
+				this.valueType = SettingValueType.Complex;
+			}
 		}
 	}
 
@@ -351,7 +357,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.defaultValue = overrideValues.defaultValue ?? inspected.defaultValue;
 
 			const registryValues = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationDefaultsOverrides();
-			const overrideValueSource = registryValues.get(`[${languageSelector}]`)?.valuesSources?.get(this.setting.key);
+			const source = registryValues.get(`[${languageSelector}]`)?.source;
+			const overrideValueSource = source instanceof Map ? source.get(this.setting.key) : undefined;
 			if (overrideValueSource) {
 				this.defaultValueSource = overrideValueSource;
 			}
@@ -419,12 +426,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		if (configTarget === ConfigurationTarget.USER_REMOTE) {
-			return REMOTE_MACHINE_SCOPES.includes(this.setting.scope);
+			return REMOTE_MACHINE_SCOPES.includes(this.setting.scope) || USER_LOCAL_AND_REMOTE_SETTINGS.includes(this.setting.key);
 		}
 
 		if (configTarget === ConfigurationTarget.USER_LOCAL) {
 			if (isRemote) {
-				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope);
+				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope) || USER_LOCAL_AND_REMOTE_SETTINGS.includes(this.setting.key);
 			}
 		}
 
@@ -792,16 +799,68 @@ function isIncludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.readonlyInclude';
 }
 
-function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
+// The values of the following settings when a default values has been removed
+export function objectSettingSupportsRemoveDefaultValue(key: string): boolean {
+	return key === 'workbench.editor.customLabels.patterns';
+}
+
+function isSimpleType(type: string | undefined): boolean {
 	return type === 'string' || type === 'boolean' || type === 'integer' || type === 'number';
 }
 
-function isObjectSetting({
+function getObjectRenderableSchemaType(schema: IJSONSchema, key: string): 'simple' | 'complex' | false {
+	const { type } = schema;
+
+	if (Array.isArray(type)) {
+		if (objectSettingSupportsRemoveDefaultValue(key) && type.length === 2) {
+			if (type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'))) {
+				return 'simple';
+			}
+		}
+
+		for (const t of type) {
+			if (!isSimpleType(t)) {
+				return false;
+			}
+		}
+		return 'complex';
+	}
+
+	if (isSimpleType(type)) {
+		return 'simple';
+	}
+
+	if (type === 'array') {
+		if (schema.items) {
+			const itemSchemas = Array.isArray(schema.items) ? schema.items : [schema.items];
+			for (const { type } of itemSchemas) {
+				if (Array.isArray(type)) {
+					for (const t of type) {
+						if (!isSimpleType(t)) {
+							return false;
+						}
+					}
+					return 'complex';
+				}
+				if (!isSimpleType(type)) {
+					return false;
+				}
+				return 'complex';
+			}
+		}
+		return false;
+	}
+
+	return false;
+}
+
+function getObjectSettingSchemaType({
+	key,
 	type,
 	objectProperties,
 	objectPatternProperties,
 	objectAdditionalProperties
-}: ISetting): boolean {
+}: ISetting): 'simple' | 'complex' | false {
 	if (type !== 'object') {
 		return false;
 	}
@@ -830,15 +889,20 @@ function isObjectSetting({
 		schemas.push(objectAdditionalProperties);
 	}
 
-	// Flatten anyof schemas
-	const flatSchemas = schemas.map((schema): IJSONSchema[] => {
-		if (Array.isArray(schema.anyOf)) {
-			return schema.anyOf;
+	let schemaType: 'simple' | 'complex' | false = 'simple';
+	for (const schema of schemas) {
+		for (const subSchema of Array.isArray(schema.anyOf) ? schema.anyOf : [schema]) {
+			const subSchemaType = getObjectRenderableSchemaType(subSchema, key);
+			if (subSchemaType === false) {
+				return false;
+			}
+			if (subSchemaType === 'complex') {
+				schemaType = 'complex';
+			}
 		}
-		return [schema];
-	}).flat();
+	}
 
-	return flatSchemas.every(isObjectRenderableSchema);
+	return schemaType;
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
@@ -896,6 +960,10 @@ export class SearchResultModel extends SettingsTreeModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
+			} else if (a.matchType === SettingMatchType.KeyMatch) {
+				// The match types are the same and are KeyMatch.
+				// Sort by the number of words matched in the key.
+				return b.keyMatchScore - a.keyMatchScore;
 			} else if (a.matchType === SettingMatchType.RemoteMatch) {
 				// The match types are the same and are RemoteMatch.
 				// Sort by score.

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
-import { InjectedText, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
-import { SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel';
+import { LineTokens } from '../tokens/lineTokens.js';
+import { Position } from '../core/position.js';
+import { IRange } from '../core/range.js';
+import { EndOfLinePreference, ITextModel, PositionAffinity } from '../model.js';
+import { LineInjectedText } from '../textModelEvents.js';
+import { InjectedText, ModelLineProjectionData } from '../modelLineProjectionData.js';
+import { SingleLineInlineDecoration, ViewLineData } from '../viewModel.js';
 
 export interface IModelLineProjection {
 	isVisible(): boolean;
@@ -213,11 +213,29 @@ class ModelLineProjection implements IModelLineProjection {
 
 		let lineWithInjections: LineTokens;
 		if (injectionOffsets) {
-			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber).withInserted(injectionOffsets.map((offset, idx) => ({
-				offset,
-				text: injectionOptions![idx].content,
-				tokenMetadata: LineTokens.defaultTokenMetadata
-			})));
+			const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+
+			for (let idx = 0; idx < injectionOffsets.length; idx++) {
+				const offset = injectionOffsets[idx];
+				const tokens = injectionOptions![idx].tokens;
+				if (tokens) {
+					tokens.forEach((range, info) => {
+						tokensToInsert.push({
+							offset,
+							text: range.substring(injectionOptions![idx].content),
+							tokenMetadata: info.metadata,
+						});
+					});
+				} else {
+					tokensToInsert.push({
+						offset,
+						text: injectionOptions![idx].content,
+						tokenMetadata: LineTokens.defaultTokenMetadata,
+					});
+				}
+			}
+
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber).withInserted(tokensToInsert);
 		} else {
 			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber);
 		}

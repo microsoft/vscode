@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
 // Import the effects we need
-import { Color } from 'vs/base/common/color';
-import { registerColor, transparent } from 'vs/platform/theme/common/colorUtils';
+import { Color } from '../../../../base/common/color.js';
+import { registerColor, transparent } from '../colorUtils.js';
 
 
 export const foreground = registerColor('foreground',
@@ -43,7 +43,7 @@ export const activeContrastBorder = registerColor('contrastActiveBorder',
 	nls.localize('activeContrastBorder', "An extra border around active elements to separate them from others for greater contrast."));
 
 export const selectionBackground = registerColor('selection.background',
-	{ light: null, dark: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('selectionBackground', "The background color of text selections in the workbench (e.g. for input fields or text areas). Note that this does not apply to selections within the editor."));
 
 
@@ -65,11 +65,11 @@ export const textSeparatorForeground = registerColor('textSeparator.foreground',
 // ------ text preformat
 
 export const textPreformatForeground = registerColor('textPreformat.foreground',
-	{ light: '#A31515', dark: '#D7BA7D', hcDark: '#000000', hcLight: '#FFFFFF' },
+	{ light: '#A31515', dark: '#D7BA7D', hcDark: Color.white, hcLight: '#292929' },
 	nls.localize('textPreformatForeground', "Foreground color for preformatted text segments."));
 
 export const textPreformatBackground = registerColor('textPreformat.background',
-	{ light: '#0000001A', dark: '#FFFFFF1A', hcDark: '#FFFFFF', hcLight: '#09345f' },
+	{ light: '#0000001A', dark: '#FFFFFF1A', hcDark: Color.black, hcLight: '#F2F2F2' },
 	nls.localize('textPreformatBackground', "Background color for preformatted text segments."));
 
 

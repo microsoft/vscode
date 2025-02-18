@@ -119,6 +119,7 @@ export class Terminal {
 			// Reset
 			await this.code.dispatchKeybinding('Backspace');
 		}
+		await this.code.wait(100);
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
 		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
@@ -209,7 +210,7 @@ export class Terminal {
 				name: title.textContent.replace(/^[├┌└]\s*/, ''),
 				description: description?.textContent
 			};
-			// It's a new group if the the tab does not start with ├ or └
+			// It's a new group if the tab does not start with ├ or └
 			if (title.textContent.match(/^[├└]/)) {
 				groups[groups.length - 1].push(label);
 			} else {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ErrorNoTelemetry, getErrorMessage } from 'vs/base/common/errors';
-import { mark } from 'vs/base/common/performance';
+import { toErrorMessage } from '../common/errorMessage.js';
+import { ErrorNoTelemetry, getErrorMessage } from '../common/errors.js';
+import { mark } from '../common/performance.js';
 
 class MissingStoresError extends Error {
 	constructor(readonly db: IDBDatabase) {

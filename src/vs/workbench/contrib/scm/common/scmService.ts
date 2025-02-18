@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { HistoryNavigator2 } from 'vs/base/common/history';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { Iterable } from 'vs/base/common/iterator';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { HistoryNavigator2 } from '../../../../base/common/history.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { runOnChange } from '../../../../base/common/observable.js';
 
-class SCMInput implements ISCMInput {
+class SCMInput extends Disposable implements ISCMInput {
 
 	private _value = '';
 
@@ -104,9 +107,11 @@ class SCMInput implements ISCMInput {
 		readonly repository: ISCMRepository,
 		private readonly history: SCMInputHistory
 	) {
+		super();
+
 		if (this.repository.provider.rootUri) {
 			this.historyNavigator = history.getHistory(this.repository.provider.label, this.repository.provider.rootUri);
-			this.history.onWillSaveHistory(event => {
+			this._register(this.history.onWillSaveHistory(event => {
 				if (this.historyNavigator.isAtEnd()) {
 					this.saveValue();
 				}
@@ -116,7 +121,7 @@ class SCMInput implements ISCMInput {
 				}
 
 				this.didChangeHistory = false;
-			});
+			}));
 		} else { // in memory only
 			this.historyNavigator = new HistoryNavigator2([''], 100);
 		}
@@ -130,7 +135,7 @@ class SCMInput implements ISCMInput {
 		}
 
 		if (!transient) {
-			this.historyNavigator.add(this._value);
+			this.historyNavigator.replaceLast(this._value);
 			this.historyNavigator.add(value);
 			this.didChangeHistory = true;
 		}
@@ -184,7 +189,7 @@ class SCMRepository implements ISCMRepository {
 	constructor(
 		public readonly id: string,
 		public readonly provider: ISCMProvider,
-		private disposable: IDisposable,
+		private readonly disposables: DisposableStore,
 		inputHistory: SCMInputHistory
 	) {
 		this.input = new SCMInput(this, inputHistory);
@@ -200,7 +205,7 @@ class SCMRepository implements ISCMRepository {
 	}
 
 	dispose(): void {
-		this.disposable.dispose();
+		this.disposables.dispose();
 		this.provider.dispose();
 	}
 }
@@ -351,6 +356,7 @@ export class SCMService implements ISCMService {
 
 	private inputHistory: SCMInputHistory;
 	private providerCount: IContextKey<number>;
+	private historyProviderCount: IContextKey<number>;
 
 	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
 	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
@@ -362,10 +368,13 @@ export class SCMService implements ISCMService {
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.inputHistory = new SCMInputHistory(storageService, workspaceContextService);
+
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
+		this.historyProviderCount = contextKeyService.createKey('scm.historyProviderCount', 0);
 	}
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
@@ -375,22 +384,66 @@ export class SCMService implements ISCMService {
 			throw new Error(`SCM Provider ${provider.id} already exists.`);
 		}
 
-		const disposable = toDisposable(() => {
+		const disposables = new DisposableStore();
+
+		const historyProviderCount = () => {
+			return Array.from(this._repositories.values())
+				.filter(r => !!r.provider.historyProvider.get()).length;
+		};
+
+		disposables.add(toDisposable(() => {
 			this._repositories.delete(provider.id);
 			this._onDidRemoveProvider.fire(repository);
-			this.providerCount.set(this._repositories.size);
-		});
 
-		const repository = new SCMRepository(provider.id, provider, disposable, this.inputHistory);
+			this.providerCount.set(this._repositories.size);
+			this.historyProviderCount.set(historyProviderCount());
+		}));
+
+		const repository = new SCMRepository(provider.id, provider, disposables, this.inputHistory);
 		this._repositories.set(provider.id, repository);
-		this._onDidAddProvider.fire(repository);
+
+		disposables.add(runOnChange(provider.historyProvider, () => {
+			this.historyProviderCount.set(historyProviderCount());
+		}));
 
 		this.providerCount.set(this._repositories.size);
+		this.historyProviderCount.set(historyProviderCount());
+
+		this._onDidAddProvider.fire(repository);
+
 		return repository;
 	}
 
-	getRepository(id: string): ISCMRepository | undefined {
-		return this._repositories.get(id);
-	}
+	getRepository(id: string): ISCMRepository | undefined;
+	getRepository(resource: URI): ISCMRepository | undefined;
+	getRepository(idOrResource: string | URI): ISCMRepository | undefined {
+		if (typeof idOrResource === 'string') {
+			return this._repositories.get(idOrResource);
+		}
 
+		if (idOrResource.scheme !== Schemas.file &&
+			idOrResource.scheme !== Schemas.vscodeRemote) {
+			return undefined;
+		}
+
+		let bestRepository: ISCMRepository | undefined = undefined;
+		let bestMatchLength = Number.POSITIVE_INFINITY;
+
+		for (const repository of this.repositories) {
+			const root = repository.provider.rootUri;
+
+			if (!root) {
+				continue;
+			}
+
+			const path = this.uriIdentityService.extUri.relativePath(root, idOrResource);
+
+			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
+				bestRepository = repository;
+				bestMatchLength = path.length;
+			}
+		}
+
+		return bestRepository;
+	}
 }

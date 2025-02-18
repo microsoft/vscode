@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { DeepRequiredNonNullable, assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEncodingSupport, ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { FileType, IFileReadLimits, IFileService } from 'vs/platform/files/common/files';
-import { IPathData } from 'vs/platform/window/common/window';
-import { IExtUri } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from 'vs/base/common/errorMessage';
-import { IAction, toAction } from 'vs/base/common/actions';
-import Severity from 'vs/base/common/severity';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { localize } from '../../nls.js';
+import { Event } from '../../base/common/event.js';
+import { DeepRequiredNonNullable, assertIsDefined } from '../../base/common/types.js';
+import { URI } from '../../base/common/uri.js';
+import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from '../../editor/common/editorCommon.js';
+import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput, ITextEditorOptions } from '../../platform/editor/common/editor.js';
+import type { EditorInput } from './editor/editorInput.js';
+import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from '../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IEncodingSupport, ILanguageSupport } from '../services/textfile/common/textfiles.js';
+import { IEditorGroup } from '../services/editor/common/editorGroupsService.js';
+import { ICompositeControl, IComposite } from './composite.js';
+import { FileType, IFileReadLimits, IFileService } from '../../platform/files/common/files.js';
+import { IPathData } from '../../platform/window/common/window.js';
+import { IExtUri } from '../../base/common/resources.js';
+import { Schemas } from '../../base/common/network.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from '../../base/common/errorMessage.js';
+import { IAction, toAction } from '../../base/common/actions.js';
+import Severity from '../../base/common/severity.js';
+import { IPreferencesService } from '../services/preferences/common/preferences.js';
+import { IReadonlyEditorGroupModel } from './editor/editorGroupModel.js';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -547,7 +547,7 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * The list of resources to compare.
 	 * If not set, the resources are dynamically derived from the {@link multiDiffSource}.
 	 */
-	readonly resources?: IResourceDiffEditorInput[];
+	readonly resources?: IMultiDiffEditorResource[];
 
 	/**
 	 * Whether the editor should be serialized and stored for subsequent sessions.
@@ -555,6 +555,9 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly isTransient?: boolean;
 }
 
+export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {
+	readonly goToFileResource?: URI;
+}
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
 
 /**
@@ -1168,6 +1171,9 @@ export const enum GroupModelChangeKind {
 	GROUP_LABEL,
 	GROUP_LOCKED,
 
+	/* Editors Change */
+	EDITORS_SELECTION,
+
 	/* Editor Changes */
 	EDITOR_OPEN,
 	EDITOR_CLOSE,
@@ -1177,7 +1183,6 @@ export const enum GroupModelChangeKind {
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
 	EDITOR_TRANSIENT,
-	EDITOR_SELECTION,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
 	EDITOR_WILL_DISPOSE

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { Emitter, type Event } from 'vs/base/common/event';
-import { isUriComponents, URI } from 'vs/base/common/uri';
-import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from 'vs/base/common/async';
+import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from './extHost.protocol.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { IExtHostTerminalService } from './extHostTerminalService.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
+import { URI, type UriComponents } from '../../../base/common/uri.js';
+import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from '../../../base/common/async.js';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
 	readonly _serviceBrand: undefined;
@@ -104,7 +104,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: URI | undefined): void {
+	public $shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
@@ -115,7 +115,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 			confidence: commandLineConfidence,
 			isTrusted
 		};
-		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, cwd);
+		this._activeShellIntegrations.get(instanceId)?.startShellExecution(commandLine, URI.revive(cwd));
 	}
 
 	public $shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void {
@@ -131,8 +131,12 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.emitData(data);
 	}
 
-	public $cwdChange(instanceId: number, cwd: URI | undefined): void {
-		this._activeShellIntegrations.get(instanceId)?.setCwd(isUriComponents(cwd) ? URI.revive(cwd) : cwd);
+	public $shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[]): void {
+		this._activeShellIntegrations.get(instanceId)?.setEnv(shellEnvKeys, shellEnvValues);
+	}
+
+	public $cwdChange(instanceId: number, cwd: UriComponents | undefined): void {
+		this._activeShellIntegrations.get(instanceId)?.setCwd(URI.revive(cwd));
 	}
 
 	public $closeTerminal(instanceId: number): void {
@@ -147,6 +151,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
+	private _env: { [key: string]: string | undefined } | undefined;
 	private _cwd: URI | undefined;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
@@ -171,12 +176,22 @@ class InternalTerminalShellIntegration extends Disposable {
 			get cwd(): URI | undefined {
 				return that._cwd;
 			},
+			get env(): { [key: string]: string | undefined } | undefined {
+				return that._env;
+			},
 			// executeCommand(commandLine: string): vscode.TerminalShellExecution;
 			// executeCommand(executable: string, args: string[]): vscode.TerminalShellExecution;
 			executeCommand(commandLineOrExecutable: string, args?: string[]): vscode.TerminalShellExecution {
-				let commandLineValue: string = commandLineOrExecutable;
+				let commandLineValue = commandLineOrExecutable;
 				if (args) {
-					commandLineValue += ` "${args.map(e => `${e.replaceAll('"', '\\"')}`).join('" "')}"`;
+					for (const arg of args) {
+						const wrapInQuotes = !arg.match(/["'`]/) && arg.match(/\s/);
+						if (wrapInQuotes) {
+							commandLineValue += ` "${arg}"`;
+						} else {
+							commandLineValue += ` ${arg}`;
+						}
+					}
 				}
 
 				that._onDidRequestShellExecution.fire(commandLineValue);
@@ -202,7 +217,8 @@ class InternalTerminalShellIntegration extends Disposable {
 				this._currentExecution.endExecution(undefined);
 				this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode: undefined });
 			}
-			const currentExecution = this._currentExecution = new InternalTerminalShellExecution(commandLine, cwd);
+			// Fallback to the shell integration's cwd as the cwd may not have been restored after a reload
+			const currentExecution = this._currentExecution = new InternalTerminalShellExecution(commandLine, cwd ?? this._cwd);
 			if (fireEventInMicrotask) {
 				queueMicrotask(() => this._onDidStartTerminalShellExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: currentExecution.value }));
 			} else {
@@ -224,6 +240,15 @@ class InternalTerminalShellIntegration extends Disposable {
 		}
 	}
 
+	setEnv(keys: string[], values: string[]): void {
+		const env: { [key: string]: string | undefined } = {};
+		for (let i = 0; i < keys.length; i++) {
+			env[keys[i]] = values[i];
+		}
+		this._env = env;
+		this._fireChangeEvent();
+	}
+
 	setCwd(cwd: URI | undefined): void {
 		let wasChanged = false;
 		if (URI.isUri(this._cwd)) {
@@ -233,8 +258,12 @@ class InternalTerminalShellIntegration extends Disposable {
 		}
 		if (wasChanged) {
 			this._cwd = cwd;
-			this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
+			this._fireChangeEvent();
 		}
+	}
+
+	private _fireChangeEvent() {
+		this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
 	}
 }
 

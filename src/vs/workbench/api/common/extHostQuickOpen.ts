@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter } from '../../../base/common/event.js';
+import { dispose, IDisposable } from '../../../base/common/lifecycle.js';
+import { ExtHostCommands } from './extHostCommands.js';
+import { IExtHostWorkspaceProvider } from './extHostWorkspace.js';
 import { InputBox, InputBoxOptions, InputBoxValidationMessage, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
-import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol';
-import { URI } from 'vs/base/common/uri';
-import { ThemeIcon, QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity } from 'vs/workbench/api/common/extHostTypes';
-import { isCancellationError } from 'vs/base/common/errors';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { coalesce } from 'vs/base/common/arrays';
-import Severity from 'vs/base/common/severity';
-import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
+import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol.js';
+import { URI } from '../../../base/common/uri.js';
+import { ThemeIcon, QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity } from './extHostTypes.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { coalesce } from '../../../base/common/arrays.js';
+import Severity from '../../../base/common/severity.js';
+import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { MarkdownString } from './extHostTypeConverters.js';
 
 export type Item = string | QuickPickItem;
 
@@ -283,6 +283,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _busy = false;
 		private _ignoreFocusOut = true;
 		private _value = '';
+		private _valueSelection: readonly [number, number] | undefined = undefined;
 		private _placeholder: string | undefined;
 		private _buttons: QuickInputButton[] = [];
 		private _handlesToButtons = new Map<number, QuickInputButton>();
@@ -301,7 +302,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._onDidChangeValueEmitter
 		];
 
-		constructor(protected _extensionId: ExtensionIdentifier, private _onDidDispose: () => void) {
+		constructor(protected _extension: IExtensionDescription, private _onDidDispose: () => void) {
 		}
 
 		get title() {
@@ -367,6 +368,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this.update({ value });
 		}
 
+		get valueSelection() {
+			return this._valueSelection;
+		}
+
+		set valueSelection(valueSelection: readonly [number, number] | undefined) {
+			this._valueSelection = valueSelection;
+			this.update({ valueSelection });
+		}
+
 		get placeholder() {
 			return this._placeholder;
 		}
@@ -385,6 +395,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set buttons(buttons: QuickInputButton[]) {
+			const allowedButtonLocation = isProposedApiEnabled(this._extension, 'quickInputButtonLocation');
+			if (!allowedButtonLocation && buttons.some(button => button.location)) {
+				console.warn(`Extension '${this._extension.identifier.value}' uses a button location which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
+			}
 			this._buttons = buttons.slice();
 			this._handlesToButtons.clear();
 			buttons.forEach((button, i) => {
@@ -397,6 +411,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						...getIconPathOrClass(button.iconPath),
 						tooltip: button.tooltip,
 						handle: button === QuickInputButtons.Back ? -1 : i,
+						location: allowedButtonLocation ? button.location : undefined
 					};
 				})
 			});
@@ -546,8 +561,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
 
-		constructor(private extension: IExtensionDescription, onDispose: () => void) {
-			super(extension.identifier, onDispose);
+		constructor(extension: IExtensionDescription, onDispose: () => void) {
+			super(extension, onDispose);
 			this._disposables.push(
 				this._onDidChangeActiveEmitter,
 				this._onDidChangeSelectionEmitter,
@@ -569,7 +584,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				this._itemsToHandles.set(item, i);
 			});
 
-			const allowedTooltips = isProposedApiEnabled(this.extension, 'quickPickItemTooltip');
+			const allowedTooltips = isProposedApiEnabled(this._extension, 'quickPickItemTooltip');
 
 			const pickItems: TransferQuickPickItemOrSeparator[] = [];
 			for (let handle = 0; handle < items.length; handle++) {
@@ -578,7 +593,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 					pickItems.push({ type: 'separator', label: item.label });
 				} else {
 					if (item.tooltip && !allowedTooltips) {
-						console.warn(`Extension '${this.extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this.extension.identifier.value}`);
+						console.warn(`Extension '${this._extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.identifier.value}`);
 					}
 
 					const icon = (item.iconPath) ? getIconPathOrClass(item.iconPath) : undefined;
@@ -708,11 +723,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		private _password = false;
 		private _prompt: string | undefined;
-		private _valueSelection: readonly [number, number] | undefined;
 		private _validationMessage: string | InputBoxValidationMessage | undefined;
 
 		constructor(extension: IExtensionDescription, onDispose: () => void) {
-			super(extension.identifier, onDispose);
+			super(extension, onDispose);
 			this.update({ type: 'inputBox' });
 		}
 
@@ -732,15 +746,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set prompt(prompt: string | undefined) {
 			this._prompt = prompt;
 			this.update({ prompt });
-		}
-
-		get valueSelection() {
-			return this._valueSelection;
-		}
-
-		set valueSelection(valueSelection: readonly [number, number] | undefined) {
-			this._valueSelection = valueSelection;
-			this.update({ valueSelection });
 		}
 
 		get validationMessage() {

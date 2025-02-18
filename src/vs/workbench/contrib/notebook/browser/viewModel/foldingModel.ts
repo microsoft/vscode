@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { FoldingLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
-import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
-import { INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { renderMarkdownAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { marked } from '../../../../../base/common/marked/marked.js';
+import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { FoldingLimitReporter } from '../../../../../editor/contrib/folding/browser/folding.js';
+import { FoldingRegion, FoldingRegions } from '../../../../../editor/contrib/folding/browser/foldingRanges.js';
+import { IFoldingRangeData, sanitizeRanges } from '../../../../../editor/contrib/folding/browser/syntaxRangeProvider.js';
+import { INotebookViewModel } from '../notebookBrowser.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { cellRangesToIndexes, ICellRange } from '../../common/notebookRange.js';
 
 type RegionFilter = (r: FoldingRegion) => boolean;
 type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isMacintosh } from 'vs/base/common/platform';
-import { PartialExcept } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { endOfQuickInputBoxContext, inQuickInputContext, quickInputTypeContextKeyValue } from 'vs/platform/quickinput/browser/quickInput';
-import { IQuickInputService, IQuickPick, QuickInputType, QuickPickFocus } from 'vs/platform/quickinput/common/quickInput';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { PartialExcept } from '../../../base/common/types.js';
+import { localize } from '../../../nls.js';
+import { ICommandHandler } from '../../commands/common/commands.js';
+import { ContextKeyExpr } from '../../contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../contextkey/common/contextkeys.js';
+import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from '../../keybinding/common/keybindingsRegistry.js';
+import { endOfQuickInputBoxContext, inQuickInputContext, quickInputTypeContextKeyValue } from './quickInput.js';
+import { IQuickInputService, IQuickPick, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
 
 const defaultCommandAndKeybindingRule = {
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -27,12 +27,13 @@ function registerQuickPickCommandAndKeybindingRule(rule: PartialExcept<ICommandA
 	});
 }
 
+const ctrlKeyMod = isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd;
+
 // This function will generate all the combinations of keybindings for the given primary keybinding
 function getSecondary(primary: number, secondary: number[], options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean } = {}): number[] {
 	if (options.withAltMod) {
 		secondary.push(KeyMod.Alt + primary);
 	}
-	const ctrlKeyMod = isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd;
 	if (options.withCtrlMod) {
 		secondary.push(ctrlKeyMod + primary);
 		if (options.withAltMod) {
@@ -81,12 +82,12 @@ registerQuickPickCommandAndKeybindingRule(
 	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
 );
 registerQuickPickCommandAndKeybindingRule(
-	{ id: 'quickInput.first', primary: KeyCode.Home, handler: focusHandler(QuickPickFocus.First) },
-	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
+	{ id: 'quickInput.first', primary: ctrlKeyMod + KeyCode.Home, handler: focusHandler(QuickPickFocus.First) },
+	{ withAltMod: true, withCmdMod: true }
 );
 registerQuickPickCommandAndKeybindingRule(
-	{ id: 'quickInput.last', primary: KeyCode.End, handler: focusHandler(QuickPickFocus.Last) },
-	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
+	{ id: 'quickInput.last', primary: ctrlKeyMod + KeyCode.End, handler: focusHandler(QuickPickFocus.Last) },
+	{ withAltMod: true, withCmdMod: true }
 );
 registerQuickPickCommandAndKeybindingRule(
 	{ id: 'quickInput.next', primary: KeyCode.DownArrow, handler: focusHandler(QuickPickFocus.Next) },
@@ -198,3 +199,18 @@ registerQuickPickCommandAndKeybindingRule(
 	},
 	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
 );
+
+//#region Toggle Hover
+
+registerQuickPickCommandAndKeybindingRule(
+	{
+		id: 'quickInput.toggleHover',
+		primary: ctrlKeyMod | KeyCode.Space,
+		handler: accessor => {
+			const quickInputService = accessor.get(IQuickInputService);
+			quickInputService.toggleHover();
+		}
+	}
+);
+
+//#endregion

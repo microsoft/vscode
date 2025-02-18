@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, reset } from 'vs/base/browser/dom';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
+import { h, reset } from '../../../../../base/browser/dom.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from '../../../../../base/common/observable.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { LineRange } from '../model/lineRange.js';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
-	private readonly scrollTop = observableFromEvent(
+	private readonly scrollTop = observableFromEvent(this,
 		this._editor.onDidScrollChange,
 		(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
 	);
 	private readonly isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
-	private readonly modelAttached = observableFromEvent(
+	private readonly modelAttached = observableFromEvent(this,
 		this._editor.onDidChangeModel,
 		(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
 	);
@@ -126,7 +126,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		for (const id of unusedIds) {
 			const view = this.views.get(id)!;
 			view.gutterItemView.dispose();
-			this._domNode.removeChild(view.domNode);
+			view.domNode.remove();
 			this.views.delete(id);
 		}
 	}
@@ -154,4 +154,3 @@ export interface IGutterItemView<T extends IGutterItemInfo> extends IDisposable 
 	update(item: T): void;
 	layout(top: number, height: number, viewTop: number, viewHeight: number): void;
 }
-

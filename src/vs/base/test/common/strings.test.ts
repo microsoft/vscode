@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as strings from 'vs/base/common/strings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import * as strings from '../../common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', () => {
@@ -153,6 +153,24 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('            a', 10, '…'), 'a');
 		assert.strictEqual(strings.lcut(' bbbb       a', 10, '…'), 'bbbb       a');
 		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
+	});
+
+	suite('rcut', () => {
+		test('basic truncation', () => {
+			assert.strictEqual(strings.rcut('foo bar', 0), 'foo');
+			assert.strictEqual(strings.rcut('foo bar', 1), 'foo');
+			assert.strictEqual(strings.rcut('foo bar', 4), 'foo');
+			assert.strictEqual(strings.rcut('foo bar', 7), 'foo bar');
+			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3), 'test');
+		});
+
+		test('truncation with suffix', () => {
+			assert.strictEqual(strings.rcut('foo bar', 0, '…'), 'foo…');
+			assert.strictEqual(strings.rcut('foo bar', 1, '…'), 'foo…');
+			assert.strictEqual(strings.rcut('foo bar', 4, '…'), 'foo…');
+			assert.strictEqual(strings.rcut('foo bar', 7, '…'), 'foo bar');
+			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3, '…'), 'test…');
+		});
 	});
 
 	test('escape', () => {

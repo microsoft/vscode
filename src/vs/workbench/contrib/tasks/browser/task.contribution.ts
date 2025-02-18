@@ -3,43 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 
-import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { ProblemMatcherRegistry } from '../common/problemMatcher.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 
-import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
 
-import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
+import { IOutputChannelRegistry, Extensions as OutputExt } from '../../../services/output/common/output.js';
 
-import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
+import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE, TASK_TERMINAL_ACTIVE } from '../common/tasks.js';
+import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
 
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import schemaVersion1 from '../common/jsonSchema_v1';
-import schemaVersion2, { updateProblemMatchers, updateTaskDefinitions } from '../common/jsonSchema_v2';
-import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
-import { isString } from 'vs/base/common/types';
-import { promiseWithResolvers } from 'vs/base/common/async';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { RunAutomaticTasks, ManageAutomaticTaskRunning } from './runAutomaticTasks.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
+import schemaVersion1 from '../common/jsonSchema_v1.js';
+import schemaVersion2, { updateProblemMatchers, updateTaskDefinitions } from '../common/jsonSchema_v2.js';
+import { AbstractTaskService, ConfigureTaskAction } from './abstractTaskService.js';
+import { tasksSchemaId } from '../../../services/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
+import { TasksQuickAccessProvider } from './tasksQuickAccess.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry.js';
+import { TerminalMenuBarGroup } from '../../terminal/browser/terminalMenus.js';
+import { isString } from '../../../../base/common/types.js';
+import { promiseWithResolvers } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+
+import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
@@ -109,7 +115,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 
 			if (promise && (event.kind === TaskEventKind.Active) && (this._activeTasksCount === 1)) {
-				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks', type: 'loading' }, progress => {
+				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {
@@ -347,7 +353,7 @@ class UserTasksGlobalActionContribution extends Disposable implements IWorkbench
 
 	private registerActions() {
 		const id = 'workbench.action.tasks.openUserTasks';
-		const title = nls.localize('userTasks', "User Tasks");
+		const title = nls.localize('tasks', "Tasks");
 		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			command: {
 				id,
@@ -431,15 +437,24 @@ schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(tasksSchemaId, schema);
 
-ProblemMatcherRegistry.onMatcherChanged(() => {
-	updateProblemMatchers();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
-});
+export class TaskRegistryContribution extends Disposable implements IWorkbenchContribution {
+	static ID = 'taskRegistryContribution';
+	constructor() {
+		super();
 
-TaskDefinitionRegistry.onDefinitionsChanged(() => {
-	updateTaskDefinitions();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
-});
+		this._register(ProblemMatcherRegistry.onMatcherChanged(() => {
+			updateProblemMatchers();
+			jsonRegistry.notifySchemaChanged(tasksSchemaId);
+		}));
+
+		this._register(TaskDefinitionRegistry.onDefinitionsChanged(() => {
+			updateTaskDefinitions();
+			jsonRegistry.notifySchemaChanged(tasksSchemaId);
+		}));
+	}
+}
+registerWorkbenchContribution2(TaskRegistryContribution.ID, TaskRegistryContribution, WorkbenchPhase.AfterRestored);
+
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -548,5 +563,35 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('task.verboseLogging', "Enable verbose logging for tasks."),
 			default: false
 		},
+	}
+});
+
+export const rerunTaskIcon = registerIcon('rerun-task', Codicon.refresh, nls.localize('rerunTaskIcon', 'View icon of the rerun task.'));
+export const RerunForActiveTerminalCommandId = 'workbench.action.tasks.rerunForActiveTerminal';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RerunForActiveTerminalCommandId,
+			icon: rerunTaskIcon,
+			title: nls.localize2('workbench.action.tasks.rerunForActiveTerminal', 'Rerun Task'),
+			precondition: TASK_TERMINAL_ACTIVE,
+			menu: [{ id: MenuId.TerminalInstanceContext, when: TASK_TERMINAL_ACTIVE }],
+			keybinding: {
+				when: TerminalContextKeys.focus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
+				},
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, args: any): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const taskSystem = accessor.get(ITaskService);
+		const instance = args as ITerminalInstance ?? terminalService.activeInstance;
+		if (instance) {
+			await taskSystem.rerun(instance.instanceId);
+		}
 	}
 });

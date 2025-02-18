@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { shouldSynchronizeModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ITextFileSaveParticipant, ITextFileService, ITextFileEditorModel, ITextFileSaveParticipantContext } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from '../common/extHost.protocol';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { raceCancellationError } from 'vs/base/common/async';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { shouldSynchronizeModel } from '../../../editor/common/model.js';
+import { localize } from '../../../nls.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IProgressStep, IProgress } from '../../../platform/progress/common/progress.js';
+import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ITextFileSaveParticipant, ITextFileService, ITextFileEditorModel, ITextFileSaveParticipantContext } from '../../services/textfile/common/textfiles.js';
+import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from '../common/extHost.protocol.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { raceCancellationError } from '../../../base/common/async.js';
 
 class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 

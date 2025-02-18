@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService, ICommandEvent, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { timeout } from 'vs/base/common/async';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService, ICommandEvent, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { timeout } from '../../../../base/common/async.js';
 
 export class CommandService extends Disposable implements ICommandService {
 

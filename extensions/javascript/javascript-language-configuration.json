@@ -111,10 +111,10 @@
 	},
 	"indentationRules": {
 		"decreaseIndentPattern": {
-			"pattern": "^((?!.*?/\\*).*\\*\/)?\\s*[\\}\\]\\)].*$"
+			"pattern": "^\\s*[\\}\\]\\)].*$"
 		},
 		"increaseIndentPattern": {
-			"pattern": "^((?!//).)*(\\{([^}\"'`/]*|(\\t|[ ])*//.*)|\\([^)\"'`/]*|\\[[^\\]\"'`/]*)$"
+			"pattern": "^.*(\\{[^}]*|\\([^)]*|\\[[^\\]]*)$"
 		},
 		// e.g.  * ...| or */| or *-----*/|
 		"unIndentedLinePattern": {
@@ -226,6 +226,19 @@
 			"action": {
 				"indent": "indentOutdent",
 				"appendText": "\t",
+			}
+		},
+		// Add // when pressing enter from inside line comment
+		{
+			"beforeText": {
+				"pattern": "(?<!\\w:)\/\/.*"
+			},
+			"afterText": {
+				"pattern": "^(?!\\s*$).+"
+			},
+			"action": {
+				"indent": "none",
+				"appendText": "// "
 			}
 		},
 	]

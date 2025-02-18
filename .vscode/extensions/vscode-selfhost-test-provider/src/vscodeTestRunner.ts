@@ -24,7 +24,7 @@ const ATTACH_CONFIG_NAME = 'Attach to VS Code';
 const DEBUG_TYPE = 'pwa-chrome';
 
 export abstract class VSCodeTestRunner {
-	constructor(protected readonly repoLocation: vscode.WorkspaceFolder) {}
+	constructor(protected readonly repoLocation: vscode.WorkspaceFolder) { }
 
 	public async run(baseArgs: ReadonlyArray<string>, filter?: ReadonlyArray<vscode.TestItem>) {
 		const args = this.prepareArguments(baseArgs, filter);
@@ -37,7 +37,7 @@ export abstract class VSCodeTestRunner {
 		return new TestOutputScanner(cp, args);
 	}
 
-	public async debug(baseArgs: ReadonlyArray<string>, filter?: ReadonlyArray<vscode.TestItem>) {
+	public async debug(testRun: vscode.TestRun, baseArgs: ReadonlyArray<string>, filter?: ReadonlyArray<vscode.TestItem>) {
 		const port = await this.findOpenPort();
 		const baseConfiguration = vscode.workspace
 			.getConfiguration('launch', this.repoLocation)
@@ -63,7 +63,7 @@ export abstract class VSCodeTestRunner {
 		const cp = spawn(await this.binaryPath(), args, {
 			cwd: this.repoLocation.uri.fsPath,
 			stdio: 'pipe',
-			env: this.getEnvironment(),
+			env: this.getEnvironment(port),
 		});
 
 		// Register a descriptor factory that signals the server when any
@@ -95,7 +95,7 @@ export abstract class VSCodeTestRunner {
 			},
 		});
 
-		vscode.debug.startDebugging(this.repoLocation, { ...baseConfiguration, port });
+		vscode.debug.startDebugging(this.repoLocation, { ...baseConfiguration, port }, { testRun });
 
 		let exited = false;
 		let rootSession: vscode.DebugSession | undefined;
@@ -139,7 +139,7 @@ export abstract class VSCodeTestRunner {
 		});
 	}
 
-	protected getEnvironment(): NodeJS.ProcessEnv {
+	protected getEnvironment(_remoteDebugPort?: number): NodeJS.ProcessEnv {
 		return {
 			...process.env,
 			ELECTRON_RUN_AS_NODE: undefined,
@@ -163,18 +163,40 @@ export abstract class VSCodeTestRunner {
 				path.relative(data.workspaceFolder.uri.fsPath, data.uri.fsPath).replace(/\\/g, '/')
 			);
 
+		const itemDatas = filter.map(f => itemData.get(f));
+		/** If true, we have to be careful with greps, as a grep for one test file affects the run of the other test file. */
+		const hasBothTestCaseOrTestSuiteAndTestFileFilters =
+			itemDatas.some(d => (d instanceof TestCase) || (d instanceof TestSuite)) &&
+			itemDatas.some(d => d instanceof TestFile);
+
+		function addTestCaseOrSuite(data: TestCase | TestSuite, test: vscode.TestItem): void {
+			grepRe.push(escapeRe(data.fullName) + (data instanceof TestCase ? '$' : ' '));
+			for (let p = test.parent; p; p = p.parent) {
+				const parentData = itemData.get(p);
+				if (parentData instanceof TestFile) {
+					addTestFileRunPath(parentData);
+				}
+			}
+		}
+
 		for (const test of filter) {
 			const data = itemData.get(test);
 			if (data instanceof TestCase || data instanceof TestSuite) {
-				grepRe.push(escapeRe(data.fullName) + (data instanceof TestCase ? '$' : ' '));
-				for (let p = test.parent; p; p = p.parent) {
-					const parentData = itemData.get(p);
-					if (parentData instanceof TestFile) {
-						addTestFileRunPath(parentData);
+				addTestCaseOrSuite(data, test);
+			} else if (data instanceof TestFile) {
+				if (!hasBothTestCaseOrTestSuiteAndTestFileFilters) {
+					addTestFileRunPath(data);
+				} else {
+					// We add all the items individually so they get their own grep expressions.
+					for (const [_id, nestedTest] of test.children) {
+						const childData = itemData.get(nestedTest);
+						if (childData instanceof TestCase || childData instanceof TestSuite) {
+							addTestCaseOrSuite(childData, nestedTest);
+						} else {
+							console.error('Unexpected test item in test file', nestedTest.id, nestedTest.label);
+						}
 					}
 				}
-			} else if (data instanceof TestFile) {
-				addTestFileRunPath(data);
 			}
 		}
 
@@ -239,9 +261,10 @@ export class BrowserTestRunner extends VSCodeTestRunner {
 	}
 
 	/** @override */
-	protected override getEnvironment() {
+	protected override getEnvironment(remoteDebugPort?: number) {
 		return {
-			...super.getEnvironment(),
+			...super.getEnvironment(remoteDebugPort),
+			PLAYWRIGHT_CHROMIUM_DEBUG_PORT: remoteDebugPort ? String(remoteDebugPort) : undefined,
 			ELECTRON_RUN_AS_NODE: '1',
 		};
 	}
@@ -303,5 +326,5 @@ export const PlatformTestRunner =
 	process.platform === 'win32'
 		? WindowsTestRunner
 		: process.platform === 'darwin'
-		? DarwinTestRunner
-		: PosixTestRunner;
+			? DarwinTestRunner
+			: PosixTestRunner;

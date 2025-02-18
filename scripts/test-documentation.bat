@@ -5,7 +5,7 @@ echo Runs tests against the current documentation in https://github.com/microsof
 
 pushd %~dp0\..
 
-:: Endgame tests in AMD
+:: Endgame tests
 call .\scripts\test.bat --runGlob **\*.releaseTest.js %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 

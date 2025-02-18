@@ -27,12 +27,12 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml@self
 
-    - task: AzureKeyVault@1
+    - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
-        azureSubscription: "vscode-builds-subscription"
+        azureSubscription: vscode
         KeyVaultName: vscode-build-secrets
-        SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+        SecretsFilter: "github-distro-mixin-password"
 
     - task: DownloadPipelineArtifact@2
       inputs:
@@ -46,8 +46,8 @@ steps:
   - script: |
       set -e
       # Start X server
-      sudo apt-get update
-      sudo apt-get install -y pkg-config \
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
         dbus \
         xvfb \
         libgtk-3-0 \
@@ -69,12 +69,12 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH > .build/yarnlockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/yarnlockhash'
+      key: '"node_modules" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -85,18 +85,17 @@ steps:
 
   - script: |
       set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      echo "always-auth=true" >> .npmrc
-      yarn config set registry "$NPM_REGISTRY"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: .npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
@@ -104,23 +103,68 @@ steps:
       set -e
 
       for i in {1..5}; do # try 5 times
-        yarn --cwd build --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Npm install failed $i, trying again..."
       done
+    workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  # Step will be used by both Install dependencies and building rpm package,
+  # hence avoid adding it behind NODE_MODULES_RESTORED condition.
+  - script: |
+      set -e
+      SYSROOT_ARCH=$VSCODE_ARCH
+      if [ "$SYSROOT_ARCH" == "x64" ]; then
+        SYSROOT_ARCH="amd64"
+      fi
+      export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+      SYSROOT_ARCH="$SYSROOT_ARCH" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+    env:
+      VSCODE_ARCH: $(VSCODE_ARCH)
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download vscode sysroots
+
+  - ${{ if or(eq(parameters.VSCODE_ARCH, 'arm64'), eq(parameters.VSCODE_ARCH, 'armhf')) }}:
+    - script: |
+        set -e
+        includes=$(cat << 'EOF'
+        {
+          "target_defaults": {
+            "conditions": [
+              ["OS=='linux'", {
+                'cflags_cc!': [ '-std=gnu++20' ],
+                'cflags_cc': [ '-std=gnu++2a' ],
+              }]
+            ]
+          }
+        }
+        EOF
+        )
+        if [ ! -d "$HOME/.gyp" ]; then
+          mkdir -p "$HOME/.gyp"
+        fi
+        echo "$includes" > "$HOME/.gyp/include.gypi"
+      displayName: Override gnu target for arm64 and arm
+
+  - script: |
+      set -e
 
       source ./build/azure-pipelines/linux/setup-env.sh
 
       for i in {1..5}; do # try 5 times
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Npm install failed $i, trying again..."
       done
     env:
       npm_config_arch: $(NPM_ARCH)
@@ -131,34 +175,10 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: |
-      set -e
-
-      EXPECTED_GLIBC_VERSION="2.28" \
-      EXPECTED_GLIBCXX_VERSION="3.4.25" \
-      ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
-
-
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: node build/azure-pipelines/distro/mixin-npm
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
       displayName: Mixin distro node modules
-
-  - ${{ else }}:
-    # Ref https://github.com/microsoft/vscode/issues/189019
-    # for the node-gyp rebuild step
-    - script: |
-        set -e
-
-        cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
-        cd ../.. && ./.github/workflows/check-clean-git-state.sh
-      env:
-        npm_config_arch: $(NPM_ARCH)
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Rebuild debug version of native modules (OSS)
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
@@ -177,7 +197,7 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
-        yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+        npm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
         ARCHIVE_PATH=".build/linux/client/code-${{ parameters.VSCODE_QUALITY }}-$(VSCODE_ARCH)-$(date +%s).tar.gz"
         mkdir -p $(dirname $ARCHIVE_PATH)
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
@@ -210,19 +230,21 @@ steps:
 
     - script: |
         set -e
-        yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
+        npm run gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
+        UNARCHIVE_PATH="`pwd`/../vscode-server-linux-$(VSCODE_ARCH)"
         mkdir -p $(dirname $ARCHIVE_PATH)
         tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)
         echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+        echo "##vso[task.setvariable variable=SERVER_UNARCHIVE_PATH]$UNARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server
 
     - script: |
         set -e
-        yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
+        npm run gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"
         mkdir -p $(dirname $ARCHIVE_PATH)
@@ -232,8 +254,34 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
 
+    - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+      - script: |
+          set -e
+
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.25" \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+        env:
+          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+          npm_config_arch: $(NPM_ARCH)
+          VSCODE_ARCH: $(VSCODE_ARCH)
+        displayName: Check GLIBC and GLIBCXX dependencies in server archive
+
+    - ${{ else }}:
+      - script: |
+          set -e
+
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.26" \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+        env:
+          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+          npm_config_arch: $(NPM_ARCH)
+          VSCODE_ARCH: $(VSCODE_ARCH)
+        displayName: Check GLIBC and GLIBCXX dependencies in server archive
+
   - ${{ else }}:
-    - script: yarn gulp "transpile-client-swc" "transpile-extensions"
+    - script: npm run gulp "transpile-client-esbuild" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
@@ -251,31 +299,48 @@ steps:
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - script:  |
         set -e
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
+        npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Prepare deb package
 
     - script:  |
         set -e
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
+        npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
+        file_output=$(file $(ls .build/linux/deb/*/deb/*.deb))
+        if [[ "$file_output" != *"data compression xz"* ]]; then
+          echo "Error: unknown compression. $file_output"
+          exit 1
+        fi
         echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/deb/*/deb/*.deb)"
       displayName: Build deb package
 
     - script:  |
         set -e
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+        TRIPLE=""
+        if [ "$VSCODE_ARCH" == "x64" ]; then
+          TRIPLE="x86_64-linux-gnu"
+        elif [ "$VSCODE_ARCH" == "arm64" ]; then
+          TRIPLE="aarch64-linux-gnu"
+        elif [ "$VSCODE_ARCH" == "armhf" ]; then
+          TRIPLE="arm-rpi-linux-gnueabihf"
+        fi
+        export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+        export STRIP="$VSCODE_SYSROOT_DIR/$TRIPLE/$TRIPLE/bin/strip"
+        npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+      env:
+        VSCODE_ARCH: $(VSCODE_ARCH)
       displayName: Prepare rpm package
 
     - script:  |
         set -e
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+        npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
         echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/rpm/*/*.rpm)"
       displayName: Build rpm package
 
     - script: |
         set -e
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+        npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
         ARCHIVE_PATH=".build/linux/snap-tarball/snap-$(VSCODE_ARCH).tar.gz"
         mkdir -p $(dirname $ARCHIVE_PATH)
         tar -czf $ARCHIVE_PATH -C .build/linux snap
@@ -286,14 +351,26 @@ steps:
       inputs:
         version: 6.x
 
-    - task: EsrpClientTool@1
-      continueOnError: true
-      displayName: Download ESRPClient
+    - task: EsrpCodeSigning@5
+      inputs:
+        UseMSIAuthentication: true
+        ConnectedServiceName: vscode-esrp
+        AppRegistrationClientId: $(ESRP_CLIENT_ID)
+        AppRegistrationTenantId: $(ESRP_TENANT_ID)
+        AuthAKVName: vscode-esrp
+        AuthSignCertName: esrp-sign
+        FolderPath: .
+        Pattern: noop
+      displayName: 'Install ESRP Tooling'
 
-    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/deb '*.deb'
+    - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp .build/linux/deb '*.deb'
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Codesign deb
 
-    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
+    - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp .build/linux/rpm '*.rpm'
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Codesign rpm
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"

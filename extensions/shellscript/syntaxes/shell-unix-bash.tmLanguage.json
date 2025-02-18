@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/better-shell-syntax/commit/6d0bc37a6b8023a5fddf75bd2b4eb1e1f962e4c2",
+	"version": "https://github.com/jeff-hykin/better-shell-syntax/commit/35020b0bd79a90d3b262b4c13a8bb0b33adc1f45",
 	"name": "Shell Script",
 	"scopeName": "source.shell",
 	"patterns": [
@@ -1547,7 +1547,7 @@
 					"include": "#subshell_dollar"
 				},
 				{
-					"begin": "(?<![^ \\t])({)",
+					"begin": "(?<![^ \\t])({)(?!\\w|\\$)",
 					"end": "}",
 					"beginCaptures": {
 						"1": {

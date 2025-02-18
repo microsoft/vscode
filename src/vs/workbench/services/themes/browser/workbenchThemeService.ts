@@ -3,45 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as errors from 'vs/base/common/errors';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
-import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { FileIconThemeData, FileIconThemeLoader } from 'vs/workbench/services/themes/browser/fileIconThemeData';
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
-import { registerColorThemeSchemas } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { ThemeRegistry, registerColorThemeExtensionPoint, registerFileIconThemeExtensionPoint, registerProductIconThemeExtensionPoint } from 'vs/workbench/services/themes/common/themeExtensionPoints';
-import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationSchemas, ThemeConfiguration, updateProductIconThemeConfigurationSchemas } from 'vs/workbench/services/themes/common/themeConfiguration';
-import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
-import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/common/productIconThemeSchema';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isWeb } from 'vs/base/common/platform';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
-import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
-import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { mainWindow } from 'vs/base/browser/window';
+import * as nls from '../../../../nls.js';
+import * as types from '../../../../base/common/types.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from '../common/workbenchThemeService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import * as errors from '../../../../base/common/errors.js';
+import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { ColorThemeData } from '../common/colorThemeData.js';
+import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from '../../../../platform/theme/common/themeService.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { registerFileIconThemeSchemas } from '../common/fileIconThemeSchema.js';
+import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
+import { FileIconThemeData, FileIconThemeLoader } from './fileIconThemeData.js';
+import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { IFileService, FileChangeType } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as resources from '../../../../base/common/resources.js';
+import { registerColorThemeSchemas } from '../common/colorThemeSchema.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { getRemoteAuthority } from '../../../../platform/remote/common/remoteHosts.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { ThemeRegistry, registerColorThemeExtensionPoint, registerFileIconThemeExtensionPoint, registerProductIconThemeExtensionPoint } from '../common/themeExtensionPoints.js';
+import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationSchemas, ThemeConfiguration, updateProductIconThemeConfigurationSchemas } from '../common/themeConfiguration.js';
+import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from './productIconThemeData.js';
+import { registerProductIconThemeSchemas } from '../common/productIconThemeSchema.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
+import { IHostColorSchemeService } from '../common/hostColorSchemeService.js';
+import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
+import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
+import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
+import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 // implementation
 
@@ -59,10 +59,10 @@ const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingC
 function validateThemeId(theme: string): string {
 	// migrations
 	switch (theme) {
-		case VS_LIGHT_THEME: return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
-		case VS_DARK_THEME: return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
-		case VS_HC_THEME: return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
-		case VS_HC_LIGHT_THEME: return `hc-light ${defaultThemeExtensionId}-themes-hc_light-json`;
+		case ThemeTypeSelector.VS: return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
+		case ThemeTypeSelector.VS_DARK: return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
+		case ThemeTypeSelector.HC_BLACK: return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
+		case ThemeTypeSelector.HC_LIGHT: return `hc-light ${defaultThemeExtensionId}-themes-hc_light-json`;
 	}
 	return theme;
 }
@@ -96,8 +96,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	private readonly onProductIconThemeChange: Emitter<IWorkbenchProductIconTheme>;
 	private readonly productIconThemeWatcher: ThemeFileWatcher;
 	private readonly productIconThemeSequencer: Sequencer;
-
-	private hasDefaultUpdated: boolean = false;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -136,20 +134,18 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
 
+		this._register(this.onDidColorThemeChange(theme => getColorRegistry().notifyThemeUpdate(theme)));
+
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
 		const colorThemeSetting = this.settings.colorTheme;
-		if (themeData && colorThemeSetting !== themeData.settingsId && this.settings.isDefaultColorTheme()) {
-			this.hasDefaultUpdated = themeData.settingsId === ThemeSettingDefaults.COLOR_THEME_DARK_OLD || themeData.settingsId === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD;
-
-			// the web has different defaults than the desktop, therefore do not restore when the setting is the default theme and the storage doesn't match that.
+		if (themeData && colorThemeSetting !== themeData.settingsId) {
 			themeData = undefined;
 		}
 
 		const defaultColorMap = colorThemeSetting === ThemeSettingDefaults.COLOR_THEME_LIGHT ? COLOR_THEME_LIGHT_INITIAL_COLORS : colorThemeSetting === ThemeSettingDefaults.COLOR_THEME_DARK ? COLOR_THEME_DARK_INITIAL_COLORS : undefined;
-
 		if (!themeData) {
 			const initialColorTheme = environmentService.options?.initialColorTheme;
 			if (initialColorTheme) {
@@ -157,7 +153,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			}
 		}
 		if (!themeData) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(isWeb ? ColorScheme.LIGHT : ColorScheme.DARK, defaultColorMap);
+			const colorScheme = this.settings.getPreferredColorScheme() ?? (isWeb ? ColorScheme.LIGHT : ColorScheme.DARK);
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(colorScheme, defaultColorMap);
 		}
 		themeData.setCustomizations(this.settings);
 		this.applyTheme(themeData, undefined, true);
@@ -358,11 +355,11 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	// preferred scheme handling
 
 	private installPreferredSchemeListener() {
-		this._register(this.hostColorService.onDidChangeColorScheme(() => this.restoreColorTheme()));
-	}
-
-	public hasUpdatedDefaultThemes(): boolean {
-		return this.hasDefaultUpdated;
+		this._register(this.hostColorService.onDidChangeColorScheme(() => {
+			if (this.settings.isDetectingColorScheme()) {
+				this.restoreColorTheme();
+			}
+		}));
 	}
 
 	public getColorTheme(): IWorkbenchColorTheme {
@@ -491,7 +488,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		if (this.currentColorTheme.id) {
 			this.container.classList.remove(...this.currentColorTheme.classNames);
 		} else {
-			this.container.classList.remove(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME);
+			this.container.classList.remove(ThemeTypeSelector.VS, ThemeTypeSelector.VS_DARK, ThemeTypeSelector.HC_BLACK, ThemeTypeSelector.HC_LIGHT);
 		}
 		this.container.classList.add(...newTheme.classNames);
 

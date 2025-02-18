@@ -3,46 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IScannedExtension, IWebExtensionsScannerService, ScanOptions } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { isWeb, Language } from 'vs/base/common/platform';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { joinPath } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { Queue } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryMetadata, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getGalleryExtensionId, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { localize, localize2 } from 'vs/nls';
-import * as semver from 'vs/base/common/semver/semver';
-import { isString, isUndefined } from 'vs/base/common/types';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { ResourceMap } from 'vs/base/common/map';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IExtensionResourceLoaderService, migratePlatformSpecificExtensionGalleryResourceURL } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { basename } from 'vs/base/common/path';
-import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
-import Severity from 'vs/base/common/severity';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, IExtension, IExtensionManifest, TargetPlatform, IRelaxedExtensionManifest, parseEnabledApiProposalNames } from '../../../../platform/extensions/common/extensions.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { IScannedExtension, IWebExtensionsScannerService, ScanOptions } from '../common/extensionManagement.js';
+import { isWeb, Language } from '../../../../base/common/platform.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
+import { Queue } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryMetadata, Metadata } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions, getGalleryExtensionId, getExtensionId, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ITranslations, localizeManifest } from '../../../../platform/extensionManagement/common/extensionNls.js';
+import { localize, localize2 } from '../../../../nls.js';
+import * as semver from '../../../../base/common/semver/semver.js';
+import { isString, isUndefined } from '../../../../base/common/types.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { IExtensionResourceLoaderService, migratePlatformSpecificExtensionGalleryResourceURL } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { basename } from '../../../../base/common/path.js';
+import { IExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { validateExtensionManifest } from '../../../../platform/extensions/common/extensionValidator.js';
+import Severity from '../../../../base/common/severity.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -99,6 +99,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private readonly systemExtensionsCacheResource: URI | undefined = undefined;
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IWebExtension[]>>();
+	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
 	constructor(
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
@@ -123,6 +124,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			// Eventually update caches
 			lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateCaches());
 		}
+		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 	}
 
 	private _customBuiltinExtensionsInfoPromise: Promise<{ extensions: ExtensionInfo[]; extensionsToMigrate: [string, string][]; extensionLocations: URI[]; extensionGalleryResources: URI[] }> | undefined;
@@ -173,7 +175,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const extensionsControlManifest = await this.galleryService.getExtensionsControlManifest();
 		const result: ExtensionInfo[] = [];
 		for (const extension of extensions) {
-			if (extensionsControlManifest.malicious.some(e => areSameExtensions(e, { id: extension.id }))) {
+			if (isMalicious({ id: extension.id }, extensionsControlManifest)) {
 				this.logService.info(`Checking additional builtin extensions: Ignoring '${extension.id}' because it is reported to be malicious.`);
 				continue;
 			}
@@ -735,7 +737,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async toScannedExtension(webExtension: IWebExtension, isBuiltin: boolean, type: ExtensionType = ExtensionType.User): Promise<IScannedExtension> {
 		const validations: [Severity, string][] = [];
-		let manifest: IExtensionManifest | undefined = webExtension.manifest;
+		let manifest: IRelaxedExtensionManifest | undefined = webExtension.manifest;
 
 		if (!manifest) {
 			try {
@@ -766,13 +768,18 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 		const uuid = (<IGalleryMetadata | undefined>webExtension.metadata)?.id;
 
-		validations.push(...validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false));
+		const validateApiVersion = this.extensionsEnabledWithApiProposalVersion.includes(webExtension.identifier.id.toLowerCase());
+		validations.push(...validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false, validateApiVersion));
 		let isValid = true;
 		for (const [severity, message] of validations) {
 			if (severity === Severity.Error) {
 				isValid = false;
 				this.logService.error(message);
 			}
+		}
+
+		if (manifest.enabledApiProposals && validateApiVersion) {
+			manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
 		}
 
 		return {
@@ -786,7 +793,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			metadata: webExtension.metadata,
 			targetPlatform: TargetPlatform.WEB,
 			validations,
-			isValid
+			isValid,
+			preRelease: !!webExtension.metadata?.preRelease,
 		};
 	}
 
@@ -800,7 +808,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return [];
 	}
 
-	private async translateManifest(manifest: IExtensionManifest, nlsURL: ITranslations | URI, fallbackNLS?: ITranslations | URI): Promise<IExtensionManifest> {
+	private async translateManifest(manifest: IExtensionManifest, nlsURL: ITranslations | URI, fallbackNLS?: ITranslations | URI): Promise<IRelaxedExtensionManifest> {
 		try {
 			const translations = URI.isUri(nlsURL) ? await this.getTranslations(nlsURL) : nlsURL;
 			const fallbackTranslations = URI.isUri(fallbackNLS) ? await this.getTranslations(fallbackNLS) : fallbackNLS;

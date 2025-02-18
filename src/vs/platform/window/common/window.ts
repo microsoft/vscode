@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { PerformanceMark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
-import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { FileType } from 'vs/platform/files/common/files';
-import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
-import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { PerformanceMark } from '../../../base/common/performance.js';
+import { isLinux, isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
+import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEditorOptions } from '../../editor/common/editor.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { FileType } from '../../files/common/files.js';
+import { ILoggerResource, LogLevel } from '../../log/common/log.js';
+import { PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
+import product from '../../product/common/product.js';
+import { IPartsSplash } from '../../theme/common/themeService.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -49,6 +51,9 @@ export interface IBaseOpenWindowsOptions {
 	 * If not set, defaults to the remote authority of the current window.
 	 */
 	readonly remoteAuthority?: string | null;
+
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -58,19 +63,18 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly noRecentEntry?: boolean;
 
 	readonly addMode?: boolean;
+	readonly removeMode?: boolean;
 
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
-
-	readonly forceProfile?: string;
-	readonly forceTempProfile?: boolean;
 }
 
-export interface IAddFoldersRequest {
+export interface IAddRemoveFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
+	readonly foldersToRemove: UriComponents[];
 }
 
 interface IOpenedWindow {
@@ -158,6 +162,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
 }
 
@@ -181,10 +186,14 @@ export const enum CustomTitleBarVisibility {
 	NEVER = 'never',
 }
 
+export let titlebarStyleDefaultOverride: 'custom' | undefined = undefined;
+export function overrideDefaultTitlebarStyle(style: 'custom'): void {
+	titlebarStyleDefaultOverride = style;
+}
+
 export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
 	// Returns if it possible to have a custom title bar in the curren session
 	// Does not imply that the title bar is visible
-
 	return true;
 }
 
@@ -192,6 +201,7 @@ export function hasNativeTitlebar(configurationService: IConfigurationService, t
 	if (!titleBarStyle) {
 		titleBarStyle = getTitleBarStyle(configurationService);
 	}
+
 	return titleBarStyle === TitlebarStyle.NATIVE;
 }
 
@@ -218,22 +228,25 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 		}
 	}
 
-	return isLinux ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all macOS and Windows
+	if (titlebarStyleDefaultOverride === 'custom') {
+		return TitlebarStyle.CUSTOM;
+	}
+
+	return isLinux && product.quality === 'stable' ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all OS except Linux stable (for now)
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
-	if (!isWindows || isWeb) {
-		return false; // only supported on a desktop Windows instance
+	if (isWeb) {
+		return false; // only supported on desktop instances
 	}
 
 	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
 	}
 
-	// Default to true.
-	return true;
+	return true; // default
 }
 
 export function useNativeFullScreen(configurationService: IConfigurationService): boolean {
@@ -345,9 +358,11 @@ export interface IOSConfiguration {
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
+	handle?: VSBuffer;
 
 	machineId: string;
 	sqmId: string;
+	devDeviceId: string;
 
 	execPath: string;
 	backupPath?: string;
@@ -368,10 +383,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
-	loggers: {
-		global: UriDto<ILoggerResource>[];
-		window: UriDto<ILoggerResource>[];
-	};
+	loggers: UriDto<ILoggerResource>[];
 
 	fullscreen?: boolean;
 	maximized?: boolean;
@@ -380,6 +392,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	autoDetectHighContrast?: boolean;
 	autoDetectColorScheme?: boolean;
 	isCustomZoomLevel?: boolean;
+	overrideDefaultTitlebarStyle?: 'custom';
 
 	perfMarks: PerformanceMark[];
 
@@ -396,3 +409,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 	return Math.pow(1.2, zoomLevel);
 }
+
+export const DEFAULT_WINDOW_SIZE = { width: 1200, height: 800 } as const;
+export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;

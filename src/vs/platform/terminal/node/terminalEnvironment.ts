@@ -4,20 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import { FileAccess } from 'vs/base/common/network';
-import { getCaseInsensitive } from 'vs/base/common/objects';
-import * as path from 'vs/base/common/path';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
-import { format } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
-import * as pfs from 'vs/base/node/pfs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/environmentVariable';
-import { deserializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
-import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
+import { FileAccess } from '../../../base/common/network.js';
+import * as path from '../../../base/common/path.js';
+import { IProcessEnvironment, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import * as process from '../../../base/common/process.js';
+import { format } from '../../../base/common/strings.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from '../common/terminal.js';
+import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
+import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared.js';
+import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -26,59 +23,6 @@ export function getWindowsBuildNumber(): number {
 		buildNumber = parseInt(osVersion[3]);
 	}
 	return buildNumber;
-}
-
-export async function findExecutable(command: string, cwd?: string, paths?: string[], env: IProcessEnvironment = process.env as IProcessEnvironment, exists: (path: string) => Promise<boolean> = pfs.Promises.exists): Promise<string | undefined> {
-	// If we have an absolute path then we take it.
-	if (path.isAbsolute(command)) {
-		return await exists(command) ? command : undefined;
-	}
-	if (cwd === undefined) {
-		cwd = process.cwd();
-	}
-	const dir = path.dirname(command);
-	if (dir !== '.') {
-		// We have a directory and the directory is relative (see above). Make the path absolute
-		// to the current working directory.
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
-	}
-	const envPath = getCaseInsensitive(env, 'PATH');
-	if (paths === undefined && isString(envPath)) {
-		paths = envPath.split(path.delimiter);
-	}
-	// No PATH environment. Make path absolute to the cwd.
-	if (paths === undefined || paths.length === 0) {
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
-	}
-	// We have a simple file name. We get the path variable from the env
-	// and try to find the executable on the path.
-	for (const pathEntry of paths) {
-		// The path entry is absolute.
-		let fullPath: string;
-		if (path.isAbsolute(pathEntry)) {
-			fullPath = path.join(pathEntry, command);
-		} else {
-			fullPath = path.join(cwd, pathEntry, command);
-		}
-
-		if (await exists(fullPath)) {
-			return fullPath;
-		}
-		if (isWindows) {
-			let withExtension = fullPath + '.com';
-			if (await exists(withExtension)) {
-				return withExtension;
-			}
-			withExtension = fullPath + '.exe';
-			if (await exists(withExtension)) {
-				return withExtension;
-			}
-		}
-	}
-	const fullPath = path.join(cwd, command);
-	return await exists(fullPath) ? fullPath : undefined;
 }
 
 export interface IShellIntegrationConfigInjection {
@@ -143,7 +87,9 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
-
+	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
+		envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+	}
 	// Windows
 	if (isWindows) {
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
@@ -157,6 +103,7 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			if (options.shellIntegration.suggestEnabled) {
 				envMixin['VSCODE_SUGGEST'] = '1';
 			}
@@ -164,9 +111,9 @@ export function getShellIntegrationInjection(
 		} else if (shell === 'bash.exe') {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			} else if (areZshBashLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
-				addEnvMixinPathPrefix(options, envMixin);
+				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
@@ -174,6 +121,10 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+			if (!options.windowsUseConptyDll) {
+				envMixin['VSCODE_SHELL_ENV_REPORTING'] = '0';
+			}
 			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
@@ -185,9 +136,9 @@ export function getShellIntegrationInjection(
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			} else if (areZshBashLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
-				addEnvMixinPathPrefix(options, envMixin);
+				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
@@ -195,16 +146,28 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { newArgs, envMixin };
 		}
 		case 'fish': {
-			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
-			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
-			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
-			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/fish_xdg_data');
-			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
-			addEnvMixinPathPrefix(options, envMixin);
-			return { newArgs: undefined, envMixin };
+			if (!originalArgs || originalArgs.length === 0) {
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Fish);
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin);
+			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
+				newArgs = originalArgs;
+			}
+			if (!newArgs) {
+				return undefined;
+			}
+
+			// On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
+			// to apply the path prefix fix always, not only for login shells (see #232291)
+			addEnvMixinPathPrefix(options, envMixin, shell);
+
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			return { newArgs, envMixin };
 		}
 		case 'pwsh': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
@@ -220,14 +183,15 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { newArgs, envMixin };
 		}
 		case 'zsh': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
-			} else if (areZshBashLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
-				addEnvMixinPathPrefix(options, envMixin);
+				addEnvMixinPathPrefix(options, envMixin, shell);
 			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
 				newArgs = originalArgs;
 			}
@@ -250,19 +214,19 @@ export function getShellIntegrationInjection(
 			envMixin['USER_ZDOTDIR'] = userZdotdir;
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh'),
 				dest: path.join(zdotdir, '.zprofile')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh'),
 				dest: path.join(zdotdir, '.zshenv')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh'),
 				dest: path.join(zdotdir, '.zlogin')
 			});
 			return { newArgs, envMixin, filesToCopy };
@@ -273,16 +237,19 @@ export function getShellIntegrationInjection(
 }
 
 /**
- * On macOS the profile calls path_helper which adds a bunch of standard bin directories to the
- * beginning of the PATH. This causes significant problems for the environment variable
+ * There are a few situations where some directories are added to the beginning of the PATH.
+ * 1. On macOS when the profile calls path_helper.
+ * 2. For fish terminals, which always prepend "$fish_user_paths" to the PATH.
+ *
+ * This causes significant problems for the environment variable
  * collection API as the custom paths added to the end will now be somewhere in the middle of
  * the PATH. To combat this, VSCODE_PATH_PREFIX is used to re-apply any prefix after the profile
  * has run. This will cause duplication in the PATH but should fix the issue.
  *
  * See #99878 for more information.
  */
-function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment): void {
-	if (isMacintosh && options.environmentVariableCollections) {
+function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment, shell: string): void {
+	if ((isMacintosh || shell === 'fish') && options.environmentVariableCollections) {
 		// Deserialize and merge
 		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
 		const merged = new MergedEnvironmentVariableCollection(deserialized);
@@ -312,18 +279,22 @@ enum ShellIntegrationExecutable {
 	PwshLogin = 'pwsh-login',
 	Zsh = 'zsh',
 	ZshLogin = 'zsh-login',
-	Bash = 'bash'
+	Bash = 'bash',
+	Fish = 'fish',
+	FishLogin = 'fish-login',
 }
 
 const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
 // The try catch swallows execution policy errors in the case of the archive distributable
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Fish, ['--init-command', 'source "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.FishLogin, ['-l', '--init-command', 'source "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish"']);
 const pwshLoginArgs = ['-login', '-l'];
 const shLoginArgs = ['--login', '-l'];
 const shInteractiveArgs = ['-i', '--interactive'];
@@ -348,7 +319,7 @@ function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
 	}
 }
 
-function areZshBashLoginArgs(originalArgs: string | string[]): boolean {
+function areZshBashFishLoginArgs(originalArgs: string | string[]): boolean {
 	if (typeof originalArgs !== 'string') {
 		originalArgs = originalArgs.filter(arg => !shInteractiveArgs.includes(arg.toLowerCase()));
 	}
