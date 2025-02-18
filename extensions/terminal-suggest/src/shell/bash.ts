@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
-import { execHelper, getAliasesHelper } from './common';
+import { execHelper, generateDetailAndDocs, getAliasesHelper } from './common';
 
 export async function getBashGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
@@ -41,10 +41,13 @@ export async function getBuiltins(
 			try {
 				const helpOutput = (await execHelper(`help ${cmd}`, options))?.trim();
 				const helpLines = helpOutput?.split('\n');
+				const description = helpLines?.[1]?.split(' ').slice(2).join(' ').trim();
+				const args = helpLines?.[0]?.split(' ').slice(1).join(' ').trim();
+				const { detail, documentation } = generateDetailAndDocs(description, args);
 				completions.push({
 					label: cmd,
-					detail: helpLines?.[1]?.split(' ').slice(2).join(' ').trim(),
-					documentation: helpLines?.[0]?.split(' ').slice(1).join(' ').trim(),
+					detail,
+					documentation,
 					kind: vscode.TerminalCompletionItemKind.Method
 				});
 

@@ -94,3 +94,17 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 	}
 	return result;
 }
+
+export function generateDetailAndDocs(description?: string, args?: string): { detail?: string; documentation?: string } {
+	let detail, documentation = '';
+	const firstSentence = (text: string): string => text.split('. ')[0] + '.';
+	const lengthOfInfo = (description?.length || 0) + (args?.length || 0);
+	if (lengthOfInfo > 94 && description) {
+		// detail capped at 94 chars
+		detail = args ? [firstSentence(description), args].join('\n') : firstSentence(description);
+		documentation = description;
+	} else if (description) {
+		detail = args ? [description, args].join('\n') : description;
+	}
+	return { detail, documentation };
+}

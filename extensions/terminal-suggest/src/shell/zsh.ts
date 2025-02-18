@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
-import { execHelper, getAliasesHelper } from './common';
+import { execHelper, generateDetailAndDocs, getAliasesHelper } from './common';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -43,10 +43,11 @@ async function getBuiltins(
 		if (typeof cmd === 'string') {
 			try {
 				const result = getCommandDescription(cmd);
+				const { detail, documentation } = generateDetailAndDocs(result?.description, result?.args);
 				completions.push({
 					label: cmd,
-					detail: result?.description,
-					documentation: result?.args,
+					detail,
+					documentation,
 					kind: vscode.TerminalCompletionItemKind.Method
 				});
 
