@@ -159,16 +159,23 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
 					// clear terminal before reusing it
+					let clearCommand: string;
 					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
-						terminal.sendText('cls');
+						clearCommand = 'cls';
 					} else if (shell.indexOf('bash') >= 0) {
-						terminal.sendText('clear');
+						clearCommand = 'clear';
 					} else if (platform.isWindows) {
-						terminal.sendText('cls');
+						clearCommand = 'cls';
 					} else {
-						terminal.sendText('clear');
+						clearCommand = 'clear';
 					}
-					await timeout(200); // add a small delay to ensure the command is processed, see #240953
+
+					if (terminal.shellIntegration) {
+						terminal.shellIntegration.executeCommand(clearCommand);
+					} else {
+						terminal.sendText(clearCommand);
+						await timeout(200); // add a small delay to ensure the command is processed, see #240953
+					}
 				}
 			}
 
