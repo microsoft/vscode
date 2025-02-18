@@ -343,6 +343,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		let activityBarOrder = CUSTOM_VIEWS_START_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length;
 		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
+		let auxiliaryBarOrder = 0;
 		for (const { value, collector, description } of extensionPoints) {
 			Object.entries(value).forEach(([key, value]) => {
 				if (!this.isValidViewsContainer(value, collector)) {
@@ -359,6 +360,15 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						// MEMBRANE: ensure Logs are first in panel (bottom pane)
 						const order = description.identifier.value === 'membrane.membrane' ? 0 : panelOrder;
 						panelOrder = this.registerCustomViewContainers(value, description, order, existingViewContainers, ViewContainerLocation.Panel);
+						break;
+					}
+					case 'auxiliarybar': {
+						// MEMBRANE: handle multiple auxiliary bar containers (right sidebar)
+						const order = value?.some(v =>
+							v.id === 'membraneProgramContainer' ||
+							v.id === 'membraneAssistantContainer'
+						) ? 0 : auxiliaryBarOrder;
+						auxiliaryBarOrder = this.registerCustomViewContainers(value, description, order, existingViewContainers, ViewContainerLocation.AuxiliaryBar);
 						break;
 					}
 				}
@@ -424,12 +434,13 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			}
 
 			// MEMBRANE: move Program Overview to auxiliary bar (right-side bar)
-			const overridenLocation = descriptor.id === 'membraneAuxContainer' ? ViewContainerLocation.AuxiliaryBar : location;
+			// We don't need this anymore since we added the auxiliary bar case to the default view container
+			// const overridenLocation = descriptor.id === 'membraneAuxContainer' ? ViewContainerLocation.AuxiliaryBar : location;
 
 			const icon = themeIcon || resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const title = descriptor.title || id;
-			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, overridenLocation, options);
+			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, location, options);
 
 			// Move those views that belongs to this container
 			if (existingViewContainers.length) {
