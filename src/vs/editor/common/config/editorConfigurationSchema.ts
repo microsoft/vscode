@@ -120,13 +120,13 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.typescript', "Controls whether tree sitter parsing should be turned on for typescript. This will take precedence over `editor.experimental.treeSitterTelemetry` for typescript."),
-			tags: ['experimental']
+			tags: ['experimental', 'onExP']
 		},
 		'editor.experimental.preferTreeSitter.ini': {
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.ini', "Controls whether tree sitter parsing should be turned on for ini. This will take precedence over `editor.experimental.treeSitterTelemetry` for ini."),
-			tags: ['experimental']
+			tags: ['experimental', 'onExP']
 		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
