@@ -167,6 +167,7 @@ export const enum SyncResource {
 	Settings = 'settings',
 	Keybindings = 'keybindings',
 	Snippets = 'snippets',
+	Prompts = 'prompts',
 	Tasks = 'tasks',
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
