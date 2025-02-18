@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation, RunOnceScheduler } from '../../../../../base/common/async.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, ITransaction, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -33,12 +32,12 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorBackground, editorSelectionBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
-import { IResolvedTextFileEditorModel, ITextFileService, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -106,6 +105,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		protected _telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		@IConfigurationService configService: IConfigurationService,
+		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@IChatService protected readonly _chatService: IChatService,
 		@IFileService protected readonly _fileService: IFileService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
@@ -138,6 +138,15 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			const tempValue = this._reviewModeTempObs.read(r);
 			return tempValue ?? configuredValue === 0;
 		});
+
+		const autoSaveOff = this._store.add(new MutableDisposable());
+		this._store.add(autorun(r => {
+			if (this.isCurrentlyBeingModifiedBy.read(r)) {
+				autoSaveOff.value = fileConfigService.disableAutoSave(this.modifiedURI);
+			} else {
+				autoSaveOff.clear();
+			}
+		}));
 	}
 
 	override dispose(): void {
@@ -344,12 +353,11 @@ export class ChatEditingModifiedFileEntry extends AbstractChatEditingModifiedFil
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
 		@IConfigurationService configService: IConfigurationService,
+		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@IChatService chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IFileService fileService: IFileService,
-		@ITextFileService textFileService: ITextFileService,
-		@ILabelService labelService: ILabelService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -357,6 +365,7 @@ export class ChatEditingModifiedFileEntry extends AbstractChatEditingModifiedFil
 			telemetryInfo,
 			kind,
 			configService,
+			fileConfigService,
 			chatService,
 			fileService,
 			instantiationService
@@ -398,26 +407,6 @@ export class ChatEditingModifiedFileEntry extends AbstractChatEditingModifiedFil
 		this._register(autorun(r => {
 			this._diffTrimWhitespace.read(r);
 			this._updateDiffInfoSeq();
-		}));
-
-
-		// block auto-save while rewrite is in progress
-		this._register(textFileService.files.addSaveParticipant({
-
-			ordinal: Number.MIN_SAFE_INTEGER,
-
-			participate: async (model, context, progress, token) => {
-				if (!isEqual(model.resource, this.modifiedURI) || context.reason === SaveReason.EXPLICIT) {
-					return;
-				}
-
-				progress.report({ message: localize('saveBlock', "Save waits for Chat Edits rewriting {0}...", labelService.getUriBasenameLabel(this.modifiedURI)) });
-
-				await raceCancellation(
-					waitForState(this.isCurrentlyBeingModifiedBy, value => !value),
-					token
-				);
-			},
 		}));
 	}
 
