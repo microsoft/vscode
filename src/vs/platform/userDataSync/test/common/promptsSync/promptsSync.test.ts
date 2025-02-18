@@ -27,7 +27,7 @@ const PROMPT4_TEXT = `prompt 4 text`;
 
 const PROMPT5_TEXT = `prompt 5 text`;
 
-const PROMPT6_Text = `prompt 6 text`;
+const PROMPT6_TEXT = `prompt 6 text`;
 
 suite('PromptsSync', () => {
 	const server = new UserDataSyncTestServer();
@@ -310,7 +310,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'prompt3.prompt.md': PROMPT4_TEXT, 'prompt1.prompt.md': PROMPT1_TEXT });
 	});
 
-	test('sync adding a prompts', async () => {
+	test('sync adding a prompt', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, testClient);
 		await testObject.sync(await testClient.getResourceManifest());
 
@@ -330,7 +330,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'prompt3.prompt.md': PROMPT3_TEXT, 'prompt1.prompt.md': PROMPT1_TEXT });
 	});
 
-	test('sync adding a prompts - accept', async () => {
+	test('sync adding a prompt - accept', async () => {
 		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 		await testObject.sync(await testClient.getResourceManifest());
@@ -348,7 +348,7 @@ suite('PromptsSync', () => {
 		assert.strictEqual(actual2, PROMPT1_TEXT);
 	});
 
-	test('sync updating a prompts', async () => {
+	test('sync updating a prompt', async () => {
 		await updatePrompt('default.prompt.md', PROMPT3_TEXT, testClient);
 		await testObject.sync(await testClient.getResourceManifest());
 
@@ -366,7 +366,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'default.prompt.md': PROMPT4_TEXT });
 	});
 
-	test('sync updating a prompts - accept', async () => {
+	test('sync updating a prompt - accept', async () => {
 		await updatePrompt('my.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 		await testObject.sync(await testClient.getResourceManifest());
@@ -382,7 +382,7 @@ suite('PromptsSync', () => {
 		assert.strictEqual(actual1, PROMPT4_TEXT);
 	});
 
-	test('sync updating a prompts - conflict', async () => {
+	test('sync updating a prompt - conflict', async () => {
 		await updatePrompt('some.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 		await testObject.sync(await testClient.getResourceManifest());
@@ -398,7 +398,7 @@ suite('PromptsSync', () => {
 		assertPreviews(testObject.conflicts.conflicts, [local]);
 	});
 
-	test('sync updating a prompts - resolve conflict', async () => {
+	test('sync updating a prompt - resolve conflict', async () => {
 		await updatePrompt('advanced.prompt.md', PROMPT3_TEXT, client2);
 		await client2.sync();
 		await testObject.sync(await testClient.getResourceManifest());
@@ -423,7 +423,7 @@ suite('PromptsSync', () => {
 		assert.deepStrictEqual(actual, { 'advanced.prompt.md': PROMPT4_TEXT });
 	});
 
-	test('sync removing a prompts', async () => {
+	test('sync removing a prompt', async () => {
 		await updatePrompt('another.prompt.md', PROMPT3_TEXT, testClient);
 		await updatePrompt('chat.prompt.md', PROMPT1_TEXT, testClient);
 		await testObject.sync(await testClient.getResourceManifest());
@@ -446,6 +446,152 @@ suite('PromptsSync', () => {
 
 		const actual = parsePrompts(content);
 		assert.deepStrictEqual(actual, { 'chat.prompt.md': PROMPT1_TEXT });
+	});
+
+	test('sync removing a prompt - accept', async () => {
+		await updatePrompt('my-query.prompt.md', PROMPT3_TEXT, client2);
+		await updatePrompt('summarize.prompt.md', PROMPT1_TEXT, client2);
+		await client2.sync();
+		await testObject.sync(await testClient.getResourceManifest());
+
+		await removePrompt('my-query.prompt.md', client2);
+		await client2.sync();
+
+		await testObject.sync(await testClient.getResourceManifest());
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const actual1 = await readPrompt('summarize.prompt.md', testClient);
+		assert.strictEqual(actual1, PROMPT1_TEXT);
+		const actual2 = await readPrompt('my-query.prompt.md', testClient);
+		assert.strictEqual(actual2, null);
+	});
+
+	test('sync removing a prompt locally and updating it remotely', async () => {
+		await updatePrompt('some.prompt.md', PROMPT3_TEXT, client2);
+		await updatePrompt('important.prompt.md', PROMPT1_TEXT, client2);
+		await client2.sync();
+		await testObject.sync(await testClient.getResourceManifest());
+
+		await updatePrompt('some.prompt.md', PROMPT4_TEXT, client2);
+		await client2.sync();
+
+		await removePrompt('some.prompt.md', testClient);
+		await testObject.sync(await testClient.getResourceManifest());
+
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const actual1 = await readPrompt('important.prompt.md', testClient);
+		assert.strictEqual(actual1, PROMPT1_TEXT);
+		const actual2 = await readPrompt('some.prompt.md', testClient);
+		assert.strictEqual(actual2, PROMPT4_TEXT);
+	});
+
+	test('sync removing a prompt - conflict', async () => {
+		await updatePrompt('common.prompt.md', PROMPT3_TEXT, client2);
+		await updatePrompt('rare.prompt.md', PROMPT1_TEXT, client2);
+		await client2.sync();
+		await testObject.sync(await testClient.getResourceManifest());
+
+		await removePrompt('common.prompt.md', client2);
+		await client2.sync();
+
+		await updatePrompt('common.prompt.md', PROMPT4_TEXT, testClient);
+		await testObject.sync(await testClient.getResourceManifest());
+
+		assert.strictEqual(testObject.status, SyncStatus.HasConflicts);
+		const environmentService = testClient.instantiationService.get(IEnvironmentService);
+		const local = joinPath(environmentService.userDataSyncHome, testObject.resource, PREVIEW_DIR_NAME, 'common.prompt.md');
+		assertPreviews(testObject.conflicts.conflicts, [local]);
+	});
+
+	test('sync removing a prompt - resolve conflict', async () => {
+		await updatePrompt('uncommon.prompt.md', PROMPT3_TEXT, client2);
+		await updatePrompt('hot.prompt.md', PROMPT1_TEXT, client2);
+		await client2.sync();
+		await testObject.sync(await testClient.getResourceManifest());
+
+		await removePrompt('uncommon.prompt.md', client2);
+		await client2.sync();
+
+		await updatePrompt('uncommon.prompt.md', PROMPT4_TEXT, testClient);
+		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.accept(testObject.conflicts.conflicts[0].previewResource, PROMPT5_TEXT);
+		await testObject.apply(false);
+
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const actual1 = await readPrompt('hot.prompt.md', testClient);
+		assert.strictEqual(actual1, PROMPT1_TEXT);
+		const actual2 = await readPrompt('uncommon.prompt.md', testClient);
+		assert.strictEqual(actual2, PROMPT5_TEXT);
+
+		const { content } = await testClient.read(testObject.resource);
+		assertDefined(
+			content,
+			'Test object content must be defined.',
+		);
+
+		const actual = parsePrompts(content);
+		assert.deepStrictEqual(actual, { 'hot.prompt.md': PROMPT1_TEXT, 'uncommon.prompt.md': PROMPT5_TEXT });
+	});
+
+	test('sync removing a prompt - resolve conflict by removing', async () => {
+		await updatePrompt('prompt3.prompt.md', PROMPT3_TEXT, client2);
+		await updatePrompt('refactor.prompt.md', PROMPT1_TEXT, client2);
+		await client2.sync();
+		await testObject.sync(await testClient.getResourceManifest());
+
+		await removePrompt('prompt3.prompt.md', client2);
+		await client2.sync();
+
+		await updatePrompt('prompt3.prompt.md', PROMPT4_TEXT, testClient);
+		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.accept(testObject.conflicts.conflicts[0].previewResource, null);
+		await testObject.apply(false);
+
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const actual1 = await readPrompt('refactor.prompt.md', testClient);
+		assert.strictEqual(actual1, PROMPT1_TEXT);
+		const actual2 = await readPrompt('prompt3.prompt.md', testClient);
+		assert.strictEqual(actual2, null);
+
+		const { content } = await testClient.read(testObject.resource);
+		assertDefined(
+			content,
+			'Test object content must be defined.',
+		);
+
+		const actual = parsePrompts(content);
+		assert.deepStrictEqual(actual, { 'refactor.prompt.md': PROMPT1_TEXT });
+	});
+
+	test('sync prompts', async () => {
+		await updatePrompt('first.prompt.md', PROMPT6_TEXT, client2);
+		await updatePrompt('roaming.prompt.md', PROMPT3_TEXT, client2);
+		await client2.sync();
+
+		await testObject.sync(await testClient.getResourceManifest());
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const actual1 = await readPrompt('roaming.prompt.md', testClient);
+		assert.strictEqual(actual1, PROMPT3_TEXT);
+		const actual2 = await readPrompt('first.prompt.md', testClient);
+		assert.strictEqual(actual2, PROMPT6_TEXT);
+
+		const { content } = await testClient.read(testObject.resource);
+		assertDefined(
+			content,
+			'Test object content must be defined.',
+		);
+
+		const actual = parsePrompts(content);
+		assert.deepStrictEqual(actual, { 'roaming.prompt.md': PROMPT3_TEXT, 'first.prompt.md': PROMPT6_TEXT });
 	});
 
 	function parsePrompts(content: string): IStringDictionary<string> {
