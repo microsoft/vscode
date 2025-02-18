@@ -3215,13 +3215,11 @@ export interface IEditorMinimapOptions {
 	 * Whether to show MARK: comments as section headers. Defaults to true.
 	 */
 	showMarkSectionHeaders?: boolean;
-
 	/**
 	 * When specified, is used to create a custom section header parser regexp.
 	 * It must contain a match group that detects the header
 	 */
-	sectionHeaderDetectionRegExp?: string;
-
+	markSectionRegex?: string;
 	/**
 	 * Font size of section headers. Defaults to 9.
 	 */
@@ -3251,7 +3249,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			scale: 1,
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
-			sectionHeaderDetectionRegExp: '\\bMARK:\\s*(?<separator>\-?)\\s*(?<label>.*)$',
+			markSectionRegex: '\\bMARK:\\s*(?<separator>\-?)\\s*(?<label>.*)$',
 			sectionHeaderFontSize: 9,
 			sectionHeaderLetterSpacing: 1,
 		};
@@ -3319,10 +3317,10 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					default: defaults.showMarkSectionHeaders,
 					description: nls.localize('minimap.showMarkSectionHeaders', "Controls whether MARK: comments are shown as section headers in the minimap.")
 				},
-				'editor.minimap.sectionHeaderDetectionRegExp': {
+				'editor.minimap.markSectionRegex': {
 					type: 'string',
-					default: defaults.sectionHeaderDetectionRegExp,
-					description: nls.localize('minimap.sectionHeaderDetectionRegExp', "Defines the regular expression used to find section headers in comments. It must contain a named match group `label` (written as `(?<label>.+)`) that encapsulates the section header, otherwise it will not work. Optionally you can include another match group named `separator`, if this match group captures anything then the separation line will be rendered. And keep in mind that the expression takes the whole line so it is advised to use `$`, and don't include the language's comment sign (say `//` for TypeScript, `#` for Python) if you intend for it to work in all languages.")
+					default: defaults.markSectionRegex,
+					description: nls.localize('minimap.markSectionRegex', "Defines the regular expression used to find section headers in comments. It must contain a named match group `label` (written as `(?<label>.+)`) that encapsulates the section header, otherwise it will not work. Optionally you can include another match group named `separator`, if this match group captures anything then the separation line will be rendered. And keep in mind that the expression takes the whole line so it is advised to use `$`, and don't include the language's comment sign (say `//` for TypeScript, `#` for Python) if you intend for it to work in all languages.")
 				},
 				'editor.minimap.sectionHeaderFontSize': {
 					type: 'number',
@@ -3333,7 +3331,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'number',
 					default: defaults.sectionHeaderLetterSpacing,
 					description: nls.localize('minimap.sectionHeaderLetterSpacing', "Controls the amount of space (in pixels) between characters of section header. This helps the readability of the header in small font sizes.")
-				},
+				}
 			}
 		);
 	}
@@ -3344,15 +3342,15 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 		}
 		const input = _input as IEditorMinimapOptions;
 
-		// validating the sectionHeaderDetectionRegExp's regexps
+		// validating the markSectionRegex's regexps
 		// we test if the children are string and can be compiled as
 		// regular expressions.
-		let sectionHeaderDetectionRegExp = this.defaultValue.sectionHeaderDetectionRegExp;
-		const inputRegExp = _input.sectionHeaderDetectionRegExp;
-		if (typeof inputRegExp == 'string') {
+		let markSectionRegex = this.defaultValue.markSectionRegex;
+		const inputRegex = _input.markSectionRegex;
+		if (typeof inputRegex === 'string') {
 			try {
-				new RegExp(inputRegExp as string);
-				sectionHeaderDetectionRegExp = inputRegExp as string;
+				new RegExp(inputRegex, 'd');
+				markSectionRegex = inputRegex;
 			} catch { }
 		}
 
@@ -3367,7 +3365,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 			showRegionSectionHeaders: boolean(input.showRegionSectionHeaders, this.defaultValue.showRegionSectionHeaders),
 			showMarkSectionHeaders: boolean(input.showMarkSectionHeaders, this.defaultValue.showMarkSectionHeaders),
-			sectionHeaderDetectionRegExp: sectionHeaderDetectionRegExp,
+			markSectionRegex: markSectionRegex,
 			sectionHeaderFontSize: EditorFloatOption.clamp(input.sectionHeaderFontSize ?? this.defaultValue.sectionHeaderFontSize, 4, 32),
 			sectionHeaderLetterSpacing: EditorFloatOption.clamp(input.sectionHeaderLetterSpacing ?? this.defaultValue.sectionHeaderLetterSpacing, 0, 5),
 		};
@@ -6376,7 +6374,6 @@ export const EditorOptions = {
 			],
 			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
 		}
-
 	)),
 	wordSegmenterLocales: register(new WordSegmenterLocales()),
 	wordSeparators: register(new EditorStringOption(

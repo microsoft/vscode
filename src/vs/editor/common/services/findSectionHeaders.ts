@@ -13,9 +13,9 @@ export interface ISectionHeaderFinderTarget {
 
 export interface FindSectionHeaderOptions {
 	foldingRules?: FoldingRules;
-	sectionHeaderDetectionRegExp: RegExp;
 	findRegionSectionHeaders: boolean;
 	findMarkSectionHeaders: boolean;
+	markSectionRegex: RegExp;
 }
 
 export interface SectionHeader {
@@ -36,7 +36,6 @@ export interface SectionHeader {
 	 */
 	shouldBeInComments: boolean;
 }
-
 
 const trimDashesRegex = /^-+|-+$/g;
 
@@ -94,8 +93,8 @@ function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: FindSect
 }
 
 function addMarkHeaderIfFound(lineContent: string, lineNumber: number, sectionHeaders: SectionHeader[], options: FindSectionHeaderOptions) {
-	options.sectionHeaderDetectionRegExp.lastIndex = 0;
-	const match = options.sectionHeaderDetectionRegExp.exec(lineContent);
+	options.markSectionRegex.lastIndex = 0;
+	const match = options.markSectionRegex.exec(lineContent);
 	if (match) {
 		const column = match.indices![1][0] + 1;
 		const endColumn = match.indices![1][1] + 1;
