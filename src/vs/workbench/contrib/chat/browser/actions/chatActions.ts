@@ -586,9 +586,9 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 	}
 });
 
-export class ChatTitleBarMenuRendering extends Disposable implements IWorkbenchContribution {
+export class CopilotTitleBarMenuRendering extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.titleBarMenuRendering';
+	static readonly ID = 'copilot.titleBarMenuRendering';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -607,7 +607,7 @@ export class ChatTitleBarMenuRendering extends Disposable implements IWorkbenchC
 			}
 
 			const dropdownAction = toAction({
-				id: 'chat.titleBarMenu.more',
+				id: 'copilot.titleBarMenuRendering.more',
 				label: localize('more', "More..."),
 				run() { }
 			});
