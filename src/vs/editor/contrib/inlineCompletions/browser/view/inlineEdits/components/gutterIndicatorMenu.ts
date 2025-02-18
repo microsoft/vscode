@@ -21,13 +21,13 @@ import { IKeybindingService } from '../../../../../../../platform/keybinding/com
 import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, togglePressToRevealId } from '../../../controller/commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
 import { IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { FirstFnArg, InlineEditTabAction } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
 
-	private readonly _inlineEditsPressToReveal = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.pressToReveal);
+	private readonly _inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 
 	constructor(
 		private readonly _host: IInlineEditsViewHost,
@@ -70,9 +70,9 @@ export class GutterIndicatorMenuContent {
 			})),
 			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: hideInlineCompletionId })),
 			separator(),
-			this._inlineEditsPressToReveal.map(pressToReveal => pressToReveal ?
-				option(createOptionArgs({ id: 'alwaysReveal', title: localize('alwaysReveal', "Always Reveal"), icon: Codicon.expandAll, commandId: togglePressToRevealId })) :
-				option(createOptionArgs({ id: 'pressToReveal', title: localize('pressToReveal', "Press to Reveal"), icon: Codicon.collapseAll, commandId: togglePressToRevealId }))
+			this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
+				option(createOptionArgs({ id: 'showExpanded', title: localize('showExpanded', "Show Expanded"), icon: Codicon.expandAll, commandId: toggleShowCollapsedId })) :
+				option(createOptionArgs({ id: 'showCollapsed', title: localize('showCollapsed', "Show Collapsed"), icon: Codicon.collapseAll, commandId: toggleShowCollapsedId }))
 			),
 			this._host.extensionCommands?.map(c => c && c.length > 0 ? [
 				...c.map(c => option(createOptionArgs({ id: c.id, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments }))),

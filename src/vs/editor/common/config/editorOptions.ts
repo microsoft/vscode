@@ -4231,7 +4231,7 @@ export interface IInlineSuggestOptions {
 
 		renderSideBySide?: 'never' | 'auto';
 
-		pressToReveal?: boolean;
+		showCollapsed?: boolean;
 
 		/**
 		* @internal
@@ -4280,7 +4280,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			syntaxHighlightingEnabled: false,
 			edits: {
 				enabled: true,
-				pressToReveal: false,
+				showCollapsed: false,
 				useMixedLinesDiff: 'forStableInsertions',
 				useInterleavedLinesDiff: 'never',
 				renderSideBySide: 'auto',
@@ -4347,10 +4347,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					],
 					tags: ['nextEditSuggestions']
 				},
-				'editor.inlineSuggest.edits.pressToReveal': {
+				'editor.inlineSuggest.edits.showCollapsed': {
 					type: 'boolean',
-					default: defaults.edits.pressToReveal,
-					description: nls.localize('inlineSuggest.edits.pressToReveal', "Controls whether the suggestion will always reveal or after jumping to it."),
+					default: defaults.edits.showCollapsed,
+					description: nls.localize('inlineSuggest.edits.showCollapsed', "Controls whether the suggestion will show as collapsed until jumping to it."),
 					tags: ['nextEditSuggestions']
 				},
 				/* 'editor.inlineSuggest.edits.useMultiLineGhostText': {
@@ -4388,7 +4388,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 			edits: {
 				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
-				pressToReveal: boolean(input.edits?.pressToReveal, this.defaultValue.edits.pressToReveal),
+				showCollapsed: boolean(input.edits?.showCollapsed, this.defaultValue.edits.showCollapsed),
 				useMixedLinesDiff: stringSet(input.edits?.useMixedLinesDiff, this.defaultValue.edits.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
 				codeShifting: boolean(input.edits?.codeShifting, this.defaultValue.edits.codeShifting),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
