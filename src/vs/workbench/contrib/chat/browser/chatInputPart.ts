@@ -1185,16 +1185,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
-		if (!chatEditingSession || !this.options.renderWorkingSet) {
-			dom.clearNode(this.chatEditingSessionWidgetContainer);
-			this._chatEditsDisposables.clear();
-			this._chatEditList = undefined;
-			this._combinedChatEditWorkingSetEntries = [];
-			return;
-		}
-
-		// Summary of number of files changed
-		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
 		const seenEntries = new ResourceSet();
 		const entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
 			seenEntries.add(entry.modifiedURI);
@@ -1205,6 +1195,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			};
 		}) ?? [];
 
+		if (!chatEditingSession || !this.options.renderWorkingSet || !entries.length) {
+			dom.clearNode(this.chatEditingSessionWidgetContainer);
+			this._chatEditsDisposables.clear();
+			this._chatEditList = undefined;
+			this._combinedChatEditWorkingSetEntries = [];
+			return;
+		}
+
+		// Summary of number of files changed
+		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
 		for (const [file, metadata] of chatEditingSession.workingSet.entries()) {
 			if (!seenEntries.has(file) && metadata.state !== WorkingSetEntryState.Suggested) {
 				entries.unshift({
