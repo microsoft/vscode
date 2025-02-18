@@ -607,7 +607,7 @@ export class ChatTitleBarMenuRendering extends Disposable implements IWorkbenchC
 			}
 
 			const dropdownAction = toAction({
-				id: 'chat.commandCenter.more',
+				id: 'chat.titleBarMenu.more',
 				label: localize('more', "More..."),
 				run() { }
 			});
