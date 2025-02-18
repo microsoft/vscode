@@ -95,13 +95,3 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 	return result;
 }
 
-export function generateDetailAndDocs(description?: string, args?: string): { detail?: string; documentation?: string; description?: string } {
-	let detail, documentation = '';
-	const firstSentence = (text: string): string => text.split('. ')[0] + '.';
-	if (description) {
-		description = firstSentence(description);
-		detail = args;
-		documentation = description;
-	}
-	return { detail, documentation, description };
-}

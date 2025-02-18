@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
-import { execHelper, generateDetailAndDocs, getAliasesHelper } from './common';
+import { execHelper, getAliasesHelper } from './common';
 
 export async function getBashGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
@@ -64,4 +64,15 @@ export async function getBuiltins(
 	}
 
 	return completions;
+}
+
+export function generateDetailAndDocs(description?: string, args?: string): { detail?: string; documentation?: string; description?: string } {
+	let detail, documentation = '';
+	const firstSentence = (text: string): string => text.split('. ')[0] + '.';
+	if (description) {
+		description = firstSentence(description);
+		detail = args;
+		documentation = description;
+	}
+	return { detail, documentation, description };
 }

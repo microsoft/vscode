@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
-import { execHelper, generateDetailAndDocs, getAliasesHelper } from './common';
+import { execHelper, getAliasesHelper } from './common';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -43,11 +43,10 @@ async function getBuiltins(
 		if (typeof cmd === 'string') {
 			try {
 				const result = getCommandDescription(cmd);
-				const { detail, documentation, description } = generateDetailAndDocs(result?.description, result?.args);
 				completions.push({
-					label: { label: cmd, description },
-					detail,
-					documentation,
+					label: { label: cmd, description: result?.description },
+					detail: result?.args,
+					documentation: result?.documentation,
 					kind: vscode.TerminalCompletionItemKind.Method
 				});
 
@@ -65,7 +64,7 @@ async function getBuiltins(
 	return completions;
 }
 
-export function getCommandDescription(command: string): { description: string; args: string | undefined } | undefined {
+export function getCommandDescription(command: string): { documentation?: string; description: string; args: string | undefined } | undefined {
 	if (!zshBuiltinsCommandDescriptionsCache) {
 		const cacheFilePath = path.join(__dirname, 'zshBuiltinsCache.json');
 		if (fs.existsSync(cacheFilePath)) {
@@ -85,6 +84,7 @@ export function getCommandDescription(command: string): { description: string; a
 		return {
 			description: result.shortDescription,
 			args: result.args,
+			documentation: result.description
 		};
 	}
 	return result;
