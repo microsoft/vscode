@@ -34,6 +34,8 @@ ShowLanguageDialog=auto
 ArchitecturesAllowed={#ArchitecturesAllowed}
 ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
 WizardStyle=modern
+ASLRCompatible=yes
+DEPCompatible=yes
 
 // We've seen an uptick on broken installations from updates which were unable
 // to shutdown VS Code. We rely on the fact that the update signals
