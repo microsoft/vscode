@@ -320,6 +320,9 @@ export class Workbench extends Layout {
 
 		this.mainContainer.classList.add(...workbenchClasses);
 
+		// Needed for issue reporter aux window.
+		mainWindow.document.body.classList.add(platformClass);
+
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
 
