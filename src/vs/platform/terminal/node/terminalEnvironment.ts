@@ -91,8 +91,10 @@ export function getShellIntegrationInjection(
 	const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631;
 
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
-		if (isWindows && enableWindowsEnvReporting) {
-			envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+		if (isWindows) {
+			if (enableWindowsEnvReporting) {
+				envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+			}
 		} else {
 			envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
 		}
