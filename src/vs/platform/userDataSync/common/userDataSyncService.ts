@@ -862,15 +862,14 @@ class ProfileSynchronizer extends Disposable {
 			case SyncResource.Settings: return 0;
 			case SyncResource.Keybindings: return 1;
 			case SyncResource.Snippets: return 2;
-			case SyncResource.Prompts: return 3; // TODO: @legomushroom - is this is the correct order?
-			case SyncResource.Tasks: return 4;
-			case SyncResource.GlobalState: return 5;
-			case SyncResource.Extensions: return 6;
-			case SyncResource.Profiles: return 7;
-			case SyncResource.WorkspaceState: return 8;
+			case SyncResource.Tasks: return 3;
+			case SyncResource.GlobalState: return 4;
+			case SyncResource.Extensions: return 5;
+			case SyncResource.Profiles: return 6;
+			case SyncResource.WorkspaceState: return 7;
+			case SyncResource.Prompts: return 8;
 		}
 	}
-
 }
 
 function canBailout(e: any): boolean {

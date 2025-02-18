@@ -32,6 +32,10 @@ export function parsePrompts(syncData: ISyncData): IStringDictionary<string> {
 	return JSON.parse(syncData.content);
 }
 
+/**
+ * Synchronizer class for the global prompt files.
+ * Adopted from {@link SnippetsSynchroniser}.
+ */
 export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	protected readonly version: number = 1;
@@ -51,7 +55,22 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super({ syncResource: SyncResource.Prompts, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncLocalStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		const syncResource = { syncResource: SyncResource.Prompts, profile };
+		super(
+			syncResource,
+			collection,
+			fileService,
+			environmentService,
+			storageService,
+			userDataSyncStoreService,
+			userDataSyncLocalStoreService,
+			userDataSyncEnablementService,
+			telemetryService,
+			logService,
+			configurationService,
+			uriIdentityService,
+		);
+
 		this.promptsFolder = profile.promptsHome;
 		this._register(this.fileService.watch(environmentService.userRoamingDataHome));
 		this._register(this.fileService.watch(this.promptsFolder));
@@ -497,7 +516,6 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		for (const entry of stat.children || []) {
 			const resource = entry.resource;
 
-			// TODO: @legomushroom - use common constant
 			if (!resource.path.endsWith('.prompt.md')) {
 				continue;
 			}
