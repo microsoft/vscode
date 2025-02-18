@@ -342,6 +342,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
 	}
 
+	private _wasLastInputRightArrowKey(): boolean {
+		return !!this._lastUserData?.match(/^\x1b[\[O]?C$/);
+	}
+
 	private _wasLastInputVerticalArrowKey(): boolean {
 		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-B]$/);
 	}
@@ -428,6 +432,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					}
 				}
 			}
+		}
+
+		// Hide the widget if ghost text was just completed via right arrow
+		if (
+			this._wasLastInputRightArrowKey() &&
+			this._mostRecentPromptInputState?.ghostTextIndex !== -1 &&
+			promptInputState.ghostTextIndex === -1 &&
+			this._mostRecentPromptInputState?.value === promptInputState.value
+		) {
+			this.hideSuggestWidget(false);
 		}
 
 		this._mostRecentPromptInputState = promptInputState;
