@@ -79,6 +79,8 @@ export interface IStreamingEdits {
 	complete(): void;
 }
 
+export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
+
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
@@ -97,7 +99,12 @@ export interface IChatEditingSession extends IDisposable {
 	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
 
 	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
-	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
+
+	/**
+	 * Gets the snapshot URI of a file at the request and _after_ changes made in the undo stop.
+	 * @param uri File in the workspace
+	 */
+	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined;
 
 	/**
 	 * Will lead to this object getting disposed
@@ -117,12 +124,27 @@ export interface IChatEditingSession extends IDisposable {
 	 * the next one.
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
-	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IDocumentDiff | undefined> | undefined;
+	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
+}
+
+export interface IEditSessionEntryDiff {
+	/** LHS and RHS of a diff editor, if opened: */
+	originalURI: URI;
+	modifiedURI: URI;
+
+	/** Diff state information: */
+	quitEarly: boolean;
+	identical: boolean;
+
+	/** Added data (e.g. line numbers) to show in the UI */
+	added: number;
+	/** Removed data (e.g. line numbers) to show in the UI */
+	removed: number;
 }
 
 export const enum WorkingSetEntryRemovalReason {
