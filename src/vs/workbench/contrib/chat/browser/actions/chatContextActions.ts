@@ -56,7 +56,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
-import { createDirectoryQuickPick } from '../contrib/chatDynamicVariables.js';
+import { createFolderQuickPick } from '../contrib/chatDynamicVariables.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -75,7 +75,7 @@ export function registerChatContextActions() {
  */
 type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem |
 	IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
-	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IPromptInstructionsQuickPickItem | IDirectoryQuickPickItem;
+	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IPromptInstructionsQuickPickItem | IFolderQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -97,10 +97,10 @@ function isISymbolQuickPickItem(obj: unknown): obj is ISymbolQuickPickItem {
 		&& !!(obj as ISymbolQuickPickItem).symbol);
 }
 
-function isIDirectorySearchResultQuickPickItem(obj: unknown): obj is IDirectoryResultQuickPickItem {
+function isIFolderSearchResultQuickPickItem(obj: unknown): obj is IFolderResultQuickPickItem {
 	return (
 		typeof obj === 'object'
-		&& (obj as IDirectoryResultQuickPickItem).kind === 'directory-search-result');
+		&& (obj as IFolderResultQuickPickItem).kind === 'folder-search-result');
 }
 
 function isIQuickPickItemWithResource(obj: unknown): obj is IQuickPickItemWithResource {
@@ -152,14 +152,14 @@ interface IRelatedFilesQuickPickItem extends IQuickPickItem {
 	label: string;
 }
 
-interface IDirectoryQuickPickItem extends IQuickPickItem {
-	kind: 'directory';
+interface IFolderQuickPickItem extends IQuickPickItem {
+	kind: 'folder';
 	id: string;
 	label: string;
 }
 
-interface IDirectoryResultQuickPickItem extends IQuickPickItem {
-	kind: 'directory-search-result';
+interface IFolderResultQuickPickItem extends IQuickPickItem {
+	kind: 'folder-search-result';
 	id: string;
 	resource: URI;
 }
@@ -490,12 +490,12 @@ export class AttachContextAction extends Action2 {
 					fullName: pick.label,
 					name: pick.symbol.name,
 				});
-			} else if (isIDirectorySearchResultQuickPickItem(pick)) {
-				const directory = pick.resource;
+			} else if (isIFolderSearchResultQuickPickItem(pick)) {
+				const folder = pick.resource;
 				toAttach.push({
 					id: pick.id,
-					value: directory,
-					name: basename(directory),
+					value: folder,
+					name: basename(folder),
 					isFile: false,
 					isDirectory: true,
 				});
@@ -758,10 +758,10 @@ export class AttachContextAction extends Action2 {
 			});
 
 			quickPickItems.push({
-				kind: 'directory',
-				label: localize('chatContext.directory', 'Directory...'),
+				kind: 'folder',
+				label: localize('chatContext.folder', 'Folder...'),
 				iconClass: ThemeIcon.asClassName(Codicon.folder),
-				id: 'directory',
+				id: 'folder',
 			});
 
 			if (widget.location === ChatAgentLocation.Notebook) {
@@ -837,13 +837,13 @@ export class AttachContextAction extends Action2 {
 	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, instantiationService: IInstantiationService, query: string = '', placeholder?: string) {
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			handleAccept: async (item: IChatContextQuickPickItem, isBackgroundAccept: boolean) => {
-				if ('kind' in item && item.kind === 'directory') {
-					const directoryItem = await this._showDirectories(instantiationService);
-					if (!directoryItem) {
+				if ('kind' in item && item.kind === 'folder') {
+					const folderItem = await this._showFolders(instantiationService);
+					if (!folderItem) {
 						this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', placeholder);
 						return;
 					}
-					item = directoryItem;
+					item = folderItem;
 				}
 
 				if ('prefix' in item) {
@@ -916,17 +916,17 @@ export class AttachContextAction extends Action2 {
 		});
 	}
 
-	private async _showDirectories(instantiationService: IInstantiationService): Promise<IDirectoryResultQuickPickItem | undefined> {
-		const directory = await instantiationService.invokeFunction(accessor => createDirectoryQuickPick(accessor));
-		if (!directory) {
+	private async _showFolders(instantiationService: IInstantiationService): Promise<IFolderResultQuickPickItem | undefined> {
+		const folder = await instantiationService.invokeFunction(accessor => createFolderQuickPick(accessor));
+		if (!folder) {
 			return undefined;
 		}
 
 		return {
-			kind: 'directory-search-result',
-			id: directory.toString(),
-			label: basename(directory),
-			resource: directory,
+			kind: 'folder-search-result',
+			id: folder.toString(),
+			label: basename(folder),
+			resource: folder,
 		};
 	}
 }
