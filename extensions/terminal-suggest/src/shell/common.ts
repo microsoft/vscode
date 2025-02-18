@@ -95,15 +95,13 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 	return result;
 }
 
-export function generateDetailAndDocs(description?: string, args?: string): { detail?: string; documentation?: string } {
+export function generateDetailAndDocs(description?: string, args?: string): { detail?: string; documentation?: string; description?: string } {
 	let detail, documentation = '';
 	const firstSentence = (text: string): string => text.split('. ')[0] + '.';
-	const lengthOfInfo = (description?.length || 0) + (args?.length || 0);
-	if (lengthOfInfo > 50 && description) {
-		detail = args ? [firstSentence(description), args].join('\n') : firstSentence(description);
+	if (description) {
+		description = firstSentence(description);
+		detail = args;
 		documentation = description;
-	} else if (description) {
-		detail = args ? [description, args].join('\n') : description;
 	}
-	return { detail, documentation };
+	return { detail, documentation, description };
 }

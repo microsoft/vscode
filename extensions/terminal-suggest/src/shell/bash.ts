@@ -42,11 +42,11 @@ export async function getBuiltins(
 				const helpOutput = (await execHelper(`help ${cmd}`, options))?.trim();
 				const helpLines = helpOutput?.split('\n');
 				//TODO: This still has some extra spaces in it
-				const description = helpLines.splice(1).map(line => line.trim()).join('');
+				const outputDescription = helpLines.splice(1).map(line => line.trim()).join('');
 				const args = helpLines?.[0]?.split(' ').slice(1).join(' ').trim();
-				const { detail, documentation } = generateDetailAndDocs(description, args);
+				const { detail, documentation, description } = generateDetailAndDocs(outputDescription, args);
 				completions.push({
-					label: { label: cmd, description: detail },
+					label: { label: cmd, description },
 					detail,
 					documentation,
 					kind: vscode.TerminalCompletionItemKind.Method

@@ -43,9 +43,9 @@ async function getBuiltins(
 		if (typeof cmd === 'string') {
 			try {
 				const result = getCommandDescription(cmd);
-				const { detail, documentation } = generateDetailAndDocs(result?.description, result?.args);
+				const { detail, documentation, description } = generateDetailAndDocs(result?.description, result?.args);
 				completions.push({
-					label: { label: cmd, description: detail },
+					label: { label: cmd, description },
 					detail,
 					documentation,
 					kind: vscode.TerminalCompletionItemKind.Method
