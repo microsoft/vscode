@@ -468,12 +468,21 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	 * @param lineNumber
 	 * @returns
 	 */
-	public tokenizeEncoded(lineNumber: number, textModel: ITextModel): Uint32Array | undefined {
-		return this._tokenizeEncoded(lineNumber, textModel)?.result;
+	public tokenizeEncoded(lineNumber: number, textModel: ITextModel) {
+		const tokens = this._tokenizeEncoded(lineNumber, textModel);
+		if (!tokens) {
+			return undefined;
+		}
+		const updates = this._rangeTokensAsUpdates(textModel.getOffsetAt({ lineNumber, column: 1 }), tokens.result);
+		this._tokenizationStoreService.updateTokens(textModel, textModel.getVersionId(), [{ newTokens: updates, oldRangeLength: textModel.getLineLength(lineNumber) }], TokenQuality.Accurate);
 	}
 
 	public tokenizeEncodedInstrumented(lineNumber: number, textModel: ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined {
-		return this._tokenizeEncoded(lineNumber, textModel);
+		const tokens = this._tokenizeEncoded(lineNumber, textModel);
+		if (!tokens) {
+			return undefined;
+		}
+		return { result: this._endOffsetTokensToUint32Array(tokens.result), captureTime: tokens.captureTime, metadataTime: tokens.metadataTime };
 	}
 
 	private _getTreeAndCaptures(range: Range, textModel: ITextModel): { tree: ITreeSitterParseResult | undefined; captures: QueryCapture[] } {
@@ -634,7 +643,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return findMetadata(this._colorThemeData, [], encodedLanguageId, false);
 	}
 
-	private _tokenizeEncoded(lineNumber: number, textModel: ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined {
+	private _tokenizeEncoded(lineNumber: number, textModel: ITextModel): { result: EndOffsetToken[]; captureTime: number; metadataTime: number } | undefined {
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 		const lineOffset = textModel.getOffsetAt({ lineNumber: lineNumber, column: 1 });
 		const maxLine = textModel.getLineCount();
@@ -645,16 +654,17 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		if (!result) {
 			return undefined;
 		}
+		return { result: result.endOffsetsAndMetadata, captureTime: result.captureTime, metadataTime: result.metadataTime };
+	}
 
-		const tokens: Uint32Array = new Uint32Array((result.endOffsetsAndMetadata.length) * 2);
+	private _endOffsetTokensToUint32Array(endOffsetsAndMetadata: EndOffsetToken[]): Uint32Array {
 
-		for (let i = 0; i < result.endOffsetsAndMetadata.length; i++) {
-			const token = result.endOffsetsAndMetadata[i];
-			tokens[i * 2] = token.endOffset;
-			tokens[i * 2 + 1] = token.metadata;
+		const uint32Array = new Uint32Array(endOffsetsAndMetadata.length * 2);
+		for (let i = 0; i < endOffsetsAndMetadata.length; i++) {
+			uint32Array[i * 2] = endOffsetsAndMetadata[i].endOffset;
+			uint32Array[i * 2 + 1] = endOffsetsAndMetadata[i].metadata;
 		}
-
-		return { result: tokens, captureTime: result.captureTime, metadataTime: result.metadataTime };
+		return uint32Array;
 	}
 
 	override dispose() {
