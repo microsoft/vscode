@@ -128,10 +128,12 @@ export class NotebookModelSynchronizer extends Disposable {
 				snapshotCreated = true;
 			}
 
+			// TODO@DonJayamanne FIX ME, don't use `modifiedModel`
 			const modifiedModel = (entry as ChatEditingModifiedFileEntry).modifiedModel;
 			let cancellationToken = store.add(new CancellationTokenSource());
 			store.add(modifiedModel.onDidChangeContent(async () => {
-				if (!this.isTextEditFromUs && !modifiedModel.isDisposed() && !entry.originalModel.isDisposed() && modifiedModel.getValue() !== entry.originalModel.getValue()) {
+				// TODO@DonJayamanne FIX ME, don't use `originalModel`
+				if (!this.isTextEditFromUs && !modifiedModel.isDisposed() && !(entry as ChatEditingModifiedFileEntry).originalModel.isDisposed() && modifiedModel.getValue() !== (entry as ChatEditingModifiedFileEntry).originalModel.getValue()) {
 					cancellationToken = store.add(new CancellationTokenSource());
 					updateNotebookModel(entry, cancellationToken.token);
 				}

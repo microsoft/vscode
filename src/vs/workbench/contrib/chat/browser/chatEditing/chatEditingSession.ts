@@ -47,7 +47,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedFileEntry, IStreamingEdits, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement, IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
+import { AbstractChatEditingModifiedFileEntry, ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -628,7 +628,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private async _performStop(): Promise<void> {
 		// Close out all open files
-		const schemes = [ChatEditingModifiedFileEntry.scheme, ChatEditingTextModelContentProvider.scheme];
+		const schemes = [AbstractChatEditingModifiedFileEntry.scheme, ChatEditingTextModelContentProvider.scheme];
 		await Promise.allSettled(this._editorGroupsService.groups.flatMap(async (g) => {
 			return g.editors.map(async (e) => {
 				if ((e instanceof MultiDiffEditorInput && e.initialResources?.some(r => r.originalUri && schemes.indexOf(r.originalUri.scheme) !== -1))

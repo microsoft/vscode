@@ -11,7 +11,6 @@ import { IObservable, IReader, ITransaction } from '../../../../base/common/obse
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -203,7 +202,6 @@ export interface IModifiedFileEntryEditorIntegration extends IDisposable {
 export interface IModifiedFileEntry {
 	readonly entryId: string;
 	readonly originalURI: URI;
-	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 
 	readonly lastModifyingRequestId: string;
@@ -212,11 +210,13 @@ export interface IModifiedFileEntry {
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 
+	/**
+	 * @deprecated
+	 */
 	readonly diffInfo: IObservable<IDocumentDiff>;
 
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
-
 
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
