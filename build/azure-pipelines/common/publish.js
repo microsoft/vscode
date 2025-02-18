@@ -587,7 +587,13 @@ async function main() {
     for (const name of done) {
         console.log(`\u2705 ${name}`);
     }
-    const stages = new Set(['Compile', 'CompileCLI']);
+    const stages = new Set(['Compile']);
+    if (e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
+        e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
+        e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
+        e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') {
+        stages.add('CompileCLI');
+    }
     if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') {
         stages.add('Windows');
     }

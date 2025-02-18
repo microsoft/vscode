@@ -931,7 +931,17 @@ async function main() {
 		console.log(`\u2705 ${name}`);
 	}
 
-	const stages = new Set<string>(['Compile', 'CompileCLI']);
+	const stages = new Set<string>(['Compile']);
+
+	if (
+		e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
+		e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
+		e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
+		e('VSCODE_BUILD_STAGE_WINDOWS') === 'True'
+	) {
+		stages.add('CompileCLI');
+	}
+
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER') === 'True') { stages.add('LinuxLegacyServer'); }
