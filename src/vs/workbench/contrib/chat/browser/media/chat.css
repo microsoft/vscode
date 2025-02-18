@@ -1124,7 +1124,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-attached-context {
 	padding: 4px 0 0 0;
 	display: flex;
-	gap: 4px;
 	flex-wrap: wrap;
 	cursor: default;
 }
