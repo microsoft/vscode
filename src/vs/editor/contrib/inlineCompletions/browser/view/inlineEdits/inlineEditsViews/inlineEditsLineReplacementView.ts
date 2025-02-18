@@ -264,7 +264,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		})
 	]).keepUpdated(this._store);
 
-	readonly isHovered = this._div.isHovered;
+	readonly isHovered = this._div.didMouseMoveDuringHover;
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,

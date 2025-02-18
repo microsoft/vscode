@@ -7142,6 +7142,10 @@ declare namespace monaco.languages {
 		 * A command that should be run upon acceptance of this item.
 		 */
 		command?: Command;
+		/**
+		 * A command that should be run upon acceptance of this item.
+		 */
+		action?: Command;
 	}
 
 	export interface CompletionList {
@@ -7283,6 +7287,7 @@ declare namespace monaco.languages {
 		*/
 		readonly range?: IRange;
 		readonly command?: Command;
+		readonly action?: Command;
 		/**
 		 * Is called the first time an inline completion is shown.
 		*/
@@ -8176,6 +8181,7 @@ declare namespace monaco.languages {
 		rejected?: Command;
 		shown?: Command;
 		commands?: Command[];
+		action?: Command;
 	}
 
 	export interface IInlineEditContext {

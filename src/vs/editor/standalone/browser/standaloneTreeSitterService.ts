@@ -13,6 +13,9 @@ import { ITextModelTreeSitter, ITreeSitterParseResult, ITreeSitterParserService,
  * We use a dummy service here to make the build happy.
  */
 export class StandaloneTreeSitterParserService implements ITreeSitterParserService {
+	async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+		return undefined;
+	}
 	getTreeSync(content: string, languageId: string): Parser.Tree | undefined {
 		return undefined;
 	}
