@@ -10,7 +10,7 @@ import { ConfigurationChangedEvent, EditorOption } from '../config/editorOptions
 import { ScrollType } from '../editorCommon.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { LinesLayout } from './linesLayout.js';
-import { IEditorWhitespace, IPartialViewLinesViewportData, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
+import { IEditorWhitespace, IPartialViewLinesViewportData, ISpecialLineHeightChangeAccessor, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
 
 const SMOOTH_SCROLLING_TIME = 125;
@@ -202,14 +202,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._updateHeight();
 	}
 
-	public addSpecialLineHeight(lineNumber: number, height: number): void {
-		this._linesLayout.addSpecialLineHeight(lineNumber, height);
-	}
-
-	public removeSpecialLineHeight(lineNumber: number): void {
-		this._linesLayout.removeSpecialLineHeight(lineNumber);
-	}
-
 	private _configureSmoothScrollDuration(): void {
 		this._scrollable.setSmoothScrollDuration(this._configuration.options.get(EditorOption.smoothScrolling) ? SMOOTH_SCROLLING_TIME : 0);
 	}
@@ -390,6 +382,17 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		}
 		return hadAChange;
 	}
+
+	public changeSpecialLineHeights(callback: (accessor: ISpecialLineHeightChangeAccessor) => void): boolean {
+		// We call the changeWhitespace method
+		// If there was a change, then call onHeightMaybeChanged
+		const hadAChange = this._linesLayout.changeSpecialLineHeights(callback);
+		if (hadAChange) {
+			this.onHeightMaybeChanged();
+		}
+		return hadAChange;
+	}
+
 	public getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
 		return this._linesLayout.getVerticalOffsetForLineNumber(lineNumber, includeViewZones);
 	}

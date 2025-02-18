@@ -160,7 +160,7 @@ export interface ISpecialLineHeightChangeAccessor {
 
 	insertSpecialLineHeight(decoration: string, lineNumber: number, lineHeight: number): void;
 	changeSpecialLineHeight(decoration: string, lineNumber: number, lineHeight: number): void;
-	removeWhitespace(decoration: string): void;
+	removeSpecialLineHeight(decoration: string): void;
 }
 
 export interface IPartialViewLinesViewportData {
