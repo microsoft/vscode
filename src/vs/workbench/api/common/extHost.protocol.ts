@@ -2423,6 +2423,7 @@ export interface ITerminalCommandDto {
 export interface ITerminalCompletionContextDto {
 	commandLine: string;
 	cursorPosition: number;
+	allowFallbackCompletions: boolean;
 }
 
 

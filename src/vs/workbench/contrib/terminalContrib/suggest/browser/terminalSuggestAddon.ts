@@ -237,7 +237,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
+		const quickSuggestionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).quickSuggestions;
+		const allowFallbackCompletions = explicitlyInvoked || quickSuggestionsConfig === true || typeof quickSuggestionsConfig === 'object' && quickSuggestionsConfig.unknown === 'on';
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, allowFallbackCompletions, this.shellType, this._capabilities, token, doNotRequestExtensionCompletions);
 
 		if (token.isCancellationRequested) {
 			return;
@@ -340,6 +342,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
 	}
 
+	private _wasLastInputRightArrowKey(): boolean {
+		return !!this._lastUserData?.match(/^\x1b[\[O]?C$/);
+	}
+
 	private _wasLastInputVerticalArrowKey(): boolean {
 		return !!this._lastUserData?.match(/^\x1b[\[O]?[A-B]$/);
 	}
@@ -359,7 +365,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
 				// Quick suggestions - Trigger whenever a new non-whitespace character is used
 				if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
-					if (config.quickSuggestions) {
+					const commandLineHasSpace = promptInputState.prefix.trim().match(/\s/);
+					if (
+						(typeof config.quickSuggestions === 'boolean' && config.quickSuggestions) ||
+						(typeof config.quickSuggestions === 'object' && !commandLineHasSpace && config.quickSuggestions.commands !== 'off') ||
+						(typeof config.quickSuggestions === 'object' && commandLineHasSpace && config.quickSuggestions.arguments !== 'off')
+					) {
 						if (promptInputState.prefix.match(/[^\s]$/)) {
 							if (!this._wasLastInputArrowKey()) {
 								this.requestCompletions();
@@ -421,6 +432,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					}
 				}
 			}
+		}
+
+		// Hide the widget if ghost text was just completed via right arrow
+		if (
+			this._wasLastInputRightArrowKey() &&
+			this._mostRecentPromptInputState?.ghostTextIndex !== -1 &&
+			promptInputState.ghostTextIndex === -1 &&
+			this._mostRecentPromptInputState?.value === promptInputState.value
+		) {
+			this.hideSuggestWidget(false);
 		}
 
 		this._mostRecentPromptInputState = promptInputState;

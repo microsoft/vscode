@@ -1896,16 +1896,6 @@ export class Repository {
 		await this.exec(['merge', '--abort']);
 	}
 
-	async mergeContinue(): Promise<void> {
-		const args = ['merge', '--continue'];
-
-		try {
-			await this.exec(args, { env: { GIT_EDITOR: 'true' } });
-		} catch (commitErr) {
-			await this.handleCommitError(commitErr);
-		}
-	}
-
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
 		let args = ['tag'];
 

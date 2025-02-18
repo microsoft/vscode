@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, derived, derivedObservableWithCache, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -37,6 +38,7 @@ export class InlineEditsView extends Disposable {
 	private readonly _useInterleavedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useInterleavedLinesDiff);
 	private readonly _useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.codeShifting);
 	private readonly _renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
+	private readonly _showCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 	private readonly _useMultiLineGhostText = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
 
 	private _previousView: {
@@ -81,7 +83,7 @@ export class InlineEditsView extends Disposable {
 			)
 		)!;
 
-		const state = this.determineRenderState(edit, reader, diff, new StringText(newText), originalDisplayRange);
+		let state = this.determineRenderState(edit, reader, diff, new StringText(newText), originalDisplayRange);
 		if (!state) {
 			this._model.get()?.stop();
 			return undefined;
@@ -103,6 +105,10 @@ export class InlineEditsView extends Disposable {
 			this._previewTextModel.setValue(newText);
 		}
 
+		if (this._showCollapsed.read(reader) && this._host.tabAction.read(reader) !== InlineEditTabAction.Accept) {
+			state = { kind: 'hidden' };
+		}
+
 		return {
 			state,
 			diff,
@@ -121,7 +127,15 @@ export class InlineEditsView extends Disposable {
 		null
 	));
 
+	// TODO: This has become messy, should it be passed in to the InlineEditsView?
 	private readonly _host: IInlineEditsViewHost = {
+		displayName: derivedObservableWithCache<string>(this, (reader, previousDisplayName) => {
+			const state = this._model.read(reader)?.inlineEditState;
+			const item = state?.read(reader);
+			const completionSource = item?.inlineCompletion?.source;
+			// TODO: expose the provider (typed) and expose the provider the edit belongs to typing and get correct edit
+			return (completionSource?.inlineCompletions as any)?.edits?.[0]?.provider?.displayName ?? previousDisplayName ?? localize('inlineEdit', "Inline Edit");
+		}),
 		tabAction: derived<InlineEditTabAction>(this, reader => {
 			const m = this._model.read(reader);
 			if (this._editorObs.isFocused.read(reader)) {
@@ -130,6 +144,8 @@ export class InlineEditsView extends Disposable {
 			}
 			return InlineEditTabAction.Inactive;
 		}),
+		action: this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.inlineCompletion.action),
+		extensionCommands: this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.source.inlineCompletions.commands ?? []),
 		accept: () => {
 			this._model.get()?.accept();
 		}
@@ -170,7 +186,7 @@ export class InlineEditsView extends Disposable {
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 		const e = this._uiState.read(reader);
 		if (!e || !e.state) { return undefined; }
-		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertionMultiLine') {
+		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'hidden') {
 			return undefined;
 		}
 		return {
@@ -338,6 +354,7 @@ export class InlineEditsView extends Disposable {
 			case 'mixedLines': return { kind: 'mixedLines' as const };
 			case 'interleavedLines': return { kind: 'interleavedLines' as const };
 			case 'sideBySide': return { kind: 'sideBySide' as const };
+			case 'hidden': return { kind: 'hidden' as const };
 		}
 
 		const inner = diff.flatMap(d => d.innerChanges ?? []);

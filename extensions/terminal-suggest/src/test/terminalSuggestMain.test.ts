@@ -92,7 +92,7 @@ suite('Terminal Suggest', () => {
 					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const terminalContext = { commandLine, cursorPosition };
+					const terminalContext = { commandLine, cursorPosition, allowFallbackCompletions: true };
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
 						terminalContext,

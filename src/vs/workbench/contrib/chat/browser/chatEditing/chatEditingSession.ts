@@ -836,7 +836,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
 		transaction((tx) => {
 			this._state.set(ChatEditingSessionState.StreamingEdits, tx);
-			entry.acceptStreamingEditsStart(tx);
+			entry.acceptStreamingEditsStart(responseModel, tx);
 			this.ensureEditInUndoStopMatches(responseModel.requestId, undoStop, entry, false, tx);
 		});
 	}

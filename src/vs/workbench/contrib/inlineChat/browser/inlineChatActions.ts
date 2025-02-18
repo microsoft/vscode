@@ -69,7 +69,7 @@ export class StartSessionAction extends Action2 {
 			},
 			icon: START_INLINE_CHAT,
 			menu: {
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatTitleBarMenu,
 				group: 'd_inlineChat',
 				order: 10,
 			}
