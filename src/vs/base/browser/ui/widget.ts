@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Gesture } from 'vs/base/browser/touch';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import * as dom from '../dom.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../keyboardEvent.js';
+import { IMouseEvent, StandardMouseEvent } from '../mouseEvent.js';
+import { Gesture } from '../touch.js';
+import { Disposable, IDisposable } from '../../common/lifecycle.js';
 
 export abstract class Widget extends Disposable {
 

@@ -1,0 +1,88 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"repositoryUrl": "https://github.com/withfig/autocomplete",
+					"commitHash": "1cc34dc1ba530bb620bd380c25cfb9eb2264be89"
+				}
+			},
+			"version": "2.684.0",
+			"license": {
+				"type": "MIT",
+				"url": "https://github.com/withfig/autocomplete/blob/main/LICENSE.md"
+			},
+			"description": "IDE-style autocomplete for your existing terminal & shell from withfig/autocomplete."
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "amazon-q-developer-cli",
+					"repositoryUrl": "https://github.com/aws/amazon-q-developer-cli",
+					"commitHash": "f66e0b0e917ab185eef528dc36eca56b78ca8b5d"
+				}
+			},
+			"licenseDetail": [
+				"MIT License",
+				"",
+				"Copyright (c) 2024 Amazon.com, Inc. or its affiliates.",
+				"",
+				"Permission is hereby granted, free of charge, to any person obtaining a copy",
+				"of this software and associated documentation files (the \"Software\"), to deal",
+				"in the Software without restriction, including without limitation the rights",
+				"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+				"copies of the Software, and to permit persons to whom the Software is",
+				"furnished to do so, subject to the following conditions:",
+				"",
+				"The above copyright notice and this permission notice shall be included in all",
+				"copies or substantial portions of the Software.",
+				"",
+				"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+				"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+				"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+				"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+				"SOFTWARE."
+			],
+			"version": "f66e0b0e917ab185eef528dc36eca56b78ca8b5d"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "@fig/autocomplete-shared",
+					"repositoryUrl": "https://github.com/withfig/autocomplete-tools",
+					"commitHash": "104377c19a91ca8a312cb38c115a74468f6227cb"
+				}
+			},
+			"licenseDetail": [
+				"MIT License",
+				"",
+				"Copyright (c) 2021 Hercules Labs Inc. (Fig)",
+				"",
+				"Permission is hereby granted, free of charge, to any person obtaining a copy",
+				"of this software and associated documentation files (the \"Software\"), to deal",
+				"in the Software without restriction, including without limitation the rights",
+				"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+				"copies of the Software, and to permit persons to whom the Software is",
+				"furnished to do so, subject to the following conditions:",
+				"",
+				"The above copyright notice and this permission notice shall be included in all",
+				"copies or substantial portions of the Software.",
+				"",
+				"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+				"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+				"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+				"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+				"SOFTWARE."
+			],
+			"version": "1.1.2"
+		}
+	],
+	"version": 1
+}

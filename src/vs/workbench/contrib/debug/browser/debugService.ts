@@ -3,62 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Action, IAction } from 'vs/base/common/actions';
-import { distinct } from 'vs/base/common/arrays';
-import { RunOnceScheduler, raceTimeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isErrorWithActions } from 'vs/base/common/errorMessage';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { deepClone, equals } from 'vs/base/common/objects';
-import severity from 'vs/base/common/severity';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorsOrder } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
-import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
-import { DebugMemoryFileSystemProvider } from 'vs/workbench/contrib/debug/browser/debugMemory';
-import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { DebugTaskRunner, TaskRunResult } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
-import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_HAS_DEBUGGED, CONTEXT_IN_DEBUG_MODE, DEBUG_MEMORY_SCHEME, DEBUG_SCHEME, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, debuggerDisabledMessage, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
-import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isErrorWithActions } from '../../../../base/common/errorMessage.js';
+import * as errors from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { deepClone, equals } from '../../../../base/common/objects.js';
+import severity from '../../../../base/common/severity.js';
+import { URI, URI as uri } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import * as nls from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionHostDebugService } from '../../../../platform/debug/common/extensionHostDebug.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { FileChangeType, FileChangesEvent, IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { EditorsOrder } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from '../../files/common/files.js';
+import { ITestService } from '../../testing/common/testService.js';
+import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_HAS_DEBUGGED, CONTEXT_IN_DEBUG_MODE, DEBUG_MEMORY_SCHEME, DEBUG_SCHEME, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, IGuessedDebugger, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, debuggerDisabledMessage, getStateLabel } from '../common/debug.js';
+import { DebugCompoundRoot } from '../common/debugCompoundRoot.js';
+import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions, InstructionBreakpoint } from '../common/debugModel.js';
+import { Source } from '../common/debugSource.js';
+import { DebugStorage, IChosenEnvironment } from '../common/debugStorage.js';
+import { DebugTelemetry } from '../common/debugTelemetry.js';
+import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from '../common/debugUtils.js';
+import { ViewModel } from '../common/debugViewModel.js';
+import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
+import { AdapterManager } from './debugAdapterManager.js';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from './debugCommands.js';
+import { ConfigurationManager } from './debugConfigurationManager.js';
+import { DebugMemoryFileSystemProvider } from './debugMemory.js';
+import { DebugSession } from './debugSession.js';
+import { DebugTaskRunner, TaskRunResult } from './debugTaskRunner.js';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -89,7 +88,7 @@ export class DebugService implements IDebugService {
 	private previousState: State | undefined;
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
-	private chosenEnvironments: { [key: string]: string };
+	private chosenEnvironments: Record<string, IChosenEnvironment>;
 	private haveDoneLazySetup = false;
 
 	constructor(
@@ -122,7 +121,10 @@ export class DebugService implements IDebugService {
 		this._onWillNewSession = new Emitter<IDebugSession>();
 		this._onDidEndSession = new Emitter();
 
-		this.adapterManager = this.instantiationService.createInstance(AdapterManager, { onDidNewSession: this.onDidNewSession });
+		this.adapterManager = this.instantiationService.createInstance(AdapterManager, {
+			onDidNewSession: this.onDidNewSession,
+			configurationManager: () => this.configurationManager,
+		});
 		this.disposables.add(this.adapterManager);
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
 		this.disposables.add(this.configurationManager);
@@ -205,7 +207,7 @@ export class DebugService implements IDebugService {
 		this.disposables.add(extensionService.onWillStop(evt => {
 			evt.veto(
 				this.model.getSessions().length > 0,
-				nls.localize('active debug session', 'A debug session is still running.'),
+				nls.localize('active debug session', 'A debug session is still running that would terminate.'),
 			);
 		}));
 
@@ -336,7 +338,7 @@ export class DebugService implements IDebugService {
 		if (!this.haveDoneLazySetup) {
 			// Registering fs providers is slow
 			// https://github.com/microsoft/vscode/issues/159886
-			this.disposables.add(this.fileService.registerProvider(DEBUG_MEMORY_SCHEME, new DebugMemoryFileSystemProvider(this)));
+			this.disposables.add(this.fileService.registerProvider(DEBUG_MEMORY_SCHEME, this.disposables.add(new DebugMemoryFileSystemProvider(this))));
 			this.haveDoneLazySetup = true;
 		}
 	}
@@ -457,26 +459,42 @@ export class DebugService implements IDebugService {
 			type = config.type;
 		} else {
 			// a no-folder workspace has no launch.config
-			config = Object.create(null);
+			config = Object.create(null) as IConfig;
 		}
 		if (options && options.noDebug) {
-			config!.noDebug = true;
+			config.noDebug = true;
 		} else if (options && typeof options.noDebug === 'undefined' && options.parentSession && options.parentSession.configuration.noDebug) {
-			config!.noDebug = true;
+			config.noDebug = true;
 		}
 		const unresolvedConfig = deepClone(config);
 
-		let guess: Debugger | undefined;
+		let guess: IGuessedDebugger | undefined;
 		let activeEditor: EditorInput | undefined;
 		if (!type) {
 			activeEditor = this.editorService.activeEditor;
 			if (activeEditor && activeEditor.resource) {
-				type = this.chosenEnvironments[activeEditor.resource.toString()];
+				const chosen = this.chosenEnvironments[activeEditor.resource.toString()];
+				if (chosen) {
+					type = chosen.type;
+					if (chosen.dynamicLabel) {
+						const dyn = await this.configurationManager.getDynamicConfigurationsByType(chosen.type);
+						const found = dyn.find(d => d.label === chosen.dynamicLabel);
+						if (found) {
+							launch = found.launch;
+							Object.assign(config, found.config);
+						}
+					}
+				}
 			}
+
 			if (!type) {
 				guess = await this.adapterManager.guessDebugger(false);
 				if (guess) {
-					type = guess.type;
+					type = guess.debugger.type;
+					if (guess.withConfig) {
+						launch = guess.withConfig.launch;
+						Object.assign(config, guess.withConfig.config);
+					}
 				}
 			}
 		}
@@ -485,7 +503,7 @@ export class DebugService implements IDebugService {
 		const sessionId = generateUuid();
 		this.sessionCancellationTokens.set(sessionId, initCancellationToken);
 
-		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, initCancellationToken.token);
+		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config, initCancellationToken.token);
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
 			try {
@@ -550,7 +568,7 @@ export class DebugService implements IDebugService {
 				const result = await this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 				if (result && guess && activeEditor && activeEditor.resource) {
 					// Remeber user choice of environment per active editor to make starting debugging smoother #124770
-					this.chosenEnvironments[activeEditor.resource.toString()] = guess.type;
+					this.chosenEnvironments[activeEditor.resource.toString()] = { type: guess.debugger.type, dynamicLabel: guess.withConfig?.label };
 					this.debugStorage.storeChosenEnvironments(this.chosenEnvironments);
 				}
 				return result;
@@ -756,7 +774,7 @@ export class DebugService implements IDebugService {
 		}));
 	}
 
-	async restartSession(session: IDebugSession, restartData?: any): Promise<any> {
+	async restartSession(session: IDebugSession, restartData?: any): Promise<void> {
 		if (session.saveBeforeRestart) {
 			await saveAllBeforeDebugStart(this.configurationService, this.editorService);
 		}
@@ -840,6 +858,10 @@ export class DebugService implements IDebugService {
 				}
 			}
 		};
+
+		for (const breakpoint of this.model.getBreakpoints({ triggeredOnly: true })) {
+			breakpoint.setSessionDidTrigger(session.getId(), false);
+		}
 
 		// For debug sessions spawned by test runs, cancel the test run and stop
 		// the session, then start the test run again; tests have no notion of restarts.
@@ -1158,7 +1180,7 @@ export class DebugService implements IDebugService {
 		await this.sendExceptionBreakpoints();
 	}
 
-	async sendAllBreakpoints(session?: IDebugSession): Promise<any> {
+	async sendAllBreakpoints(session?: IDebugSession): Promise<void> {
 		const setBreakpointsPromises = distinct(this.model.getBreakpoints(), bp => bp.originalUri.toString())
 			.map(bp => this.sendBreakpoints(bp.originalUri, false, session));
 

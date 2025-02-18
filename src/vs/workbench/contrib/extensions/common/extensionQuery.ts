@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 
 export class Query {
 
@@ -12,7 +12,7 @@ export class Query {
 	}
 
 	static suggestions(query: string): string[] {
-		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin', 'featured', 'popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort', 'category', 'tag', 'ext', 'id'] as const;
+		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin', 'featured', 'popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort', 'category', 'tag', 'ext', 'id', 'outdated', 'recentlyUpdated'] as const;
 		const subcommands = {
 			'sort': ['installs', 'rating', 'name', 'publishedDate', 'updateDate'],
 			'category': EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`),

@@ -5,7 +5,7 @@
 
 import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace, l10n } from 'vscode';
 import { PostCommitCommandsProvider } from './api/git';
-import { Repository } from './repository';
+import { IRepositoryResolver, Repository } from './repository';
 import { ApiRepository } from './api/api1';
 import { dispose } from './util';
 import { OperationKind } from './operation';
@@ -18,17 +18,23 @@ export interface IPostCommitCommandsProviderRegistry {
 }
 
 export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider {
+	constructor(private readonly _repositoryResolver: IRepositoryResolver) { }
+
 	getCommands(apiRepository: ApiRepository): Command[] {
-		const config = workspace.getConfiguration('git', Uri.file(apiRepository.repository.root));
+		const repository = this._repositoryResolver.getRepository(apiRepository.rootUri);
+		if (!repository) {
+			return [];
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 
 		// Branch protection
-		const isBranchProtected = apiRepository.repository.isBranchProtected();
+		const isBranchProtected = repository.isBranchProtected();
 		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
 		const alwaysPrompt = isBranchProtected && branchProtectionPrompt === 'alwaysPrompt';
 		const alwaysCommitToNewBranch = isBranchProtected && branchProtectionPrompt === 'alwaysCommitToNewBranch';
 
 		// Icon
-		const repository = apiRepository.repository;
 		const isCommitInProgress = repository.operations.isRunning(OperationKind.Commit) || repository.operations.isRunning(OperationKind.PostCommitCommand);
 		const icon = isCommitInProgress ? '$(sync~spin)' : alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
 

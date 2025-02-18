@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { ITaskGeneralEvent, ITaskProcessEndedEvent, ITaskProcessStartedEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
+import * as nls from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import Severity from '../../../../base/common/severity.js';
+import { AbstractProblemCollector, StartStopProblemCollector } from '../common/problemCollectors.js';
+import { ITaskGeneralEvent, ITaskProcessEndedEvent, ITaskProcessStartedEvent, TaskEventKind, TaskRunType } from '../common/tasks.js';
+import { ITaskService, Task } from '../common/taskService.js';
+import { ITerminalInstance } from '../../terminal/browser/terminal.js';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { IMarker } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ITerminalStatus } from '../../terminal/common/terminal.js';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;

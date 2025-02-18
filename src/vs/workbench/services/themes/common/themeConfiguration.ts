@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import * as nls from '../../../../nls.js';
+import * as types from '../../../../base/common/types.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { textmateColorsSchemaId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
-import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { isWeb } from 'vs/base/common/platform';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { textmateColorsSchemaId, textmateColorGroupSchemaId } from './colorThemeSchema.js';
+import { workbenchColorsSchemaId } from '../../../../platform/theme/common/colorRegistry.js';
+import { tokenStylingSchemaId } from '../../../../platform/theme/common/tokenClassificationRegistry.js';
+import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from './workbenchThemeService.js';
+import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { IHostColorSchemeService } from './hostColorSchemeService.js';
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { IMatch } from 'vs/base/common/filters';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, EditPresentationTypes, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Event } from '../../../../base/common/event.js';
+import { IMatch } from '../../../../base/common/filters.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, IExtensionInfo } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { Settings2EditorModel } from './preferencesModels.js';
 
 export enum SettingValueType {
 	Null = 'null',
@@ -39,7 +38,8 @@ export enum SettingValueType {
 	Object = 'object',
 	BooleanObject = 'boolean-object',
 	LanguageTag = 'language-tag',
-	ExtensionToggle = 'extension-toggle'
+	ExtensionToggle = 'extension-toggle',
+	ComplexObject = 'complex-object',
 }
 
 export interface ISettingsGroup {
@@ -89,16 +89,14 @@ export interface ISetting {
 	extensionInfo?: IExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
-	allKeysAreBoolean?: boolean;
 	editPresentation?: EditPresentationTypes;
-	nonLanguageSpecificDefaultValueSource?: string | IExtensionInfo;
+	nonLanguageSpecificDefaultValueSource?: ConfigurationDefaultValueSource;
 	isLanguageTagSetting?: boolean;
 	categoryLabel?: string;
 
 	// Internal properties
+	allKeysAreBoolean?: boolean;
 	displayExtensionId?: string;
-	stableExtensionId?: string;
-	prereleaseExtensionId?: string;
 	title?: string;
 	extensionGroupTitle?: string;
 	internalOrder?: number;
@@ -140,13 +138,15 @@ export enum SettingMatchType {
 	LanguageTagSettingMatch = 1 << 0,
 	RemoteMatch = 1 << 1,
 	DescriptionOrValueMatch = 1 << 2,
-	KeyMatch = 1 << 3
+	KeyMatch = 1 << 3,
+	KeyIdMatch = 1 << 4,
 }
 
 export interface ISettingMatch {
 	setting: ISetting;
 	matches: IRange[] | null;
 	matchType: SettingMatchType;
+	keyMatchScore: number;
 	score: number;
 }
 
@@ -186,7 +186,7 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean | null;
-export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[]; matchType: SettingMatchType; score: number } | null;
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[]; matchType: SettingMatchType; keyMatchScore: number; score: number } | null;
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
@@ -213,6 +213,7 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 export interface IOpenSettingsOptions extends ISettingsEditorOptions {
 	jsonEditor?: boolean;
 	openToSide?: boolean;
+	groupId?: number;
 }
 
 export function validateSettingsEditorOptions(options: ISettingsEditorOptions): ISettingsEditorOptions {
@@ -233,17 +234,24 @@ export interface IKeybindingsEditorOptions extends IEditorOptions {
 	query?: string;
 }
 
+export interface IOpenKeybindingsEditorOptions extends IKeybindingsEditorOptions {
+	groupId?: number;
+}
+
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
 
 export interface IPreferencesService {
 	readonly _serviceBrand: undefined;
+
+	readonly onDidDefaultSettingsContentChanged: Event<URI>;
 
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI | null;
 	getFolderSettingsResource(resource: URI): URI | null;
 
 	createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<ISetting> | null>;
-	resolveModel(uri: URI): ITextModel | null;
+	getDefaultSettingsContent(uri: URI): string | undefined;
+	hasDefaultSettingsContent(uri: URI): boolean;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
@@ -253,10 +261,11 @@ export interface IPreferencesService {
 	openRemoteSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openFolderSettings(options: IOpenSettingsOptions & { folderUri: IOpenSettingsOptions['folderUri'] }): Promise<IEditorPane | undefined>;
-	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
+	openGlobalKeybindingSettings(textual: boolean, options?: IOpenKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	openLanguageSpecificSettings(languageId: string, options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
+	getSetting(settingId: string): ISetting | undefined;
 
 	createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput;
 }
@@ -329,3 +338,5 @@ export interface IDefineKeybindingEditorContribution extends IEditorContribution
 export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';
+
+export const SETTINGS_AUTHORITY = 'settings';

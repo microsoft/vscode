@@ -3,41 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, resolveEditorsContext, getEditorsContext } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
-import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from 'vs/workbench/common/contextkeys';
-import { URI } from 'vs/base/common/uri';
-import { getActiveDocument } from 'vs/base/browser/dom';
-import { ICommandActionTitle } from 'vs/platform/action/common/action';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action } from '../../../../base/common/actions.js';
+import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { GoFilter, IHistoryService } from '../../../services/history/common/history.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, SelectedEditorsMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID } from './editorCommands.js';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { IFileDialogService, ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ItemActivation, IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from './editorQuickAccess.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IFilesConfigurationService, AutoSaveMode } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { isLinux, isNative, isWindows } from '../../../../base/common/platform.js';
+import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { IKeybindingRule, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
+import { getActiveDocument } from '../../../../base/browser/dom.js';
+import { ICommandActionTitle } from '../../../../platform/action/common/action.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { resolveCommandsContext } from './editorCommandsContext.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { prepareMoveCopyEditors } from './editor.js';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -62,12 +63,16 @@ abstract class AbstractSplitEditorAction extends Action2 {
 		return preferredSideBySideGroupDirection(configurationService);
 	}
 
-	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
-		const editorGroupService = accessor.get(IEditorGroupsService);
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
+		const editorService = accessor.get(IEditorService);
+		const listService = accessor.get(IListService);
 
-		const commandContext = getCommandsContext(accessor, resourceOrContext, context);
-		splitEditor(editorGroupService, this.getDirection(configurationService), commandContext ? [commandContext] : undefined);
+		const direction = this.getDirection(configurationService);
+		const commandContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
+
+		splitEditor(editorGroupsService, direction, commandContext);
 	}
 }
 
@@ -653,7 +658,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 			await this.revealEditorsToConfirm(editors, editorGroupService); // help user make a decision by revealing editors
 
-			const confirmation = await firstOrDefault(editors)?.editor.closeHandler?.confirm?.(editors);
+			const confirmation = await editors.at(0)?.editor.closeHandler?.confirm?.(editors);
 			if (typeof confirmation === 'number') {
 				switch (confirmation) {
 					case ConfirmResult.CANCEL:
@@ -1169,11 +1174,15 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
+		const listService = accessor.get(IListService);
 
-		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(accessor, resourceOrContext, context));
-		editorGroupsService.toggleMaximizeGroup(group);
+		const resolvedContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
+		if (resolvedContext.groupedEditors.length) {
+			editorGroupsService.toggleMaximizeGroup(resolvedContext.groupedEditors[0].group);
+		}
 	}
 }
 
@@ -1415,13 +1424,13 @@ export class NavigateForwardAction extends Action2 {
 			precondition: ContextKeyExpr.has('canNavigateForward'),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus }
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward] },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward] }
 			},
 			menu: [
 				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 2 },
-				{ id: MenuId.CommandCenter, order: 2 }
+				{ id: MenuId.CommandCenter, order: 2, when: ContextKeyExpr.has('config.workbench.navigationControl.enabled') }
 			]
 		});
 	}
@@ -1450,13 +1459,13 @@ export class NavigateBackwardsAction extends Action2 {
 			icon: Codicon.arrowLeft,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus }
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyCode.BrowserBack] }
 			},
 			menu: [
 				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 1 },
-				{ id: MenuId.CommandCenter, order: 1 }
+				{ id: MenuId.CommandCenter, order: 1, when: ContextKeyExpr.has('config.workbench.navigationControl.enabled') }
 			]
 		});
 	}
@@ -1991,7 +2000,7 @@ export class MoveEditorLeftInGroupAction extends ExecuteCommandAction {
 			},
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2010,7 +2019,7 @@ export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
 			},
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2029,7 +2038,7 @@ export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
 			},
 			f1: true,
 			category: Categories.View,
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2048,7 +2057,7 @@ export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
 				}
 			},
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2060,7 +2069,7 @@ export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToAboveGroup', 'Move Editor into Group Above'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2072,7 +2081,7 @@ export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToBelowGroup', 'Move Editor into Group Below'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2084,7 +2093,7 @@ export class MoveEditorToLeftGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToLeftGroup', 'Move Editor into Left Group'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2096,7 +2105,7 @@ export class MoveEditorToRightGroupAction extends ExecuteCommandAction {
 			title: localize2('moveEditorToRightGroup', 'Move Editor into Right Group'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2115,7 +2124,7 @@ export class MoveEditorToFirstGroupAction extends ExecuteCommandAction {
 				}
 			},
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2134,7 +2143,7 @@ export class MoveEditorToLastGroupAction extends ExecuteCommandAction {
 				}
 			},
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2146,7 +2155,7 @@ export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToPreviousGroup', 'Split Editor into Previous Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2158,7 +2167,7 @@ export class SplitEditorToNextGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToNextGroup', 'Split Editor into Next Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2170,7 +2179,7 @@ export class SplitEditorToAboveGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToAboveGroup', 'Split Editor into Group Above'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2182,7 +2191,7 @@ export class SplitEditorToBelowGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToBelowGroup', 'Split Editor into Group Below'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2197,7 +2206,7 @@ export class SplitEditorToLeftGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToLeftGroup', "Split Editor into Left Group"),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2209,7 +2218,7 @@ export class SplitEditorToRightGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToRightGroup', 'Split Editor into Right Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2221,7 +2230,7 @@ export class SplitEditorToFirstGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToFirstGroup', 'Split Editor into First Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2233,7 +2242,7 @@ export class SplitEditorToLastGroupAction extends ExecuteCommandAction {
 			title: localize2('splitEditorToLastGroup', 'Split Editor into Last Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } satisfies SelectedEditorsMoveCopyArguments);
 	}
 }
 
@@ -2538,21 +2547,24 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editorsContext = resolveEditorsContext(getEditorsContext(accessor, resourceOrContext, context));
-		if (editorsContext.length === 0) {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
+		const listService = accessor.get(IListService);
+
+		const resolvedContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
+		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
 
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+		const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
 
-		const sourceGroup = editorsContext[0].group; // only single group supported for move/copy for now
-		const sourceEditors = editorsContext.filter(({ group }) => group === sourceGroup);
+		const { group, editors } = resolvedContext.groupedEditors[0]; // only single group supported for move/copy for now
+		const editorsWithOptions = prepareMoveCopyEditors(group, editors, resolvedContext.preserveFocus);
 		if (this.move) {
-			sourceGroup.moveEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
+			group.moveEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
 		} else {
-			sourceGroup.copyEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
+			group.copyEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
 		}
 
 		auxiliaryEditorPart.activeGroup.focus();

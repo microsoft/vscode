@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { distinct, coalesce } from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
-import { OperatingSystem, Language } from 'vs/base/common/platform';
-import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
-import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
-import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
-import { IKeybindingItemEntry, KeybindingMatches, KeybindingMatch, IKeybindingItem } from 'vs/workbench/services/preferences/common/preferences';
-import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
-import { isEmptyObject, isString } from 'vs/base/common/types';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { localize } from '../../../../nls.js';
+import { distinct, coalesce } from '../../../../base/common/arrays.js';
+import * as strings from '../../../../base/common/strings.js';
+import { OperatingSystem, Language } from '../../../../base/common/platform.js';
+import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from '../../../../base/common/filters.js';
+import { ResolvedKeybinding, ResolvedChord } from '../../../../base/common/keybindings.js';
+import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from '../../../../base/common/keybindingLabels.js';
+import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { EditorModel } from '../../../common/editor/editorModel.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { getAllUnboundCommands } from '../../keybinding/browser/unboundCommands.js';
+import { IKeybindingItemEntry, KeybindingMatches, KeybindingMatch, IKeybindingItem } from '../common/preferences.js';
+import { ICommandAction, ILocalizedString } from '../../../../platform/action/common/action.js';
+import { isEmptyObject, isString } from '../../../../base/common/types.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 
@@ -85,7 +85,7 @@ export class KeybindingsEditorModel extends EditorModel {
 				}
 			}
 
-			return filteredKeybindingItems.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+			return filteredKeybindingItems.map((keybindingItem): IKeybindingItemEntry => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 		}
 
 		// @source:SOURCE
@@ -110,7 +110,7 @@ export class KeybindingsEditorModel extends EditorModel {
 
 		searchValue = searchValue.trim();
 		if (!searchValue) {
-			return keybindingItems.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+			return keybindingItems.map((keybindingItem): IKeybindingItemEntry => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 		}
 
 		return this.filterByText(keybindingItems, searchValue);
@@ -273,6 +273,7 @@ export class KeybindingsEditorModel extends EditorModel {
 			const extensionId = keybindingItem.extensionId ?? (keybindingItem.resolvedKeybinding ? undefined : menuCommand?.source?.id);
 			source = extensionId ? extensions.get(extensionId) ?? SOURCE_EXTENSION : SOURCE_SYSTEM;
 		}
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,

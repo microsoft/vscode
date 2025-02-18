@@ -134,15 +134,17 @@
 	visibility: hidden;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item.monaco-dropdown-with-primary .action-label {
 	color: var(--vscode-titleBar-activeForeground);
 }
 
-.monaco-workbench .part.titlebar.inactive > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label  {
+.monaco-workbench .part.titlebar.inactive > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label,
+.monaco-workbench .part.titlebar.inactive > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item.monaco-dropdown-with-primary .action-label {
 	color: var(--vscode-titleBar-inactiveForeground);
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label  {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	color: inherit;
 }
 
@@ -153,7 +155,7 @@
 	background-color: var(--vscode-commandCenter-background);
 	border: 1px solid var(--vscode-commandCenter-border);
 	overflow: hidden;
-	margin-left: 6px;
+	margin: 0 6px;
 	border-top-left-radius: 6px;
 	border-bottom-left-radius: 6px;
 	border-top-right-radius: 6px;
@@ -175,6 +177,11 @@
 	font-size: 14px;
 	opacity: .8;
 	margin: auto 3px;
+	color: var(--vscode-commandCenter-foreground);
+}
+
+.monaco-workbench .part.titlebar.inactive > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center .action-item.command-center-quick-pick .search-icon {
+	color: var(--vscode-titleBar-inactiveForeground);
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center .action-item.command-center-quick-pick .search-label {
@@ -182,7 +189,7 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.multiple  {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.multiple {
 	justify-content: flex-start;
 	padding: 0 12px;
 }
@@ -219,23 +226,9 @@
 	margin-left: 4px;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container {
-	zoom: var(--zoom-factor);
-}
-
-/* Resizer */
-.monaco-workbench.windows .part.titlebar > .titlebar-container > .resizer,
-.monaco-workbench.linux .part.titlebar > .titlebar-container > .resizer {
-	-webkit-app-region: no-drag;
-	position: absolute;
-	top: 0;
-	width: 100%;
-	height: 4px;
-}
-
-.monaco-workbench.windows.fullscreen .part.titlebar > .titlebar-container > .resizer,
-.monaco-workbench.linux.fullscreen .part.titlebar > .titlebar-container > .resizer {
-	display: none;
+.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container,
+.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .monaco-toolbar .dropdown-action-container {
+	zoom: var(--zoom-factor); /* helps to position the menu properly when counter zooming */
 }
 
 /* App Icon */
@@ -263,24 +256,7 @@
 	display: none;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container .window-appicon > .home-bar-icon-badge {
-	position: absolute;
-	right: 9px;
-	bottom: 6px;
-	width: 8px;
-	height: 8px;
-	z-index: 1;
-	/* on top of home indicator */
-	background-image: url('../../../media/code-icon.svg');
-	background-repeat: no-repeat;
-	background-position: center center;
-	background-size: 8px;
-	pointer-events: none;
-	border-top: 1px solid transparent;
-	border-left: 1px solid transparent;
-}
-
-/* Window Controls (Minimize, Max/Restore, Close) */
+/* Window Controls Container */
 .monaco-workbench .part.titlebar .window-controls-container {
 	display: flex;
 	flex-grow: 0;
@@ -292,7 +268,12 @@
 	height: 100%;
 }
 
-/* Web WCO Sizing/Ordering */
+.monaco-workbench.fullscreen .part.titlebar .window-controls-container {
+	display: none;
+	background-color: transparent;
+}
+
+/* Window Controls Container Web: Apply WCO environment variables (https://developer.mozilla.org/en-US/docs/Web/CSS/env#titlebar-area-x) */
 .monaco-workbench.web .part.titlebar .titlebar-right .window-controls-container {
 	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
 	height: env(titlebar-area-height, 35px);
@@ -311,64 +292,31 @@
 	order: 1;
 }
 
-/* Desktop Windows/Linux Window Controls*/
-.monaco-workbench:not(.web):not(.mac) .part.titlebar .window-controls-container.primary {
+/* Window Controls Container Desktop: apply zoom friendly size */
+.monaco-workbench:not(.web):not(.mac) .part.titlebar .window-controls-container {
 	width: calc(138px / var(--zoom-factor, 1));
 }
 
-.monaco-workbench:not(.web):not(.mac) .part.titlebar .titlebar-container.counter-zoom .window-controls-container.primary {
+.monaco-workbench:not(.web):not(.mac) .part.titlebar .titlebar-container.counter-zoom .window-controls-container {
 	width: 138px;
+}
+
+.monaco-workbench.linux:not(.web) .part.titlebar .window-controls-container.wco-enabled {
+	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
 }
 
 .monaco-workbench:not(.web):not(.mac) .part.titlebar .titlebar-container:not(.counter-zoom) .window-controls-container * {
 	zoom: calc(1 / var(--zoom-factor, 1));
 }
 
-/* Desktop macOS Window Controls */
-.monaco-workbench:not(.web).mac .part.titlebar .window-controls-container.primary {
+.monaco-workbench:not(.web).mac .part.titlebar .window-controls-container {
 	width: 70px;
-}
-
-.monaco-workbench.fullscreen .part.titlebar .window-controls-container {
-	display: none;
-	background-color: transparent;
-}
-
-/* Window Control Icons */
-.monaco-workbench .part.titlebar .window-controls-container > .window-icon {
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	height: 100%;
-	width: 46px;
-	font-size: 16px;
-}
-
-.monaco-workbench .part.titlebar .window-controls-container > .window-icon::before {
-	height: 16px;
-	line-height: 16px;
-}
-
-.monaco-workbench .part.titlebar .window-controls-container > .window-icon:hover {
-	background-color: rgba(255, 255, 255, 0.1);
-}
-
-.monaco-workbench .part.titlebar.light .window-controls-container > .window-icon:hover {
-	background-color: rgba(0, 0, 0, 0.1);
-}
-
-.monaco-workbench .part.titlebar .window-controls-container > .window-icon.window-close:hover {
-	background-color: rgba(232, 17, 35, 0.9);
-}
-
-.monaco-workbench .part.titlebar .window-controls-container .window-icon.window-close:hover {
-	color: white;
 }
 
 /* Action Tool Bar Controls */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	display: none;
-	padding-right: 2px;
+	padding-right: 4px;
 	flex-grow: 0;
 	flex-shrink: 0;
 	text-align: center;
@@ -376,7 +324,6 @@
 	z-index: 2500;
 	-webkit-app-region: no-drag;
 	height: 100%;
-	min-width: 28px;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
@@ -454,12 +401,4 @@
 	padding: 0 2px;
 	border-radius: 16px;
 	text-align: center;
-}
-
-.monaco-workbench .part.titlebar .window-controls-container .window-icon {
-	color: var(--vscode-titleBar-activeForeground);
-}
-
-.monaco-workbench .part.titlebar.inactive .window-controls-container .window-icon {
-	color: var(--vscode-titleBar-inactiveForeground);
 }

@@ -9,7 +9,6 @@ export function equals(one: any, other: any): boolean {
 	if (one === other) {
 		return true;
 	}
-	// eslint-disable-next-line @typescript-eslint/prefer-optional-chain
 	if (one === null || one === undefined || other === null || other === undefined) {
 		return false;
 	}

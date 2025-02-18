@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { coalesce } from 'vs/base/common/arrays';
-import { equals, deepClone } from 'vs/base/common/objects';
-import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ResourceMap } from 'vs/base/common/map';
-import { isReadableStream, peekStream } from 'vs/base/common/stream';
-import { bufferToStream, prefixedBufferReadable, prefixedBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
-import { hash } from 'vs/base/common/hash';
-import { isEmptyObject } from 'vs/base/common/types';
-import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { equals, deepClone } from '../../../../base/common/objects.js';
+import { Promises, ResourceQueue } from '../../../../base/common/async.js';
+import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from './workingCopyBackup.js';
+import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { isReadableStream, peekStream } from '../../../../base/common/stream.js';
+import { bufferToStream, prefixedBufferReadable, prefixedBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { hash } from '../../../../base/common/hash.js';
+import { isEmptyObject } from '../../../../base/common/types.js';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from './workingCopy.js';
 
 export class WorkingCopyBackupsModel {
 

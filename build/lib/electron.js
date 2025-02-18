@@ -3,19 +3,55 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = void 0;
-const fs = require("fs");
-const path = require("path");
-const vfs = require("vinyl-fs");
-const filter = require("gulp-filter");
-const util = require("./util");
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const vinyl_fs_1 = __importDefault(require("vinyl-fs"));
+const gulp_filter_1 = __importDefault(require("gulp-filter"));
+const util = __importStar(require("./util"));
 const getVersion_1 = require("./getVersion");
 function isDocumentSuffix(str) {
     return str === 'document' || str === 'script' || str === 'file' || str === 'source code';
 }
-const root = path.dirname(path.dirname(__dirname));
-const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+const root = path_1.default.dirname(path_1.default.dirname(__dirname));
+const product = JSON.parse(fs_1.default.readFileSync(path_1.default.join(root, 'product.json'), 'utf8'));
 const commit = (0, getVersion_1.getVersion)(root);
 function createTemplate(input) {
     return (params) => {
@@ -24,7 +60,7 @@ function createTemplate(input) {
         });
     };
 }
-const darwinCreditsTemplate = product.darwinCredits && createTemplate(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
+const darwinCreditsTemplate = product.darwinCredits && createTemplate(fs_1.default.readFileSync(path_1.default.join(root, product.darwinCredits), 'utf8'));
 /**
  * Generate a `DarwinDocumentType` given a list of file extensions, an icon name, and an optional suffix or file type name.
  * @param extensions A list of file extensions, such as `['bat', 'cmd']`
@@ -159,7 +195,7 @@ exports.config = {
             'F# source code': 'fs',
             'F# signature file': 'fsi',
             'F# script': ['fsx', 'fsscript'],
-            'SVG document': ['svg', 'svgz'],
+            'SVG document': ['svg'],
             'TOML document': 'toml',
             'Swift source code': 'swift',
         }, 'default'),
@@ -183,7 +219,7 @@ exports.config = {
     token: process.env['GITHUB_TOKEN'],
     repo: product.electronRepository || undefined,
     validateChecksum: true,
-    checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
+    checksumFile: path_1.default.join(root, 'build', 'checksums', 'electron.txt'),
 };
 function getElectron(arch) {
     return () => {
@@ -196,18 +232,18 @@ function getElectron(arch) {
             ffmpegChromium: false,
             keepDefaultApp: true
         };
-        return vfs.src('package.json')
+        return vinyl_fs_1.default.src('package.json')
             .pipe(json({ name: product.nameShort }))
             .pipe(electron(electronOpts))
-            .pipe(filter(['**', '!**/app/package.json']))
-            .pipe(vfs.dest('.build/electron'));
+            .pipe((0, gulp_filter_1.default)(['**', '!**/app/package.json']))
+            .pipe(vinyl_fs_1.default.dest('.build/electron'));
     };
 }
 async function main(arch = process.arch) {
     const version = electronVersion;
-    const electronPath = path.join(root, '.build', 'electron');
-    const versionFile = path.join(electronPath, 'version');
-    const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
+    const electronPath = path_1.default.join(root, '.build', 'electron');
+    const versionFile = path_1.default.join(electronPath, 'version');
+    const isUpToDate = fs_1.default.existsSync(versionFile) && fs_1.default.readFileSync(versionFile, 'utf8') === `${version}`;
     if (!isUpToDate) {
         await util.rimraf(electronPath)();
         await util.streamToPromise(getElectron(arch)());

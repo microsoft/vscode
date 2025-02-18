@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { distinct } from 'vs/base/common/arrays';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUserDataProfileService } from './userDataProfile.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { UserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfileIpc.js';
+import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 
 const associatedRemoteProfilesKey = 'associatedRemoteProfiles';
 
@@ -81,7 +82,7 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 		await this.initPromise;
 
 		if (!this.remoteUserDataProfilesService) {
-			throw new Error('Remote profiles service not available in the current window');
+			throw new ErrorNoTelemetry('Remote profiles service not available in the current window');
 		}
 
 		return this.remoteUserDataProfilesService.profiles;
@@ -91,7 +92,7 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 		await this.initPromise;
 
 		if (!this.remoteUserDataProfilesService) {
-			throw new Error('Remote profiles service not available in the current window');
+			throw new ErrorNoTelemetry('Remote profiles service not available in the current window');
 		}
 
 		return this.getAssociatedRemoteProfile(localProfile, this.remoteUserDataProfilesService);
@@ -106,7 +107,6 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 		let profile = remoteUserDataProfilesService.profiles.find(p => p.id === localProfile.id);
 		if (!profile) {
 			profile = await remoteUserDataProfilesService.createProfile(localProfile.id, localProfile.name, {
-				shortName: localProfile.shortName,
 				transient: localProfile.isTransient,
 				useDefaultFlags: localProfile.useDefaultFlags,
 			});
@@ -161,8 +161,8 @@ class RemoteUserDataProfilesService extends Disposable implements IRemoteUserDat
 			}
 			const localProfile = this.userDataProfilesService.profiles.find(p => p.id === profileId);
 			if (localProfile) {
-				if (localProfile.name !== remoteProfile.name || localProfile.shortName !== remoteProfile.shortName) {
-					await this.remoteUserDataProfilesService?.updateProfile(remoteProfile, { name: localProfile.name, shortName: localProfile.shortName });
+				if (localProfile.name !== remoteProfile.name) {
+					await this.remoteUserDataProfilesService?.updateProfile(remoteProfile, { name: localProfile.name });
 				}
 				associatedRemoteProfiles.push(profileId);
 				continue;

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/part';
-import { Component } from 'vs/workbench/common/component';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import './media/part.css';
+import { Component } from '../common/component.js';
+import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService.js';
+import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from '../../base/browser/dom.js';
+import { IStorageService } from '../../platform/storage/common/storage.js';
+import { ISerializableView, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
+import { assertIsDefined } from '../../base/common/types.js';
+import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 
 export interface IPartOptions {
 	readonly hasTitle?: boolean;

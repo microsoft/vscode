@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IMatch } from 'vs/base/common/filters';
-import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IQuickAccessController } from './quickAccess.js';
+import { IMatch } from '../../../base/common/filters.js';
+import { IItemAccessor } from '../../../base/common/fuzzyScorer.js';
+import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -80,6 +80,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional string to show as the title of the quick input
 	 */
 	title?: string;
+
+	/**
+	 * the value to prefill in the input box
+	 */
+	value?: string;
 
 	/**
 	 * an optional string to show as placeholder in the input box to guide the user what she picks on
@@ -418,7 +423,7 @@ export enum QuickPickFocus {
 /**
  * Represents a quick pick control that allows the user to select an item from a list of options.
  */
-export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
+export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators: boolean } = { useSeparators: false }> extends IQuickInput {
 
 	/**
 	 * The type of the quick input.
@@ -473,6 +478,11 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	ok: boolean | 'default';
 
 	/**
+	 * The OK button label.
+	 */
+	okLabel: string | undefined;
+
+	/**
 	 * An event that is fired when the custom button is triggered. The custom button is a button with text rendered to the right of the input.
 	 */
 	readonly onDidCustom: Event<void>;
@@ -505,7 +515,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	/**
 	 * The items to be displayed in the quick pick.
 	 */
-	items: ReadonlyArray<T | IQuickPickSeparator>;
+	items: O extends { useSeparators: true } ? ReadonlyArray<T | IQuickPickSeparator> : ReadonlyArray<T>;
 
 	/**
 	 * Whether multiple items can be selected. If so, checkboxes will be rendered.
@@ -705,6 +715,18 @@ export interface IInputBox extends IQuickInput {
 	severity: Severity;
 }
 
+export enum QuickInputButtonLocation {
+	/**
+	 * In the title bar.
+	 */
+	Title = 1,
+
+	/**
+	 * To the right of the input box.
+	 */
+	Inline = 2
+}
+
 /**
  * Represents a button in the quick input UI.
  */
@@ -728,6 +750,11 @@ export interface IQuickInputButton {
 	 * By default, buttons are only visible when hovering over them with the mouse.
 	 */
 	alwaysVisible?: boolean;
+	/**
+	 * Where the button should be rendered. The default is {@link QuickInputButtonLocation.Title}.
+	 * @note This property is ignored if the button was added to a QuickPickItem.
+	 */
+	location?: QuickInputButtonLocation;
 }
 
 /**
@@ -854,7 +881,8 @@ export interface IQuickInputService {
 	/**
 	 * Provides raw access to the quick pick controller.
 	 */
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T>;
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+	createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
 
 	/**
 	 * Provides raw access to the input box controller.
@@ -900,7 +928,18 @@ export interface IQuickInputService {
 	cancel(): Promise<void>;
 
 	/**
+	 * Toggles hover for the current quick input item
+	 */
+	toggleHover(): void;
+
+	/**
 	 * The current quick pick that is visible. Undefined if none is open.
 	 */
 	currentQuickInput: IQuickInput | undefined;
+
+	/**
+	 * Set the alignment of the quick input.
+	 * @param alignment either a preset or a custom alignment
+	 */
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void;
 }

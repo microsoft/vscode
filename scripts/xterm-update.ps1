@@ -1,1 +1,2 @@
-node $PSScriptRoot\xterm-update.js (Get-Location)
+$scriptPath = Join-Path $PSScriptRoot "xterm-update.js"
+node $scriptPath (Get-Location)

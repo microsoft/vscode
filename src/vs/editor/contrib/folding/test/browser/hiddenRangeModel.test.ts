@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { IRange } from 'vs/editor/common/core/range';
-import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
-import { HiddenRangeModel } from 'vs/editor/contrib/folding/browser/hiddenRangeModel';
-import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestDecorationProvider } from './foldingModel.test';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IRange } from '../../../../common/core/range.js';
+import { FoldingModel } from '../../browser/foldingModel.js';
+import { HiddenRangeModel } from '../../browser/hiddenRangeModel.js';
+import { computeRanges } from '../../browser/indentRangeProvider.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { TestDecorationProvider } from './foldingModel.test.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 
 interface ExpectedRange {

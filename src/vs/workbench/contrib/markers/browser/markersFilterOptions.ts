@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFilter, matchesFuzzy, matchesFuzzy2 } from 'vs/base/common/filters';
-import { IExpression, splitGlobAware, getEmptyExpression, ParsedExpression, parse } from 'vs/base/common/glob';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { relativePath } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IFilter, matchesFuzzy, matchesFuzzy2 } from '../../../../base/common/filters.js';
+import { IExpression, splitGlobAware, getEmptyExpression, ParsedExpression, parse } from '../../../../base/common/glob.js';
+import * as strings from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { relativePath } from '../../../../base/common/resources.js';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export class ResourceGlobMatcher {
 

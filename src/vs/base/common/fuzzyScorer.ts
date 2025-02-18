@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { compareAnything } from 'vs/base/common/comparers';
-import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from 'vs/base/common/filters';
-import { hash } from 'vs/base/common/hash';
-import { sep } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { equalsIgnoreCase, stripWildcards } from 'vs/base/common/strings';
+import { CharCode } from './charCode.js';
+import { compareAnything } from './comparers.js';
+import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from './filters.js';
+import { hash } from './hash.js';
+import { sep } from './path.js';
+import { isLinux, isWindows } from './platform.js';
+import { equalsIgnoreCase, stripWildcards } from './strings.js';
 
 //#region Fuzzy scorer
 

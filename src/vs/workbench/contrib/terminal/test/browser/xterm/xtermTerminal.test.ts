@@ -6,23 +6,23 @@
 import type { WebglAddon } from '@xterm/addon-webgl';
 import type { IEvent, Terminal } from '@xterm/xterm';
 import { deepStrictEqual, strictEqual } from 'assert';
-import { importAMDNodeModule } from 'vs/amdX';
-import { isSafari } from 'vs/base/browser/browser';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { ITerminalConfiguration, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { Color, RGBA } from '../../../../../../base/common/color.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
+import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
+import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
+import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
+import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IXtermAddonNameToCtor, XtermAddonImporter } from '../../../browser/xterm/xtermAddonImporter.js';
 
 registerColors();
 
@@ -31,6 +31,7 @@ class TestWebglAddon implements WebglAddon {
 	static isEnabled = false;
 	readonly onChangeTextureAtlas = new Emitter().event as IEvent<HTMLCanvasElement>;
 	readonly onAddTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement>;
+	readonly onRemoveTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement, void>;
 	readonly onContextLoss = new Emitter().event as IEvent<void>;
 	activate() {
 		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
@@ -44,11 +45,12 @@ class TestWebglAddon implements WebglAddon {
 	clearTextureAtlas() { }
 }
 
-class TestXtermTerminal extends XtermTerminal {
-	webglAddonPromise: Promise<typeof WebglAddon> = Promise.resolve(TestWebglAddon);
-	// Force synchronous to avoid async when activating the addon
-	protected override _getWebglAddonConstructor() {
-		return this.webglAddonPromise;
+class TestXtermAddonImporter extends XtermAddonImporter {
+	override async importAddon<T extends keyof IXtermAddonNameToCtor>(name: T): Promise<IXtermAddonNameToCtor[T]> {
+		if (name === 'webgl') {
+			return Promise.resolve(TestWebglAddon) as any;
+		}
+		return super.importAddon(name);
 	}
 }
 
@@ -89,7 +91,7 @@ suite('XtermTerminal', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
-	let xterm: TestXtermTerminal;
+	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
 
 	setup(async () => {
@@ -112,7 +114,14 @@ suite('XtermTerminal', () => {
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		const capabilityStore = store.add(new TerminalCapabilityStore());
-		xterm = store.add(instantiationService.createInstance(TestXtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => undefined }, capabilityStore, '', true));
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+			cols: 80,
+			rows: 30,
+			xtermColorProvider: { getBackgroundColor: () => undefined },
+			capabilities: capabilityStore,
+			disableShellIntegrationReporting: true,
+			xtermAddonImporter: new TestXtermAddonImporter(),
+		}));
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -129,7 +138,14 @@ suite('XtermTerminal', () => {
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) }, store.add(new TerminalCapabilityStore()), '', true));
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				xtermColorProvider: { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) },
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true,
+			}));
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 		});
 		test('should react to and apply theme changes', () => {
@@ -158,7 +174,14 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, 80, 30, { getBackgroundColor: () => undefined }, store.add(new TerminalCapabilityStore()), '', true));
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true
+			}));
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: undefined,
 				foreground: '#000200',
@@ -167,6 +190,10 @@ suite('XtermTerminal', () => {
 				selectionBackground: '#000500',
 				selectionInactiveBackground: '#000600',
 				selectionForeground: undefined,
+				overviewRulerBorder: undefined,
+				scrollbarSliderActiveBackground: undefined,
+				scrollbarSliderBackground: undefined,
+				scrollbarSliderHoverBackground: undefined,
 				black: '#010000',
 				green: '#030000',
 				red: '#020000',
@@ -217,6 +244,10 @@ suite('XtermTerminal', () => {
 				selectionBackground: '#00050f',
 				selectionInactiveBackground: '#00060f',
 				selectionForeground: '#00070f',
+				overviewRulerBorder: undefined,
+				scrollbarSliderActiveBackground: undefined,
+				scrollbarSliderBackground: undefined,
+				scrollbarSliderHoverBackground: undefined,
 				black: '#01000f',
 				green: '#03000f',
 				red: '#02000f',
@@ -234,42 +265,6 @@ suite('XtermTerminal', () => {
 				brightCyan: '#15000f',
 				brightWhite: '#16000f',
 			});
-		});
-	});
-
-	suite('renderers', () => {
-		// This is skipped until the webgl renderer bug is fixed in Chromium
-		// https://bugs.chromium.org/p/chromium/issues/detail?id=1476475
-		test.skip('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
-			// Check initial state
-			strictEqual(TestWebglAddon.isEnabled, false);
-
-			// Open xterm as otherwise the webgl addon won't activate
-			const container = document.createElement('div');
-			xterm.attachToElement(container);
-
-			// Auto should activate the webgl addon
-			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-			await xterm.webglAddonPromise; // await addon activate
-			if (isSafari) {
-				strictEqual(TestWebglAddon.isEnabled, false, 'The webgl renderer is always disabled on Safari');
-			} else {
-				strictEqual(TestWebglAddon.isEnabled, true);
-			}
-
-			// Turn off to reset state
-			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'off' } });
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-			await xterm.webglAddonPromise; // await addon activate
-			strictEqual(TestWebglAddon.isEnabled, false);
-
-			// Set to auto again but throw when activating the webgl addon
-			TestWebglAddon.shouldThrow = true;
-			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
-			await xterm.webglAddonPromise; // await addon activate
-			strictEqual(TestWebglAddon.isEnabled, false);
 		});
 	});
 });

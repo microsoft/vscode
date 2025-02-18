@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Command } from 'vs/editor/common/languages';
-import { IAction } from 'vs/base/common/actions';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ResourceTree } from 'vs/base/common/resourceTree';
-import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
-import { ITextModel } from 'vs/editor/common/model';
-import { IObservable } from 'vs/base/common/observable';
+import { URI } from '../../../../base/common/uri.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Command } from '../../../../editor/common/languages.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { IMenu } from '../../../../platform/actions/common/actions.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { ResourceTree } from '../../../../base/common/resourceTree.js';
+import { ISCMHistoryProvider } from './history.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IObservable } from '../../../../base/common/observable.js';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
+export const HISTORY_VIEW_PANE_ID = 'workbench.scm.history';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -55,6 +56,7 @@ export interface ISCMResourceGroup {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly label: string;
+	contextValue: string | undefined;
 	readonly hideWhenEmpty: boolean;
 	readonly onDidChange: Event<void>;
 
@@ -75,13 +77,10 @@ export interface ISCMProvider extends IDisposable {
 	readonly inputBoxTextModel: ITextModel;
 	readonly count: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
-	readonly historyProvider?: ISCMHistoryProvider;
-	readonly historyProviderObs: IObservable<ISCMHistoryProvider | undefined>;
-	readonly onDidChangeHistoryProvider: Event<void>;
+	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
 	readonly acceptInputCommand?: Command;
-	readonly actionButton?: ISCMActionButtonDescriptor;
+	readonly actionButton: IObservable<ISCMActionButtonDescriptor | undefined>;
 	readonly statusBarCommands: IObservable<readonly Command[] | undefined>;
-	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
@@ -117,16 +116,15 @@ export interface ISCMInputChangeEvent {
 }
 
 export interface ISCMActionButtonDescriptor {
-	command: Command;
+	command: Command & { shortTitle?: string };
 	secondaryCommands?: Command[][];
-	description?: string;
 	enabled: boolean;
 }
 
 export interface ISCMActionButton {
 	readonly type: 'actionButton';
 	readonly repository: ISCMRepository;
-	readonly button?: ISCMActionButtonDescriptor;
+	readonly button: ISCMActionButtonDescriptor;
 }
 
 export interface ISCMInput {
@@ -187,7 +185,6 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
-	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
 	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
@@ -231,6 +228,11 @@ export interface ISCMViewService {
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
 	focus(repository: ISCMRepository): void;
+
+	/**
+	 * Focused repository or the repository for the active editor
+	 */
+	readonly activeRepository: IObservable<ISCMRepository | undefined>;
 }
 
 export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';

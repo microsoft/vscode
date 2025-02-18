@@ -55,6 +55,11 @@ fsevents/test/**
 @vscode/windows-registry/build/**
 !@vscode/windows-registry/build/Release/*.node
 
+@vscode/tree-sitter-wasm/wasm/tree-sitter-*.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-typescript.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-regex.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-ini.wasm
+
 native-keymap/binding.gyp
 native-keymap/build/**
 native-keymap/src/**
@@ -96,10 +101,13 @@ node-pty/lib/*.test.js
 node-pty/tools/**
 node-pty/deps/**
 node-pty/scripts/**
+node-pty/third_party/**
 !node-pty/build/Release/spawn-helper
 !node-pty/build/Release/*.exe
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
+!node-pty/build/Release/conpty/conpty.dll
+!node-pty/build/Release/conpty/OpenConsole.exe
 
 @parcel/watcher/binding.gyp
 @parcel/watcher/build/**
@@ -107,15 +115,13 @@ node-pty/scripts/**
 @parcel/watcher/src/**
 !@parcel/watcher/build/Release/*.node
 
-vsda/build/**
-vsda/ci/**
-vsda/src/**
-vsda/.gitignore
-vsda/binding.gyp
-vsda/README.md
-vsda/SECURITY.md
-vsda/targets
+vsda/**
+!vsda/index.js
+!vsda/index.d.ts
+!vsda/package.json
 !vsda/build/Release/vsda.node
+!vsda/rust/web/**
+!vsda/rust/bundler/**
 
 @vscode/policy-watcher/build/**
 @vscode/policy-watcher/.husky/**
@@ -129,6 +135,7 @@ vsda/targets
 !@vscode/windows-ca-certs/package.json
 !@vscode/windows-ca-certs/**/*.node
 
+@vscode/node-addon-api/**/*
 node-addon-api/**/*
 prebuild-install/**/*
 

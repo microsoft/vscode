@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { parse } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { parse } from '../../../../base/common/marshalling.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorSerializer } from '../../../common/editor.js';
+import { MergeEditorInput, MergeEditorInputData } from './mergeEditorInput.js';
 
 export class MergeEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {

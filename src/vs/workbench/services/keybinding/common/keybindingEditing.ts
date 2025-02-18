@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Queue } from 'vs/base/common/async';
-import * as json from 'vs/base/common/json';
-import * as objects from 'vs/base/common/objects';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { Edit } from 'vs/base/common/jsonFormatter';
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { localize } from '../../../../nls.js';
+import { Queue } from '../../../../base/common/async.js';
+import * as json from '../../../../base/common/json.js';
+import * as objects from '../../../../base/common/objects.js';
+import { setProperty } from '../../../../base/common/jsonEdit.js';
+import { Edit } from '../../../../base/common/jsonFormatter.js';
+import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ITextModelService, IResolvedTextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IUserFriendlyKeybinding } from '../../../../platform/keybinding/common/keybinding.js';
+import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { ITextFileService } from '../../textfile/common/textfiles.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 
 export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
 

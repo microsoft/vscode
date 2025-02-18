@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, decodeBase64 } from 'vs/base/common/buffer';
-import { revive } from 'vs/base/common/marshalling';
-import { IBulkEditService, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceCellEditDto, IWorkspaceEditDto, IWorkspaceFileEditDto, MainContext, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { VSBuffer, decodeBase64 } from '../../../base/common/buffer.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { IBulkEditService, ResourceFileEdit, ResourceTextEdit } from '../../../editor/browser/services/bulkEditService.js';
+import { WorkspaceEdit } from '../../../editor/common/languages.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceCellEditDto, IWorkspaceEditDto, IWorkspaceFileEditDto, MainContext, MainThreadBulkEditsShape } from '../common/extHost.protocol.js';
+import { ResourceNotebookCellEdit } from '../../contrib/bulkEdit/browser/bulkCellEdits.js';
+import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 
 
 @extHostNamedCustomer(MainContext.MainThreadBulkEdits)

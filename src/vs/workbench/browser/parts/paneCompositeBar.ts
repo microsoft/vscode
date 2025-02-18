@@ -3,32 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, DisposableStore, Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { Dimension, createCSSRule, asCSSUrl, isMouseEvent } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, StorageTarget, IProfileStorageValueChangeEvent } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { isString } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isNative } from 'vs/base/common/platform';
-import { Before2D, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { StringSHA1 } from 'vs/base/common/hash';
-import { GestureEvent } from 'vs/base/browser/touch';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { localize } from '../../../nls.js';
+import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { IActivityService } from '../../services/activity/common/activity.js';
+import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { IColorTheme } from '../../../platform/theme/common/themeService.js';
+import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
+import { Dimension, isMouseEvent } from '../../../base/browser/dom.js';
+import { createCSSRule } from '../../../base/browser/domStylesheets.js';
+import { asCSSUrl } from '../../../base/browser/cssValue.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from './compositeBarActions.js';
+import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from '../../common/views.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { isString } from '../../../base/common/types.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { isNative } from '../../../base/common/platform.js';
+import { Before2D, ICompositeDragAndDrop } from '../dnd.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../base/common/actions.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
+import { GestureEvent } from '../../../base/browser/touch.js';
+import { IPaneCompositePart } from './paneCompositePart.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -96,12 +99,13 @@ export class PaneCompositeBar extends Disposable {
 
 	constructor(
 		protected readonly options: IPaneCompositeBarOptions,
-		private readonly part: Parts,
+		protected readonly part: Parts,
 		private readonly paneCompositePart: IPaneCompositePart,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IViewsService private readonly viewService: IViewsService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
@@ -155,24 +159,64 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
-		const actions: IAction[] = [];
+		const actions: IAction[] = [new Separator()];
 
 		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
 		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
-		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
-			actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation, undefined, 'resetLocationAction') }));
+		const currentLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+
+		// Move View Container
+		const moveActions = [];
+		for (const location of [ViewContainerLocation.Sidebar, ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel]) {
+			if (currentLocation !== location) {
+				moveActions.push(this.createMoveAction(viewContainer, location, defaultLocation));
+			}
+		}
+
+		actions.push(new SubmenuAction('moveToMenu', localize('moveToMenu', "Move To"), moveActions));
+
+		// Reset Location
+		if (defaultLocation !== currentLocation) {
+			actions.push(toAction({
+				id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => {
+					this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation, undefined, 'resetLocationAction');
+					this.viewService.openViewContainer(viewContainer.id, true);
+				}
+			}));
 		} else {
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			if (viewContainerModel.allViewDescriptors.length === 1) {
 				const viewToReset = viewContainerModel.allViewDescriptors[0];
 				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
 				if (defaultContainer !== viewContainer) {
-					actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer, undefined, 'resetLocationAction') }));
+					actions.push(toAction({
+						id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => {
+							this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer, undefined, 'resetLocationAction');
+							this.viewService.openViewContainer(viewContainer.id, true);
+						}
+					}));
 				}
 			}
 		}
 
 		return actions;
+	}
+
+	private createMoveAction(viewContainer: ViewContainer, newLocation: ViewContainerLocation, defaultLocation: ViewContainerLocation): IAction {
+		return toAction({
+			id: `moveViewContainerTo${newLocation}`,
+			label: newLocation === ViewContainerLocation.Panel ? localize('panel', "Panel") : newLocation === ViewContainerLocation.Sidebar ? localize('sidebar', "Primary Side Bar") : localize('auxiliarybar', "Secondary Side Bar"),
+			run: () => {
+				let index: number | undefined;
+				if (newLocation !== defaultLocation) {
+					index = this.viewDescriptorService.getViewContainersByLocation(newLocation).length; // move to the end of the location
+				} else {
+					index = undefined; // restore default location
+				}
+				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, newLocation, index);
+				this.viewService.openViewContainer(viewContainer.id, true);
+			}
+		});
 	}
 
 	private registerListeners(): void {
@@ -190,8 +234,11 @@ export class PaneCompositeBar extends Disposable {
 				return;
 			}
 			this.onDidRegisterExtensions();
-			this._register(this.compositeBar.onDidChange(() => this.saveCachedViewContainers()));
-			this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, this._store)(e => this.onDidPinnedViewContainersStorageValueChange(e)));
+			this._register(this.compositeBar.onDidChange(() => {
+				this.updateCompositeBarItemsFromStorage(true);
+				this.saveCachedViewContainers();
+			}));
+			this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
 		});
 	}
 
@@ -374,6 +421,12 @@ export class PaneCompositeBar extends Disposable {
 			this.hideComposite(viewContainer.id);
 		} else {
 			this.addComposite(viewContainer);
+
+			// Activate if this is the active pane composite
+			const activePaneComposite = this.paneCompositePart.getActivePaneComposite();
+			if (activePaneComposite?.getId() === viewContainer.id) {
+				this.compositeBar.activateComposite(viewContainer.id);
+			}
 		}
 	}
 
@@ -383,7 +436,7 @@ export class PaneCompositeBar extends Disposable {
 
 		if (viewContainer) {
 			if (viewContainer.hideIfEmpty) {
-				if (this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0) {
+				if (this.viewService.isViewContainerActive(viewContainerId)) {
 					return false;
 				}
 			} else {
@@ -448,6 +501,11 @@ export class PaneCompositeBar extends Disposable {
 			.map(v => v.id);
 	}
 
+	getPaneCompositeIds(): string[] {
+		return this.compositeBar.getVisibleComposites()
+			.map(v => v.id);
+	}
+
 	getContextMenuActions(): IAction[] {
 		return this.compositeBar.getContextMenuActions();
 	}
@@ -469,52 +527,63 @@ export class PaneCompositeBar extends Disposable {
 		return this.viewDescriptorService.getViewContainersByLocation(this.location);
 	}
 
-	private onDidPinnedViewContainersStorageValueChange(e: IProfileStorageValueChangeEvent): void {
-		if (this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
-			this._placeholderViewContainersValue = undefined;
-			this._pinnedViewContainersValue = undefined;
-			this._cachedViewContainers = undefined;
+	private updateCompositeBarItemsFromStorage(retainExisting: boolean): void {
+		if (this.pinnedViewContainersValue === this.getStoredPinnedViewContainersValue()) {
+			return;
+		}
 
-			const newCompositeItems: ICompositeBarItem[] = [];
-			const compositeItems = this.compositeBar.getCompositeBarItems();
+		this._placeholderViewContainersValue = undefined;
+		this._pinnedViewContainersValue = undefined;
+		this._cachedViewContainers = undefined;
 
-			for (const cachedViewContainer of this.cachedViewContainers) {
-				newCompositeItems.push({
-					id: cachedViewContainer.id,
-					name: cachedViewContainer.name,
-					order: cachedViewContainer.order,
-					pinned: cachedViewContainer.pinned,
-					visible: cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id),
-				});
-			}
+		const newCompositeItems: ICompositeBarItem[] = [];
+		const compositeItems = this.compositeBar.getCompositeBarItems();
 
-			for (const viewContainer of this.getViewContainers()) {
-				// Add missing view containers
-				if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
-					const index = compositeItems.findIndex(({ id }) => id === viewContainer.id);
-					if (index !== -1) {
-						const compositeItem = compositeItems[index];
-						newCompositeItems.splice(index, 0, {
-							id: viewContainer.id,
-							name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
-							order: compositeItem.order,
-							pinned: compositeItem.pinned,
-							visible: compositeItem.visible,
-						});
-					} else {
-						newCompositeItems.push({
-							id: viewContainer.id,
-							name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
-							order: viewContainer.order,
-							pinned: true,
-							visible: !this.shouldBeHidden(viewContainer),
-						});
-					}
+		for (const cachedViewContainer of this.cachedViewContainers) {
+			newCompositeItems.push({
+				id: cachedViewContainer.id,
+				name: cachedViewContainer.name,
+				order: cachedViewContainer.order,
+				pinned: cachedViewContainer.pinned,
+				visible: cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id),
+			});
+		}
+
+		for (const viewContainer of this.getViewContainers()) {
+			// Add missing view containers
+			if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
+				const index = compositeItems.findIndex(({ id }) => id === viewContainer.id);
+				if (index !== -1) {
+					const compositeItem = compositeItems[index];
+					newCompositeItems.splice(index, 0, {
+						id: viewContainer.id,
+						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
+						order: compositeItem.order,
+						pinned: compositeItem.pinned,
+						visible: compositeItem.visible,
+					});
+				} else {
+					newCompositeItems.push({
+						id: viewContainer.id,
+						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
+						order: viewContainer.order,
+						pinned: true,
+						visible: !this.shouldBeHidden(viewContainer),
+					});
 				}
 			}
-
-			this.compositeBar.setCompositeBarItems(newCompositeItems);
 		}
+
+		if (retainExisting) {
+			for (const compositeItem of compositeItems) {
+				const newCompositeItem = newCompositeItems.find(({ id }) => id === compositeItem.id);
+				if (!newCompositeItem) {
+					newCompositeItems.push(compositeItem);
+				}
+			}
+		}
+
+		this.compositeBar.setCompositeBarItems(newCompositeItems);
 	}
 
 	private saveCachedViewContainers(): void {
@@ -726,8 +795,7 @@ class ViewContainerActivityAction extends CompositeBarAction {
 	}
 
 	private updateActivity(): void {
-		const activities = this.activityService.getViewContainerActivities(this.compositeBarActionItem.id);
-		this.activity = activities[0];
+		this.activities = this.activityService.getViewContainerActivities(this.compositeBarActionItem.id);
 	}
 
 	override async run(event: { preserveFocus: boolean }): Promise<void> {
@@ -775,7 +843,7 @@ class ViewContainerActivityAction extends CompositeBarAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
-			owner: 'sbatten';
+			owner: 'benibenj';
 			comment: 'Event logged when an activity bar action is triggered.';
 			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view in the activity bar for which the action was performed.' };
 			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was performed. e.g. "hide", "show", or "refocus"' };

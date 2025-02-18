@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
-import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
+import { h } from '../../../../../../base/browser/dom.js';
+import { IView, IViewSize } from '../../../../../../base/browser/ui/grid/grid.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../../../../../editor/browser/editorExtensions.js';
+import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { Selection } from '../../../../../../editor/common/core/selection.js';
+import { CodeLensContribution } from '../../../../../../editor/contrib/codelens/browser/codelensController.js';
+import { FoldingController } from '../../../../../../editor/contrib/folding/browser/folding.js';
+import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../../../browser/parts/editor/editor.js';
+import { setStyle } from '../../utils.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { MergeEditorViewModel } from '../viewModel.js';
 
 export abstract class CodeEditorView extends Disposable {
 	readonly model = this.viewModel.map(m => /** @description model */ m?.model);

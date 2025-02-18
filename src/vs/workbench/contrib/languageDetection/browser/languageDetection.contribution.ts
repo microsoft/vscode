@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize, localize2 } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { ILanguageDetectionService, LanguageDetectionHintConfig, LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Schemas } from 'vs/base/common/network';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { ILanguageDetectionService, LanguageDetectionHintConfig, LanguageDetectionLanguageEventSource } from '../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { NOTEBOOK_EDITOR_EDITABLE } from '../../notebook/common/notebookContextKeys.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 const detectLanguageCommandId = 'editor.detectLanguage';
 

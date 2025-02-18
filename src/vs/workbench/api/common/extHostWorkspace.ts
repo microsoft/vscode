@@ -3,42 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
-import { Barrier } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { Schemas } from 'vs/base/common/network';
-import { Counter } from 'vs/base/common/numbers';
-import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from 'vs/base/common/resources';
-import { compare } from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range } from 'vs/workbench/api/common/extHostTypes';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
-import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
-import { revive } from 'vs/base/common/marshalling';
+import { delta as arrayDelta, mapArrayOrNot } from '../../../base/common/arrays.js';
+import { AsyncIterableObject, Barrier } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { AsyncEmitter, Emitter, Event } from '../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { Schemas } from '../../../base/common/network.js';
+import { Counter } from '../../../base/common/numbers.js';
+import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from '../../../base/common/resources.js';
+import { compare } from '../../../base/common/strings.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { FileSystemProviderCapabilities } from '../../../platform/files/common/files.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { Severity } from '../../../platform/notification/common/notification.js';
+import { EditSessionIdentityMatch } from '../../../platform/workspace/common/editSessions.js';
+import { Workspace, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { IExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { GlobPattern } from './extHostTypeConverters.js';
+import { Range } from './extHostTypes.js';
+import { IURITransformerService } from './extHostUriTransformerService.js';
+import { IFileQueryBuilderOptions, ISearchPatternBuilder, ITextQueryBuilderOptions } from '../../services/search/common/queryBuilder.js';
+import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from '../../services/search/common/search.js';
+import type * as vscode from 'vscode';
+import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
+import { ExcludeSettingOptions, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
 	resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
 	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
 	resolveProxy(url: string): Promise<string | undefined>;
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
 }
 
@@ -73,6 +77,11 @@ function ignorePathCasing(uri: URI, extHostFileSystemInfo: IExtHostFileSystemInf
 interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 	name: string;
 	index: number;
+}
+
+interface QueryOptions<T> {
+	options: T;
+	folder: URI | undefined;
 }
 
 class ExtHostWorkspaceImpl extends Workspace {
@@ -457,100 +466,188 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				excludeString = exclude.pattern;
 			}
 		}
-		return this._findFilesImpl(include, undefined, {
-			exclude: excludeString,
+
+		// todo: consider exclude baseURI if available
+		return this._findFilesImpl({ type: 'include', value: include }, {
+			exclude: [excludeString],
 			maxResults,
-			useDefaultExcludes: useFileExcludes,
-			useDefaultSearchExcludes: false,
-			useIgnoreFiles: false
+			useExcludeSettings: useFileExcludes ? ExcludeSettingOptions.FilesExclude : ExcludeSettingOptions.None,
+			useIgnoreFiles: {
+				local: false
+			}
 		}, token);
 	}
 
-	findFiles2(filePattern: vscode.GlobPattern | undefined,
+
+	findFiles2(filePatterns: readonly vscode.GlobPattern[],
 		options: vscode.FindFiles2Options = {},
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		this._logService.trace(`extHostWorkspace#findFiles2: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2`);
-		return this._findFilesImpl(undefined, filePattern, options, token);
+		this._logService.trace(`extHostWorkspace#findFiles2New: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2New`);
+		return this._findFilesImpl({ type: 'filePatterns', value: filePatterns }, options, token);
 	}
 
 	private async _findFilesImpl(
 		// the old `findFiles` used `include` to query, but the new `findFiles2` uses `filePattern` to query.
 		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
-		include: vscode.GlobPattern | undefined,
-		filePattern: vscode.GlobPattern | undefined,
+		query: { readonly type: 'include'; readonly value: vscode.GlobPattern | undefined } | { readonly type: 'filePatterns'; readonly value: readonly vscode.GlobPattern[] },
 		options: vscode.FindFiles2Options,
-		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		if (token && token.isCancellationRequested) {
+		token: vscode.CancellationToken
+	): Promise<vscode.Uri[]> {
+		if (token.isCancellationRequested) {
 			return Promise.resolve([]);
 		}
 
-		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
-			options.exclude ? options.exclude.pattern : undefined;
-
-		const fileQueries: IFileQueryBuilderOptions = {
-			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
-			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
-			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
-			disregardParentIgnoreFiles: typeof options.useParentIgnoreFiles === 'boolean' ? !options.useParentIgnoreFiles : undefined,
-			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : false,
-			disregardSearchExcludeSettings: typeof options.useDefaultSearchExcludes === 'boolean' ? !options.useDefaultSearchExcludes : false,
-			maxResults: options.maxResults,
-			excludePattern: excludePattern,
-			shouldGlobSearch: typeof options.fuzzy === 'boolean' ? !options.fuzzy : true,
-			_reason: 'startFileSearch'
-		};
-		let folderToUse: URI | undefined;
-		if (include) {
-			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(include));
-			folderToUse = folder;
-			fileQueries.includePattern = includePattern;
-		} else {
-			const { includePattern, folder } = parseSearchInclude(GlobPattern.from(filePattern));
-			folderToUse = folder;
-			fileQueries.filePattern = includePattern;
+		const filePatternsToUse = query.type === 'include' ? [query.value] : query.value ?? [];
+		if (!Array.isArray(filePatternsToUse)) {
+			console.error('Invalid file pattern provided', filePatternsToUse);
+			throw new Error(`Invalid file pattern provided ${JSON.stringify(filePatternsToUse)}`);
 		}
 
-		return this._proxy.$startFileSearch(
-			folderToUse ?? null,
-			fileQueries,
-			token
-		)
-			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);
+		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
+
+			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
+
+			const fileQueries: IFileQueryBuilderOptions = {
+				ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
+				disregardIgnoreFiles: typeof options.useIgnoreFiles?.local === 'boolean' ? !options.useIgnoreFiles.local : undefined,
+				disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles.global : undefined,
+				disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles.parent : undefined,
+				disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
+				disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
+				maxResults: options.maxResults,
+				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
+				_reason: 'startFileSearch',
+				shouldGlobSearch: query.type === 'include' ? undefined : true,
+			};
+
+			const parseInclude = parseSearchExcludeInclude(GlobPattern.from(filePattern));
+			const folderToUse = parseInclude?.folder;
+			if (query.type === 'include') {
+				fileQueries.includePattern = parseInclude?.pattern;
+			} else {
+				fileQueries.filePattern = parseInclude?.pattern;
+			}
+
+			return {
+				folder: folderToUse,
+				options: fileQueries
+			};
+		});
+
+		return this._findFilesBase(queryOptions, token);
 	}
 
-	async findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
-		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFiles`);
+	private async _findFilesBase(
+		queryOptions: QueryOptions<IFileQueryBuilderOptions>[] | undefined,
+		token: CancellationToken
+	): Promise<vscode.Uri[]> {
+		const result = await Promise.all(queryOptions?.map(option => this._proxy.$startFileSearch(
+			option.folder ?? null,
+			option.options,
+			token).then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : [])
+		) ?? []);
 
-		const requestId = this._requestIdProvider.getNext();
+		return result.flat();
+	}
 
-		const previewOptions: vscode.TextSearchPreviewOptions = typeof options.previewOptions === 'undefined' ?
-			{
-				matchLines: 100,
-				charsPerLine: 10000
-			} :
-			options.previewOptions;
+	findTextInFiles2(query: vscode.TextSearchQuery2, options: vscode.FindTextInFilesOptions2 | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
+		this._logService.trace(`extHostWorkspace#findTextInFiles2: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFiles2`);
 
-		const { includePattern, folder } = parseSearchInclude(GlobPattern.from(options.include));
-		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
-			options.exclude ? options.exclude.pattern : undefined;
-		const queryOptions: ITextQueryBuilderOptions = {
-			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
-			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
-			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
-			disregardParentIgnoreFiles: typeof options.useParentIgnoreFiles === 'boolean' ? !options.useParentIgnoreFiles : undefined,
-			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : true,
-			fileEncoding: options.encoding,
-			maxResults: options.maxResults,
-			previewOptions,
-			afterContext: options.afterContext,
-			beforeContext: options.beforeContext,
 
-			includePattern: includePattern,
-			excludePattern: excludePattern
+		const getOptions = (include: vscode.GlobPattern | undefined): QueryOptions<ITextQueryBuilderOptions> => {
+			if (!options) {
+				return {
+					folder: undefined,
+					options: {}
+				};
+			}
+			const parsedInclude = include ? parseSearchExcludeInclude(GlobPattern.from(include)) : undefined;
+
+			const excludePatterns = options.exclude ? globsToISearchPatternBuilder(options.exclude) : undefined;
+
+			return {
+				options: {
+
+					ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
+					disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+					disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles?.global : undefined,
+					disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles?.parent : undefined,
+					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
+					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
+					fileEncoding: options.encoding,
+					maxResults: options.maxResults,
+					previewOptions: options.previewOptions ? {
+						matchLines: options.previewOptions?.numMatchLines ?? 100,
+						charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
+					} : undefined,
+					surroundingContext: options.surroundingContext,
+
+					includePattern: parsedInclude?.pattern,
+					excludePattern: excludePatterns
+				} satisfies ITextQueryBuilderOptions,
+				folder: parsedInclude?.folder
+			} satisfies QueryOptions<ITextQueryBuilderOptions>;
 		};
 
-		const isCanceled = false;
+		const queryOptionsRaw: (QueryOptions<ITextQueryBuilderOptions> | undefined)[] = ((options?.include?.map((include) =>
+			getOptions(include)))) ?? [getOptions(undefined)];
+
+		const queryOptions = queryOptionsRaw.filter((queryOps): queryOps is QueryOptions<ITextQueryBuilderOptions> => !!queryOps);
+
+		const disposables = new DisposableStore();
+		const progressEmitter = disposables.add(new Emitter<{ result: ITextSearchResult<URI>; uri: URI }>());
+		const complete = this.findTextInFilesBase(
+			query,
+			queryOptions,
+			(result, uri) => progressEmitter.fire({ result, uri }),
+			token
+		);
+		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResult2>(async emitter => {
+			disposables.add(progressEmitter.event(e => {
+				const result = e.result;
+				const uri = e.uri;
+				if (resultIsMatch(result)) {
+					emitter.emitOne(new TextSearchMatch2(
+						uri,
+						result.rangeLocations.map((range) => ({
+							previewRange: new Range(range.preview.startLineNumber, range.preview.startColumn, range.preview.endLineNumber, range.preview.endColumn),
+							sourceRange: new Range(range.source.startLineNumber, range.source.startColumn, range.source.endLineNumber, range.source.endColumn)
+						})),
+						result.previewText
+
+					));
+				} else {
+					emitter.emitOne(new TextSearchContext2(
+						uri,
+						result.text,
+						result.lineNumber
+					));
+
+				}
+			}));
+			await complete;
+		});
+
+		return {
+			results: asyncIterable,
+			complete: complete.then((e) => {
+				disposables.dispose();
+				return {
+					limitHit: e?.limitHit ?? false
+				};
+			}),
+		};
+	}
+
+
+	async findTextInFilesBase(query: vscode.TextSearchQuery, queryOptions: QueryOptions<ITextQueryBuilderOptions>[] | undefined, callback: (result: ITextSearchResult<URI>, uri: URI) => void, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
+		const requestId = this._requestIdProvider.getNext();
+
+		let isCanceled = false;
+		token.onCancellationRequested(_ => {
+			isCanceled = true;
+		});
 
 		this._activeSearchCallbacks[requestId] = p => {
 			if (isCanceled) {
@@ -560,26 +657,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			const uri = URI.revive(p.resource);
 			p.results!.forEach(rawResult => {
 				const result: ITextSearchResult<URI> = revive(rawResult);
-				if (resultIsMatch(result)) {
-					callback({
-						uri,
-						preview: {
-							text: result.preview.text,
-							matches: mapArrayOrNot(
-								result.preview.matches,
-								m => new Range(m.startLineNumber, m.startColumn, m.endLineNumber, m.endColumn))
-						},
-						ranges: mapArrayOrNot(
-							result.ranges,
-							r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn))
-					} satisfies vscode.TextSearchMatch);
-				} else {
-					callback({
-						uri,
-						text: result.text,
-						lineNumber: result.lineNumber
-					} satisfies vscode.TextSearchContext);
-				}
+				callback(result, uri);
 			});
 		};
 
@@ -588,18 +666,81 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 
 		try {
-			const result = await this._proxy.$startTextSearch(
+			const result = await Promise.all(queryOptions?.map(option => this._proxy.$startTextSearch(
 				query,
-				folder ?? null,
-				queryOptions,
+				option.folder ?? null,
+				option.options,
 				requestId,
-				token);
+				token) || {}
+			) ?? []);
 			delete this._activeSearchCallbacks[requestId];
-			return result || {};
+			return result.reduce((acc, val) => {
+				return {
+					limitHit: acc?.limitHit || (val?.limitHit ?? false),
+					message: [acc?.message ?? [], val?.message ?? []].flat(),
+				};
+			}, {}) ?? { limitHit: false };
+
 		} catch (err) {
 			delete this._activeSearchCallbacks[requestId];
 			throw err;
 		}
+	}
+
+	async findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions & { useSearchExclude?: boolean }, callback: (result: vscode.TextSearchResult) => void, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
+		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFiles`);
+
+		const previewOptions: vscode.TextSearchPreviewOptions = typeof options.previewOptions === 'undefined' ?
+			{
+				matchLines: 100,
+				charsPerLine: 10000
+			} :
+			options.previewOptions;
+
+		const parsedInclude = parseSearchExcludeInclude(GlobPattern.from(options.include));
+
+		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
+			options.exclude ? options.exclude.pattern : undefined;
+		const queryOptions: ITextQueryBuilderOptions = {
+			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
+			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
+			disregardParentIgnoreFiles: typeof options.useParentIgnoreFiles === 'boolean' ? !options.useParentIgnoreFiles : undefined,
+			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : true,
+			disregardSearchExcludeSettings: typeof options.useSearchExclude === 'boolean' ? !options.useSearchExclude : true,
+			fileEncoding: options.encoding,
+			maxResults: options.maxResults,
+			previewOptions,
+			surroundingContext: options.afterContext, // TODO: remove ability to have before/after context separately
+
+			includePattern: parsedInclude?.pattern,
+			excludePattern: excludePattern ? [{ pattern: excludePattern }] : undefined,
+		};
+
+		const progress = (result: ITextSearchResult<URI>, uri: URI) => {
+			if (resultIsMatch(result)) {
+				callback({
+					uri,
+					preview: {
+						text: result.previewText,
+						matches: mapArrayOrNot(
+							result.rangeLocations,
+							m => new Range(m.preview.startLineNumber, m.preview.startColumn, m.preview.endLineNumber, m.preview.endColumn))
+					},
+					ranges: mapArrayOrNot(
+						result.rangeLocations,
+						r => new Range(r.source.startLineNumber, r.source.startColumn, r.source.endLineNumber, r.source.endColumn))
+				} satisfies vscode.TextSearchMatch);
+			} else {
+				callback({
+					uri,
+					text: result.text,
+					lineNumber: result.lineNumber
+				} satisfies vscode.TextSearchContext);
+			}
+		};
+
+		return this.findTextInFilesBase(query, [{ options: queryOptions, folder: parsedInclude?.folder }], progress, token);
 	}
 
 	$handleTextSearchResult(result: IRawFileMatch2, requestId: number): void {
@@ -624,6 +765,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	resolveProxy(url: string): Promise<string | undefined> {
 		return this._proxy.$resolveProxy(url);
+	}
+
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return this._proxy.$lookupAuthorization(authInfo);
+	}
+
+	lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return this._proxy.$lookupKerberosAuthorization(url);
 	}
 
 	loadCertificates(): Promise<string[]> {
@@ -794,22 +943,23 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
 export interface IExtHostWorkspace extends ExtHostWorkspace, ExtHostWorkspaceShape, IExtHostWorkspaceProvider { }
 
-function parseSearchInclude(include: string | IRelativePatternDto | undefined | null): { includePattern?: string; folder?: URI } {
-	let includePattern: string | undefined;
+function parseSearchExcludeInclude(include: string | IRelativePatternDto | undefined | null): { pattern: string; folder?: URI } | undefined {
+	let pattern: string | undefined;
 	let includeFolder: URI | undefined;
 	if (include) {
 		if (typeof include === 'string') {
-			includePattern = include;
+			pattern = include;
 		} else {
-			includePattern = include.pattern;
+			pattern = include.pattern;
 			includeFolder = URI.revive(include.baseUri);
 		}
-	}
 
-	return {
-		includePattern,
-		folder: includeFolder
-	};
+		return {
+			pattern,
+			folder: includeFolder
+		};
+	}
+	return undefined;
 }
 
 interface IExtensionListener<E> {
@@ -817,3 +967,27 @@ interface IExtensionListener<E> {
 	(e: E): any;
 }
 
+function globsToISearchPatternBuilder(excludes: vscode.GlobPattern[] | undefined): ISearchPatternBuilder<URI>[] {
+	return (
+		excludes?.map((exclude): ISearchPatternBuilder<URI> | undefined => {
+			if (typeof exclude === 'string') {
+				if (exclude === '') {
+					return undefined;
+				}
+				return {
+					pattern: exclude,
+					uri: undefined
+				} satisfies ISearchPatternBuilder<URI>;
+			} else {
+				const parsedExclude = parseSearchExcludeInclude(exclude);
+				if (!parsedExclude) {
+					return undefined;
+				}
+				return {
+					pattern: parsedExclude.pattern,
+					uri: parsedExclude.folder
+				} satisfies ISearchPatternBuilder<URI>;
+			}
+		}) ?? []
+	).filter((e): e is ISearchPatternBuilder<URI> => !!e);
+}

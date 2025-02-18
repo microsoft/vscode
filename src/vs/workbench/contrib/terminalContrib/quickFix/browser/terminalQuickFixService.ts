@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
-import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Emitter } from '../../../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ITerminalCommandSelector } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector } from './quickFix.js';
+import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
+import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
 	declare _serviceBrand: undefined;

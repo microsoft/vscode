@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mockObject } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockDebugStorage } from 'vs/workbench/contrib/debug/test/common/mockDebug';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { mockObject } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from '../../common/debugModel.js';
+import { MockDebugStorage } from './mockDebug.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('DebugModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

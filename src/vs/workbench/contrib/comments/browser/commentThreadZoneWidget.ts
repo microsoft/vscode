@@ -3,29 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import * as languages from 'vs/editor/common/languages';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateBorderColor } from 'vs/workbench/contrib/comments/browser/commentColors';
-import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
+import * as dom from '../../../../base/browser/dom.js';
+import { Color } from '../../../../base/common/color.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, IEditorMouseEvent, isCodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { CommentGlyphWidget } from './commentGlyphWidget.js';
+import { ICommentService } from './commentService.js';
+import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
+import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { CommentThreadWidget } from './commentThreadWidget.js';
+import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateBorderColor } from './commentColors.js';
+import { peekViewBorder } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { StableEditorScrollState } from '../../../../editor/browser/stableEditorScroll.js';
+import Severity from '../../../../base/common/severity.js';
+import * as nls from '../../../../nls.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
@@ -128,15 +131,16 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		editor: ICodeEditor,
 		private _uniqueOwner: string,
 		private _commentThread: languages.CommentThread,
-		private _pendingComment: string | undefined,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingComment: languages.PendingComment | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
-		super(editor, { keepEditorSelection: true, isAccessible: true });
+		super(editor, { keepEditorSelection: true, isAccessible: true, showArrow: !!_commentThread.range });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
 		this._scopedInstantiationService = this._globalToDispose.add(instantiationService.createChild(new ServiceCollection(
@@ -187,52 +191,72 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	public reveal(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
+		this.makeVisible(commentUniqueId, focus);
+		const comment = this._commentThread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueId) ?? this._commentThread.comments?.[0];
+		this.commentService.setActiveCommentAndThread(this.uniqueOwner, { thread: this._commentThread, comment });
+	}
+
+	private _expandAndShowZoneWidget() {
 		if (!this._isExpanded) {
 			this.show(this.arrowPosition(this._commentThread.range), 2);
 		}
+	}
 
-		if (commentUniqueId !== undefined) {
-			const height = this.editor.getLayoutInfo().height;
-			const coords = this._commentThreadWidget.getCommentCoords(commentUniqueId);
-			if (coords) {
-				let scrollTop: number = 1;
-				if (this._commentThread.range) {
-					const commentThreadCoords = coords.thread;
-					const commentCoords = coords.comment;
-					scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
-				}
-				this.editor.setScrollTop(scrollTop);
-				if (focus === CommentWidgetFocus.Widget) {
-					this._commentThreadWidget.focus();
-				} else if (focus === CommentWidgetFocus.Editor) {
-					this._commentThreadWidget.focusCommentEditor();
-				}
-				return;
-			}
-		}
-		const rangeToReveal = this._commentThread.range
-			? new Range(this._commentThread.range.startLineNumber, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + 1, 1)
-			: new Range(1, 1, 1, 1);
-
-		this.editor.revealRangeInCenter(rangeToReveal);
+	private _setFocus(commentUniqueId: number | undefined, focus: CommentWidgetFocus) {
 		if (focus === CommentWidgetFocus.Widget) {
-			this._commentThreadWidget.focus();
+			this._commentThreadWidget.focus(commentUniqueId);
 		} else if (focus === CommentWidgetFocus.Editor) {
 			this._commentThreadWidget.focusCommentEditor();
 		}
 	}
 
-	public getPendingComments(): { newComment: string | undefined; edits: { [key: number]: string } } {
+	private _goToComment(commentUniqueId: number, focus: CommentWidgetFocus) {
+		const height = this.editor.getLayoutInfo().height;
+		const coords = this._commentThreadWidget.getCommentCoords(commentUniqueId);
+		if (coords) {
+			let scrollTop: number = 1;
+			if (this._commentThread.range) {
+				const commentThreadCoords = coords.thread;
+				const commentCoords = coords.comment;
+				scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
+			}
+			this.editor.setScrollTop(scrollTop);
+			this._setFocus(commentUniqueId, focus);
+		} else {
+			this._goToThread(focus);
+		}
+	}
+
+	private _goToThread(focus: CommentWidgetFocus) {
+		const rangeToReveal = this._commentThread.range
+			? new Range(this._commentThread.range.startLineNumber, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + 1, 1)
+			: new Range(1, 1, 1, 1);
+
+		this.editor.revealRangeInCenter(rangeToReveal);
+		this._setFocus(undefined, focus);
+	}
+
+	public makeVisible(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
+		this._expandAndShowZoneWidget();
+
+		if (commentUniqueId !== undefined) {
+			this._goToComment(commentUniqueId, focus);
+		} else {
+			this._goToThread(focus);
+		}
+	}
+
+	public getPendingComments(): { newComment: languages.PendingComment | undefined; edits: { [key: number]: languages.PendingComment } } {
 		return {
 			newComment: this._commentThreadWidget.getPendingComment(),
 			edits: this._commentThreadWidget.getPendingEdits()
 		};
 	}
 
-	public setPendingComment(comment: string) {
-		this._pendingComment = comment;
+	public setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
 		this.expand();
-		this._commentThreadWidget.setPendingComment(comment);
+		this._commentThreadWidget.setPendingComment(pending);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -275,7 +299,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					}
 				},
 				collapse: () => {
-					this.collapse();
+					return this.collapse(true);
 				}
 			}
 		) as unknown as CommentThreadWidget<IRange>;
@@ -296,12 +320,42 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.commentService.disposeCommentThread(this.uniqueOwner, this._commentThread.threadId);
 	}
 
-	public collapse() {
+	private doCollapse() {
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 	}
 
-	public expand() {
+	public async collapse(confirm: boolean = false): Promise<boolean> {
+		if (!confirm || (await this.confirmCollapse())) {
+			this.doCollapse();
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	private async confirmCollapse(): Promise<boolean> {
+		const confirmSetting = this.configurationService.getValue<'whenHasUnsubmittedComments' | 'never'>('comments.thread.confirmOnCollapse');
+
+		if (confirmSetting === 'whenHasUnsubmittedComments' && this._commentThreadWidget.hasUnsubmittedComments) {
+			const result = await this.dialogService.confirm({
+				message: nls.localize('confirmCollapse', "Collapsing a comment thread will discard unsubmitted comments. Do you want to collapse this comment thread?"),
+				primaryButton: nls.localize('collapse', "Collapse"),
+				type: Severity.Warning,
+				checkbox: { label: nls.localize('neverAskAgain', "Never ask me again"), checked: false }
+			});
+			if (result.checkboxChecked) {
+				await this.configurationService.updateValue('comments.thread.confirmOnCollapse', 'never');
+			}
+			return result.confirmed;
+		}
+		return true;
+	}
+
+	public expand(setActive?: boolean) {
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
+		if (setActive) {
+			this.commentService.setActiveCommentAndThread(this.uniqueOwner, { thread: this._commentThread });
+		}
 	}
 
 	public getGlyphPosition(): number {
@@ -309,14 +363,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			return this._commentGlyph.getPosition().position!.lineNumber;
 		}
 		return 0;
-	}
-
-	toggleExpand() {
-		if (this._isExpanded) {
-			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
-		} else {
-			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
-		}
 	}
 
 	async update(commentThread: languages.CommentThread<IRange>) {
@@ -359,19 +405,27 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (range) {
 			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
 			this._commentGlyph.setThreadState(this._commentThread.state);
+			this._globalToDispose.add(this._commentGlyph.onDidChangeLineNumber(async e => {
+				if (!this._commentThread.range) {
+					return;
+				}
+				const shift = e - (this._commentThread.range.endLineNumber);
+				const newRange = new Range(this._commentThread.range.startLineNumber + shift, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + shift, this._commentThread.range.endColumn);
+				this._commentThread.range = newRange;
+			}));
 		}
 
 		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight), shouldReveal);
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
 			this._refresh(dimension);
 		}));
-		if ((this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) || (range === undefined)) {
+		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
 			this.show(this.arrowPosition(range), 2);
 		}
 
 		// If this is a new comment thread awaiting user input then we need to reveal it.
 		if (shouldReveal) {
-			this.reveal();
+			this.makeVisible();
 		}
 
 		this.bindCommentThreadListeners();
@@ -382,25 +436,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			await this.update(this._commentThread);
 		}));
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeRange(range => {
-			// Move comment glyph widget and show position if the line has changed.
-			const lineNumber = this._commentThread.range?.startLineNumber ?? 1;
-			let shouldMoveWidget = false;
-			if (this._commentGlyph) {
-				if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
-					shouldMoveWidget = true;
-					this._commentGlyph.setLineNumber(lineNumber);
-				}
-			}
-
-			if (shouldMoveWidget && this._isExpanded) {
-				this.show(this.arrowPosition(this._commentThread.range), 2);
-			}
-		}));
-
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollapsibleState(state => {
 			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				this.show(this.arrowPosition(this._commentThread.range), 2);
+				this._commentThreadWidget.ensureFocusIntoNewEditingComment();
 				return;
 			}
 
@@ -494,6 +533,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
+	}
+
+	async collapseAndFocusRange() {
+		if (await this.collapse(true) && Range.isIRange(this.commentThread.range) && isCodeEditor(this.editor)) {
+			this.editor.setSelection(this.commentThread.range);
+		}
 	}
 
 	override hide() {

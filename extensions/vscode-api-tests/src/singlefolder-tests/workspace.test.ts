@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as fs from 'fs';
 import { basename, join, posix } from 'path';
 import * as vscode from 'vscode';
@@ -598,19 +598,19 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('`findFiles2`', () => {
-		return vscode.workspace.findFiles2('**/image.png').then((res) => {
+		return vscode.workspace.findFiles2(['**/image.png']).then((res) => {
 			assert.strictEqual(res.length, 2);
 		});
 	});
 
 	test('findFiles2 - null exclude', async () => {
-		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: true, useDefaultSearchExcludes: false }).then((res) => {
+		await vscode.workspace.findFiles2(['**/file.txt'], { useExcludeSettings: vscode.ExcludeSettingOptions.FilesExclude }).then((res) => {
 			// file.exclude folder is still searched, search.exclude folder is not
 			assert.strictEqual(res.length, 1);
 			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
 		});
 
-		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: false, useDefaultSearchExcludes: false }).then((res) => {
+		await vscode.workspace.findFiles2(['**/file.txt'], { useExcludeSettings: vscode.ExcludeSettingOptions.None }).then((res) => {
 			// search.exclude and files.exclude folders are both searched
 			assert.strictEqual(res.length, 2);
 			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
@@ -618,7 +618,7 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('findFiles2, exclude', () => {
-		return vscode.workspace.findFiles2('**/image.png', { exclude: '**/sub/**' }).then((res) => {
+		return vscode.workspace.findFiles2(['**/image.png'], { exclude: ['**/sub/**'] }).then((res) => {
 			assert.strictEqual(res.length, 1);
 		});
 	});
@@ -629,7 +629,7 @@ suite('vscode API - workspace', () => {
 		const token = source.token; // just to get an instance first
 		source.cancel();
 
-		return vscode.workspace.findFiles2('*.js', {}, token).then((res) => {
+		return vscode.workspace.findFiles2(['*.js'], {}, token).then((res) => {
 			assert.deepStrictEqual(res, []);
 		});
 	});
@@ -923,7 +923,8 @@ suite('vscode API - workspace', () => {
 		}
 	});
 
-	test('workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735 (with opened editor)', async function () {
+	// TODO: below test is flaky and commented out, see https://github.com/microsoft/vscode/issues/238837
+	test.skip('workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735 (with opened editor)', async function () {
 		await test77735(true);
 	});
 
@@ -1225,6 +1226,27 @@ suite('vscode API - workspace', () => {
 		assert.deepStrictEqual(edt.selections, [new vscode.Selection(0, 0, 0, 3)]);
 	});
 
+	test('SnippetString in WorkspaceEdit with keepWhitespace', async function (): Promise<any> {
+		const file = await createRandomFile('This is line 1\n  ');
+
+		const document = await vscode.workspace.openTextDocument(file);
+		const edt = await vscode.window.showTextDocument(document);
+
+		assert.ok(edt === vscode.window.activeTextEditor);
+
+		const snippetText = new vscode.SnippetTextEdit(new vscode.Range(1, 3, 1, 3), new vscode.SnippetString('This is line 2\n  This is line 3'));
+		snippetText.keepWhitespace = true;
+		const we = new vscode.WorkspaceEdit();
+		we.set(document.uri, [snippetText]);
+		const success = await vscode.workspace.applyEdit(we);
+		if (edt !== vscode.window.activeTextEditor) {
+			return this.skip();
+		}
+
+		assert.ok(success);
+		assert.strictEqual(document.getText(), 'This is line 1\n  This is line 2\n  This is line 3');
+	});
+
 	test('Support creating binary files in a WorkspaceEdit', async function (): Promise<any> {
 
 		const fileUri = vscode.Uri.parse(`${testFs.scheme}:/${rndName()}`);
@@ -1282,4 +1304,26 @@ suite('vscode API - workspace', () => {
 		disposeAll(disposables);
 		return deleteFile(file);
 	}
+
+	test('text document encodings', async () => {
+		const uri1 = await createRandomFile();
+		const uri2 = await createRandomFile(new Uint8Array([0xEF, 0xBB, 0xBF]) /* UTF-8 with BOM */);
+		const uri3 = await createRandomFile(new Uint8Array([0xFF, 0xFE]) /* UTF-16 LE BOM */);
+		const uri4 = await createRandomFile(new Uint8Array([0xFE, 0xFF]) /* UTF-16 BE BOM */);
+
+		const doc1 = await vscode.workspace.openTextDocument(uri1);
+		assert.strictEqual(doc1.encoding, 'utf8');
+
+		const doc2 = await vscode.workspace.openTextDocument(uri2);
+		assert.strictEqual(doc2.encoding, 'utf8bom');
+
+		const doc3 = await vscode.workspace.openTextDocument(uri3);
+		assert.strictEqual(doc3.encoding, 'utf16le');
+
+		const doc4 = await vscode.workspace.openTextDocument(uri4);
+		assert.strictEqual(doc4.encoding, 'utf16be');
+
+		const doc5 = await vscode.workspace.openTextDocument({ content: 'Hello World' });
+		assert.strictEqual(doc5.encoding, 'utf8');
+	});
 });

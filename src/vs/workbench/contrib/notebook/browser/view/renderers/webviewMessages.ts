@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { PreloadOptions, RenderOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
-import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import type { RenderOutputType } from '../../notebookBrowser.js';
+import type { PreloadOptions, RenderOptions } from './webviewPreloads.js';
+import { NotebookCellMetadata } from '../../../common/notebookCommon.js';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;

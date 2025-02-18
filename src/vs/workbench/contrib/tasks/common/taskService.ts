@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import * as nls from '../../../../nls.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Event } from '../../../../base/common/event.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from './tasks.js';
+import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from './taskSystem.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { RawContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 export type { ITaskSummary, Task, ITaskTerminateResponse as TaskTerminateResponse };
 
@@ -64,6 +64,8 @@ export interface IWorkspaceFolderTaskResult extends IWorkspaceTaskResult {
 export interface ITaskService {
 	readonly _serviceBrand: undefined;
 	onDidStateChange: Event<ITaskEvent>;
+	/** Fired when task providers are registered or unregistered */
+	onDidChangeTaskProviders: Event<void>;
 	isReconnected: boolean;
 	onDidReconnectToTasks: Event<void>;
 	supportsMultipleTaskExecutions: boolean;
@@ -75,6 +77,12 @@ export interface ITaskService {
 	getBusyTasks(): Promise<Task[]>;
 	terminate(task: Task): Promise<ITaskTerminateResponse>;
 	tasks(filter?: ITaskFilter): Promise<Task[]>;
+	rerun(terminalInstanceId: number): void;
+	/**
+	 * Gets tasks currently known to the task system. Unlike {@link tasks},
+	 * this does not activate extensions or prompt for workspace trust.
+	 */
+	getKnownTasks(filter?: ITaskFilter): Promise<Task[]>;
 	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, IWorkspaceFolderTaskResult>>;
 	getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]>;

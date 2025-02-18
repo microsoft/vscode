@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/browser/moveCaretCommand';
-import * as nls from 'vs/nls';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ICommand } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { MoveCaretCommand } from './moveCaretCommand.js';
+import * as nls from '../../../../nls.js';
 
 class MoveCaretAction extends EditorAction {
 
@@ -42,8 +42,7 @@ class MoveCaretLeftAction extends MoveCaretAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.moveCarretLeftAction',
-			label: nls.localize('caret.moveLeft', "Move Selected Text Left"),
-			alias: 'Move Selected Text Left',
+			label: nls.localize2('caret.moveLeft', "Move Selected Text Left"),
 			precondition: EditorContextKeys.writable
 		});
 	}
@@ -53,8 +52,7 @@ class MoveCaretRightAction extends MoveCaretAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.moveCarretRightAction',
-			label: nls.localize('caret.moveRight', "Move Selected Text Right"),
-			alias: 'Move Selected Text Right',
+			label: nls.localize2('caret.moveRight', "Move Selected Text Right"),
 			precondition: EditorContextKeys.writable
 		});
 	}

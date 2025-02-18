@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./lineNumbers';
-import * as platform from 'vs/base/common/platform';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorDimmedLineNumber, editorLineNumbers } from 'vs/editor/common/core/editorColorRegistry';
+import './lineNumbers.css';
+import * as platform from '../../../../base/common/platform.js';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
+import { RenderLineNumbersType, EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { RenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { editorDimmedLineNumber, editorLineNumbers } from '../../../common/core/editorColorRegistry.js';
 
+/**
+ * Renders line numbers to the left of the main view lines content.
+ */
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	public static readonly CLASS_NAME = 'line-numbers';

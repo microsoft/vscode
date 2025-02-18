@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { IndentAction } from 'vs/editor/common/languages/languageConfiguration';
-import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { IndentationContextProcessor, isLanguageDifferentFromLineStart, ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
-import { CursorConfiguration } from 'vs/editor/common/cursorCommon';
+import * as strings from '../../../base/common/strings.js';
+import { Range } from '../core/range.js';
+import { ITextModel } from '../model.js';
+import { IndentAction } from './languageConfiguration.js';
+import { IndentConsts } from './supports/indentRules.js';
+import { EditorAutoIndentStrategy } from '../config/editorOptions.js';
+import { ILanguageConfigurationService } from './languageConfigurationRegistry.js';
+import { IViewLineTokens } from '../tokens/lineTokens.js';
+import { IndentationContextProcessor, isLanguageDifferentFromLineStart, ProcessedIndentRulesSupport } from './supports/indentationLineProcessor.js';
+import { CursorConfiguration } from '../cursorCommon.js';
 
 export interface IVirtualModel {
 	tokenization: {

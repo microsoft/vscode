@@ -221,7 +221,12 @@ declare module DebugProtocol {
 				etc.
 			*/
 			category?: 'console' | 'important' | 'stdout' | 'stderr' | 'telemetry' | string;
-			/** The output to report. */
+			/** The output to report.
+
+				ANSI escape sequences may be used to inflience text color and styling if `supportsANSIStyling` is present in both the adapter's `Capabilities` and the client's `InitializeRequestArguments`. A client may strip any unrecognized ANSI sequences.
+
+				If the `supportsANSIStyling` capabilities are not both true, then the client should display the output literally.
+			*/
 			output: string;
 			/** Support for keeping an output log organized by grouping related messages.
 				'start': Start a new group in expanded mode. Subsequent output events are members of the group and should be shown indented.
@@ -242,6 +247,11 @@ declare module DebugProtocol {
 			column?: number;
 			/** Additional data to report. For the `telemetry` category the data is sent to telemetry, for the other categories the data is shown in JSON format. */
 			data?: any;
+			/** A reference that allows the client to request the location where the new value is declared. For example, if the logged value is function pointer, the adapter may be able to look up the function's location. This should be present only if the adapter is likely to be able to resolve the location.
+
+				This reference shares the same lifetime as the `variablesReference`. See 'Lifetime of Object References' in the Overview section for details.
+			*/
+			locationReference?: number;
 		};
 	}
 
@@ -294,7 +304,7 @@ declare module DebugProtocol {
 		body: {
 			/** The logical name of the process. This is usually the full path to process's executable file. Example: /home/example/myproj/program.js. */
 			name: string;
-			/** The system process id of the debugged process. This property is missing for non-system processes. */
+			/** The process ID of the debugged process, as assigned by the operating system. This property should be omitted for logical processes that do not map to operating system processes on the machine. */
 			systemProcessId?: number;
 			/** If true, the process is running on the same computer as the debug adapter. */
 			isLocalProcess?: boolean;
@@ -525,6 +535,8 @@ declare module DebugProtocol {
 		supportsArgsCanBeInterpretedByShell?: boolean;
 		/** Client supports the `startDebugging` request. */
 		supportsStartDebuggingRequest?: boolean;
+		/** The client will interpret ANSI escape sequences in the display of `OutputEvent.output` and `Variable.value` fields when `Capabilities.supportsANSIStyling` is also enabled. */
+		supportsANSIStyling?: boolean;
 	}
 
 	/** Response to `initialize` request. */
@@ -1232,7 +1244,10 @@ declare module DebugProtocol {
 			value: string;
 			/** The type of the new value. Typically shown in the UI when hovering over the value. */
 			type?: string;
-			/** If `variablesReference` is > 0, the new value is structured and its children can be retrieved by passing `variablesReference` to the `variables` request as long as execution remains suspended. See 'Lifetime of Object References' in the Overview section for details. */
+			/** If `variablesReference` is > 0, the new value is structured and its children can be retrieved by passing `variablesReference` to the `variables` request as long as execution remains suspended. See 'Lifetime of Object References' in the Overview section for details.
+
+				If this property is included in the response, any `variablesReference` previously associated with the updated variable, and those of its children, are no longer valid.
+			*/
 			variablesReference?: number;
 			/** The number of named child variables.
 				The client can use this information to present the variables in a paged UI and fetch them in chunks.
@@ -1249,6 +1264,11 @@ declare module DebugProtocol {
 				This attribute may be returned by a debug adapter if corresponding capability `supportsMemoryReferences` is true.
 			*/
 			memoryReference?: string;
+			/** A reference that allows the client to request the location where the new value is declared. For example, if the new value is function pointer, the adapter may be able to look up the function's location. This should be present only if the adapter is likely to be able to resolve the location.
+
+				This reference shares the same lifetime as the `variablesReference`. See 'Lifetime of Object References' in the Overview section for details.
+			*/
+			valueLocationReference?: number;
 		};
 	}
 
@@ -1363,7 +1383,7 @@ declare module DebugProtocol {
 	}
 
 	/** Evaluate request; value of command field is 'evaluate'.
-		Evaluates the given expression in the context of the topmost stack frame.
+		Evaluates the given expression in the context of a stack frame.
 		The expression has access to any variables and arguments that are in scope.
 	*/
 	interface EvaluateRequest extends Request {
@@ -1432,6 +1452,11 @@ declare module DebugProtocol {
 				This attribute may be returned by a debug adapter if corresponding capability `supportsMemoryReferences` is true.
 			*/
 			memoryReference?: string;
+			/** A reference that allows the client to request the location where the returned value is declared. For example, if a function pointer is returned, the adapter may be able to look up the function's location. This should be present only if the adapter is likely to be able to resolve the location.
+
+				This reference shares the same lifetime as the `variablesReference`. See 'Lifetime of Object References' in the Overview section for details.
+			*/
+			valueLocationReference?: number;
 		};
 	}
 
@@ -1486,6 +1511,11 @@ declare module DebugProtocol {
 				This attribute may be returned by a debug adapter if corresponding capability `supportsMemoryReferences` is true.
 			*/
 			memoryReference?: string;
+			/** A reference that allows the client to request the location where the new value is declared. For example, if the new value is function pointer, the adapter may be able to look up the function's location. This should be present only if the adapter is likely to be able to resolve the location.
+
+				This reference shares the same lifetime as the `variablesReference`. See 'Lifetime of Object References' in the Overview section for details.
+			*/
+			valueLocationReference?: number;
 		};
 	}
 
@@ -1700,6 +1730,36 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Locations request; value of command field is 'locations'.
+		Looks up information about a location reference previously returned by the debug adapter.
+	*/
+	interface LocationsRequest extends Request {
+		// command: 'locations';
+		arguments: LocationsArguments;
+	}
+
+	/** Arguments for `locations` request. */
+	interface LocationsArguments {
+		/** Location reference to resolve. */
+		locationReference: number;
+	}
+
+	/** Response to `locations` request. */
+	interface LocationsResponse extends Response {
+		body?: {
+			/** The source containing the location; either `source.path` or `source.sourceReference` must be specified. */
+			source: Source;
+			/** The line number of the location. The client capability `linesStartAt1` determines whether it is 0- or 1-based. */
+			line: number;
+			/** Position of the location within the `line`. It is measured in UTF-16 code units and the client capability `columnsStartAt1` determines whether it is 0- or 1-based. If no column is given, the first position in the start line is assumed. */
+			column?: number;
+			/** End line of the location, present if the location refers to a range.  The client capability `linesStartAt1` determines whether it is 0- or 1-based. */
+			endLine?: number;
+			/** End position of the location within `endLine`, present if the location refers to a range. It is measured in UTF-16 code units and the client capability `columnsStartAt1` determines whether it is 0- or 1-based. */
+			endColumn?: number;
+		};
+	}
+
 	/** Information about the capabilities of a debug adapter. */
 	interface Capabilities {
 		/** The debug adapter supports the `configurationDone` request. */
@@ -1787,6 +1847,8 @@ declare module DebugProtocol {
 			Clients may present the first applicable mode in this array as the 'default' mode in gestures that set breakpoints.
 		*/
 		breakpointModes?: BreakpointMode[];
+		/** The debug adapter supports ANSI escape sequences in styling of `OutputEvent.output` and `Variable.value` fields. */
+		supportsANSIStyling?: boolean;
 	}
 
 	/** An `ExceptionBreakpointsFilter` is shown in the UI as an filter option for configuring how exceptions are dealt with. */
@@ -1932,7 +1994,7 @@ declare module DebugProtocol {
 		endLine?: number;
 		/** End position of the range covered by the stack frame. It is measured in UTF-16 code units and the client capability `columnsStartAt1` determines whether it is 0- or 1-based. */
 		endColumn?: number;
-		/** Indicates whether this frame can be restarted with the `restart` request. Clients should only use this if the debug adapter supports the `restart` request and the corresponding capability `supportsRestartRequest` is true. If a debug adapter has this capability, then `canRestart` defaults to `true` if the property is absent. */
+		/** Indicates whether this frame can be restarted with the `restartFrame` request. Clients should only use this if the debug adapter supports the `restart` request and the corresponding capability `supportsRestartFrame` is true. If a debug adapter has this capability, then `canRestart` defaults to `true` if the property is absent. */
 		canRestart?: boolean;
 		/** A memory reference for the current instruction pointer in this frame. */
 		instructionPointerReference?: string;
@@ -1953,9 +2015,10 @@ declare module DebugProtocol {
 			'arguments': Scope contains method arguments.
 			'locals': Scope contains local variables.
 			'registers': Scope contains registers. Only a single `registers` scope should be returned from a `scopes` request.
+			'returnValue': Scope contains one or more return values.
 			etc.
 		*/
-		presentationHint?: 'arguments' | 'locals' | 'registers' | string;
+		presentationHint?: 'arguments' | 'locals' | 'registers' | 'returnValue' | string;
 		/** The variables of this scope can be retrieved by passing the value of `variablesReference` to the `variables` request as long as execution remains suspended. See 'Lifetime of Object References' in the Overview section for details. */
 		variablesReference: number;
 		/** The number of named variables in this scope.
@@ -2020,6 +2083,16 @@ declare module DebugProtocol {
 			This attribute may be returned by a debug adapter if corresponding capability `supportsMemoryReferences` is true.
 		*/
 		memoryReference?: string;
+		/** A reference that allows the client to request the location where the variable is declared. This should be present only if the adapter is likely to be able to resolve the location.
+
+			This reference shares the same lifetime as the `variablesReference`. See 'Lifetime of Object References' in the Overview section for details.
+		*/
+		declarationLocationReference?: number;
+		/** A reference that allows the client to request the location where the variable's value is declared. For example, if the variable contains a function pointer, the adapter may be able to look up the function's location. This should be present only if the adapter is likely to be able to resolve the location.
+
+			This reference shares the same lifetime as the `variablesReference`. See 'Lifetime of Object References' in the Overview section for details.
+		*/
+		valueLocationReference?: number;
 	}
 
 	/** Properties of a variable that can be used to determine how to render the variable in the UI. */

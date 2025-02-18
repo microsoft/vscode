@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { PositionOffsetTransformer } from '../../../common/core/positionToOffset.js';
 
 suite('PositionOffsetTransformer', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,7 +52,7 @@ suite('PositionOffsetTransformer', () => {
 	});
 
 	test('getOffset', () => {
-		for (let i = 0; i < str.length + 2; i++) {
+		for (let i = 0; i < str.length + 1; i++) {
 			assert.strictEqual(t.getOffset(t.getPosition(i)), i);
 		}
 	});

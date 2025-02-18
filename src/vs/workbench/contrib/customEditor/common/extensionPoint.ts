@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CustomEditorPriority, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import * as nls from '../../../../nls.js';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { CustomEditorPriority, CustomEditorSelector } from './customEditor.js';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { languagesExtPoint } from '../../../services/language/common/languageService.js';
 
 const Fields = Object.freeze({
 	viewType: 'viewType',

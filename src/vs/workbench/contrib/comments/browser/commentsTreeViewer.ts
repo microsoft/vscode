@@ -3,46 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as nls from 'vs/nls';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { CommentNode, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
-import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IListService, IWorkbenchAsyncDataTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from 'vs/workbench/contrib/comments/browser/commentColors';
-import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
-import { Color } from 'vs/base/common/color';
-import { IMatch } from 'vs/base/common/filters';
-import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
-import { basename } from 'vs/base/common/resources';
-import { openLinkFromMarkdown } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IAction } from 'vs/base/common/actions';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MarshalledCommentThread, MarshalledCommentThreadInternal } from 'vs/workbench/common/comments';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import * as dom from '../../../../base/browser/dom.js';
+import * as nls from '../../../../nls.js';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
+import { CommentNode, ResourceWithCommentThreads } from '../common/commentModel.js';
+import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
+import { IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IListService, IWorkbenchAsyncDataTreeOptions, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { TimestampWidget } from './timestamp.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { commentViewThreadStateColorVar, getCommentThreadStateIconColor } from './commentColors.js';
+import { CommentThreadApplicability, CommentThreadState } from '../../../../editor/common/languages.js';
+import { Color } from '../../../../base/common/color.js';
+import { IMatch } from '../../../../base/common/filters.js';
+import { FilterOptions } from './commentsFilterOptions.js';
+import { basename } from '../../../../base/common/resources.js';
+import { openLinkFromMarkdown } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { CommentsModel } from './commentsModel.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { MarshalledCommentThread, MarshalledCommentThreadInternal } from '../../../common/comments.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -62,7 +62,7 @@ interface ICommentThreadTemplateData {
 		timestamp: TimestampWidget;
 		separator: HTMLElement;
 		commentPreview: HTMLSpanElement;
-		range: HTMLSpanElement;
+		range: HTMLElement;
 	};
 	repliesMetadata: {
 		container: HTMLElement;
@@ -76,7 +76,7 @@ interface ICommentThreadTemplateData {
 	disposables: IDisposable[];
 }
 
-class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
+class CommentsModelVirtualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
 	private static readonly RESOURCE_ID = 'resource-with-comments';
 	private static readonly COMMENT_ID = 'comment-node';
 
@@ -90,10 +90,10 @@ class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCo
 
 	public getTemplateId(element: any): string {
 		if (element instanceof ResourceWithCommentThreads) {
-			return CommentsModelVirualDelegate.RESOURCE_ID;
+			return CommentsModelVirtualDelegate.RESOURCE_ID;
 		}
 		if (element instanceof CommentNode) {
-			return CommentsModelVirualDelegate.COMMENT_ID;
+			return CommentsModelVirtualDelegate.COMMENT_ID;
 		}
 
 		return '';
@@ -142,9 +142,9 @@ export class CommentsMenus implements IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) { }
 
-	getResourceActions(element: CommentNode): { menu?: IMenu; actions: IAction[] } {
+	getResourceActions(element: CommentNode): { actions: IAction[] } {
 		const actions = this.getActions(MenuId.CommentsViewThreadActions, element);
-		return { menu: actions.menu, actions: actions.primary };
+		return { actions: actions.primary };
 	}
 
 	getResourceContextActions(element: CommentNode): IAction[] {
@@ -155,7 +155,7 @@ export class CommentsMenus implements IDisposable {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, element: CommentNode): { menu?: IMenu; primary: IAction[]; secondary: IAction[] } {
+	private getActions(menuId: MenuId, element: CommentNode): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
@@ -168,14 +168,8 @@ export class CommentsMenus implements IDisposable {
 		];
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary, menu };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
-		menu.dispose();
-
-		return result;
+		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
+		return getContextMenuActions(menu, 'inline');
 	}
 
 	dispose() {
@@ -199,14 +193,25 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
 		const metadata = dom.append(metadataContainer, dom.$('.comment-metadata'));
+
+		const icon = dom.append(metadata, dom.$('.icon'));
+		const userNames = dom.append(metadata, dom.$('.user'));
+		const timestamp = new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container')));
+		const relevance = dom.append(metadata, dom.$('.relevance'));
+		const separator = dom.append(metadata, dom.$('.separator'));
+		const commentPreview = dom.append(metadata, dom.$('.text'));
+		const rangeContainer = dom.append(metadata, dom.$('.range'));
+		const range = dom.$('p');
+		rangeContainer.appendChild(range);
+
 		const threadMetadata = {
-			icon: dom.append(metadata, dom.$('.icon')),
-			userNames: dom.append(metadata, dom.$('.user')),
-			timestamp: new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container'))),
-			relevance: dom.append(metadata, dom.$('.relevance')),
-			separator: dom.append(metadata, dom.$('.separator')),
-			commentPreview: dom.append(metadata, dom.$('.text')),
-			range: dom.append(metadata, dom.$('.range'))
+			icon,
+			userNames,
+			timestamp,
+			relevance,
+			separator,
+			commentPreview,
+			range
 		};
 		threadMetadata.separator.innerText = '\u00b7';
 
@@ -256,6 +261,14 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
 			image.parentNode!.replaceChild(textDescription, image);
 		}
+		const headings = [...renderedComment.element.getElementsByTagName('h1'), ...renderedComment.element.getElementsByTagName('h2'), ...renderedComment.element.getElementsByTagName('h3'), ...renderedComment.element.getElementsByTagName('h4'), ...renderedComment.element.getElementsByTagName('h5'), ...renderedComment.element.getElementsByTagName('h6')];
+		for (const heading of headings) {
+			const textNode = document.createTextNode(heading.textContent || '');
+			heading.parentNode!.replaceChild(textNode, heading);
+		}
+		while ((renderedComment.element.children.length > 1) && (renderedComment.element.firstElementChild?.tagName === 'HR')) {
+			renderedComment.element.removeChild(renderedComment.element.firstElementChild);
+		}
 		return renderedComment;
 	}
 
@@ -302,7 +315,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.disposables.push(disposables);
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
-			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
+			for (let i = renderedComment.element.children.length - 1; i >= 1; i--) {
+				renderedComment.element.removeChild(renderedComment.element.children[i]);
+			}
+			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
 			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
@@ -451,7 +467,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
-		const delegate = new CommentsModelVirualDelegate();
+		const delegate = new CommentsModelVirtualDelegate();
 		const actionViewItemProvider = createActionViewItem.bind(undefined, instantiationService);
 		const menus = instantiationService.createInstance(CommentsMenus);
 		menus.setContextKeyService(contextKeyService);
@@ -485,6 +501,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,
+				sorter: options.sorter,
 				findWidgetEnabled: false,
 				multipleSelectionSupport: false,
 			},

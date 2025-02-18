@@ -16,4 +16,4 @@ jobs:
       - name: 'Run vscode-telemetry-extractor'
         run: 'npx --package=@vscode/telemetry-extractor --yes vscode-telemetry-extractor -s .'
         env:
-          GITHUB_TOKEN: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

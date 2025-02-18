@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource, INotificationSourceFilter, isNotificationSource } from 'vs/platform/notification/common/notification';
-import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IAction, Action } from 'vs/base/common/actions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { localize } from '../../../../nls.js';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource, INotificationSourceFilter, isNotificationSource } from '../../../../platform/notification/common/notification.js';
+import { NotificationsModel, ChoiceAction, NotificationChangeType } from '../../../common/notifications.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IAction, Action } from '../../../../base/common/actions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -272,7 +272,6 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
-		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
 		if (options?.neverShowAgain) {
@@ -300,6 +299,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		}
 
 		let choiceClicked = false;
+		const toDispose = new DisposableStore();
 
 
 		// Convert choices into primary/secondary actions

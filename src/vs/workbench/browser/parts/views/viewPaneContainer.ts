@@ -3,44 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, DragAndDropObserver, EventType, getWindow, isAncestor } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
-import { IPaneViewOptions, PaneView } from 'vs/base/browser/ui/splitview/paneview';
-import { IAction } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import 'vs/css!./media/paneviewlet';
-import * as nls from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IAction2Options, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { CompositeMenuActions } from 'vs/workbench/browser/actions';
-import { CompositeDragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { Component } from 'vs/workbench/common/component';
-import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_FOREGROUND } from 'vs/workbench/common/theme';
-import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, LayoutSettings, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { addDisposableListener, Dimension, DragAndDropObserver, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { EventType as TouchEventType, Gesture } from '../../../../base/browser/touch.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IBoundarySashes, Orientation } from '../../../../base/browser/ui/sash/sash.js';
+import { IPaneViewOptions, PaneView } from '../../../../base/browser/ui/splitview/paneview.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import './media/paneviewlet.css';
+import * as nls from '../../../../nls.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IAction2Options, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { activeContrastBorder, asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { CompositeMenuActions } from '../../actions.js';
+import { CompositeDragAndDropObserver, toggleDropEffect } from '../../dnd.js';
+import { ViewPane } from './viewPane.js';
+import { IViewletViewOptions } from './viewsViewlet.js';
+import { Component } from '../../../common/component.js';
+import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_FOREGROUND } from '../../../common/theme.js';
+import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { isHorizontal, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
@@ -380,6 +381,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		@IStorageService protected storageService: IStorageService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
+		@ILogService protected readonly logService: ILogService,
 	) {
 
 		super(id, themeService, storageService);
@@ -593,12 +595,15 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getActionsContext(): unknown {
+		if (this.isViewMergedWithContainer()) {
+			return this.panes[0].getActionsContext();
+		}
 		return undefined;
 	}
 
 	getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		if (this.isViewMergedWithContainer()) {
-			return this.paneItems[0].pane.getActionViewItem(action, options);
+			return this.paneItems[0].pane.createActionViewItem(action, options);
 		}
 		return createActionViewItem(this.instantiationService, action, options);
 	}
@@ -625,8 +630,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			case ViewContainerLocation.Sidebar:
 			case ViewContainerLocation.AuxiliaryBar:
 				return Orientation.VERTICAL;
-			case ViewContainerLocation.Panel:
-				return this.layoutService.getPanelPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			case ViewContainerLocation.Panel: {
+				return isHorizontal(this.layoutService.getPanelPosition()) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			}
 		}
 
 		return Orientation.VERTICAL;
@@ -789,18 +795,25 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 					singleViewPaneContainerTitle: viewDescriptor.singleViewPaneContainerTitle,
 				});
 
-			pane.render();
-			const contextMenuDisposable = addDisposableListener(pane.draggableElement, 'contextmenu', e => {
-				e.stopPropagation();
-				e.preventDefault();
-				this.onContextMenu(new StandardMouseEvent(getWindow(pane.draggableElement), e), pane);
-			});
+			try {
+				pane.render();
+			} catch (error) {
+				this.logService.error(`Fail to render view ${viewDescriptor.id}`, error);
+				continue;
+			}
+			if (pane.draggableElement) {
+				const contextMenuDisposable = addDisposableListener(pane.draggableElement, 'contextmenu', e => {
+					e.stopPropagation();
+					e.preventDefault();
+					this.onContextMenu(new StandardMouseEvent(getWindow(pane.draggableElement), e), pane);
+				});
 
-			const collapseDisposable = Event.latch(Event.map(pane.onDidChange, () => !pane.isExpanded()))(collapsed => {
-				this.viewContainerModel.setCollapsed(viewDescriptor.id, collapsed);
-			});
+				const collapseDisposable = Event.latch(Event.map(pane.onDidChange, () => !pane.isExpanded()))(collapsed => {
+					this.viewContainerModel.setCollapsed(viewDescriptor.id, collapsed);
+				});
 
-			panesToAdd.push({ pane, size: size || pane.minimumSize, index, disposable: combinedDisposable(contextMenuDisposable, collapseDisposable) });
+				panesToAdd.push({ pane, size: size || pane.minimumSize, index, disposable: combinedDisposable(contextMenuDisposable, collapseDisposable) });
+			}
 		}
 
 		this.addPanes(panesToAdd);
@@ -879,7 +892,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		let overlay: ViewPaneDropOverlay | undefined;
 
-		store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
+		if (pane.draggableElement) {
+			store.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
+		}
 
 		store.add(CompositeDragAndDropObserver.INSTANCE.registerTarget(pane.dropTargetElement, {
 			onDragEnter: (e) => {
@@ -1172,14 +1187,15 @@ export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> exte
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: any[]): unknown {
 		const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(this.desc.viewPaneContainerId);
 		if (viewPaneContainer) {
 			return this.runInViewPaneContainer(accessor, <T>viewPaneContainer, ...args);
 		}
+		return undefined;
 	}
 
-	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: any[]): any;
+	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: any[]): unknown;
 }
 
 class MoveViewPosition extends Action2 {

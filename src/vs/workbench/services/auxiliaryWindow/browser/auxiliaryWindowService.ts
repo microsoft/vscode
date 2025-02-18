@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { mark } from 'vs/base/common/performance';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from 'vs/base/browser/dom';
-import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { isFirefox, isWeb } from 'vs/base/common/platform';
-import { IRectangle, WindowMinimumSize } from 'vs/platform/window/common/window';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { BaseWindow } from 'vs/workbench/browser/window';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Barrier } from 'vs/base/common/async';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { coalesce } from 'vs/base/common/arrays';
-import { getZoomLevel } from 'vs/base/browser/browser';
+import { getZoomLevel } from '../../../../base/browser/browser.js';
+import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from '../../../../base/browser/dom.js';
+import { cloneGlobalStylesheets, isGlobalStylesheet } from '../../../../base/browser/domStylesheets.js';
+import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../../base/browser/window.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { Barrier } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { mark } from '../../../../base/common/performance.js';
+import { isFirefox, isWeb } from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { DEFAULT_AUX_WINDOW_SIZE, IRectangle, WindowMinimumSize } from '../../../../platform/window/common/window.js';
+import { BaseWindow } from '../../../browser/window.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IHostService } from '../../host/browser/host.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -41,8 +42,12 @@ export enum AuxiliaryWindowMode {
 
 export interface IAuxiliaryWindowOpenOptions {
 	readonly bounds?: Partial<IRectangle>;
+
 	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
+
+	readonly nativeTitlebar?: boolean;
+	readonly disableFullscreen?: boolean;
 }
 
 export interface IAuxiliaryWindowService {
@@ -77,6 +82,8 @@ export interface IAuxiliaryWindow extends IDisposable {
 
 	createState(): IAuxiliaryWindowOpenOptions;
 }
+
+const DEFAULT_AUX_WINDOW_DIMENSIONS = new Dimension(DEFAULT_AUX_WINDOW_SIZE.width, DEFAULT_AUX_WINDOW_SIZE.height);
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
@@ -188,7 +195,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		// in the `onWillLayout` phase and then let other compoments
 		// react when the overall layout has finished in `onDidLayout`.
 
-		const dimension = getClientArea(this.window.document.body, this.container);
+		const dimension = getClientArea(this.window.document.body, DEFAULT_AUX_WINDOW_DIMENSIONS, this.container);
 		this._onWillLayout.fire(dimension);
 		this._onDidLayout.fire(dimension);
 	}
@@ -220,7 +227,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly DEFAULT_SIZE = { width: 800, height: 600 };
+	private static readonly DEFAULT_SIZE = DEFAULT_AUX_WINDOW_SIZE;
 
 	private static WINDOW_IDS = getWindowId(mainWindow) + 1; // start from the main window ID + 1
 
@@ -328,8 +335,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			`top=${newWindowBounds.y}`,
 			`width=${newWindowBounds.width}`,
 			`height=${newWindowBounds.height}`,
-			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined, 	// non-standard property
-			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined 	// non-standard property
+
+			// non-standard properties
+			options?.nativeTitlebar ? 'window-native-titlebar=yes' : undefined,
+			options?.disableFullscreen ? 'window-disable-fullscreen=yes' : undefined,
+			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined,
+			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined
 		]);
 
 		const auxiliaryWindow = mainWindow.open(isFirefox ? '' /* FF immediately fires an unload event if using about:blank */ : 'about:blank', undefined, features.join(','));

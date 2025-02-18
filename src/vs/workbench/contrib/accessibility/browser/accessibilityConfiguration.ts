@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from 'vs/workbench/common/configuration';
-import { AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from 'vs/workbench/contrib/speech/common/speechService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Event } from 'vs/base/common/event';
-import { isDefined } from 'vs/base/common/types';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from '../../../common/configuration.js';
+import { AccessibilitySignal } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from '../../speech/common/speechService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { Event } from '../../../../base/common/event.js';
+import { isDefined } from '../../../../base/common/types.js';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -25,6 +24,8 @@ export const accessibleViewOnLastLine = new RawContextKey<boolean>('accessibleVi
 export const accessibleViewCurrentProviderId = new RawContextKey<string>('accessibleViewCurrentProviderId', undefined, undefined);
 export const accessibleViewInCodeBlock = new RawContextKey<boolean>('accessibleViewInCodeBlock', undefined, undefined);
 export const accessibleViewContainsCodeBlocks = new RawContextKey<boolean>('accessibleViewContainsCodeBlocks', undefined, undefined);
+export const accessibleViewHasUnassignedKeybindings = new RawContextKey<boolean>('accessibleViewHasUnassignedKeybindings', undefined, undefined);
+export const accessibleViewHasAssignedKeybindings = new RawContextKey<boolean>('accessibleViewHasAssignedKeybindings', undefined, undefined);
 
 /**
  * Miscellaneous settings tagged with accessibility and implemented in the accessibility contrib but
@@ -56,9 +57,12 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
-	ReplInputHint = 'accessibility.verbosity.replInputHint',
+	ReplEditor = 'accessibility.verbosity.replEditor',
 	Comments = 'accessibility.verbosity.comments',
-	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
+	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
+	Debug = 'accessibility.verbosity.debug',
+	Walkthrough = 'accessibility.verbosity.walkthrough',
+	SourceControl = 'accessibility.verbosity.sourceControl'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -159,8 +163,8 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
 			...baseVerbosityProperty
 		},
-		[AccessibilityVerbositySettingId.ReplInputHint]: {
-			description: localize('verbosity.replInputHint', 'Provide information about relevant actions For the Repl input.'),
+		[AccessibilityVerbositySettingId.ReplEditor]: {
+			description: localize('verbosity.replEditor.description', 'Provide information about how to access the REPL editor accessibility help menu when the REPL editor is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
@@ -171,10 +175,22 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.diffEditorActive', 'Indicate when a diff editor becomes the active editor.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.Debug]: {
+			description: localize('verbosity.debug', 'Provide information about how to access the debug console accessibility help dialog when the debug console or run and debug viewlet is focused. Note that a reload of the window is required for this to take effect.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Walkthrough]: {
+			description: localize('verbosity.walkthrough', 'Provide information about how to open the walkthrough in an Accessible View.'),
+			...baseVerbosityProperty
+		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
 			type: 'boolean',
 			default: true
+		},
+		[AccessibilityVerbositySettingId.SourceControl]: {
+			description: localize('verbosity.scm', 'Provide information about how to access the source control accessibility help menu when the input is focused.'),
+			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
 			'description': localize('accessibility.signalOptions.volume', "The volume of the sounds in percent (0-100)."),
@@ -490,6 +506,16 @@ const configuration: IConfigurationNode = {
 				}
 			}
 		},
+		'accessibility.signals.chatEditModifiedFile': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.chatEditModifiedFile', "Plays a sound / audio cue when revealing a file with changes from chat edits"),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatEditModifiedFile.sound', "Plays a sound when revealing a file with changes from chat edits"),
+					...soundFeatureBase
+				}
+			}
+		},
 		'accessibility.signals.notebookCellCompleted': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.notebookCellCompleted', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a notebook cell execution is successfully completed."),
@@ -518,20 +544,6 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
-		'accessibility.signals.chatRequestSent': {
-			...signalFeatureBase,
-			'description': localize('accessibility.signals.chatRequestSent', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a chat request is made."),
-			'properties': {
-				'sound': {
-					'description': localize('accessibility.signals.chatRequestSent.sound', "Plays a sound when a chat request is made."),
-					...soundFeatureBase
-				},
-				'announcement': {
-					'description': localize('accessibility.signals.chatRequestSent.announcement', "Announces when a chat request is made."),
-					...announcementFeatureBase
-				},
-			}
-		},
 		'accessibility.signals.progress': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.progress', "Plays a signal - sound (audio cue) and/or announcement (alert) - on loop while progress is occurring."),
@@ -546,12 +558,46 @@ const configuration: IConfigurationNode = {
 				},
 			},
 		},
+		'accessibility.signals.chatRequestSent': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.chatRequestSent', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a chat request is made."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatRequestSent.sound', "Plays a sound when a chat request is made."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.chatRequestSent.announcement', "Announces when a chat request is made."),
+					...announcementFeatureBase
+				},
+			}
+		},
 		'accessibility.signals.chatResponseReceived': {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.chatResponseReceived', "Plays a sound / audio cue when the response has been received."),
 			'properties': {
 				'sound': {
-					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on loop while the response has been received."),
+					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on when the response has been received."),
+					...soundFeatureBase
+				},
+			}
+		},
+		'accessibility.signals.codeActionTriggered': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.codeActionTriggered', "Plays a sound / audio cue - when a code action has been triggered."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.codeActionTriggered.sound', "Plays a sound when a code action has been triggered."),
+					...soundFeatureBase
+				}
+			}
+		},
+		'accessibility.signals.codeActionApplied': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.codeActionApplied', "Plays a sound / audio cue when the code action has been applied."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.codeActionApplied.sound', "Plays a sound when the code action has been applied."),
 					...soundFeatureBase
 				},
 			}
@@ -667,6 +713,22 @@ const configuration: IConfigurationNode = {
 			'description': localize('accessibility.underlineLinks', "Controls whether links should be underlined in the workbench."),
 			'default': false,
 		},
+		'accessibility.debugWatchVariableAnnouncements': {
+			'type': 'boolean',
+			'description': localize('accessibility.debugWatchVariableAnnouncements', "Controls whether variable changes should be announced in the debug watch view."),
+			'default': true,
+		},
+		'accessibility.replEditor.readLastExecutionOutput': {
+			'type': 'boolean',
+			'description': localize('accessibility.replEditor.readLastExecutedOutput', "Controls whether the output from an execution in the native REPL will be announced."),
+			'default': true,
+		},
+		'accessibility.replEditor.autoFocusReplExecution': {
+			type: 'string',
+			enum: ['none', 'input', 'lastExecution'],
+			default: 'input',
+			description: localize('replEditor.autoFocusAppendedCell', "Control whether focus should automatically be sent to the REPL when code is executed."),
+		}
 	}
 };
 
@@ -712,8 +774,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 	static readonly ID = 'workbench.contrib.dynamicSpeechAccessibilityConfiguration';
 
 	constructor(
-		@ISpeechService private readonly speechService: ISpeechService,
-		@IProductService private readonly productService: IProductService
+		@ISpeechService private readonly speechService: ISpeechService
 	) {
 		super();
 
@@ -741,6 +802,12 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'minimum': 0,
 					'tags': ['accessibility']
 				},
+				[AccessibilityVoiceSettingId.IgnoreCodeBlocks]: {
+					'markdownDescription': localize('voice.ignoreCodeBlocks', "Whether to ignore code snippets in text-to-speech synthesis."),
+					'type': 'boolean',
+					'default': false,
+					'tags': ['accessibility']
+				},
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
 					'markdownDescription': localize('voice.speechLanguage', "The language that text-to-speech and speech-to-text should use. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition and synthesizers."),
 					'type': 'string',
@@ -751,9 +818,14 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'enumItemLabels': languagesSorted.map(key => languages[key].name)
 				},
 				[AccessibilityVoiceSettingId.AutoSynthesize]: {
-					'type': 'boolean',
+					'type': 'string',
+					'enum': ['on', 'off'],
+					'enumDescriptions': [
+						localize('accessibility.voice.autoSynthesize.on', "Enable the feature. When a screen reader is enabled, note that this will disable aria updates."),
+						localize('accessibility.voice.autoSynthesize.off', "Disable the feature."),
+					],
 					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
-					'default': this.productService.quality !== 'stable', // TODO@bpasero decide on a default
+					'default': 'off',
 					'tags': ['accessibility']
 				}
 			}
@@ -801,14 +873,24 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			const delayWarning = getDelaysFromConfig(accessor, 'warningAtPosition');
 			const volume = getVolumeFromConfig(accessor);
 			const debouncePositionChanges = getDebouncePositionChangesFromConfig(accessor);
-			return [
-				['accessibility.signalOptions.volume', { value: volume }],
-				['accessibility.signalOptions.debouncePositionChanges', { value: debouncePositionChanges }],
-				['accessibility.signalOptions.experimental.delays.general', { value: delayGeneral }],
-				['accessibility.signalOptions.experimental.delays.errorAtPosition', { value: delayError }],
-				['accessibility.signalOptions.experimental.delays.warningAtPosition', { value: delayWarning }],
-				['accessibility.signalOptions', { value: undefined }],
-			];
+			const result: [key: string, { value: any }][] = [];
+			if (!!volume) {
+				result.push(['accessibility.signalOptions.volume', { value: volume }]);
+			}
+			if (!!delayGeneral) {
+				result.push(['accessibility.signalOptions.experimental.delays.general', { value: delayGeneral }]);
+			}
+			if (!!delayError) {
+				result.push(['accessibility.signalOptions.experimental.delays.errorAtPosition', { value: delayError }]);
+			}
+			if (!!delayWarning) {
+				result.push(['accessibility.signalOptions.experimental.delays.warningAtPosition', { value: delayWarning }]);
+			}
+			if (!!debouncePositionChanges) {
+				result.push(['accessibility.signalOptions.debouncePositionChanges', { value: debouncePositionChanges }]);
+			}
+			result.push(['accessibility.signalOptions', { value: undefined }]);
+			return result;
 		}
 	}]);
 
@@ -846,6 +928,24 @@ function getVolumeFromConfig(accessor: (key: string) => any): string | undefined
 function getDebouncePositionChangesFromConfig(accessor: (key: string) => any): number | undefined {
 	return accessor('accessibility.signalOptions.debouncePositionChanges') || accessor('accessibility.signalOptions')?.debouncePositionChanges || accessor('accessibility.signals.debouncePositionChanges') || accessor('audioCues.debouncePositionChanges');
 }
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: AccessibilityVoiceSettingId.AutoSynthesize,
+		migrateFn: (value: boolean) => {
+			let newValue: string | undefined;
+			if (value === true) {
+				newValue = 'on';
+			} else if (value === false) {
+				newValue = 'off';
+			} else {
+				return [];
+			}
+			return [
+				[AccessibilityVoiceSettingId.AutoSynthesize, { value: newValue }],
+			];
+		}
+	}]);
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{

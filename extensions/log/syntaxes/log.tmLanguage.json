@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/eb50e785c27b4b4f7dbf6c0e801c58fe91baef5d",
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/fc571bd87b33bb69d3bdc0052f94face723ee4f7",
 	"name": "Log file",
 	"scopeName": "text.log",
 	"patterns": [
@@ -69,7 +69,7 @@
 			"name": "string.regexp, strong log.error"
 		},
 		{
-			"match": "\\b\\d{4}-\\d{2}-\\d{2}(T|\\b)",
+			"match": "\\b\\d{4}-\\d{2}-\\d{2}(?=T|\\b)",
 			"name": "comment log.date"
 		},
 		{
@@ -77,7 +77,11 @@
 			"name": "comment log.date"
 		},
 		{
-			"match": "\\d{1,2}:\\d{2}(:\\d{2}([.,]\\d{1,})?)?(Z| ?[+-]\\d{1,2}:\\d{2})?\\b",
+			"match": "T?\\d{1,2}:\\d{2}(:\\d{2}([.,]\\d{1,})?)?(Z| ?[+-]\\d{1,2}:\\d{2})?\\b",
+			"name": "comment log.date"
+		},
+		{
+			"match": "T\\d{2}\\d{2}(\\d{2}([.,]\\d{1,})?)?(Z| ?[+-]\\d{1,2}\\d{2})?\\b",
 			"name": "comment log.date"
 		},
 		{

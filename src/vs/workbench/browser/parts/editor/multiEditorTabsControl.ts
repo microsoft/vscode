@@ -3,61 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/multieditortabscontrol';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { EditorCommandsContextActionRunner, EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { getOrSet } from 'vs/base/common/map';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BORDER_TOP } from 'vs/workbench/common/theme';
-import { activeContrastBorder, contrastBorder, editorBackground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
-import { Color } from 'vs/base/common/color';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from 'vs/base/browser/dom';
-import { localize } from 'vs/nls';
-import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
-import { CloseEditorTabAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { basenameOrAuthority } from 'vs/base/common/resources';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IPath, win32, posix } from 'vs/base/common/path';
-import { coalesce, insert } from 'vs/base/common/arrays';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { isSafari } from 'vs/base/browser/browser';
-import { equals } from 'vs/base/common/objects';
-import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
-import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
-import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { applyDragImage } from 'vs/base/browser/dnd';
+import './media/multieditortabscontrol.css';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { shorten } from '../../../../base/common/labels.js';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { computeEditorAriaLabel } from '../../editor.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../labels.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { EditorCommandsContextActionRunner, EditorTabsControl } from './editorTabsControl.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { getOrSet } from '../../../../base/common/map.js';
+import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BORDER_TOP } from '../../../common/theme.js';
+import { activeContrastBorder, contrastBorder, editorBackground, listActiveSelectionBackground, listActiveSelectionForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from '../../dnd.js';
+import { Color } from '../../../../base/common/color.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from '../../../../base/browser/dom.js';
+import { localize } from '../../../../nls.js';
+import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
+import { CloseEditorTabAction, UnpinEditorAction } from './editorActions.js';
+import { assertAllDefined, assertIsDefined } from '../../../../base/common/types.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { basenameOrAuthority } from '../../../../base/common/resources.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { IPath, win32, posix } from '../../../../base/common/path.js';
+import { coalesce, insert } from '../../../../base/common/arrays.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { isSafari } from '../../../../base/browser/browser.js';
+import { equals } from '../../../../base/common/objects.js';
+import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { UNLOCK_GROUP_COMMAND_ID } from './editorCommands.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
+import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
+import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorTitleControlDimensions } from './editorTitleControl.js';
+import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../common/editor/filteredEditorGroupModel.js';
+import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { applyDragImage } from '../../../../base/browser/dnd.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -164,7 +164,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
 	}
 
-	protected override create(parent: HTMLElement): void {
+	protected override create(parent: HTMLElement): HTMLElement {
 		super.create(parent);
 
 		this.titleContainer = parent;
@@ -196,6 +196,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
+
+		return this.tabsAndActionsContainer;
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -815,7 +817,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		tabContainer.appendChild(tabBorderTopContainer);
 
 		// Tab Editor Label
-		const editorLabel = this.tabResourceLabels.create(tabContainer, { hoverDelegate: this.getHoverDelegate() });
+		const editorLabel = this.tabResourceLabels.create(tabContainer, { hoverTargetOverride: tabContainer });
 
 		// Tab Actions
 		const tabActionsContainer = document.createElement('div');
@@ -1093,7 +1095,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				// Apply some datatransfer types to allow for dragging the element outside of the application
-				this.doFillResourceDataTransfers([editor], e, isNewWindowOperation);
+				this.doFillResourceDataTransfers(selectedEditors, e, isNewWindowOperation);
 
 				scheduleAtNextAnimationFrame(getWindow(this.parent), () => this.updateDropFeedback(tab, false, e, tabIndex));
 			},
@@ -1155,11 +1157,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				const targetGroup = auxiliaryEditorPart.activeGroup;
-				const editors = draggedEditors.map(de => ({ editor: de.identifier.editor }));
+				const editorsWithOptions = prepareMoveCopyEditors(this.groupView, draggedEditors.map(editor => editor.identifier.editor));
 				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, draggedEditors[0].identifier.editor)) {
-					this.groupView.moveEditors(editors, targetGroup);
+					this.groupView.moveEditors(editorsWithOptions, targetGroup);
 				} else {
-					this.groupView.copyEditors(editors, targetGroup);
+					this.groupView.copyEditors(editorsWithOptions, targetGroup);
 				}
 
 				targetGroup.focus();
@@ -1288,24 +1290,24 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			throw new BugIndicatingError();
 		}
 
-		const anchorIndex = this.groupView.getIndexOfEditor(anchor);
-		if (anchorIndex === -1) {
+		const anchorEditorIndex = this.groupView.getIndexOfEditor(anchor);
+		if (anchorEditorIndex === -1) {
 			throw new BugIndicatingError();
 		}
 
 		let selection = this.groupView.selectedEditors;
 
 		// Unselect editors on other side of anchor in relation to the target
-		let currentIndex = anchorIndex;
-		while (currentIndex >= 0 && currentIndex <= this.groupView.count - 1) {
-			currentIndex = anchorIndex < editorIndex ? currentIndex - 1 : currentIndex + 1;
+		let currentEditorIndex = anchorEditorIndex;
+		while (currentEditorIndex >= 0 && currentEditorIndex <= this.groupView.count - 1) {
+			currentEditorIndex = anchorEditorIndex < editorIndex ? currentEditorIndex - 1 : currentEditorIndex + 1;
 
-			if (!this.tabsModel.isSelected(currentIndex)) {
+			const currentEditor = this.groupView.getEditorByIndex(currentEditorIndex);
+			if (!currentEditor) {
 				break;
 			}
 
-			const currentEditor = this.groupView.getEditorByIndex(currentIndex);
-			if (!currentEditor) {
+			if (!this.groupView.isSelected(currentEditor)) {
 				break;
 			}
 
@@ -1313,12 +1315,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Select editors between anchor and target
-		const fromIndex = anchorIndex < editorIndex ? anchorIndex : editorIndex;
-		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
+		const fromEditorIndex = anchorEditorIndex < editorIndex ? anchorEditorIndex : editorIndex;
+		const toEditorIndex = anchorEditorIndex < editorIndex ? editorIndex : anchorEditorIndex;
 
-		const editorsToSelect = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
+		const editorsToSelect = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromEditorIndex, toEditorIndex + 1);
 		for (const editor of editorsToSelect) {
-			if (!this.tabsModel.isSelected(editor)) {
+			if (!this.groupView.isSelected(editor)) {
 				selection.push(editor);
 			}
 		}
@@ -1343,7 +1345,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const recentEditors = this.groupView.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
 			for (let i = 1; i < recentEditors.length; i++) { // First one is the active editor
 				const recentEditor = recentEditors[i];
-				if (this.tabsModel.isSelected(recentEditor)) {
+				if (this.groupView.isSelected(recentEditor)) {
 					newActiveEditor = recentEditor;
 					break;
 				}

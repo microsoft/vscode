@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { OffsetRange } from '../../../../editor/common/core/offsetRange.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ChatAgentLocation, IChatAgentData, IChatAgentService } from './chatAgents.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
+import { IChatSlashCommandService } from './chatSlashCommands.js';
+import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
+import { ILanguageModelToolsService } from './languageModelToolsService.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
@@ -24,7 +25,8 @@ export class ChatRequestParser {
 	constructor(
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
-		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService
+		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) { }
 
 	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
@@ -43,7 +45,7 @@ export class ChatRequestParser {
 				} else if (char === chatAgentLeader) {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				} else if (char === chatSubcommandLeader) {
-					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts);
+					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts, location);
 				}
 
 				if (!newPart) {
@@ -90,7 +92,7 @@ export class ChatRequestParser {
 		};
 	}
 
-	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
+	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: Array<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | undefined {
 		const nextAgentMatch = message.match(agentReg);
 		if (!nextAgentMatch) {
 			return;
@@ -109,11 +111,11 @@ export class ChatRequestParser {
 		}
 
 		// If there is more than one agent with this name, and the user picked it from the suggest widget, then the selected agent should be in the
-		// context and we use that one. Otherwise just pick the first.
+		// context and we use that one.
 		const agent = agents.length > 1 && context?.selectedAgent ?
 			context.selectedAgent :
-			agents[0];
-		if (!agent || !agent.locations.includes(location)) {
+			agents.find((a) => a.locations.includes(location));
+		if (!agent) {
 			return;
 		}
 
@@ -137,29 +139,25 @@ export class ChatRequestParser {
 		return new ChatRequestAgentPart(agentRange, agentEditorRange, agent);
 	}
 
-	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
+	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestToolPart | undefined {
 		const nextVariableMatch = message.match(variableReg);
 		if (!nextVariableMatch) {
 			return;
 		}
 
 		const [full, name] = nextVariableMatch;
-		const variableArg = nextVariableMatch[2] ?? '';
 		const varRange = new OffsetRange(offset, offset + full.length);
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
-		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
-		const allowSlow = !usedAgent || usedAgent.agent.metadata.supportsSlowVariables;
 
-		// TODO - not really handling duplicate variables names yet
-		const variable = this.variableService.getVariable(name);
-		if (variable && (!variable.isSlow || allowSlow)) {
-			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg, variable.id);
+		const tool = this.toolsService.getToolByName(name);
+		if (tool && tool.canBeReferencedInPrompt) {
+			return new ChatRequestToolPart(varRange, varEditorRange, name, tool.id, tool.displayName, tool.icon);
 		}
 
 		return;
 	}
 
-	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined {
+	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined {
 		const nextSlashMatch = remainingMessage.match(slashReg);
 		if (!nextSlashMatch) {
 			return;
@@ -194,11 +192,19 @@ export class ChatRequestParser {
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
 			}
 		} else {
-			const slashCommands = this.slashCommandService.getCommands();
+			const slashCommands = this.slashCommandService.getCommands(location);
 			const slashCommand = slashCommands.find(c => c.command === command);
 			if (slashCommand) {
 				// Valid standalone slash command
 				return new ChatRequestSlashCommandPart(slashRange, slashEditorRange, slashCommand);
+			} else {
+				// check for with default agent for this location
+				const defaultAgent = this.agentService.getDefaultAgent(location);
+				const subCommand = defaultAgent?.slashCommands.find(c => c.name === command);
+				if (subCommand) {
+					// Valid default agent subcommand
+					return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
+				}
 			}
 		}
 
@@ -213,7 +219,7 @@ export class ChatRequestParser {
 			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
 			const text = message.substring(0, length);
 			const range = new OffsetRange(offset, offset + length);
-			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data);
+			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data, refAtThisPosition.fullName, refAtThisPosition.icon, refAtThisPosition.isFile);
 		}
 
 		return;

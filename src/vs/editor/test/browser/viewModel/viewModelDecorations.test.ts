@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
-import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEditorOptions } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel.js';
+import { testViewModel } from './testViewModel.js';
 
 suite('ViewModelDecorations', () => {
 

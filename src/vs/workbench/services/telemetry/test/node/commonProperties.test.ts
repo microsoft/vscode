@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { release, hostname } from 'os';
-import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/common/workbenchCommonProperties';
-import { StorageScope, InMemoryStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { timeout } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { resolveWorkbenchCommonProperties } from '../../common/workbenchCommonProperties.js';
+import { StorageScope, InMemoryStorageService, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Telemetry - common properties', function () {
 	const commit: string = (undefined)!;

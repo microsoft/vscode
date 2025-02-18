@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
-import { AsyncIterableObject } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IModelDecoration } from '../../../common/model.js';
+import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
+import { HoverStartSource } from './hoverOperation.js';
+import { ScrollEvent } from '../../../../base/common/scrollable.js';
 
 export interface IHoverPart {
 	/**
@@ -102,11 +104,15 @@ export interface IEditorHoverContext {
 	/**
 	 * Set the minimum dimensions of the resizable hover
 	 */
-	setMinimumDimensions?(dimensions: Dimension): void;
+	setMinimumDimensions(dimensions: Dimension): void;
 	/**
 	 * Hide the hover.
 	 */
 	hide(): void;
+	/**
+	 * Focus the hover.
+	 */
+	focus(): void;
 }
 
 export interface IEditorHoverRenderContext extends IEditorHoverContext {
@@ -155,12 +161,14 @@ export class RenderedHoverParts<T extends IHoverPart> implements IRenderedHoverP
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
-	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
-	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
+	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource): T[];
+	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IRenderedHoverParts<T>;
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
+	handleHide?(): void;
+	handleScroll?(e: ScrollEvent): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;

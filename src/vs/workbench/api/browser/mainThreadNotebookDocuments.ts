@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ExtHostContext, ExtHostNotebookDocumentsShape, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { DisposableStore, dispose } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { BoundModelReferenceCollection } from './mainThreadDocuments.js';
+import { NotebookTextModel } from '../../contrib/notebook/common/model/notebookTextModel.js';
+import { NotebookCellsChangeType } from '../../contrib/notebook/common/notebookCommon.js';
+import { INotebookEditorModelResolverService } from '../../contrib/notebook/common/notebookEditorModelResolverService.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { ExtHostContext, ExtHostNotebookDocumentsShape, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
 
@@ -125,30 +125,45 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		}
 	}
 
-
 	async $tryCreateNotebook(options: { viewType: string; content?: NotebookDataDto }): Promise<UriComponents> {
-		const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: undefined }, options.viewType);
-
-		// untitled notebooks are disposed when they get saved. we should not hold a reference
-		// to such a disposed notebook and therefore dispose the reference as well
-		ref.object.notebook.onWillDispose(() => {
-			ref.dispose();
-		});
-
-		// untitled notebooks are dirty by default
-		this._proxy.$acceptDirtyStateChanged(ref.object.resource, true);
-
-		// apply content changes... slightly HACKY -> this triggers a change event
 		if (options.content) {
-			const data = NotebookDto.fromNotebookDataDto(options.content);
-			ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
+			const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: undefined }, options.viewType);
+
+			// untitled notebooks are disposed when they get saved. we should not hold a reference
+			// to such a disposed notebook and therefore dispose the reference as well
+			ref.object.notebook.onWillDispose(() => {
+				ref.dispose();
+			});
+
+			// untitled notebooks with content are dirty by default
+			this._proxy.$acceptDirtyStateChanged(ref.object.resource, true);
+
+			// apply content changes... slightly HACKY -> this triggers a change event
+			if (options.content) {
+				const data = NotebookDto.fromNotebookDataDto(options.content);
+				ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
+			}
+			return ref.object.notebook.uri;
+		} else {
+			// If we aren't adding content, we don't need to resolve the full editor model yet.
+			// This will allow us to adjust settings when the editor is opened, e.g. scratchpad
+			const notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(options.viewType);
+			return notebook.uri;
 		}
-		return ref.object.resource;
 	}
 
 	async $tryOpenNotebook(uriComponents: UriComponents): Promise<URI> {
 		const uri = URI.revive(uriComponents);
 		const ref = await this._notebookEditorModelResolverService.resolve(uri, undefined);
+
+		if (uriComponents.scheme === 'untitled') {
+			// untitled notebooks are disposed when they get saved. we should not hold a reference
+			// to such a disposed notebook and therefore dispose the reference as well
+			ref.object.notebook.onWillDispose(() => {
+				ref.dispose();
+			});
+		}
+
 		this._modelReferenceCollection.add(uri, ref);
 		return uri;
 	}

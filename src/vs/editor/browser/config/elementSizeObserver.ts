@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { Emitter, Event } from 'vs/base/common/event';
-import { getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IDimension } from '../../common/core/dimension.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { getWindow, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 
 export class ElementSizeObserver extends Disposable {
 

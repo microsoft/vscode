@@ -3,31 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomLevel } from 'vs/base/browser/browser';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, ExtensionType, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
-import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
-import { mainWindow } from 'vs/base/browser/window';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { getZoomLevel } from '../../../../base/browser/browser.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IWorkbenchIssueService } from '../common/issue.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IIntegrityService } from '../../../services/integrity/common/integrity.js';
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
-	private extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 
 	constructor(
-		@IIssueMainService private readonly issueMainService: IIssueMainService,
+		@IIssueFormService private readonly issueFormService: IIssueFormService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -35,35 +30,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
-	) {
-		ipcRenderer.on('vscode:triggerReporterMenu', async (event, arg) => {
-			const extensionId = arg.extensionId;
-
-			// creates menu from contributed
-			const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
-
-			// render menu and dispose
-			const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
-			actions.forEach(async action => {
-				try {
-					if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-						this.extensionIdentifierSet.add(extensionId);
-						await action.run();
-					}
-				} catch (error) {
-					console.error(error);
-				}
-			});
-
-			if (!this.extensionIdentifierSet.has(extensionId)) {
-				// send undefined to indicate no action was taken
-				ipcRenderer.send(`vscode:triggerReporterMenuResponse:${extensionId}`, undefined);
-			}
-			menu.dispose();
-		});
-	}
+	) { }
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
 		const extensionData: IssueReporterExtensionData[] = [];
@@ -134,18 +101,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			githubAccessToken
 		}, dataOverrides);
 
-		if (issueReporterData.extensionId) {
-			const extensionExists = extensionData.some(extension => ExtensionIdentifier.equals(extension.id, issueReporterData.extensionId));
-			if (!extensionExists) {
-				console.error(`Extension with ID ${issueReporterData.extensionId} does not exist.`);
-			}
-		}
-
-		if (issueReporterData.extensionId && this.extensionIdentifierSet.has(issueReporterData.extensionId)) {
-			ipcRenderer.send(`vscode:triggerReporterMenuResponse:${issueReporterData.extensionId}`, issueReporterData);
-			this.extensionIdentifierSet.delete(new ExtensionIdentifier(issueReporterData.extensionId));
-		}
-		return this.issueMainService.openReporter(issueReporterData);
+		return this.issueFormService.openReporter(issueReporterData);
 	}
 
 }
@@ -167,7 +123,7 @@ export function getIssueReporterStyles(theme: IColorTheme): IssueReporterStyles 
 		buttonForeground: getColor(theme, buttonForeground),
 		buttonHoverBackground: getColor(theme, buttonHoverBackground),
 		sliderActiveColor: getColor(theme, scrollbarSliderActiveBackground),
-		sliderBackgroundColor: getColor(theme, scrollbarSliderBackground),
+		sliderBackgroundColor: getColor(theme, SIDE_BAR_BACKGROUND),
 		sliderHoverColor: getColor(theme, scrollbarSliderHoverBackground),
 	};
 }

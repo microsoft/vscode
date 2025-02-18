@@ -8,7 +8,7 @@ extension.webpack.config.js
 extension-browser.webpack.config.js
 cgmanifest.json
 .gitignore
-yarn.lock
+package-lock.json
 preview-src/**
 webpack.config.js
 esbuild-preview.js

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import * as strings from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation, SearchData } from 'vs/editor/common/model';
-import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { countEOL, StringEOL } from 'vs/editor/common/core/eolCounter';
-import { TextChange } from 'vs/editor/common/core/textChange';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import * as strings from '../../../../base/common/strings.js';
+import { Position } from '../../core/position.js';
+import { Range } from '../../core/range.js';
+import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation, SearchData } from '../../model.js';
+import { PieceTreeBase, StringBuffer } from './pieceTreeBase.js';
+import { countEOL, StringEOL } from '../../core/eolCounter.js';
+import { TextChange } from '../../core/textChange.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;

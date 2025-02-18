@@ -117,7 +117,7 @@ export interface TypeScriptServiceConfiguration {
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
-	readonly useVsCodeWatcher: boolean; // TODO@bpasero remove this setting eventually
+	readonly useVsCodeWatcher: boolean;
 	readonly watchOptions: Proto.WatchOptions | undefined;
 	readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 	readonly enableTsServerTracing: boolean;
@@ -134,6 +134,10 @@ export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration,
 export interface ServiceConfigurationProvider {
 	loadFromWorkspace(): TypeScriptServiceConfiguration;
 }
+
+const vscodeWatcherName = 'vscode';
+type vscodeWatcherName = typeof vscodeWatcherName;
+
 
 export abstract class BaseServiceConfigurationProvider implements ServiceConfigurationProvider {
 
@@ -223,11 +227,36 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	}
 
 	private readUseVsCodeWatcher(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.experimental.useVsCodeWatcher', false);
+		const watcherExcludes = configuration.get<Record<string, boolean>>('files.watcherExclude') ?? {};
+		if (
+			watcherExcludes['**/node_modules/*/**'] === true || // VS Code default prior to 1.94.x
+			watcherExcludes['**/node_modules/**'] === true ||
+			watcherExcludes['**/node_modules'] === true ||
+			watcherExcludes['**'] === true	 					// VS Code Watching is entirely disabled
+		) {
+			return false;
+		}
+
+		const experimentalConfig = configuration.inspect('typescript.tsserver.experimental.useVsCodeWatcher');
+		if (typeof experimentalConfig?.globalValue === 'boolean') {
+			return experimentalConfig.globalValue;
+		}
+		if (typeof experimentalConfig?.workspaceValue === 'boolean') {
+			return experimentalConfig.workspaceValue;
+		}
+		if (typeof experimentalConfig?.workspaceFolderValue === 'boolean') {
+			return experimentalConfig.workspaceFolderValue;
+		}
+
+		return configuration.get<Proto.WatchOptions | vscodeWatcherName>('typescript.tsserver.watchOptions', vscodeWatcherName) === vscodeWatcherName;
 	}
 
 	private readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
-		const watchOptions = configuration.get<Proto.WatchOptions>('typescript.tsserver.watchOptions');
+		const watchOptions = configuration.get<Proto.WatchOptions | vscodeWatcherName>('typescript.tsserver.watchOptions');
+		if (watchOptions === vscodeWatcherName) {
+			return undefined;
+		}
+
 		// Returned value may be a proxy. Clone it into a normal object
 		return { ...(watchOptions ?? {}) };
 	}
@@ -263,11 +292,11 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	}
 
 	private readWebProjectWideIntellisenseSuppressSemanticErrors(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors', true);
+		return this.readWebTypeAcquisition(configuration) && configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors', false);
 	}
 
 	private readWebTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', false);
+		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', true);
 	}
 
 	private readEnableRegionDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {

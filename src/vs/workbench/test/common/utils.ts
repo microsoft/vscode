@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
+import { LanguagesRegistry } from '../../../editor/common/services/languagesRegistry.js';
 
 /**
  * This function is called before test running and also again at the end of test running

@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { InteractiveWindowSetting } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import * as dom from '../../../../base/browser/dom.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { Event } from '../../../../base/common/event.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { OS } from '../../../../base/common/platform.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { ReplEditorSettings } from './interactiveCommon.js';
 
 
 export class ReplInputHintContentWidget extends Disposable implements IContentWidget {
@@ -39,12 +41,12 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		}));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
-			if (this.editor.hasTextFocus() && this.ariaLabel && configurationService.getValue(AccessibilityVerbositySettingId.ReplInputHint)) {
+			if (this.editor.hasTextFocus() && this.ariaLabel && configurationService.getValue(AccessibilityVerbositySettingId.ReplEditor)) {
 				status(this.ariaLabel);
 			}
 		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(InteractiveWindowSetting.executeWithShiftEnter)) {
+			if (e.affectsConfiguration(ReplEditorSettings.executeWithShiftEnter)) {
 				this.setHint();
 			}
 		}));
@@ -114,32 +116,43 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			hintElement.appendChild(after);
 			this.domNode.append(hintElement);
 
-			this.ariaLabel = actionPart.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.ReplInputHint));
+			const helpKeybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			const helpInfo = helpKeybinding
+				? localize('ReplInputAriaLabelHelp', "Use {0} for accessibility help. ", helpKeybinding)
+				: localize('ReplInputAriaLabelHelpNoKb', "Run the Open Accessibility Help command for more information. ");
+
+			this.ariaLabel = actionPart.concat(helpInfo, localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.ReplEditor));
 		}
 	}
 
 	private getKeybinding() {
 		const keybindings = this.keybindingService.lookupKeybindings('interactive.execute');
-		const shiftEnterConfig = this.configurationService.getValue(InteractiveWindowSetting.executeWithShiftEnter);
+		const shiftEnterConfig = this.configurationService.getValue(ReplEditorSettings.executeWithShiftEnter);
+		const hasEnterChord = (kb: ResolvedKeybinding, modifier: string = '') => {
+			const chords = kb.getDispatchChords();
+			const chord = modifier + 'Enter';
+			const chordAlt = modifier + '[Enter]';
+			return chords.length === 1 && (chords[0] === chord || chords[0] === chordAlt);
+		};
 
 		if (shiftEnterConfig) {
-			const keybinding = keybindings.find(kb => kb.getLabel() === 'Shift+Enter');
+			const keybinding = keybindings.find(kb => hasEnterChord(kb, 'shift+'));
 			if (keybinding) {
 				return keybinding;
 			}
 		} else {
-			let keybinding = keybindings.find(kb => kb.getLabel() === 'Enter');
+			let keybinding = keybindings.find(kb => hasEnterChord(kb));
 			if (keybinding) {
 				return keybinding;
 			}
 			keybinding = this.keybindingService.lookupKeybindings('python.execInREPLEnter')
-				.find(kb => kb.getLabel() === 'Enter');
+				.find(kb => hasEnterChord(kb));
 			if (keybinding) {
 				return keybinding;
 			}
 		}
 
-		return undefined;
+		return keybindings?.[0];
 	}
 
 	override dispose(): void {

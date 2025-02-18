@@ -2,86 +2,71 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { localize } from 'vs/nls';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
-import { AccessibleViewType, AccessibleViewProviderId, AdvancedContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { HoverVerbosityAction } from 'vs/editor/common/languages';
-import { DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Action, IAction } from 'vs/base/common/actions';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { labelForHoverVerbosityAction } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { localize } from '../../../../nls.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ContentHoverController } from './contentHoverController.js';
+import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { HoverVerbosityAction } from '../../../common/languages.js';
+import { DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID } from './hoverActionIds.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { labelForHoverVerbosityAction } from './markdownHoverParticipant.js';
 
 namespace HoverAccessibilityHelpNLS {
-	export const introHoverPart = localize('introHoverPart', 'The focused hover part content is the following:');
-	export const introHoverFull = localize('introHoverFull', 'The full focused hover content is the following:');
-	export const increaseVerbosity = localize('increaseVerbosity', '- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command<keybinding:{0}>.', INCREASE_HOVER_VERBOSITY_ACTION_ID);
-	export const decreaseVerbosity = localize('decreaseVerbosity', '- The focused hover part verbosity level can be decreased with the Decrease Hover Verbosity command<keybinding:{0}>.', DECREASE_HOVER_VERBOSITY_ACTION_ID);
+	export const increaseVerbosity = localize('increaseVerbosity', '- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command.', `<keybinding:${INCREASE_HOVER_VERBOSITY_ACTION_ID}>`);
+	export const decreaseVerbosity = localize('decreaseVerbosity', '- The focused hover part verbosity level can be decreased with the Decrease Hover Verbosity command.', `<keybinding:${DECREASE_HOVER_VERBOSITY_ACTION_ID}>`);
 }
 
-export class HoverAccessibleView implements IAccessibleViewImplentation {
+export class HoverAccessibleView implements IAccessibleViewImplementation {
 
 	public readonly type = AccessibleViewType.View;
 	public readonly priority = 95;
 	public readonly name = 'hover';
 	public readonly when = EditorContextKeys.hoverFocused;
 
-	private _provider: HoverAccessibleViewProvider | undefined;
-
-	getProvider(accessor: ServicesAccessor): AdvancedContentProvider | undefined {
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 		if (!codeEditor) {
 			throw new Error('No active or focused code editor');
 		}
-		const hoverController = HoverController.get(codeEditor);
+		const hoverController = ContentHoverController.get(codeEditor);
 		if (!hoverController) {
 			return;
 		}
 		const keybindingService = accessor.get(IKeybindingService);
-		this._provider = accessor.get(IInstantiationService).createInstance(HoverAccessibleViewProvider, keybindingService, codeEditor, hoverController);
-		return this._provider;
-	}
-
-	dispose(): void {
-		this._provider?.dispose();
+		return accessor.get(IInstantiationService).createInstance(HoverAccessibleViewProvider, keybindingService, codeEditor, hoverController);
 	}
 }
 
-export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
+export class HoverAccessibilityHelp implements IAccessibleViewImplementation {
 
 	public readonly priority = 100;
 	public readonly name = 'hover';
 	public readonly type = AccessibleViewType.Help;
 	public readonly when = EditorContextKeys.hoverVisible;
 
-	private _provider: HoverAccessibleViewProvider | undefined;
-
-	getProvider(accessor: ServicesAccessor): AdvancedContentProvider | undefined {
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 		if (!codeEditor) {
 			throw new Error('No active or focused code editor');
 		}
-		const hoverController = HoverController.get(codeEditor);
+		const hoverController = ContentHoverController.get(codeEditor);
 		if (!hoverController) {
 			return;
 		}
 		return accessor.get(IInstantiationService).createInstance(HoverAccessibilityHelpProvider, hoverController);
-	}
-
-	dispose(): void {
-		this._provider?.dispose();
 	}
 }
 
@@ -98,7 +83,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 
 	protected _focusedHoverPartIndex: number = -1;
 
-	constructor(protected readonly _hoverController: HoverController) {
+	constructor(protected readonly _hoverController: ContentHoverController) {
 		super();
 	}
 
@@ -117,10 +102,13 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		if (!this._hoverController) {
 			return;
 		}
+		if (this._focusedHoverPartIndex === -1) {
+			this._hoverController.focus();
+		} else {
+			this._hoverController.focusHoverPartWithIndex(this._focusedHoverPartIndex);
+		}
 		this._focusedHoverPartIndex = -1;
-		this._hoverController.focus();
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
-		this.dispose();
 	}
 
 	provideContentAtIndex(focusedHoverIndex: number, includeVerbosityActions: boolean): string {
@@ -133,18 +121,16 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 			if (includeVerbosityActions) {
 				contents.push(...this._descriptionsOfVerbosityActionsForIndex(focusedHoverIndex));
 			}
-			contents.push(HoverAccessibilityHelpNLS.introHoverPart);
 			contents.push(accessibleContent);
-			return contents.join('\n\n');
+			return contents.join('\n');
 		} else {
 			const accessibleContent = this._hoverController.getAccessibleWidgetContent();
 			if (accessibleContent === undefined) {
 				return '';
 			}
 			const contents: string[] = [];
-			contents.push(HoverAccessibilityHelpNLS.introHoverFull);
 			contents.push(accessibleContent);
-			return contents.join('\n\n');
+			return contents.join('\n');
 		}
 	}
 
@@ -179,7 +165,7 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 
 	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
 
-	constructor(hoverController: HoverController) {
+	constructor(hoverController: ContentHoverController) {
 		super(hoverController);
 	}
 
@@ -195,7 +181,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	constructor(
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _editor: ICodeEditor,
-		hoverController: HoverController,
+		hoverController: ContentHoverController,
 	) {
 		super(hoverController);
 		this._initializeOptions(this._editor, hoverController);
@@ -235,20 +221,19 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 		});
 	}
 
-	private _initializeOptions(editor: ICodeEditor, hoverController: HoverController): void {
+	private _initializeOptions(editor: ICodeEditor, hoverController: ContentHoverController): void {
 		const helpProvider = this._register(new HoverAccessibilityHelpProvider(hoverController));
 		this.options.language = editor.getModel()?.getLanguageId();
 		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex, true); };
 	}
 }
 
-export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
-
+export class ExtHoverAccessibleView implements IAccessibleViewImplementation {
 	public readonly type = AccessibleViewType.View;
 	public readonly priority = 90;
 	public readonly name = 'extension-hover';
 
-	getProvider(accessor: ServicesAccessor): AdvancedContentProvider | undefined {
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const contextViewService = accessor.get(IContextViewService);
 		const contextViewElement = contextViewService.getContextViewElement();
 		const extensionHoverContent = contextViewElement?.textContent ?? undefined;
@@ -258,16 +243,14 @@ export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 			// The accessible view, itself, uses the context view service to display the text. We don't want to read that.
 			return;
 		}
-		return {
-			id: AccessibleViewProviderId.Hover,
-			verbositySettingKey: 'accessibility.verbosity.hover',
-			provideContent() { return extensionHoverContent; },
-			onClose() {
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.Hover,
+			{ language: 'typescript', type: AccessibleViewType.View },
+			() => { return extensionHoverContent; },
+			() => {
 				hoverService.showAndFocusLastHover();
 			},
-			options: { language: 'typescript', type: AccessibleViewType.View }
-		};
+			'accessibility.verbosity.hover',
+		);
 	}
-
-	dispose() { }
 }

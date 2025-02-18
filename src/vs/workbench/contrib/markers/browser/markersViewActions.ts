@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
-import 'vs/css!./markersViewActions';
+import * as DOM from '../../../../base/browser/dom.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import Messages from './messages.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Marker } from './markersModel.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { MarkersContextKeys } from '../common/markers.js';
+import './markersViewActions.css';
 
 export interface IMarkersFiltersChangeEvent {
 	excludedFiles?: boolean;

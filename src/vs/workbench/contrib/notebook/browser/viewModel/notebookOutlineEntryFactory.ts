@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { localize } from 'vs/nls';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { OutlineEntry } from './OutlineEntry';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind } from 'vs/editor/common/languages';
+import { renderMarkdownAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IOutlineModelService, OutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { localize } from '../../../../../nls.js';
+import { ICellViewModel } from '../notebookBrowser.js';
+import { getMarkdownHeadersInCell } from './foldingModel.js';
+import { OutlineEntry } from './OutlineEntry.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { SymbolKind } from '../../../../../editor/common/languages.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 
 export const enum NotebookOutlineConstants {
 	NonHeaderOutlineLevel = 7,
@@ -41,12 +43,25 @@ function getMarkdownHeadersInCellFallbackToHtmlTags(fullContent: string) {
 	return headers;
 }
 
-export class NotebookOutlineEntryFactory {
+export const INotebookOutlineEntryFactory = createDecorator<INotebookOutlineEntryFactory>('INotebookOutlineEntryFactory');
+
+export interface INotebookOutlineEntryFactory {
+	readonly _serviceBrand: undefined;
+
+	getOutlineEntries(cell: ICellViewModel, index: number): OutlineEntry[];
+	cacheSymbols(cell: ICellViewModel, cancelToken: CancellationToken): Promise<void>;
+}
+
+export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory {
+
+	declare readonly _serviceBrand: undefined;
 
 	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
 	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number; text: string }[] }>();
 	constructor(
-		private readonly executionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService private readonly executionStateService: INotebookExecutionStateService,
+		@IOutlineModelService private readonly outlineModelService: IOutlineModelService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) { }
 
 	public getOutlineEntries(cell: ICellViewModel, index: number): OutlineEntry[] {
@@ -80,16 +95,16 @@ export class NotebookOutlineEntryFactory {
 			const exeState = !isMarkdown && this.executionStateService.getCellExecution(cell.uri);
 			let preview = content.trim();
 
-			if (!isMarkdown && cell.model.textModel) {
-				const cachedEntries = this.cellOutlineEntryCache[cell.model.textModel.id];
+			if (!isMarkdown) {
+				const cached = this.cellOutlineEntryCache[cell.id];
 
 				// Gathering symbols from the model is an async operation, but this provider is syncronous.
 				// So symbols need to be precached before this function is called to get the full list.
-				if (cachedEntries) {
+				if (cached) {
 					// push code cell entry that is a parent of cached symbols, always necessary. filtering for quickpick done in that provider.
 					entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
-					cachedEntries.forEach((cached) => {
-						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.range, cached.kind));
+					cached.forEach((entry) => {
+						entries.push(new OutlineEntry(index++, entry.level, cell, entry.name, false, false, entry.range, entry.kind));
 					});
 				}
 			}
@@ -106,11 +121,20 @@ export class NotebookOutlineEntryFactory {
 		return entries;
 	}
 
-	public async cacheSymbols(cell: ICellViewModel, outlineModelService: IOutlineModelService, cancelToken: CancellationToken) {
-		const textModel = await cell.resolveTextModel();
-		const outlineModel = await outlineModelService.getOrCreate(textModel, cancelToken);
-		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 8);
-		this.cellOutlineEntryCache[textModel.id] = entries;
+	public async cacheSymbols(cell: ICellViewModel, cancelToken: CancellationToken) {
+		if (cell.cellKind === CellKind.Markup) {
+			return;
+		}
+
+		const ref = await this.textModelService.createModelReference(cell.uri);
+		try {
+			const textModel = ref.object.textEditorModel;
+			const outlineModel = await this.outlineModelService.getOrCreate(textModel, cancelToken);
+			const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 8);
+			this.cellOutlineEntryCache[cell.id] = entries;
+		} finally {
+			ref.dispose();
+		}
 	}
 }
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { localize } from 'vs/nls';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { localize } from '../../../../../nls.js';
+import { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 
 export const enum TerminalInitialHintSettingId {
 	Enabled = 'terminal.integrated.initialHint'

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from '../../common/testingUri.js';
 
 suite('Workbench - Testing URIs', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

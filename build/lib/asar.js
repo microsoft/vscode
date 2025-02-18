@@ -3,18 +3,39 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createAsar = createAsar;
-const path = require("path");
-const es = require("event-stream");
+const path_1 = __importDefault(require("path"));
+const event_stream_1 = __importDefault(require("event-stream"));
 const pickle = require('chromium-pickle-js');
 const Filesystem = require('asar/lib/filesystem');
-const VinylFile = require("vinyl");
-const minimatch = require("minimatch");
-function createAsar(folderPath, unpackGlobs, destFilename) {
+const vinyl_1 = __importDefault(require("vinyl"));
+const minimatch_1 = __importDefault(require("minimatch"));
+function createAsar(folderPath, unpackGlobs, skipGlobs, duplicateGlobs, destFilename) {
     const shouldUnpackFile = (file) => {
         for (let i = 0; i < unpackGlobs.length; i++) {
-            if (minimatch(file.relative, unpackGlobs[i])) {
+            if ((0, minimatch_1.default)(file.relative, unpackGlobs[i])) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const shouldSkipFile = (file) => {
+        for (const skipGlob of skipGlobs) {
+            if ((0, minimatch_1.default)(file.relative, skipGlob)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    // Files that should be duplicated between
+    // node_modules.asar and node_modules
+    const shouldDuplicateFile = (file) => {
+        for (const duplicateGlob of duplicateGlobs) {
+            if ((0, minimatch_1.default)(file.relative, duplicateGlob)) {
                 return true;
             }
         }
@@ -57,21 +78,38 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
         // Create a closure capturing `onFileInserted`.
         filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}).then(() => onFileInserted(), () => onFileInserted());
     };
-    return es.through(function (file) {
+    return event_stream_1.default.through(function (file) {
         if (file.stat.isDirectory()) {
             return;
         }
         if (!file.stat.isFile()) {
             throw new Error(`unknown item in stream!`);
         }
+        if (shouldSkipFile(file)) {
+            this.queue(new vinyl_1.default({
+                base: '.',
+                path: file.path,
+                stat: file.stat,
+                contents: file.contents
+            }));
+            return;
+        }
+        if (shouldDuplicateFile(file)) {
+            this.queue(new vinyl_1.default({
+                base: '.',
+                path: file.path,
+                stat: file.stat,
+                contents: file.contents
+            }));
+        }
         const shouldUnpack = shouldUnpackFile(file);
         insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);
         if (shouldUnpack) {
             // The file goes outside of xx.asar, in a folder xx.asar.unpacked
-            const relative = path.relative(folderPath, file.path);
-            this.queue(new VinylFile({
+            const relative = path_1.default.relative(folderPath, file.path);
+            this.queue(new vinyl_1.default({
                 base: '.',
-                path: path.join(destFilename + '.unpacked', relative),
+                path: path_1.default.join(destFilename + '.unpacked', relative),
                 stat: file.stat,
                 contents: file.contents
             }));
@@ -94,7 +132,7 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
             }
             const contents = Buffer.concat(out);
             out.length = 0;
-            this.queue(new VinylFile({
+            this.queue(new vinyl_1.default({
                 base: '.',
                 path: destFilename,
                 contents: contents

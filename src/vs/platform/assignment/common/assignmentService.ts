@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IExperimentationTelemetry, ExperimentationService as TASClient, IKeyValueStorage } from 'tas-client-umd';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
-import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from 'vs/platform/assignment/common/assignment';
-import { importAMDNodeModule } from 'vs/amdX';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IProductService } from '../../product/common/productService.js';
+import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
+import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from './assignment.js';
+import { importAMDNodeModule } from '../../../amdX.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
 
 export abstract class BaseAssignmentService implements IAssignmentService {
 	_serviceBrand: undefined;

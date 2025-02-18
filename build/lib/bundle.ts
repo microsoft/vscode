@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vm from 'vm';
+import fs from 'fs';
+import path from 'path';
+import vm from 'vm';
 
 interface IPosition {
 	line: number;
@@ -51,8 +51,8 @@ export interface IEntryPoint {
 	name: string;
 	include?: string[];
 	exclude?: string[];
+	/** @deprecated unsupported by ESM */
 	prepend?: IExtraFile[];
-	append?: IExtraFile[];
 	dest?: string;
 }
 
@@ -138,14 +138,10 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	const loader: any = loaderModule.exports;
 	config.isBuild = true;
 	config.paths = config.paths || {};
-	if (!config.paths['vs/nls']) {
-		config.paths['vs/nls'] = 'out-build/vs/nls.build';
-	}
 	if (!config.paths['vs/css']) {
 		config.paths['vs/css'] = 'out-build/vs/css.build';
 	}
 	config.buildForceInvokeFactory = config.buildForceInvokeFactory || {};
-	config.buildForceInvokeFactory['vs/nls'] = true;
 	config.buildForceInvokeFactory['vs/css'] = true;
 	loader.config(config);
 
@@ -156,15 +152,11 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 				r += '.js';
 			}
 			// avoid packaging the build version of plugins:
-			r = r.replace('vs/nls.build.js', 'vs/nls.js');
 			r = r.replace('vs/css.build.js', 'vs/css.js');
 			return { path: r, amdModuleId: entry.amdModuleId };
 		};
 		for (const moduleId in entryPointsMap) {
 			const entryPoint = entryPointsMap[moduleId];
-			if (entryPoint.append) {
-				entryPoint.append = entryPoint.append.map(resolvePath);
-			}
 			if (entryPoint.prepend) {
 				entryPoint.prepend = entryPoint.prepend.map(resolvePath);
 			}
@@ -228,7 +220,6 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 			moduleToBundle,
 			includedModules,
 			info.prepend || [],
-			info.append || [],
 			info.dest
 		);
 
@@ -256,7 +247,7 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 
 	return {
 		// TODO@TS 2.1.2
-		files: extractStrings(removeDuplicateTSBoilerplate(result)),
+		files: extractStrings(removeAllDuplicateTSBoilerplate(result)),
 		bundleData: bundleData
 	};
 }
@@ -355,59 +346,70 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 	return destFiles;
 }
 
-function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
-	// Taken from typescript compiler => emitFiles
-	const BOILERPLATE = [
-		{ start: /^var __extends/, end: /^}\)\(\);$/ },
-		{ start: /^var __assign/, end: /^};$/ },
-		{ start: /^var __decorate/, end: /^};$/ },
-		{ start: /^var __metadata/, end: /^};$/ },
-		{ start: /^var __param/, end: /^};$/ },
-		{ start: /^var __awaiter/, end: /^};$/ },
-		{ start: /^var __generator/, end: /^};$/ },
-		{ start: /^var __createBinding/, end: /^}\)\);$/ },
-		{ start: /^var __setModuleDefault/, end: /^}\);$/ },
-		{ start: /^var __importStar/, end: /^};$/ },
-	];
-
+function removeAllDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 	destFiles.forEach((destFile) => {
 		const SEEN_BOILERPLATE: boolean[] = [];
 		destFile.sources.forEach((source) => {
-			const lines = source.contents.split(/\r\n|\n|\r/);
-			const newLines: string[] = [];
-			let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
-
-			for (let i = 0; i < lines.length; i++) {
-				const line = lines[i];
-				if (IS_REMOVING_BOILERPLATE) {
-					newLines.push('');
-					if (END_BOILERPLATE!.test(line)) {
-						IS_REMOVING_BOILERPLATE = false;
-					}
-				} else {
-					for (let j = 0; j < BOILERPLATE.length; j++) {
-						const boilerplate = BOILERPLATE[j];
-						if (boilerplate.start.test(line)) {
-							if (SEEN_BOILERPLATE[j]) {
-								IS_REMOVING_BOILERPLATE = true;
-								END_BOILERPLATE = boilerplate.end;
-							} else {
-								SEEN_BOILERPLATE[j] = true;
-							}
-						}
-					}
-					if (IS_REMOVING_BOILERPLATE) {
-						newLines.push('');
-					} else {
-						newLines.push(line);
-					}
-				}
-			}
-			source.contents = newLines.join('\n');
+			source.contents = removeDuplicateTSBoilerplate(source.contents, SEEN_BOILERPLATE);
 		});
 	});
 
 	return destFiles;
+}
+
+export function removeAllTSBoilerplate(source: string) {
+	const seen = new Array<boolean>(BOILERPLATE.length).fill(true, 0, BOILERPLATE.length);
+	return removeDuplicateTSBoilerplate(source, seen);
+}
+
+// Taken from typescript compiler => emitFiles
+const BOILERPLATE = [
+	{ start: /^var __extends/, end: /^}\)\(\);$/ },
+	{ start: /^var __assign/, end: /^};$/ },
+	{ start: /^var __decorate/, end: /^};$/ },
+	{ start: /^var __metadata/, end: /^};$/ },
+	{ start: /^var __param/, end: /^};$/ },
+	{ start: /^var __awaiter/, end: /^};$/ },
+	{ start: /^var __generator/, end: /^};$/ },
+	{ start: /^var __createBinding/, end: /^}\)\);$/ },
+	{ start: /^var __setModuleDefault/, end: /^}\);$/ },
+	{ start: /^var __importStar/, end: /^};$/ },
+	{ start: /^var __addDisposableResource/, end: /^};$/ },
+	{ start: /^var __disposeResources/, end: /^}\);$/ },
+];
+
+function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {
+	const lines = source.split(/\r\n|\n|\r/);
+	const newLines: string[] = [];
+	let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (IS_REMOVING_BOILERPLATE) {
+			newLines.push('');
+			if (END_BOILERPLATE!.test(line)) {
+				IS_REMOVING_BOILERPLATE = false;
+			}
+		} else {
+			for (let j = 0; j < BOILERPLATE.length; j++) {
+				const boilerplate = BOILERPLATE[j];
+				if (boilerplate.start.test(line)) {
+					if (SEEN_BOILERPLATE[j]) {
+						IS_REMOVING_BOILERPLATE = true;
+						END_BOILERPLATE = boilerplate.end;
+					} else {
+						SEEN_BOILERPLATE[j] = true;
+					}
+				}
+			}
+			if (IS_REMOVING_BOILERPLATE) {
+				newLines.push('');
+			} else {
+				newLines.push(line);
+			}
+		}
+	}
+	return newLines.join('\n');
 }
 
 interface IPluginMap {
@@ -425,7 +427,6 @@ function emitEntryPoint(
 	entryPoint: string,
 	includedModules: string[],
 	prepend: IExtraFile[],
-	append: IExtraFile[],
 	dest: string | undefined
 ): IEmitEntryPointResult {
 	if (!dest) {
@@ -511,9 +512,8 @@ function emitEntryPoint(
 	};
 
 	const toPrepend = (prepend || []).map(toIFile);
-	const toAppend = (append || []).map(toIFile);
 
-	mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
+	mainResult.sources = toPrepend.concat(mainResult.sources);
 
 	return {
 		files: results,

@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { randomPath } from 'vs/base/common/extpath';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { DeferredPromise } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
-import { basename, dirname, isEqual, joinPath } from 'vs/base/common/resources';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { assertIsDefined } from 'vs/base/common/types';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/test/electron-sandbox/workingCopyHistoryService.test';
+import { Event } from '../../../../../base/common/event.js';
+import { TestContextService, TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
+import { randomPath } from '../../../../../base/common/extpath.js';
+import { join } from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { WorkingCopyHistoryTracker } from '../../common/workingCopyHistoryTracker.js';
+import { WorkingCopyService } from '../../common/workingCopyService.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { TestFileService, TestPathService } from '../../../../test/browser/workbenchTestServices.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRedoService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor } from '../../common/workingCopyHistory.js';
+import { assertIsDefined } from '../../../../../base/common/types.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestWorkingCopyHistoryService } from './workingCopyHistoryService.test.js';
 
 suite('WorkingCopyHistoryTracker', () => {
 

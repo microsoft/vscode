@@ -3,53 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { distinct } from 'vs/base/common/arrays';
-import { Queue, RunOnceScheduler, raceTimeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import * as resources from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { INewReplElementData, ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { isDefined } from 'vs/base/common/types';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { Queue, RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { canceled } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { mixin } from '../../../../base/common/objects.js';
+import * as platform from '../../../../base/common/platform.js';
+import * as resources from '../../../../base/common/resources.js';
+import Severity from '../../../../base/common/severity.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { RawDebugSession } from './rawDebugSession.js';
+import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugLocationReferenced, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID, isFrameDeemphasized } from '../common/debug.js';
+import { DebugCompoundRoot } from '../common/debugCompoundRoot.js';
+import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from '../common/debugModel.js';
+import { Source } from '../common/debugSource.js';
+import { filterExceptionsFromTelemetry } from '../common/debugUtils.js';
+import { INewReplElementData, ReplModel } from '../common/replModel.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { ITestService } from '../../testing/common/testService.js';
+import { ITestResultService } from '../../testing/common/testResultService.js';
+import { LiveTestResult } from '../../testing/common/testResult.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
 export class DebugSession implements IDebugSession, IDisposable {
 	parentSession: IDebugSession | undefined;
+	rememberedCapabilities?: DebugProtocol.Capabilities;
 
 	private _subId: string | undefined;
 	raw: RawDebugSession | undefined; // used in tests
@@ -84,7 +86,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
 	private readonly _onDidInvalidMemory = new Emitter<DebugProtocol.MemoryEvent>();
 
-	private readonly _onDidChangeREPLElements = new Emitter<void>();
+	private readonly _onDidChangeREPLElements = new Emitter<IReplElement | undefined>();
 
 	private _name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
@@ -117,6 +119,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		@ILogService private readonly logService: ILogService,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService testResultService: ITestResultService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		this._options = options || {};
 		this.parentSession = this._options.parentSession;
@@ -128,7 +131,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 		const toDispose = this.globalDisposables;
 		const replListener = toDispose.add(new MutableDisposable());
-		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+		replListener.value = this.repl.onDidChangeElements((e) => this._onDidChangeREPLElements.fire(e));
 		if (lifecycleService) {
 			toDispose.add(lifecycleService.onWillShutdown(() => {
 				this.shutdown();
@@ -176,7 +179,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 				// remove its parent, if it's still running
 				if (!this.hasSeparateRepl() && this.raw?.isInShutdown === false) {
 					this.repl = this.repl.clone();
-					replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+					replListener.value = this.repl.onDidChangeElements((e) => this._onDidChangeREPLElements.fire(e));
 					this.parentSession = undefined;
 				}
 			}));
@@ -238,7 +241,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 	get autoExpandLazyVariables(): boolean {
 		// This tiny helper avoids converting the entire debug model to use service injection
-		return this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+		const screenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
+		const value = this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+		return value === 'auto' && screenReaderOptimized || value === 'on';
 	}
 
 	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {
@@ -291,7 +296,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this._onDidEndAdapter.event;
 	}
 
-	get onDidChangeReplElements(): Event<void> {
+	get onDidChangeReplElements(): Event<IReplElement | undefined> {
 		return this._onDidChangeREPLElements.event;
 	}
 
@@ -359,11 +364,13 @@ export class DebugSession implements IDebugSession, IDisposable {
 				supportsMemoryReferences: true, //#129684
 				supportsArgsCanBeInterpretedByShell: true, // #149910
 				supportsMemoryEvent: true, // #133643
-				supportsStartDebuggingRequest: true
+				supportsStartDebuggingRequest: true,
+				supportsANSIStyling: true,
 			});
 
 			this.initialized = true;
 			this._onDidChangeState.fire();
+			this.rememberedCapabilities = this.raw.capabilities;
 			this.debugService.setExceptionBreakpointsForSession(this, (this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
 			this.debugService.getModel().registerBreakpointModes(this.configuration.type, this.raw.capabilities.breakpointModes || []);
 		} catch (err) {
@@ -846,7 +853,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 	}
 
-	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined> {
+	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'completions')));
 		}
@@ -900,6 +907,20 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		return this.raw.writeMemory({ memoryReference, offset, allowPartial, data });
+	}
+
+	async resolveLocationReference(locationReference: number): Promise<IDebugLocationReferenced> {
+		if (!this.raw) {
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'locations'));
+		}
+
+		const location = await this.raw.locations({ locationReference });
+		if (!location?.body) {
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'locations'));
+		}
+
+		const source = this.getSource(location.body.source);
+		return { column: 1, ...location.body, source };
 	}
 
 	//---- threads
@@ -1183,7 +1204,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 				if (event.body.group === 'start' || event.body.group === 'startCollapsed') {
 					const expanded = event.body.group === 'start';
-					this.repl.startGroup(event.body.output || '', expanded, source);
+					this.repl.startGroup(this, event.body.output || '', expanded, source);
 					return;
 				}
 				if (event.body.group === 'end') {
@@ -1370,7 +1391,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 					}
 
 					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-					if (!focusedStackFrame || !isFrameDeemphasized(focusedStackFrame)) {
+					if (!focusedStackFrame || isFrameDeemphasized(focusedStackFrame)) {
 						// The top stack frame can be deemphesized so try to focus again #68616
 						focus();
 					}

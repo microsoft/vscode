@@ -3,54 +3,74 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags, toUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IProfileResourceChildTreeItem, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { equals } from 'vs/base/common/objects';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { ExtensionsResourceExportTreeItem, ExtensionsResourceImportTreeItem } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
-import { SettingsResource, SettingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/settingsResource';
-import { KeybindingsResource, KeybindingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/keybindingsResource';
-import { TasksResource, TasksResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/tasksResource';
-import { SnippetsResource, SnippetsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/snippetsResource';
-import { Codicon } from 'vs/base/common/codicons';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { IFileService } from 'vs/platform/files/common/files';
-import { generateUuid } from 'vs/base/common/uuid';
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ITreeItemCheckboxState } from 'vs/workbench/common/views';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CONFIG_NEW_WINDOW_PROFILE } from 'vs/workbench/common/configuration';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags, toUserDataProfile, UseDefaultProfileFlags } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IProfileResourceChildTreeItem, IProfileTemplateInfo, isProfileURL, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as arrays from '../../../../base/common/arrays.js';
+import { equals } from '../../../../base/common/objects.js';
+import { EditorModel } from '../../../common/editor/editorModel.js';
+import { ExtensionsResourceExportTreeItem, ExtensionsResourceImportTreeItem } from '../../../services/userDataProfile/browser/extensionsResource.js';
+import { SettingsResource, SettingsResourceTreeItem } from '../../../services/userDataProfile/browser/settingsResource.js';
+import { KeybindingsResource, KeybindingsResourceTreeItem } from '../../../services/userDataProfile/browser/keybindingsResource.js';
+import { TasksResource, TasksResourceTreeItem } from '../../../services/userDataProfile/browser/tasksResource.js';
+import { SnippetsResource, SnippetsResourceTreeItem } from '../../../services/userDataProfile/browser/snippetsResource.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from '../../../../base/common/async.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ITreeItemCheckboxState } from '../../../common/views.js';
+import { API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CONFIG_NEW_WINDOW_PROFILE } from '../../../common/configuration.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IWorkspaceContextService, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isString } from '../../../../base/common/types.js';
+import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
 	readonly icon?: boolean;
 	readonly flags?: boolean;
+	readonly workspaces?: boolean;
 	readonly active?: boolean;
 	readonly message?: boolean;
 	readonly copyFrom?: boolean;
+	readonly copyFromInfo?: boolean;
 	readonly copyFlags?: boolean;
 	readonly preview?: boolean;
+	readonly profile?: boolean;
+	readonly extensions?: boolean;
+	readonly snippets?: boolean;
 	readonly disabled?: boolean;
 	readonly newWindowProfile?: boolean;
 };
 
 export interface IProfileChildElement {
 	readonly handle: string;
-	readonly action?: IAction;
+	readonly openAction?: IAction;
+	readonly actions?: {
+		readonly primary?: IAction[];
+		readonly contextMenu?: IAction[];
+	};
 	readonly checkbox?: ITreeItemCheckboxState;
 }
 
@@ -60,6 +80,7 @@ export interface IProfileResourceTypeElement extends IProfileChildElement {
 
 export interface IProfileResourceTypeChildElement extends IProfileChildElement {
 	readonly label: string;
+	readonly description?: string;
 	readonly resource?: URI;
 	readonly icon?: ThemeIcon;
 }
@@ -83,22 +104,47 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		name: string,
 		icon: string | undefined,
 		flags: UseDefaultProfileFlags | undefined,
+		workspaces: readonly URI[] | undefined,
 		isActive: boolean,
 		@IUserDataProfileManagementService protected readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
 		@ICommandService protected readonly commandService: ICommandService,
+		@IWorkspaceContextService protected readonly workspaceContextService: IWorkspaceContextService,
+		@IHostService protected readonly hostService: IHostService,
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
+		@IFileService protected readonly fileService: IFileService,
+		@IWorkbenchExtensionManagementService protected readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this._name = name;
 		this._icon = icon;
 		this._flags = flags;
+		this._workspaces = workspaces;
 		this._active = isActive;
 		this._register(this.onDidChange(e => {
 			if (!e.message) {
 				this.validate();
 			}
 			this.save();
+		}));
+		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(results => {
+			const profile = this.getProfileToWatch();
+			if (profile && results.some(r => !r.error && (r.applicationScoped || this.uriIdentityService.extUri.isEqual(r.profileLocation, profile.extensionsResource)))) {
+				this._onDidChange.fire({ extensions: true });
+			}
+		}));
+		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(e => {
+			const profile = this.getProfileToWatch();
+			if (profile && !e.error && (e.applicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, profile.extensionsResource))) {
+				this._onDidChange.fire({ extensions: true });
+			}
+		}));
+		this._register(this.extensionManagementService.onProfileAwareDidUpdateExtensionMetadata(e => {
+			const profile = this.getProfileToWatch();
+			if (profile && e.local.isApplicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, profile?.extensionsResource)) {
+				this._onDidChange.fire({ extensions: true });
+			}
 		}));
 	}
 
@@ -118,6 +164,15 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		if (this._icon !== icon) {
 			this._icon = icon;
 			this._onDidChange.fire({ icon: true });
+		}
+	}
+
+	private _workspaces: readonly URI[] | undefined;
+	get workspaces(): readonly URI[] | undefined { return this._workspaces; }
+	set workspaces(workspaces: readonly URI[] | undefined) {
+		if (!arrays.equals(this._workspaces, workspaces, (a, b) => a.toString() === b.toString())) {
+			this._workspaces = workspaces;
+			this._onDidChange.fire({ workspaces: true });
 		}
 	}
 
@@ -173,10 +228,10 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	validate(): void {
 		if (!this.name) {
-			this.message = localize('profileNameRequired', "Profile name is required.");
+			this.message = localize('name required', "Profile name is required and must be a non-empty value.");
 			return;
 		}
-		if (this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
+		if (this.shouldValidateName() && this.name !== this.getInitialName() && this.userDataProfilesService.profiles.some(p => p.name === this.name)) {
 			this.message = localize('profileExists', "Profile with name {0} already exists.", this.name);
 			return;
 		}
@@ -206,12 +261,12 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 					handle: r,
 					checkbox: undefined,
 					resourceType: r,
-					action: children.length
+					openAction: children.length
 						? new Action('_open',
 							localize('open', "Open to the Side"),
 							ThemeIcon.asClassName(Codicon.goToFile),
 							true,
-							() => children[0]?.action?.run())
+							() => children[0]?.openAction?.run())
 						: undefined
 				};
 			}));
@@ -246,26 +301,48 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return children.map<IProfileResourceTypeChildElement>(child => this.toUserDataProfileResourceChildElement(child));
 	}
 
-	protected toUserDataProfileResourceChildElement(child: IProfileResourceChildTreeItem): IProfileResourceTypeChildElement {
+	protected toUserDataProfileResourceChildElement(child: IProfileResourceChildTreeItem, primaryActions?: IAction[], contextMenuActions?: IAction[]): IProfileResourceTypeChildElement {
 		return {
 			handle: child.handle,
 			checkbox: child.checkbox,
 			label: child.label?.label ?? '',
+			description: isString(child.description) ? child.description : undefined,
 			resource: URI.revive(child.resourceUri),
 			icon: child.themeIcon,
-			action: new Action('_openChild', localize('open', "Open to the Side"), ThemeIcon.asClassName(Codicon.goToFile), true, async () => {
+			openAction: new Action('_openChild', localize('open', "Open to the Side"), ThemeIcon.asClassName(Codicon.goToFile), true, async () => {
 				if (child.parent.type === ProfileResourceType.Extensions) {
 					await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
 				} else if (child.resourceUri) {
 					await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, child.resourceUri, [SIDE_GROUP], undefined);
 				}
-			})
+			}),
+			actions: {
+				primary: primaryActions,
+				contextMenu: contextMenuActions,
+			}
 		};
 
 	}
 
 	getInitialName(): string {
 		return '';
+	}
+
+	shouldValidateName(): boolean {
+		return true;
+	}
+
+	getCurrentWorkspace(): URI | undefined {
+		const workspace = this.workspaceContextService.getWorkspace();
+		return workspace.configuration ?? workspace.folders[0]?.uri;
+	}
+
+	openWorkspace(workspace: URI): void {
+		if (this.uriIdentityService.extUri.extname(workspace) === WORKSPACE_SUFFIX) {
+			this.hostService.openWindow([{ workspaceUri: workspace }], { forceNewWindow: true });
+		} else {
+			this.hostService.openWindow([{ folderUri: workspace }], { forceNewWindow: true });
+		}
 	}
 
 	save(): void {
@@ -280,6 +357,9 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			return true;
 		}
 		if (!equals(this.flags ?? {}, profile.useDefaultFlags ?? {})) {
+			return true;
+		}
+		if (!arrays.equals(this.workspaces ?? [], profile.workspaces ?? [], (a, b) => a.toString() === b.toString())) {
 			return true;
 		}
 		return false;
@@ -300,15 +380,16 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return await this.userDataProfileManagementService.updateProfile(profile, {
 			name: this.name,
 			icon: this.icon,
-			useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags
+			useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags,
+			workspaces: this.workspaces
 		});
 	}
 
 	abstract readonly titleButtons: [Action[], Action[]];
-	abstract readonly titleActions: [IAction[], IAction[]];
 	abstract readonly actions: [IAction[], IAction[]];
 
 	protected abstract doSave(): Promise<void>;
+	protected abstract getProfileToWatch(): IUserDataProfile | undefined;
 }
 
 export class UserDataProfileElement extends AbstractUserDataProfileElement {
@@ -318,23 +399,33 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 	constructor(
 		private _profile: IUserDataProfile,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IHostService hostService: IHostService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IFileService fileService: IFileService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
 			_profile.name,
 			_profile.icon,
 			_profile.useDefaultFlags,
+			_profile.workspaces,
 			userDataProfileService.currentProfile.id === _profile.id,
 			userDataProfileManagementService,
 			userDataProfilesService,
 			commandService,
+			workspaceContextService,
+			hostService,
+			uriIdentityService,
+			fileService,
+			extensionManagementService,
 			instantiationService,
 		);
 		this._isNewWindowProfile = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE) === this.profile.name;
@@ -345,15 +436,42 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		}
 		));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.active = this.userDataProfileService.currentProfile.id === this.profile.id));
-		this._register(this.userDataProfilesService.onDidChangeProfiles(() => {
-			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.profile.id);
+		this._register(this.userDataProfilesService.onDidChangeProfiles(({ updated }) => {
+			const profile = updated.find(p => p.id === this.profile.id);
 			if (profile) {
 				this._profile = profile;
-				this.name = profile.name;
-				this.icon = profile.icon;
-				this.flags = profile.useDefaultFlags;
+				this.reset();
+				this._onDidChange.fire({ profile: true });
 			}
 		}));
+		this._register(fileService.watch(this.profile.snippetsHome));
+		this._register(fileService.onDidFilesChange(e => {
+			if (e.affects(this.profile.snippetsHome)) {
+				this._onDidChange.fire({ snippets: true });
+			}
+		}));
+	}
+
+	protected getProfileToWatch(): IUserDataProfile | undefined {
+		return this.profile;
+	}
+
+	reset(): void {
+		this.name = this._profile.name;
+		this.icon = this._profile.icon;
+		this.flags = this._profile.useDefaultFlags;
+		this.workspaces = this._profile.workspaces;
+	}
+
+	public updateWorkspaces(toAdd: URI[], toRemove: URI[]): void {
+		const workspaces = new ResourceSet(this.workspaces ?? []);
+		for (const workspace of toAdd) {
+			workspaces.add(workspace);
+		}
+		for (const workspace of toRemove) {
+			workspaces.delete(workspace);
+		}
+		this.workspaces = [...workspaces.values()];
 	}
 
 	public async toggleNewWindowProfile(): Promise<void> {
@@ -373,11 +491,42 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		}
 	}
 
+	public async toggleCurrentWindowProfile(): Promise<void> {
+		if (this.userDataProfileService.currentProfile.id === this.profile.id) {
+			await this.userDataProfileManagementService.switchProfile(this.userDataProfilesService.defaultProfile);
+		} else {
+			await this.userDataProfileManagementService.switchProfile(this.profile);
+		}
+	}
+
 	protected override async doSave(): Promise<void> {
 		await this.saveProfile(this.profile);
 	}
 
 	protected override async getChildrenForResourceType(resourceType: ProfileResourceType): Promise<IProfileChildElement[]> {
+		if (resourceType === ProfileResourceType.Extensions) {
+			const children = await this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, this.profile).getChildren();
+			return children.map<IProfileResourceTypeChildElement>(child =>
+				this.toUserDataProfileResourceChildElement(
+					child,
+					undefined,
+					[{
+						id: 'applyToAllProfiles',
+						label: localize('applyToAllProfiles', "Apply Extension to all Profiles"),
+						checked: child.applicationScoped,
+						enabled: true,
+						class: '',
+						tooltip: '',
+						run: async () => {
+							const extensions = await this.extensionManagementService.getInstalled(undefined, this.profile.extensionsResource);
+							const extension = extensions.find(e => areSameExtensions(e.identifier, child.identifier));
+							if (extension) {
+								await this.extensionManagementService.toggleAppliationScope(extension, this.profile.extensionsResource);
+							}
+						}
+					}]
+				));
+		}
 		return this.getChildrenFromProfile(this.profile, resourceType);
 	}
 
@@ -391,36 +540,58 @@ const USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME = 'userdataprofiletemplateprevie
 
 export class NewProfileElement extends AbstractUserDataProfileElement {
 
+	private _copyFromTemplates = new ResourceMap<string>();
+	get copyFromTemplates(): ResourceMap<string> { return this._copyFromTemplates; }
+
 	private templatePromise: CancelablePromise<void> | undefined;
 	private template: IUserDataProfileTemplate | null = null;
+
+	private defaultName: string;
+	private defaultIcon: string | undefined;
 
 	constructor(
 		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly titleButtons: [Action[], Action[]],
-		readonly titleActions: [IAction[], IAction[]],
 		readonly actions: [IAction[], IAction[]],
-		@IFileService private readonly fileService: IFileService,
+
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IHostService hostService: IHostService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IFileService fileService: IFileService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
 			name,
 			undefined,
 			undefined,
+			undefined,
 			false,
 			userDataProfileManagementService,
 			userDataProfilesService,
 			commandService,
+			workspaceContextService,
+			hostService,
+			uriIdentityService,
+			fileService,
+			extensionManagementService,
 			instantiationService,
 		);
+		this.defaultName = name;
 		this._copyFrom = copyFrom;
 		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this.initialize();
 		this._register(this.fileService.registerProvider(USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, this._register(new InMemoryFileSystemProvider())));
+		this._register(toDisposable(() => {
+			if (this.previewProfile) {
+				this.userDataProfilesService.removeProfile(this.previewProfile);
+			}
+		}));
 	}
 
 	private _copyFrom: IUserDataProfile | URI | undefined;
@@ -448,13 +619,30 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		}
 	}
 
+	private readonly previewProfileWatchDisposables = this._register(new DisposableStore());
 	private _previewProfile: IUserDataProfile | undefined;
 	get previewProfile(): IUserDataProfile | undefined { return this._previewProfile; }
 	set previewProfile(profile: IUserDataProfile | undefined) {
 		if (this._previewProfile !== profile) {
 			this._previewProfile = profile;
 			this._onDidChange.fire({ preview: true });
+			this.previewProfileWatchDisposables.clear();
+			if (this._previewProfile) {
+				this.previewProfileWatchDisposables.add(this.fileService.watch(this._previewProfile.snippetsHome));
+				this.previewProfileWatchDisposables.add(this.fileService.onDidFilesChange(e => {
+					if (!this._previewProfile) {
+						return;
+					}
+					if (e.affects(this._previewProfile.snippetsHome)) {
+						this._onDidChange.fire({ snippets: true });
+					}
+				}));
+			}
 		}
+	}
+
+	protected getProfileToWatch(): IUserDataProfile | undefined {
+		return this.previewProfile;
 	}
 
 	private getCopyFlagsFrom(copyFrom: URI | IUserDataProfile | undefined): ProfileResourceTypeFlags | undefined {
@@ -473,35 +661,51 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			if (this.copyFrom instanceof URI) {
 				await this.resolveTemplate(this.copyFrom);
 				if (this.template) {
-					this.name = this.template.name ?? '';
-					this.icon = this.template.icon;
+					this.copyFromTemplates.set(this.copyFrom, this.template.name);
+					if (this.defaultName === this.name) {
+						this.name = this.defaultName = this.template.name ?? '';
+					}
+					if (this.defaultIcon === this.icon) {
+						this.icon = this.defaultIcon = this.template.icon;
+					}
 					this.setCopyFlag(ProfileResourceType.Settings, !!this.template.settings);
 					this.setCopyFlag(ProfileResourceType.Keybindings, !!this.template.keybindings);
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
 					this.setCopyFlag(ProfileResourceType.Snippets, !!this.template.snippets);
 					this.setCopyFlag(ProfileResourceType.Extensions, !!this.template.extensions);
+					this._onDidChange.fire({ copyFromInfo: true });
 				}
 				return;
 			}
 
 			if (isUserDataProfile(this.copyFrom)) {
-				this.name = `${this.copyFrom.name} (Copy)`;
-				this.icon = this.copyFrom.icon;
+				if (this.defaultName === this.name) {
+					this.name = this.defaultName = localize('copy from', "{0} (Copy)", this.copyFrom.name);
+				}
+				if (this.defaultIcon === this.icon) {
+					this.icon = this.defaultIcon = this.copyFrom.icon;
+				}
 				this.setCopyFlag(ProfileResourceType.Settings, true);
 				this.setCopyFlag(ProfileResourceType.Keybindings, true);
 				this.setCopyFlag(ProfileResourceType.Tasks, true);
 				this.setCopyFlag(ProfileResourceType.Snippets, true);
 				this.setCopyFlag(ProfileResourceType.Extensions, true);
+				this._onDidChange.fire({ copyFromInfo: true });
 				return;
 			}
 
-			this.name = localize('untitled', "Untitled");
-			this.icon = undefined;
+			if (this.defaultName === this.name) {
+				this.name = this.defaultName = localize('untitled', "Untitled");
+			}
+			if (this.defaultIcon === this.icon) {
+				this.icon = this.defaultIcon = undefined;
+			}
 			this.setCopyFlag(ProfileResourceType.Settings, false);
 			this.setCopyFlag(ProfileResourceType.Keybindings, false);
 			this.setCopyFlag(ProfileResourceType.Tasks, false);
 			this.setCopyFlag(ProfileResourceType.Snippets, false);
 			this.setCopyFlag(ProfileResourceType.Extensions, false);
+			this._onDidChange.fire({ copyFromInfo: true });
 		} finally {
 			this.disabled = false;
 		}
@@ -552,8 +756,8 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		if (isUserDataProfile(this.copyFrom)) {
 			return this.copyFrom.name;
 		}
-		if (this.template) {
-			return this.template.name;
+		if (this.copyFrom instanceof URI) {
+			return this.copyFromTemplates.get(this.copyFrom);
 		}
 		return undefined;
 	}
@@ -564,6 +768,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		}
 		if (!this.getCopyFlag(resourceType)) {
 			return [];
+		}
+		if (this.previewProfile) {
+			return this.getChildrenFromProfile(this.previewProfile, resourceType);
 		}
 		if (this.copyFrom instanceof URI) {
 			await this.resolveTemplate(this.copyFrom);
@@ -579,7 +786,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	}
 
 	private async getChildrenFromProfileTemplate(profileTemplate: IUserDataProfileTemplate, resourceType: ProfileResourceType): Promise<IProfileResourceTypeChildElement[]> {
-		const profile = toUserDataProfile(generateUuid(), this.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME }), URI.file('/cache').with({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME }));
+		const location = URI.from({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, path: `/root/profiles/${profileTemplate.name}` });
+		const cacheLocation = URI.from({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, path: `/root/cache/${profileTemplate.name}` });
+		const profile = toUserDataProfile(generateUuid(), this.name, location, cacheLocation);
 		switch (resourceType) {
 			case ProfileResourceType.Settings:
 				if (profileTemplate.settings) {
@@ -613,6 +822,10 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				return [];
 		}
 		return [];
+	}
+
+	override shouldValidateName(): boolean {
+		return !this.copyFrom;
 	}
 
 	override getInitialName(): string {
@@ -665,6 +878,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	private _onDidChange = this._register(new Emitter<AbstractUserDataProfileElement | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private templates: Promise<readonly IProfileTemplateInfo[]> | undefined;
+
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
@@ -673,6 +888,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService private readonly hostService: IHostService,
+		@IProductService private readonly productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -708,22 +925,29 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 	}
 
+	getTemplates(): Promise<readonly IProfileTemplateInfo[]> {
+		if (!this.templates) {
+			this.templates = this.userDataProfileManagementService.getBuiltinProfileTemplates();
+		}
+		return this.templates;
+	}
+
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
 		const disposables = new DisposableStore();
 
 		const activateAction = disposables.add(new Action(
 			'userDataProfile.activate',
-			localize('active', "Use for Current Window"),
+			localize('active', "Use this Profile for Current Window"),
 			ThemeIcon.asClassName(Codicon.check),
 			true,
-			() => this.userDataProfileManagementService.switchProfile(profile)
+			() => this.userDataProfileManagementService.switchProfile(profileElement.profile)
 		));
 
 		const copyFromProfileAction = disposables.add(new Action(
 			'userDataProfile.copyFromProfile',
 			localize('copyFromProfile', "Duplicate..."),
 			ThemeIcon.asClassName(Codicon.copy),
-			true, () => this.createNewProfile(profile)
+			true, () => this.createNewProfile(profileElement.profile)
 		));
 
 		const exportAction = disposables.add(new Action(
@@ -731,7 +955,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('export', "Export..."),
 			ThemeIcon.asClassName(Codicon.export),
 			true,
-			() => this.exportProfile(profile)
+			() => this.userDataProfileImportExportService.exportProfile(profile)
 		));
 
 		const deleteAction = disposables.add(new Action(
@@ -739,41 +963,21 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('delete', "Delete"),
 			ThemeIcon.asClassName(Codicon.trash),
 			true,
-			() => this.removeProfile(profile)
+			() => this.removeProfile(profileElement.profile)
 		));
 
 		const newWindowAction = disposables.add(new Action(
 			'userDataProfile.newWindow',
-			localize('open new window', "New Window"),
+			localize('open new window', "Open New Window with this Profile"),
 			ThemeIcon.asClassName(Codicon.emptyWindow),
 			true,
-			() => this.openWindow(profile)
+			() => this.openWindow(profileElement.profile)
 		));
-
-		const useAsNewWindowProfileAction = disposables.add(new Action(
-			'userDataProfile.useAsNewWindowProfile',
-			localize('use as new window', "Use for New Windows", profile.name),
-			undefined,
-			true,
-			() => profileElement.toggleNewWindowProfile()
-		));
-
-		const titlePrimaryActions: IAction[] = [];
-		titlePrimaryActions.push(newWindowAction);
-		const titleSecondaryActions: IAction[] = [];
-		titleSecondaryActions.push(copyFromProfileAction);
-		titleSecondaryActions.push(exportAction);
-		if (!profile.isDefault) {
-			titleSecondaryActions.push(new Separator());
-			titleSecondaryActions.push(deleteAction);
-		}
 
 		const primaryActions: IAction[] = [];
+		primaryActions.push(activateAction);
 		primaryActions.push(newWindowAction);
 		const secondaryActions: IAction[] = [];
-		secondaryActions.push(activateAction);
-		secondaryActions.push(useAsNewWindowProfileAction);
-		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
 		if (!profile.isDefault) {
@@ -784,20 +988,12 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
 			[[], []],
-			[titlePrimaryActions, titleSecondaryActions],
 			[primaryActions, secondaryActions]
 		));
 
-		activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id;
+		activateAction.enabled = this.userDataProfileService.currentProfile.id !== profileElement.profile.id;
 		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() =>
-			activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id));
-
-		useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
-		disposables.add(profileElement.onDidChange(e => {
-			if (e.newWindowProfile) {
-				useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
-			}
-		}));
+			activateAction.enabled = this.userDataProfileService.currentProfile.id !== profileElement.profile.id));
 
 		return [profileElement, disposables];
 	}
@@ -815,10 +1011,22 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			}
 			this.revert();
 		}
+
+		if (copyFrom instanceof URI) {
+			try {
+				await this.userDataProfileImportExportService.resolveProfileTemplate(copyFrom);
+			} catch (error) {
+				this.dialogService.error(getErrorMessage(error));
+				return;
+			}
+		}
+
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
 			const cancellationTokenSource = new CancellationTokenSource();
 			disposables.add(toDisposable(() => cancellationTokenSource.dispose(true)));
+			const primaryActions: Action[] = [];
+			const secondaryActions: Action[] = [];
 			const createAction = disposables.add(new Action(
 				'userDataProfile.create',
 				localize('create', "Create"),
@@ -826,6 +1034,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				true,
 				() => this.saveNewProfile(false, cancellationTokenSource.token)
 			));
+			primaryActions.push(createAction);
+			if (isWeb && copyFrom instanceof URI && isProfileURL(copyFrom)) {
+				primaryActions.push(new Action(
+					'userDataProfile.createInDesktop',
+					localize('import in desktop', "Create in {0}", this.productService.nameLong),
+					undefined,
+					true,
+					() => this.openerService.open(copyFrom, { openExternal: true })
+				));
+			}
 			const cancelAction = disposables.add(new Action(
 				'userDataProfile.cancel',
 				localize('cancel', "Cancel"),
@@ -833,6 +1051,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				true,
 				() => this.discardNewProfile()
 			));
+			secondaryActions.push(cancelAction);
 			const previewProfileAction = disposables.add(new Action(
 				'userDataProfile.preview',
 				localize('preview', "Preview"),
@@ -840,20 +1059,43 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				true,
 				() => this.previewNewProfile(cancellationTokenSource.token)
 			));
+			secondaryActions.push(previewProfileAction);
+			const exportAction = disposables.add(new Action(
+				'userDataProfile.export',
+				localize('export', "Export..."),
+				ThemeIcon.asClassName(Codicon.export),
+				isUserDataProfile(copyFrom),
+				() => this.exportNewProfile(cancellationTokenSource.token)
+			));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
-				[[createAction], [cancelAction, previewProfileAction]],
-				[[], []],
-				[[cancelAction], []],
+				[primaryActions, secondaryActions],
+				[[cancelAction], [exportAction]],
 			));
+			const updateCreateActionLabel = () => {
+				if (createAction.enabled) {
+					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => !p.isTransient && p.name === this.newProfileElement?.name)) {
+						createAction.label = localize('replace', "Replace");
+					} else {
+						createAction.label = localize('create', "Create");
+					}
+				}
+			};
+			updateCreateActionLabel();
 			disposables.add(this.newProfileElement.onDidChange(e => {
-				if (e.preview) {
-					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
+				if (e.preview || e.disabled || e.message) {
+					createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
+					previewProfileAction.enabled = !this.newProfileElement?.previewProfile && !this.newProfileElement?.disabled && !this.newProfileElement?.message;
 				}
-				if (e.disabled || e.message) {
-					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
+				if (e.name || e.copyFrom) {
+					updateCreateActionLabel();
+					exportAction.enabled = isUserDataProfile(this.newProfileElement?.copyFrom);
 				}
+			}));
+			disposables.add(this.userDataProfilesService.onDidChangeProfiles((e) => {
+				updateCreateActionLabel();
+				this.newProfileElement?.validate();
 			}));
 			this._profiles.push([this.newProfileElement, disposables]);
 			this._onDidChange.fire(this.newProfileElement);
@@ -886,8 +1128,33 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		const profile = await this.saveNewProfile(true, token);
 		if (profile) {
 			this.newProfileElement.previewProfile = profile;
-			await this.openWindow(profile);
+			if (isWeb) {
+				await this.userDataProfileManagementService.switchProfile(profile);
+			} else {
+				await this.openWindow(profile);
+			}
 		}
+	}
+
+	private async exportNewProfile(token: CancellationToken): Promise<void> {
+		if (!this.newProfileElement) {
+			return;
+		}
+		if (!isUserDataProfile(this.newProfileElement.copyFrom)) {
+			return;
+		}
+		const profile = toUserDataProfile(
+			generateUuid(),
+			this.newProfileElement.name,
+			this.newProfileElement.copyFrom.location,
+			this.newProfileElement.copyFrom.cacheHome,
+			{
+				icon: this.newProfileElement.icon,
+				useDefaultFlags: this.newProfileElement.flags,
+			},
+			this.userDataProfilesService.defaultProfile
+		);
+		await this.userDataProfileImportExportService.exportProfile(profile, this.newProfileElement.copyFlags);
 	}
 
 	async saveNewProfile(transient?: boolean, token?: CancellationToken): Promise<IUserDataProfile | undefined> {
@@ -942,7 +1209,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 						);
 					}
 				} else if (isUserDataProfile(copyFrom)) {
-					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
 					profile = await this.userDataProfileImportExportService.createFromProfile(
 						copyFrom,
 						{
@@ -955,7 +1221,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 						token ?? CancellationToken.None
 					);
 				} else {
-					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
 					profile = await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon, transient });
 				}
 			}
@@ -978,7 +1243,12 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		if (profile && !profile.isTransient && this.newProfileElement) {
 			this.removeNewProfile();
-			this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
+			const existing = this._profiles.find(([p]) => p.name === profile.name);
+			if (existing) {
+				this._onDidChange.fire(existing[0]);
+			} else {
+				this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
+			}
 		}
 
 		return profile;
@@ -990,6 +1260,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 		if (this.newProfileElement.previewProfile) {
 			await this.userDataProfileManagementService.removeProfile(this.newProfileElement.previewProfile);
+			return;
 		}
 		this.removeNewProfile();
 		this._onDidChange.fire(undefined);
@@ -1009,9 +1280,5 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 	private async openWindow(profile: IUserDataProfile): Promise<void> {
 		await this.hostService.openWindow({ forceProfile: profile.name });
-	}
-
-	private async exportProfile(profile: IUserDataProfile): Promise<void> {
-		return this.userDataProfileImportExportService.exportProfile(profile);
 	}
 }

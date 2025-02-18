@@ -12,6 +12,17 @@
 	position: fixed;
 	left: 0;
 	top: 0;
+	border-style: solid;
+	border-width: 1px;
+	border-color: var(--vscode-editorSuggestWidget-border);
+	background-color: var(--vscode-editorSuggestWidget-background);
+}
+
+.workbench-suggest-widget .suggest-details {
+	border-style: solid;
+	border-width: 1px;
+	border-color: var(--vscode-editorSuggestWidget-border);
+	background-color: var(--vscode-editorSuggestWidget-background);
 }
 
 /* Suggest widget*/
@@ -29,7 +40,7 @@
 }
 
 .workbench-suggest-widget,
-.monaco-workbench .workbench-suggest-details {
+.monaco-workbench .suggest-details {
 	flex: 0 1 auto;
 	width: 100%;
 	border-style: solid;
@@ -39,9 +50,9 @@
 }
 
 .monaco-workbench.hc-black .workbench-suggest-widget,
-.monaco-workbench.hc-black .workbench-suggest-details,
+.monaco-workbench.hc-black .suggest-details,
 .monaco-workbench.hc-light .workbench-suggest-widget,
-.monaco-workbench.hc-light .workbench-suggest-details {
+.monaco-workbench.hc-light .suggest-details {
 	border-width: 2px;
 }
 
@@ -49,6 +60,18 @@
 
 .monaco-workbench .workbench-suggest-widget.with-status-bar .suggest-status-bar {
 	display: flex;
+}
+
+.monaco-workbench .workbench-suggest-widget .suggest-status-bar {
+	box-sizing: border-box;
+	display: none;
+	flex-flow: row nowrap;
+	justify-content: space-between;
+	width: 100%;
+	font-size: 80%;
+	padding: 0 4px 0 4px;
+	border-top: 1px solid var(--vscode-editorSuggestWidget-border);
+	overflow: hidden;
 }
 
 .monaco-workbench .workbench-suggest-widget .suggest-status-bar .left {
@@ -178,6 +201,28 @@
 	height: 0.7em;
 	display: inline-block;
 }
+
+/** ReadMore Icon styles **/
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .header > .codicon-close,
+.workbench-suggest-widget .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore::before {
+	color: inherit;
+	opacity: 1;
+	font-size: 14px;
+	cursor: pointer;
+}
+
+.monaco-workbench .workbench-suggest-widget .suggest-details .codicon.codicon-close {
+	position: absolute;
+	top: 6px;
+	right: 2px;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .header > .codicon-close:hover,
+.workbench-suggest-widget .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore:hover {
+	opacity: 1;
+}
+
 /** signature, qualifier, type/details opacity **/
 
 .workbench-suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {
@@ -269,4 +314,124 @@
 	width: 18px;
 	height: 18px;
 	visibility: hidden;
+}
+
+.workbench-suggest-widget .suggest-details {
+	display: flex;
+	flex-direction: column;
+	cursor: default;
+	color: var(--vscode-editorSuggestWidget-foreground);
+}
+
+.workbench-suggest-widget .suggest-details:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.workbench-suggest-widget .suggest-details a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.workbench-suggest-widget .suggest-details a:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.workbench-suggest-widget .suggest-details code {
+	background-color: var(--vscode-textCodeBlock-background);
+}
+
+.workbench-suggest-widget .suggest-details.no-docs {
+	display: none;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element {
+	flex: 1;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body {
+	box-sizing: border-box;
+	height: 100%;
+	width: 100%;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .header > .type {
+	flex: 2;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	opacity: 0.7;
+	white-space: pre;
+	margin: 0 24px 0 0;
+	padding: 4px 0 4px 5px;
+}
+
+.workbench-suggest-widget .suggest-details.detail-and-doc > .monaco-scrollable-element > .body > .header > .type {
+	padding-bottom: 12px;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .header > .type.auto-wrap {
+	white-space: normal;
+	word-break: break-all;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .docs {
+	margin: 0;
+	padding: 4px 5px;
+	white-space: pre-wrap;
+}
+
+.workbench-suggest-widget .suggest-details.no-type > .monaco-scrollable-element > .body > .docs {
+	margin-right: 24px;
+	overflow: hidden;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .docs.markdown-docs {
+	padding: 0;
+	white-space: initial;
+	min-height: calc(1rem + 8px);
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .docs.markdown-docs > div,
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .docs.markdown-docs > span:not(:empty) {
+	padding: 4px 5px;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .docs.markdown-docs > div > p:first-child {
+	margin-top: 0;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .docs.markdown-docs > div > p:last-child {
+	margin-bottom: 0;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .docs.markdown-docs .monaco-tokenized-source {
+	white-space: pre;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .docs .code {
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > .docs.markdown-docs .codicon {
+	vertical-align: sub;
+}
+
+.workbench-suggest-widget .suggest-details > .monaco-scrollable-element > .body > p:empty {
+	display: none;
+}
+
+.workbench-suggest-widget .suggest-details code {
+	border-radius: 3px;
+	padding: 0 0.4em;
+}
+
+.workbench-suggest-widget .suggest-details ul {
+	padding-left: 20px;
+}
+
+.workbench-suggest-widget .suggest-details ol {
+	padding-left: 20px;
+}
+
+.workbench-suggest-widget .suggest-details p code {
+	font-family: var(--monaco-monospace-font);
 }

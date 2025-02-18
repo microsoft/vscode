@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, show } from 'vs/base/browser/dom';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createMatches } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { $, append, show } from '../../../../base/browser/dom.js';
+import { IconLabel, IIconLabelValueOptions } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { SimpleCompletionItem } from './simpleCompletionItem.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { createMatches } from '../../../../base/common/filters.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export function getAriaId(index: number): string {
-	return `simple-suggest-aria-id:${index}`;
+	return `simple-suggest-aria-id-${index}`;
 }
 
 export interface ISimpleSuggestionTemplateData {
@@ -42,15 +42,29 @@ export interface ISimpleSuggestionTemplateData {
 	readonly disposables: DisposableStore;
 }
 
+export interface ISimpleSuggestWidgetFontInfo {
+	fontFamily: string;
+	fontSize: number;
+	lineHeight: number;
+	fontWeight: string;
+	letterSpacing: number;
+}
+
 export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleCompletionItem, ISimpleSuggestionTemplateData> {
 
 	private readonly _onDidToggleDetails = new Emitter<void>();
 	readonly onDidToggleDetails: Event<void> = this._onDidToggleDetails.event;
 
+	private readonly _disposables = new DisposableStore();
+
 	readonly templateId = 'suggestion';
+
+	constructor(private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo, private readonly _onDidFontConfigurationChange: Event<void>) {
+	}
 
 	dispose(): void {
 		this._onDidToggleDetails.dispose();
+		this._disposables.dispose();
 	}
 
 	renderTemplate(container: HTMLElement): ISimpleSuggestionTemplateData {
@@ -80,15 +94,8 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 		// readMore.title = nls.localize('readMore', "Read More");
 
 		const configureFont = () => {
-			// TODO: Implement
-			// const options = this._editor.getOptions();
-			// const fontInfo = options.get(EditorOption.fontInfo);
-			const fontFamily = 'Hack'; //fontInfo.getMassagedFontFamily();
-			const fontFeatureSettings = ''; //fontInfo.fontFeatureSettings;
-			const fontSize = '12'; // = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
-			const lineHeight = '20'; // options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
-			const fontWeight = 'normal'; //fontInfo.fontWeight;
-			const letterSpacing = '0'; // fontInfo.letterSpacing;
+			const fontFeatureSettings = '';
+			const { fontFamily, fontSize, lineHeight, fontWeight, letterSpacing } = this._getFontInfo();
 			const fontSizePx = `${fontSize}px`;
 			const lineHeightPx = `${lineHeight}px`;
 			const letterSpacingPx = `${letterSpacing}px`;
@@ -106,13 +113,7 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 		};
 
 		configureFont();
-
-		// data.disposables.add(this._editor.onDidChangeConfiguration(e => {
-		// 	if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
-		// 		configureFont();
-		// 	}
-		// }));
-
+		this._disposables.add(this._onDidFontConfigurationChange(() => configureFont()));
 		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, disposables };
 	}
 

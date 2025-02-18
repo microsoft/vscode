@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isStatusbarEntryLocation, IStatusbarEntryPriority, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { hide, show, isAncestorOfActiveElement } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Emitter } from 'vs/base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isStatusbarEntryLocation, IStatusbarEntryPriority, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { hide, show, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 export interface IStatusbarViewModelEntry {
 	readonly id: string;
+	readonly extensionId: string | undefined;
 	readonly name: string;
 	readonly hasCommand: boolean;
 	readonly alignment: StatusbarAlignment;
@@ -55,7 +56,7 @@ export class StatusbarViewModel extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, StatusbarViewModel.HIDDEN_ENTRIES_KEY, this._register(new DisposableStore()))(() => this.onDidStorageValueChange()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, StatusbarViewModel.HIDDEN_ENTRIES_KEY, this._store)(() => this.onDidStorageValueChange()));
 	}
 
 	private onDidStorageValueChange(): void {

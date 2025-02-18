@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IView } from 'vs/base/browser/ui/grid/grid';
-import { GridNode, isGridBranchNode } from 'vs/base/browser/ui/grid/gridview';
-import { Emitter, Event } from 'vs/base/common/event';
+import { IView } from '../../../../browser/ui/grid/grid.js';
+import { GridNode, isGridBranchNode } from '../../../../browser/ui/grid/gridview.js';
+import { Emitter, Event } from '../../../../common/event.js';
 
 export class TestView implements IView {
 

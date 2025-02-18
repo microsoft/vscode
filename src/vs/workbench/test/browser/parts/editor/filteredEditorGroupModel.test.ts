@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EditorGroupModel, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, EditorsOrder, GroupModelChangeKind } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { isEqual } from 'vs/base/common/resources';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
+import { EditorGroupModel, ISerializedEditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
+import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, EditorsOrder, GroupModelChangeKind } from '../../../../common/editor.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TestLifecycleService } from '../../workbenchTestServices.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { TestContextService, TestStorageService } from '../../../common/workbenchTestServices.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../../common/editor/filteredEditorGroupModel.js';
 
 suite('FilteredEditorGroupModel', () => {
 
