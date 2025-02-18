@@ -102,7 +102,7 @@ class OpenChatGlobalAction extends Action2 {
 				}
 			},
 			menu: {
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatTitleBarMenu,
 				group: 'a_open',
 				order: 1
 			}
@@ -471,7 +471,7 @@ export function registerChatActions() {
 					f1: true,
 					precondition: contextKey,
 					menu: {
-						id: MenuId.ChatCommandCenter,
+						id: MenuId.ChatTitleBarMenu,
 						group: 'y_manage',
 						order,
 						when: contextKey
@@ -516,7 +516,7 @@ export function registerChatActions() {
 				title: localize2('configureCompletions', "Configure Code Completions..."),
 				precondition: ChatContextKeys.enabled,
 				menu: {
-					id: MenuId.ChatCommandCenter,
+					id: MenuId.ChatTitleBarMenu,
 					group: 'f_completions',
 					order: 10,
 				}
@@ -551,7 +551,7 @@ const defaultChat = {
 
 // Add next to the command center if command center is disabled
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
-	submenu: MenuId.ChatCommandCenter,
+	submenu: MenuId.ChatTitleBarMenu,
 	title: localize('title4', "Copilot"),
 	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
@@ -563,7 +563,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 
 // Add to the global title bar if command center is disabled
 MenuRegistry.appendMenuItem(MenuId.TitleBar, {
-	submenu: MenuId.ChatCommandCenter,
+	submenu: MenuId.ChatTitleBarMenu,
 	title: localize('title4', "Copilot"),
 	group: 'navigation',
 	icon: Codicon.copilot,
@@ -586,9 +586,9 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 	}
 });
 
-export class ChatCommandCenterRendering extends Disposable implements IWorkbenchContribution {
+export class ChatTitleBarMenuRendering extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.commandCenterRendering';
+	static readonly ID = 'chat.titleBarMenuRendering';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -601,7 +601,7 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 
 		const contextKeySet = new Set([ChatContextKeys.Setup.signedOut.key]);
 
-		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
+		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatTitleBarMenu, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}

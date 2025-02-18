@@ -167,7 +167,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					f1: true,
 					precondition: chatSetupTriggerContext,
 					menu: {
-						id: MenuId.ChatCommandCenter,
+						id: MenuId.ChatTitleBarMenu,
 						group: 'a_last',
 						order: 1,
 						when: chatSetupTriggerContext
@@ -203,7 +203,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					category: CHAT_CATEGORY,
 					precondition: ChatContextKeys.Setup.installed.negate(),
 					menu: {
-						id: MenuId.ChatCommandCenter,
+						id: MenuId.ChatTitleBarMenu,
 						group: 'z_hide',
 						order: 1,
 						when: ChatContextKeys.Setup.installed.negate()
@@ -246,7 +246,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ChatContextKeys.Setup.limited,
 					),
 					menu: {
-						id: MenuId.ChatCommandCenter,
+						id: MenuId.ChatTitleBarMenu,
 						group: 'a_first',
 						order: 1,
 						when: ContextKeyExpr.or(
