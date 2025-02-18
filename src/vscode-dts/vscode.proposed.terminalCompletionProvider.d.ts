@@ -19,11 +19,12 @@ declare module 'vscode' {
 		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | TerminalCompletionList<T>>;
 	}
 
+
 	export interface TerminalCompletionItem {
 		/**
 		 * The label of the completion.
 		 */
-		label: string;
+		label: string | CompletionItemLabel;
 
 		/**
 		 * The index of the start of the range to replace.

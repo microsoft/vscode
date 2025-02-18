@@ -162,16 +162,16 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 		// 	labelOptions.matches = [];
 		// }
 
-		data.iconLabel.setLabel(completion.label, undefined, labelOptions);
-		// if (typeof completion.label === 'string') {
-		data.parametersLabel.textContent = '';
-		data.detailsLabel.textContent = stripNewLines(completion.detail || '');
-		data.root.classList.add('string-label');
-		// } else {
-		// 	data.parametersLabel.textContent = stripNewLines(completion.label.detail || '');
-		// 	data.detailsLabel.textContent = stripNewLines(completion.label.description || '');
-		// 	data.root.classList.remove('string-label');
-		// }
+		data.iconLabel.setLabel(element.textLabel, undefined, labelOptions);
+		if (typeof completion.label === 'string') {
+			data.parametersLabel.textContent = '';
+			data.detailsLabel.textContent = stripNewLines(completion.detail || '');
+			data.root.classList.add('string-label');
+		} else {
+			data.parametersLabel.textContent = stripNewLines(completion.label.detail || '');
+			data.detailsLabel.textContent = stripNewLines(completion.label.description || '');
+			data.root.classList.remove('string-label');
+		}
 
 		// if (this._editor.getOption(EditorOption.suggest).showInlineDetails) {
 		show(data.detailsLabel);

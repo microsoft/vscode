@@ -46,7 +46,7 @@ export async function getBuiltins(
 				const args = helpLines?.[0]?.split(' ').slice(1).join(' ').trim();
 				const { detail, documentation } = generateDetailAndDocs(description, args);
 				completions.push({
-					label: cmd,
+					label: { label: cmd, description: detail },
 					detail,
 					documentation,
 					kind: vscode.TerminalCompletionItemKind.Method

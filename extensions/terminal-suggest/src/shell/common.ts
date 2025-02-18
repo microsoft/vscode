@@ -86,7 +86,7 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 		}
 		definitionCommand = match.groups.resolved.substring(0, definitionIndex);
 		result.push({
-			label: match.groups.alias,
+			label: { label: match.groups.alias, description: match.groups.resolved },
 			detail: match.groups.resolved,
 			kind: vscode.TerminalCompletionItemKind.Alias,
 			definitionCommand,

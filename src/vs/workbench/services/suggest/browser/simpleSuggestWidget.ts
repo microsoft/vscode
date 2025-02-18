@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import * as strings from '../../../../base/common/strings.js';
 
 const $ = dom.$;
 
@@ -194,7 +195,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				getWidgetAriaLabel: () => localize('suggest', "Suggest"),
 				getWidgetRole: () => 'listbox',
 				getAriaLabel: (item: SimpleCompletionItem) => {
-					let label = item.completion.label;
+					let label = item.textLabel;
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
@@ -206,15 +207,18 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 						}
 					}
 
-					const { detail } = item.completion;
+					const { documentation, detail } = item.completion;
+					const docs = strings.format(
+						'{0}{1}',
+						detail || '',
+						documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
 
-					return localize('ariaCurrenttSuggestionReadDetails', '{0}, docs: {1}', label, detail);
+					return localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", label, docs);
 
 					// if (!item.isResolved || !this._isDetailsVisible()) {
 					// 	return label;
 					// }
 
-					// const { documentation, detail } = item.completion;
 					// const docs = strings.format(
 					// 	'{0}{1}',
 					// 	detail || '',

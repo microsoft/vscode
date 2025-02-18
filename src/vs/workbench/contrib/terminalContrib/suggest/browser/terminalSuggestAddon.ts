@@ -268,7 +268,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._isFilteringDirectories = completions.some(e => e.kind === TerminalCompletionItemKind.Folder);
 		if (this._isFilteringDirectories) {
 			const firstDir = completions.find(e => e.kind === TerminalCompletionItemKind.Folder);
-			this._pathSeparator = firstDir?.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
+			const textLabel = typeof firstDir?.label === 'string' ? firstDir.label : firstDir?.label.label;
+			this._pathSeparator = textLabel?.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
 
@@ -684,7 +685,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Use for amend the label if inputData is not defined
 		if (resultSequence === undefined) {
-			let completionText = completion.label;
+			let completionText = typeof completion.label === 'string' ? completion.label : completion.label.label;
 			if ((completion.kind === TerminalCompletionItemKind.Folder || completion.isFileOverride) && completionText.includes(' ')) {
 				// Escape spaces in files or folders so they're valid paths
 				completionText = completionText.replaceAll(' ', '\\ ');
@@ -716,7 +717,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			const completionSuffix = completionText.substring(commonPrefixLen);
 			if (currentPromptInputState.suffix.length > 0 && currentPromptInputState.prefix.endsWith(commonPrefix) && currentPromptInputState.suffix.startsWith(completionSuffix)) {
 				// Move right to the end of the completion
-				resultSequence = '\x1bOC'.repeat(completion.label.length - commonPrefixLen);
+				resultSequence = '\x1bOC'.repeat(completionText.length - commonPrefixLen);
 			} else {
 				resultSequence = [
 					// Backspace (left) to remove all additional input
