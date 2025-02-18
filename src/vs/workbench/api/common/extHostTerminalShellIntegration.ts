@@ -151,7 +151,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
-	private _env: vscode.TerminalShellIntegrationEnvironment = { value: {}, isTrusted: false }; // Is it okay to intialize here before it gets set in setEnv?
+	private _env: vscode.TerminalShellIntegrationEnvironment = { value: {}, isTrusted: false };
 	private _cwd: URI | undefined;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
