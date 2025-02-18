@@ -37,7 +37,7 @@ __vsc_env_keys=()
 __vsc_env_values=()
 
 # Associative array are only available in zsh 4.3 or later
-if (( $ZSH_VERSION >= 4.3 )); then
+if is-at-least 4.3; then
 	__vsc_use_aa=1
 	typeset -A vsc_aa_env
 fi
