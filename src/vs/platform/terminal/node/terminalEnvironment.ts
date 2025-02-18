@@ -87,10 +87,15 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
-	if ((!isWindows && shellLaunchConfig.shellIntegrationEnvironmentReporting) || (isWindows && (
-		options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631
-	))) {
-		envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+
+	const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631;
+
+	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
+		if (isWindows && enableWindowsEnvReporting) {
+			envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+		} else {
+			envMixin['VSCODE_SHELL_ENV_REPORTING'] = '1';
+		}
 	}
 	// Windows
 	if (isWindows) {
