@@ -10,8 +10,8 @@ import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../../base/common/platform.js';
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
-import { PromptFilesConfig } from '../../../../common/promptSyntax/config.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
@@ -29,8 +29,8 @@ const mockConfigService = <T>(value: T): IConfigurationService => {
 		getValue(key?: string | IConfigurationOverrides) {
 			assert.strictEqual(
 				key,
-				PromptFilesConfig.CONFIG_KEY,
-				`Mocked service supports only one configuration key: '${PromptFilesConfig.CONFIG_KEY}'.`,
+				PromptsConfig.CONFIG_KEY,
+				`Mocked service supports only one configuration key: '${PromptsConfig.CONFIG_KEY}'.`,
 			);
 
 			return value;

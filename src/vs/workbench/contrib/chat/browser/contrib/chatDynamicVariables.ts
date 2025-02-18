@@ -28,7 +28,6 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { getExcludes, ISearchConfiguration, IFileQuery, QueryType, ISearchComplete, ISearchService } from '../../../../services/search/common/search.js';
 import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
 import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
-import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
 import * as glob from '../../../../../base/common/glob.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
@@ -36,6 +35,7 @@ import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -139,7 +139,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	addReference(ref: IDynamicVariable): void {
 		// use `ChatFileReference` for file references and `IDynamicVariable` for other variables
-		const promptSnippetsEnabled = PromptFilesConfig.enabled(this.configService);
+		const promptSnippetsEnabled = PromptsConfig.enabled(this.configService);
 		const variable = (ref.id === 'vscode.file' && promptSnippetsEnabled)
 			? this.instantiationService.createInstance(ChatFileReference, ref)
 			: ref;

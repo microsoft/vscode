@@ -6,7 +6,7 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
-import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
 import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
@@ -214,6 +214,6 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	 * Checks if the prompt instructions feature is enabled in the user settings.
 	 */
 	public get featureEnabled(): boolean {
-		return PromptFilesConfig.enabled(this.configService);
+		return PromptsConfig.enabled(this.configService);
 	}
 }

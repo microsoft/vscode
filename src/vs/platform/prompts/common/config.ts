@@ -3,9 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../../../nls.js';
-import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from './constants.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+
+/**
+ * TODO: @legomushroom
+ *  - update doc comment for config.ts
+ *  - move unit tests for config.ts
+ *  - add unit tests for config.ts
+ */
 
 /**
  * `!Note!` This doc comment is deprecated and is set to be updated during `debt` week.
@@ -119,7 +124,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
  * - root of each top-level folder in the workspace (if there are multiple workspace folders)
  * - current root folder (if a single folder is open)
  */
-export namespace PromptFilesConfig {
+export namespace PromptsConfig {
 	/**
 	 * Configuration key for the `prompt files` feature (also
 	 * known as `prompt files`, `prompt instructions`, etc.).
@@ -136,38 +141,11 @@ export namespace PromptFilesConfig {
 	 */
 	export const getValue = (
 		configService: IConfigurationService,
-	): string | string[] | Record<string, boolean> | boolean | undefined => {
+	): Record<string, boolean> | undefined => {
 		const configValue = configService.getValue(CONFIG_KEY);
 
-		if (configValue === undefined || configValue === null) {
+		if (configValue === undefined || configValue === null || Array.isArray(configValue)) {
 			return undefined;
-		}
-
-		if (typeof configValue === 'string') {
-			const trimmedValue = configValue.trim();
-			const lowercasedValue = trimmedValue.toLowerCase();
-
-			if (!lowercasedValue) {
-				return undefined;
-			}
-
-			if (asBoolean(lowercasedValue) !== undefined) {
-				return asBoolean(lowercasedValue);
-			}
-
-			return trimmedValue;
-		}
-
-		if (typeof configValue === 'boolean') {
-			return configValue;
-		}
-
-		if (Array.isArray(configValue)) {
-			const cleanArray = configValue.filter((item) => {
-				return typeof item === 'string' && !!item.trim();
-			});
-
-			return cleanArray;
 		}
 
 		// note! this would be also true for `null` and `array`,
@@ -200,7 +178,7 @@ export namespace PromptFilesConfig {
 	): boolean => {
 		const value = getValue(configService);
 
-		return value !== undefined && value !== false;
+		return value !== undefined;
 	};
 
 	/**
@@ -211,32 +189,6 @@ export namespace PromptFilesConfig {
 		configService: IConfigurationService,
 	): string[] => {
 		const value = getValue(configService);
-
-		if (value === true) {
-			return [DEFAULT_SOURCE_FOLDER];
-		}
-
-		if (typeof value === 'string') {
-			const result = [DEFAULT_SOURCE_FOLDER];
-			const trimmedValue = value.trim();
-
-			if (trimmedValue !== DEFAULT_SOURCE_FOLDER) {
-				result.push(trimmedValue);
-			}
-
-			return result;
-		}
-
-		if (Array.isArray(value)) {
-			const result = [DEFAULT_SOURCE_FOLDER];
-
-			return [
-				...result,
-				...value.filter((item) => {
-					return item !== DEFAULT_SOURCE_FOLDER;
-				}),
-			];
-		}
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
 		if (value && (typeof value === 'object')) {
@@ -260,24 +212,6 @@ export namespace PromptFilesConfig {
 		// `undefined`, `null`, and `false` cases
 		return [];
 	};
-
-	/**
-	 * Configuration setting description to use in the settings UI.
-	 */
-	export const CONFIG_DESCRIPTION = nls.localize(
-		'chat.promptFiles.config.description',
-		"Specify location(s) of reusable prompt files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
-		PROMPT_FILE_EXTENSION,
-		DOCUMENTATION_URL,
-	);
-
-	/**
-	 * Configuration setting title to use in the settings UI.
-	 */
-	export const CONFIG_TITLE = nls.localize(
-		'chat.promptFiles.config.title',
-		"Prompt Files",
-	);
 }
 
 /**
