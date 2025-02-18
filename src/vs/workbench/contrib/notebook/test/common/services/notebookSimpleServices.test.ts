@@ -5,45 +5,35 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../../base/common/mime.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CellKind, IMainCellDto, IOutputDto, NotebookCellMetadata } from '../../../common/notebookCommon.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { NotebookEditorSimpleWorker } from '../../../common/services/notebookSimpleWorker.js';
+import { CellKind, IOutputDto, NotebookCellMetadata } from '../../../common/notebookCommon.js';
+import { matchCellBasedOnSimilarties } from '../../../common/services/notebookCellMatching.js';
 
 
 suite('NotebookDiff Cell Matching', () => {
-	let disposables: DisposableStore;
-	teardown(() => disposables.dispose());
-
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
 
 	test('diff different source', async () => {
 		const mapping = mapCells([
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		], [
 			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 }
 		]);
 	});
 
-	test('diff different source x2', async () => {
+	test('diff different source (2 cells)', async () => {
 		const mapping = mapCells([
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		], [
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 			['z', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -51,14 +41,14 @@ suite('NotebookDiff Cell Matching', () => {
 		]);
 	});
 
-	test.skip('diff different source x2 one', async () => {
+	test('diff different source (first cell changed)', async () => {
 		const mapping = mapCells([
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			['import sys', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		], [
-			['z', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			['import pandas', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -72,7 +62,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['123456789', 'javascript', CellKind.Code, [], {}]
 		], [
 			['987654321', 'javascript', CellKind.Code, [], {}],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 }
@@ -92,7 +82,7 @@ suite('NotebookDiff Cell Matching', () => {
 				'    \'This version is debugged.\'\n',
 				'    return a * b'
 			].join(''), 'javascript', CellKind.Code, [], {}],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 }
@@ -108,7 +98,7 @@ suite('NotebookDiff Cell Matching', () => {
 			[['def foo(x, y):\n', '    return x * y\n', 'foo(1, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([6])) }] }], { metadata: { collapsed: false }, executionOrder: 5 }],
 			[['def foe(x, y):\n', '    return x + y\n', 'foe(3, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([2])) }] }], { metadata: { collapsed: false }, executionOrder: 6 }],
 			['', 'javascript', CellKind.Code, [], {}]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 1 },
@@ -126,7 +116,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['This is a test notebook with markdown cells only', 'markdown', CellKind.Markup, [], {}],
 			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markup, [], {}],
 			['In the news', 'markdown', CellKind.Markup, [], {}],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -143,7 +133,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['var h = 8;', 'javascript', CellKind.Code, [], {}],
 			['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: -1 },
@@ -171,7 +161,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			['var f = 6;', 'javascript', CellKind.Code, [], {}],
 			['var g = 7;', 'javascript', CellKind.Code, [], {}],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: -1 },
@@ -204,7 +194,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			['var f = 6;', 'javascript', CellKind.Code, [], {}],
 			['var g = 7;', 'javascript', CellKind.Code, [], {}],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -229,7 +219,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['x = 3', 'javascript', CellKind.Code, [], { metadata: { collapsed: true }, executionOrder: 1 }],
 			['x', 'javascript', CellKind.Code, [], { metadata: { collapsed: false } }],
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 1 }]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -256,7 +246,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['x = 5', 'javascript', CellKind.Code, [], {}],
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], {}],
 			['x', 'javascript', CellKind.Code, [], {}],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -287,7 +277,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			['var f = 6;', 'javascript', CellKind.Code, [], {}],
 			['var g = 7;', 'javascript', CellKind.Code, [], {}],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -308,7 +298,7 @@ suite('NotebookDiff Cell Matching', () => {
 		], [
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -323,7 +313,7 @@ suite('NotebookDiff Cell Matching', () => {
 		], [
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -334,7 +324,7 @@ suite('NotebookDiff Cell Matching', () => {
 	test('No cells', async () => {
 		const mapping = mapCells([
 		], [
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 		]);
@@ -343,7 +333,7 @@ suite('NotebookDiff Cell Matching', () => {
 		const mapping = mapCells([
 		], [
 			['print("Hello world")', 'python', CellKind.Code, [], undefined]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: -1 }
@@ -353,7 +343,7 @@ suite('NotebookDiff Cell Matching', () => {
 		const mapping = mapCells([
 			['print("Hello world")', 'python', CellKind.Code, [], undefined]
 		], [
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 		]);
@@ -363,7 +353,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['print("Hello world")', 'python', CellKind.Code, [], undefined]
 		], [
 			['print("Hello world")', 'python', CellKind.Code, [], undefined]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 }
@@ -375,7 +365,7 @@ suite('NotebookDiff Cell Matching', () => {
 		],
 			[
 				['print("Foo Bar")', 'python', CellKind.Code, [], undefined]
-			], disposables);
+			]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 }
@@ -388,7 +378,7 @@ suite('NotebookDiff Cell Matching', () => {
 		], [
 			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
 			['print("Hello world")', 'python', CellKind.Code, [], undefined]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -402,7 +392,7 @@ suite('NotebookDiff Cell Matching', () => {
 		], [
 			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
 			['print("Hello world")', 'python', CellKind.Code, [], undefined]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -415,7 +405,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['print("Hello world")', 'python', CellKind.Code, [], undefined]
 		], [
 			['print("Hello world")', 'python', CellKind.Code, [], undefined]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 1 },
@@ -429,7 +419,7 @@ suite('NotebookDiff Cell Matching', () => {
 			['print("Hello world")', 'python', CellKind.Code, [], undefined],
 			['print("Bar Baz")', 'python', CellKind.Code, [], undefined],
 			['print("Foo Bar")', 'python', CellKind.Code, [], undefined]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -444,7 +434,7 @@ suite('NotebookDiff Cell Matching', () => {
 		], [
 			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
 			['print("Foo Bar")', 'python', CellKind.Code, [], undefined]
-		], disposables);
+		]);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -460,7 +450,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
 				['print("Foo Bar")', 'python', CellKind.Code, [], undefined]
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -483,7 +473,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['print("foo baz")', 'python', CellKind.Code, [], undefined],
 				['print("bar baz1234")', 'python', CellKind.Code, [], undefined]
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -509,7 +499,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['print("Hello world")', 'python', CellKind.Code, [], undefined],
 				['print("foo bar")', 'python', CellKind.Code, [], undefined],
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -536,7 +526,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['print("Foo BaZ")', 'python', CellKind.Code, [], undefined],
 				['print("bar baz Modified")', 'python', CellKind.Code, [], undefined]
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -566,7 +556,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['print("bar baz Modified")', 'python', CellKind.Code, [], undefined],
 				['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -595,7 +585,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['print("bar baz Modified")', 'python', CellKind.Code, [], undefined],
 				['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -630,7 +620,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['# Another MD cell (modified)', 'markdown', CellKind.Markup, [], undefined],
 				['print("foo bar")', 'python', CellKind.Code, [], undefined],
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -668,7 +658,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['# Another MD cell (modified)', 'markdown', CellKind.Markup, [], undefined],
 				['print("foo bar")', 'python', CellKind.Code, [], undefined],
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -705,7 +695,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
 				['print("foo bar")', 'python', CellKind.Code, [], undefined],
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -739,7 +729,7 @@ suite('NotebookDiff Cell Matching', () => {
 				['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
 				['sys.executable', 'python', CellKind.Code, [], undefined],
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -828,7 +818,7 @@ suite('NotebookDiff Cell Matching', () => {
 				[
 					[].join('\n'), 'python', CellKind.Code, [], undefined],
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -931,7 +921,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"df['label_value'] = numerical_data"
 					].join('\n'), 'python', CellKind.Markup, [], undefined],
 			]
-			, disposables);
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -1520,7 +1510,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"run_pose_estimation(source=source, flip=isinstance(source, int), use_popup=False)"
 					]
 				}
-			].map(convertCell)
+			].map(fromJupyterCell)
 			, [
 				{
 					"cell_type": "markdown",
@@ -2083,8 +2073,8 @@ suite('NotebookDiff Cell Matching', () => {
 						"run_pose_estimation(source=source, flip=isinstance(source, int), use_popup=False)"
 					]
 				}
-			].map(convertCell)
-			, disposables);
+			].map(fromJupyterCell)
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -2666,7 +2656,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"run_pose_estimation(source=source, flip=isinstance(source, int), use_popup=False)"
 					]
 				}
-			].map(convertCell)
+			].map(fromJupyterCell)
 			, [
 				{
 					"cell_type": "markdown",
@@ -3221,8 +3211,8 @@ suite('NotebookDiff Cell Matching', () => {
 						"run_pose_estimation(source=source, flip=isinstance(source, int), use_popup=False)"
 					]
 				}
-			].map(convertCell)
-			, disposables);
+			].map(fromJupyterCell)
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -3795,7 +3785,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"run_pose_estimation(source=source, flip=isinstance(source, int), use_popup=False)"
 					]
 				}
-			].map(convertCell)
+			].map(fromJupyterCell)
 			, [
 				{
 					"cell_type": "markdown",
@@ -4368,8 +4358,8 @@ suite('NotebookDiff Cell Matching', () => {
 						"run_pose_estimation(source=source, flip=isinstance(source, int), use_popup=False)"
 					]
 				}
-			].map(convertCell)
-			, disposables);
+			].map(fromJupyterCell)
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -5302,7 +5292,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"# Read more in the docs: https://gradio.app/docs/"
 					]
 				}
-			].map(convertCell)
+			].map(fromJupyterCell)
 			,
 			[
 				{
@@ -6260,8 +6250,8 @@ suite('NotebookDiff Cell Matching', () => {
 						"# demo.close()"
 					]
 				}
-			].map(convertCell)
-			, disposables);
+			].map(fromJupyterCell)
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -7342,7 +7332,7 @@ suite('NotebookDiff Cell Matching', () => {
 					]
 				}
 			]
-				.map(convertCell)
+				.map(fromJupyterCell)
 			,
 			[
 				{
@@ -8370,8 +8360,8 @@ suite('NotebookDiff Cell Matching', () => {
 						"# Read more in the docs: https://gradio.app/docs/"
 					]
 				}
-			].map(convertCell)
-			, disposables);
+			].map(fromJupyterCell)
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -9322,7 +9312,7 @@ suite('NotebookDiff Cell Matching', () => {
 					]
 				}
 			]
-				.map(convertCell)
+				.map(fromJupyterCell)
 			,
 			[
 				{
@@ -10229,8 +10219,8 @@ suite('NotebookDiff Cell Matching', () => {
 						")"
 					]
 				}
-			].map(convertCell)
-			, disposables);
+			].map(fromJupyterCell)
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -11413,7 +11403,7 @@ suite('NotebookDiff Cell Matching', () => {
 					]
 				}
 			]
-				.map(convertCell)
+				.map(fromJupyterCell)
 			,
 			[
 				{
@@ -12514,8 +12504,8 @@ suite('NotebookDiff Cell Matching', () => {
 						"# demo.close()"
 					]
 				}
-			].map(convertCell)
-			, disposables);
+			].map(fromJupyterCell)
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -13661,7 +13651,7 @@ suite('NotebookDiff Cell Matching', () => {
 					]
 				}
 			]
-				.map(convertCell)
+				.map(fromJupyterCell)
 			,
 			[
 				{
@@ -14717,8 +14707,8 @@ suite('NotebookDiff Cell Matching', () => {
 						"[Roboflow Templates](https://roboflow.com/templates) is a public gallery of code snippets that you can use to connect computer vision to your project logic. Code snippets range from sending emails after inference to measuring object distance between detections."
 					]
 				}
-			].map(convertCell)
-			, disposables);
+			].map(fromJupyterCell)
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: 0 },
@@ -14955,7 +14945,7 @@ suite('NotebookDiff Cell Matching', () => {
 					]
 				}
 			]
-				.map(convertCell)
+				.map(fromJupyterCell)
 			,
 			[
 				{
@@ -15142,8 +15132,8 @@ suite('NotebookDiff Cell Matching', () => {
 						"plot_repo_metrics(f\"{OWNER}/vscode\")"
 					]
 				}
-			].map(convertCell)
-			, disposables);
+			].map(fromJupyterCell)
+		);
 
 		assert.deepStrictEqual(mapping, [
 			{ modified: 0, original: -1 },
@@ -15162,27 +15152,13 @@ suite('NotebookDiff Cell Matching', () => {
 });
 
 
-function mapCells(original: MockNotebookCell[], modified: MockNotebookCell[], disposables: DisposableStore) {
-	const worker = disposables.add(new NotebookEditorSimpleWorker());
-	const originalUri = URI.file('original.ipynb');
-	const modifiedUri = URI.file('modified.ipynb');
-	worker.$acceptNewModel(originalUri.toString(), {}, {}, original.map((cell, i) => mockCellToDto(originalUri, i, cell)));
-	worker.$acceptNewModel(modifiedUri.toString(), {}, {}, modified.map((cell, i) => mockCellToDto(modifiedUri, i, cell)));
-
-	return worker.matchCells(originalUri.toString(), modifiedUri.toString()).map(diff => ({ modified: diff.modified, original: diff.original }));
+function mapCells(original: MockNotebookCell[], modified: MockNotebookCell[]) {
+	return matchCellBasedOnSimilarties(modified.map(cellToDto), original.map(cellToDto)).map(mapping => ({ modified: mapping.modified, original: mapping.original }));
 }
-function mockCellToDto(notebookUri: URI, index: number, cell: MockNotebookCell): IMainCellDto {
+function cellToDto(cell: MockNotebookCell): { getValue(): string; cellKind: CellKind } {
 	return {
 		cellKind: cell[2],
-		eol: '\n',
-		handle: index,
-		language: cell[1],
-		outputs: cell[3] ?? [],
-		source: cell[0].split(/\r\n|\r|\n/),
-		metadata: cell[4],
-		url: notebookUri.with({ fragment: `cell/${index}` }).toString(),
-		versionId: 0,
-		internalMetadata: {}
+		getValue: () => cell[0]
 	};
 }
 
@@ -15194,7 +15170,7 @@ type MockNotebookCell = [
 	metadata?: NotebookCellMetadata,
 ];
 
-function convertCell(cell: { cell_type: string; source: string[] }): MockNotebookCell {
+function fromJupyterCell(cell: { cell_type: string; source: string[] }): MockNotebookCell {
 	return [
 		cell.source.join('\n'),
 		cell.cell_type === 'code' ? 'python' : 'markdown',
