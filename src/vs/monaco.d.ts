@@ -4380,7 +4380,7 @@ declare namespace monaco.editor {
 		 * When specified, is used to create a custom section header parser regexp.
 		 * It must contain a match group that detects the header
 		 */
-		markSectionRegex?: string;
+		markSectionHeaderRegex?: string;
 		/**
 		 * Font size of section headers. Defaults to 9.
 		 */
