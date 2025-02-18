@@ -79,17 +79,6 @@ async function createCommandDescriptionsCache(options: ExecOptionsWithStringEnco
 	}
 
 	if (output) {
-		// Extract bold words
-		const boldRegex = /(?:\w\x08\w)+/g;
-		const boldMatches = output.match(boldRegex) || [];
-		const boldCommands = new Set<string>();
-
-		// Process each bold match and clean it up (remove backspaces)
-		for (const match of boldMatches) {
-			const cleaned = match.replace(/\x08./g, '');
-			boldCommands.add(cleaned);
-		}
-
 		// Strip all backspaces from the output
 		output = output.replace(/.\x08/g, '');
 		const lines = output.split('\n');
@@ -97,28 +86,30 @@ async function createCommandDescriptionsCache(options: ExecOptionsWithStringEnco
 		let command: string | undefined;
 		let description: string[] = [];
 
-		// Iterate through lines and capture command-descriptions
 		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i].trim();
-			const words = line.split(/\s+/);
-			const potentialCommand = words[0];
+			const line = lines[i];
 
-			if (boldCommands.has(potentialCommand)) {
+			// Detect command names (lines starting with exactly 7 spaces)
+			const cmdMatch = line.match(/^\s{7}(\S+)/);
+			if (cmdMatch?.length && cmdMatch.length > 1) {
+				command = cmdMatch[1];
+
+				// Store the previous command and its description
 				if (command && description.length) {
 					cachedCommandDescriptions.set(command, description.join(' ').trim());
 				}
-				command = potentialCommand;
+
+				// Capture the new command name
+				command = cmdMatch[1];
 				description = [];
+				// Move to the next line to check for description
 				continue;
 			}
 
-			if (command) {
-				description.push(line);
+			// Capture description lines (14 spaces indentation)
+			if (command && line.match(/^\s{14}/)) {
+				description.push(line.trim());
 			}
-		}
-
-		if (command && description.length) {
-			cachedCommandDescriptions.set(command, description.join(' ').trim());
 		}
 	}
 }
