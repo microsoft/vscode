@@ -37,6 +37,13 @@ import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser
 import { CompositeMenuActions } from '../../actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
+interface IAuxiliaryBarPartConfiguration {
+	position: ActivityBarPosition;
+
+	canShowLabels: boolean;
+	showLabels: boolean;
+}
+
 export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	static readonly activeViewSettingsKey = 'workbench.auxiliarybar.activepanelid';
@@ -72,6 +79,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	readonly priority = LayoutPriority.Low;
+
+	private configuration = this.resolveConfiguration();
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -118,11 +127,22 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+				this.configuration = this.resolveConfiguration();
 				this.onDidChangeActivityBarLocation();
 			} else if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
+				this.configuration = this.resolveConfiguration();
 				this.updateCompositeBar(true);
 			}
 		}));
+	}
+
+	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
+		const position = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+
+		const canShowLabels = position !== ActivityBarPosition.TOP; // otherwise labels would repeat vertically
+		const showLabels = canShowLabels && this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
+
+		return { position, canShowLabels, showLabels };
 	}
 
 	private onDidChangeActivityBarLocation(): void {
@@ -161,7 +181,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			pinnedViewContainersKey: AuxiliaryBarPart.pinnedViewsKey,
 			placeholderViewContainersKey: AuxiliaryBarPart.placeholdeViewContainersKey,
 			viewContainersWorkspaceStateKey: AuxiliaryBarPart.viewContainersWorkspaceStateKey,
-			icon: this.configurationService.getValue('workbench.secondarySideBar.showLabels') === false,
+			icon: !this.configuration.showLabels,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
@@ -200,11 +220,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 		const positionActions = getContextMenuActions(activityBarPositionMenu).secondary;
 
-		const auxiliarybarShowLabels = this.configurationService.getValue<boolean | undefined>('workbench.secondarySideBar.showLabels');
 		const toggleShowLabelsAction = toAction({
 			id: 'workbench.action.auxiliarybar.toggleShowLabels',
-			label: auxiliarybarShowLabels ? localize('showIcons', "Show Icons") : localize('showLabels', "Show Labels"),
-			run: () => this.configurationService.updateValue('workbench.secondarySideBar.showLabels', !auxiliarybarShowLabels)
+			label: this.configuration.showLabels ? localize('showIcons', "Show Icons") : localize('showLabels', "Show Labels"),
+			enabled: this.configuration.canShowLabels,
+			run: () => this.configurationService.updateValue('workbench.secondarySideBar.showLabels', !this.configuration.showLabels)
 		});
 
 		actions.push(...[
@@ -217,13 +237,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.HIDDEN;
+		return this.configuration.position !== ActivityBarPosition.HIDDEN;
 	}
 
-	// TODO@benibenj chache this
 	protected getCompositeBarPosition(): CompositeBarPosition {
-		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		switch (activityBarPosition) {
+		switch (this.configuration.position) {
 			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
 			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
 			case ActivityBarPosition.HIDDEN: return CompositeBarPosition.TITLE;
