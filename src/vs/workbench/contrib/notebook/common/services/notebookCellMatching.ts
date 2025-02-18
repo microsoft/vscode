@@ -6,16 +6,17 @@ import { CellKind } from '../notebookCommon.js';
 import { distance } from './levenshtein.js';
 
 
-type Distance = number;
+type EditCount = number;
 type OriginalIndex = number;
 type ModifiedIndex = number;
-type CellDistanceCache = {
-	modifiedToOriginal: Map<ModifiedIndex, Map<OriginalIndex, { distance: Distance }>>;
-	originalToModified: Map<OriginalIndex, Map<ModifiedIndex, { distance: Distance }>>;
+type CellEditCountCache = {
+	modifiedToOriginal: Map<ModifiedIndex, Map<OriginalIndex, { editCount: EditCount }>>;
+	originalToModified: Map<OriginalIndex, Map<ModifiedIndex, { editCount: EditCount }>>;
 };
 
 type ICell = {
 	getValue(): string;
+	getLinesContent(): string[];
 	cellKind: CellKind;
 };
 
@@ -35,7 +36,7 @@ type ICell = {
  * Cell d => Cell D
  * Cell e => <Does not match anything in original, hence a new Cell>
  * Cell C in original was not matched, hence it was deleted.
- * 
+ *
  * Thus the return value is as follows:
  * [
  * { modified: 0, original: 0 },
@@ -46,20 +47,20 @@ type ICell = {
  * @returns
  */
 export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCells: ICell[]): { modified: number; original: number }[] {
-	const cache: CellDistanceCache = {
-		modifiedToOriginal: new Map<ModifiedIndex, Map<OriginalIndex, { distance: Distance }>>(),
-		originalToModified: new Map<OriginalIndex, Map<ModifiedIndex, { distance: Distance }>>(),
+	const cache: CellEditCountCache = {
+		modifiedToOriginal: new Map<ModifiedIndex, Map<OriginalIndex, { editCount: EditCount }>>(),
+		originalToModified: new Map<OriginalIndex, Map<ModifiedIndex, { editCount: EditCount }>>(),
 	};
 	const results: { modified: number; original: number; dist: number; percentage: number; possibleOriginal: number }[] = [];
 	const mappedOriginalCellToModifiedCell = new Map<number, number>();
 	const mappedModifiedIndexes = new Set<number>();
-	const originalIndexWithLongestDistance = new Map<number, { dist: number; modifiedIndex: number }>();
-	const canOriginalIndexBeMappedToModifiedIndex = (originalIndex: number, value: { distance: Distance }) => {
+	const originalIndexWithMostEdits = new Map<number, { dist: number; modifiedIndex: number }>();
+	const canOriginalIndexBeMappedToModifiedIndex = (originalIndex: number, value: { editCount: EditCount }) => {
 		if (mappedOriginalCellToModifiedCell.has(originalIndex)) {
 			return false;
 		}
-		const existingDistance = originalIndexWithLongestDistance.get(originalIndex)?.dist ?? Number.MAX_SAFE_INTEGER;
-		return value.distance < existingDistance;
+		const existingEdits = originalIndexWithMostEdits.get(originalIndex)?.dist ?? Number.MAX_SAFE_INTEGER;
+		return value.editCount < existingEdits;
 	};
 	const trackMappedIndexes = (modifiedIndex: number, originalIndex: number) => {
 		mappedOriginalCellToModifiedCell.set(originalIndex, modifiedIndex);
@@ -68,12 +69,12 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 
 	for (let i = 0; i < modifiedCells.length; i++) {
 		const modifiedCell = modifiedCells[i];
-		const { index, dist, percentage } = computeClosestCell({ cell: modifiedCell, index: i }, originalCells, true, cache, canOriginalIndexBeMappedToModifiedIndex);
+		const { index, editCount: dist, percentage } = computeClosestCell({ cell: modifiedCell, index: i }, originalCells, true, cache, canOriginalIndexBeMappedToModifiedIndex);
 		if (index >= 0 && dist === 0) {
 			trackMappedIndexes(i, index);
 			results.push({ modified: i, original: index, dist, percentage, possibleOriginal: index });
 		} else {
-			originalIndexWithLongestDistance.set(index, { dist: dist, modifiedIndex: i });
+			originalIndexWithMostEdits.set(index, { dist: dist, modifiedIndex: i });
 			results.push({ modified: i, original: -1, dist: dist, percentage, possibleOriginal: index });
 		}
 	}
@@ -132,7 +133,7 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 		 * =================
 		 * Given that we have a probable match for B => b, we can match it.
 		 */
-		if (result.original === -1 && result.possibleOriginal >= 0 && !unavailableIndexes.has(result.possibleOriginal) && canOriginalIndexBeMappedToModifiedIndex(result.possibleOriginal, { distance: result.dist })) {
+		if (result.original === -1 && result.possibleOriginal >= 0 && !unavailableIndexes.has(result.possibleOriginal) && canOriginalIndexBeMappedToModifiedIndex(result.possibleOriginal, { editCount: result.dist })) {
 			trackMappedIndexes(i, result.possibleOriginal);
 			result.original = result.possibleOriginal;
 			return;
@@ -186,7 +187,7 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 		*/
 		// RULE 1
 		// Try to find the next best match, but exclucde items that have a better match.
-		const { index, percentage } = computeClosestCell({ cell: modifiedCell, index: i }, originalCells, false, cache, (originalIndex: number, originalValue: { distance: Distance }) => {
+		const { index, percentage } = computeClosestCell({ cell: modifiedCell, index: i }, originalCells, false, cache, (originalIndex: number, originalValue: { editCount: EditCount }) => {
 			if (unavailableIndexes.has(originalIndex)) {
 				return false;
 			}
@@ -208,7 +209,7 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 							// This has already been matched.
 							return false;
 						}
-						return value.distance < originalValue.distance;
+						return value.editCount < originalValue.editCount;
 					});
 					if (betterMatch) {
 						// We do have a better match for this, hence do not use this.
@@ -229,11 +230,11 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 		 * e e
 		 * f f
 		 * =================
-		 * RULE 1 . Now when attempting to match `bbbbbbbbbbbb` with B, the distance is very high and the percentage is also very high.
+		 * RULE 1 . Now when attempting to match `bbbbbbbbbbbb` with B, the number of edits is very high and the percentage is also very high.
 		 * Basically majority of the text needs to be changed.
 		 * However if the indexes line up perfectly well, and this is the best match, then use it.
 		*
-		 * Similarly its possible we're trying to match b with `BBBBBBBBBBBB` and the distance is very high, but the indexes line up perfectly well.
+		 * Similarly its possible we're trying to match b with `BBBBBBBBBBBB` and the number of edits is very high, but the indexes line up perfectly well.
 		*
 		* RULE 2. However it is also possible that there's a better match with another cell
 		* Assume we have
@@ -248,7 +249,7 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 		 * In such cases try to match with the same cell index.
 		 *
 		*/
-		// RULE 1 (got a match and the indexes line up perfectly well, use it regardless of the distance).
+		// RULE 1 (got a match and the indexes line up perfectly well, use it regardless of the number of edits).
 		if (index >= 0 && i > 0 && results[i - 1].original === index - 1) {
 			trackMappedIndexes(i, index);
 			results[i].original = index;
@@ -280,8 +281,8 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 }
 
 
-function computeClosestCell({ cell, index: cellIndex }: { cell: ICell; index: number }, arr: readonly ICell[], ignoreEmptyCells: boolean, cache: CellDistanceCache, canOriginalIndexBeMappedToModifiedIndex: (originalIndex: number, value: { distance: Distance }) => boolean): { index: number; dist: number; percentage: number } {
-	let min_distance = Infinity;
+function computeClosestCell({ cell, index: cellIndex }: { cell: ICell; index: number }, arr: readonly ICell[], ignoreEmptyCells: boolean, cache: CellEditCountCache, canOriginalIndexBeMappedToModifiedIndex: (originalIndex: number, value: { editCount: EditCount }) => boolean): { index: number; editCount: number; percentage: number } {
+	let min_edits = Infinity;
 	let min_index = -1;
 	for (let i = 0; i < arr.length; i++) {
 		// Skip cells that are not of the same kind.
@@ -289,12 +290,12 @@ function computeClosestCell({ cell, index: cellIndex }: { cell: ICell; index: nu
 			continue;
 		}
 		const str = arr[i].getValue();
-		const cacheEntry = cache.modifiedToOriginal.get(cellIndex) ?? new Map<OriginalIndex, { distance: Distance }>();
-		const value = cacheEntry.get(i) ?? { distance: distance(cell.getValue(), str), };
+		const cacheEntry = cache.modifiedToOriginal.get(cellIndex) ?? new Map<OriginalIndex, { editCount: EditCount }>();
+		const value = cacheEntry.get(i) ?? { editCount: computeNumberOfEdits(cell, arr[i]), };
 		cacheEntry.set(i, value);
 		cache.modifiedToOriginal.set(cellIndex, cacheEntry);
 
-		const originalCacheEntry = cache.originalToModified.get(i) ?? new Map<ModifiedIndex, { distance: Distance }>();
+		const originalCacheEntry = cache.originalToModified.get(i) ?? new Map<ModifiedIndex, { editCount: EditCount }>();
 		originalCacheEntry.set(cellIndex, value);
 		cache.originalToModified.set(i, originalCacheEntry);
 
@@ -305,19 +306,33 @@ function computeClosestCell({ cell, index: cellIndex }: { cell: ICell; index: nu
 			continue;
 		}
 		if (str === cell.getValue() && cell.getValue().length > 0) {
-			return { index: i, dist: 0, percentage: 0 };
+			return { index: i, editCount: 0, percentage: 0 };
 		}
 
-		if (value.distance < min_distance) {
-			min_distance = value.distance;
+		if (value.editCount < min_edits) {
+			min_edits = value.editCount;
 			min_index = i;
 		}
 	}
 
 	if (min_index === -1) {
-		return { index: -1, dist: Number.MAX_SAFE_INTEGER, percentage: Number.MAX_SAFE_INTEGER };
+		return { index: -1, editCount: Number.MAX_SAFE_INTEGER, percentage: Number.MAX_SAFE_INTEGER };
 	}
-	const percentage = !cell.getValue().length && !arr[min_index].getValue().length ? 0 : (cell.getValue().length ? (min_distance * 100 / cell.getValue().length) : Number.MAX_SAFE_INTEGER);
-	return { index: min_index, dist: min_distance, percentage };
+	const percentage = !cell.getValue().length && !arr[min_index].getValue().length ? 0 : (cell.getValue().length ? (min_edits * 100 / cell.getValue().length) : Number.MAX_SAFE_INTEGER);
+	return { index: min_index, editCount: min_edits, percentage };
 }
 
+function computeNumberOfEdits(modified: ICell, original: ICell) {
+	if (modified.getValue() === original.getValue()) {
+		return 0;
+	}
+
+	return computeNumberOfEditsLeven(modified, original);
+}
+
+function computeNumberOfEditsLeven(modified: ICell, original: ICell) {
+	if (modified.getValue() === original.getValue()) {
+		return 0;
+	}
+	return distance(modified.getValue(), original.getValue());
+}

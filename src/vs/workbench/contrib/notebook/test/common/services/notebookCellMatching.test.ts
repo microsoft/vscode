@@ -11,14 +11,17 @@ import { CellKind, IOutputDto, NotebookCellMetadata } from '../../../common/note
 import { matchCellBasedOnSimilarties } from '../../../common/services/notebookCellMatching.js';
 
 
+// TODO: We need to convert these into proper tests
+// That end up testing the output of NotebookSimpleWorker, and verify INotebookDiffResult
+
 suite('NotebookDiff Cell Matching', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('diff different source', async () => {
 		const mapping = mapCells([
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		], [
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -28,11 +31,11 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('diff different source (2 cells)', async () => {
 		const mapping = mapCells([
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		], [
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			['z', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['z'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -43,11 +46,11 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('diff different source (first cell changed)', async () => {
 		const mapping = mapCells([
-			['import sys', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['import sys'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		], [
-			['import pandas', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['import pandas'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -59,9 +62,9 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('diff test small source', async () => {
 		const mapping = mapCells([
-			['123456789', 'javascript', CellKind.Code, [], {}]
+			[['123456789'], 'javascript', CellKind.Code, [], {}]
 		], [
-			['987654321', 'javascript', CellKind.Code, [], {}],
+			[['987654321'], 'javascript', CellKind.Code, [], {}],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -75,13 +78,13 @@ suite('NotebookDiff Cell Matching', () => {
 				'# This version has a bug\n',
 				'def mult(a, b):\n',
 				'    return a / b'
-			].join(''), 'javascript', CellKind.Code, [], {}]
+			], 'javascript', CellKind.Code, [], {}]
 		], [
 			[[
 				'def mult(a, b):\n',
 				'    \'This version is debugged.\'\n',
 				'    return a * b'
-			].join(''), 'javascript', CellKind.Code, [], {}],
+			], 'javascript', CellKind.Code, [], {}],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -91,13 +94,13 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('diff foo/foe', async () => {
 		const mapping = mapCells([
-			[['def foe(x, y):\n', '    return x + y\n', 'foe(3, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([6])) }] }], { metadata: { collapsed: false }, executionOrder: 5 }],
-			[['def foo(x, y):\n', '    return x * y\n', 'foo(1, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([2])) }] }], { metadata: { collapsed: false }, executionOrder: 6 }],
-			['', 'javascript', CellKind.Code, [], {}]
+			[['def foe(x, y):\n', '    return x + y\n', 'foe(3, 2)'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([6])) }] }], { metadata: { collapsed: false }, executionOrder: 5 }],
+			[['def foo(x, y):\n', '    return x * y\n', 'foo(1, 2)'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([2])) }] }], { metadata: { collapsed: false }, executionOrder: 6 }],
+			[[''], 'javascript', CellKind.Code, [], {}]
 		], [
-			[['def foo(x, y):\n', '    return x * y\n', 'foo(1, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([6])) }] }], { metadata: { collapsed: false }, executionOrder: 5 }],
-			[['def foe(x, y):\n', '    return x + y\n', 'foe(3, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([2])) }] }], { metadata: { collapsed: false }, executionOrder: 6 }],
-			['', 'javascript', CellKind.Code, [], {}]
+			[['def foo(x, y):\n', '    return x * y\n', 'foo(1, 2)'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([6])) }] }], { metadata: { collapsed: false }, executionOrder: 5 }],
+			[['def foe(x, y):\n', '    return x + y\n', 'foe(3, 2)'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([2])) }] }], { metadata: { collapsed: false }, executionOrder: 6 }],
+			[[''], 'javascript', CellKind.Code, [], {}]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -109,13 +112,13 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('diff markdown', async () => {
 		const mapping = mapCells([
-			['This is a test notebook with only markdown cells', 'markdown', CellKind.Markup, [], {}],
-			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markup, [], {}],
-			['In other news', 'markdown', CellKind.Markup, [], {}],
+			[['This is a test notebook with only markdown cells'], 'markdown', CellKind.Markup, [], {}],
+			[['Lorem ipsum dolor sit amet'], 'markdown', CellKind.Markup, [], {}],
+			[['In other news'], 'markdown', CellKind.Markup, [], {}],
 		], [
-			['This is a test notebook with markdown cells only', 'markdown', CellKind.Markup, [], {}],
-			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markup, [], {}],
-			['In the news', 'markdown', CellKind.Markup, [], {}],
+			[['This is a test notebook with markdown cells only'], 'markdown', CellKind.Markup, [], {}],
+			[['Lorem ipsum dolor sit amet'], 'markdown', CellKind.Markup, [], {}],
+			[['In the news'], 'markdown', CellKind.Markup, [], {}],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -127,12 +130,12 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('diff insert', async () => {
 		const mapping = mapCells([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}]
+			[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+			[['var b = 2;'], 'javascript', CellKind.Code, [], {}]
 		], [
-			['var h = 8;', 'javascript', CellKind.Code, [], {}],
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}]
+			[['var h = 8;'], 'javascript', CellKind.Code, [], {}],
+			[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+			[['var b = 2;'], 'javascript', CellKind.Code, [], {}]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -145,22 +148,22 @@ suite('NotebookDiff Cell Matching', () => {
 	test('diff insert 2', async () => {
 
 		const mapping = mapCells([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [], {}],
-			['var d = 4;', 'javascript', CellKind.Code, [], {}],
-			['var e = 5;', 'javascript', CellKind.Code, [], {}],
-			['var f = 6;', 'javascript', CellKind.Code, [], {}],
-			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+			[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+			[['var b = 2;'], 'javascript', CellKind.Code, [], {}],
+			[['var c = 3;'], 'javascript', CellKind.Code, [], {}],
+			[['var d = 4;'], 'javascript', CellKind.Code, [], {}],
+			[['var e = 5;'], 'javascript', CellKind.Code, [], {}],
+			[['var f = 6;'], 'javascript', CellKind.Code, [], {}],
+			[['var g = 7;'], 'javascript', CellKind.Code, [], {}],
 		], [
-			['var h = 8;', 'javascript', CellKind.Code, [], {}],
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [], {}],
-			['var d = 4;', 'javascript', CellKind.Code, [], {}],
-			['var e = 5;', 'javascript', CellKind.Code, [], {}],
-			['var f = 6;', 'javascript', CellKind.Code, [], {}],
-			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+			[['var h = 8;'], 'javascript', CellKind.Code, [], {}],
+			[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+			[['var b = 2;'], 'javascript', CellKind.Code, [], {}],
+			[['var c = 3;'], 'javascript', CellKind.Code, [], {}],
+			[['var d = 4;'], 'javascript', CellKind.Code, [], {}],
+			[['var e = 5;'], 'javascript', CellKind.Code, [], {}],
+			[['var f = 6;'], 'javascript', CellKind.Code, [], {}],
+			[['var g = 7;'], 'javascript', CellKind.Code, [], {}],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -178,22 +181,22 @@ suite('NotebookDiff Cell Matching', () => {
 	test('diff insert 3', async () => {
 
 		const mapping = mapCells([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [], {}],
-			['var d = 4;', 'javascript', CellKind.Code, [], {}],
-			['var e = 5;', 'javascript', CellKind.Code, [], {}],
-			['var f = 6;', 'javascript', CellKind.Code, [], {}],
-			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+			[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+			[['var b = 2;'], 'javascript', CellKind.Code, [], {}],
+			[['var c = 3;'], 'javascript', CellKind.Code, [], {}],
+			[['var d = 4;'], 'javascript', CellKind.Code, [], {}],
+			[['var e = 5;'], 'javascript', CellKind.Code, [], {}],
+			[['var f = 6;'], 'javascript', CellKind.Code, [], {}],
+			[['var g = 7;'], 'javascript', CellKind.Code, [], {}],
 		], [
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [], {}],
-			['var d = 4;', 'javascript', CellKind.Code, [], {}],
-			['var h = 8;', 'javascript', CellKind.Code, [], {}],
-			['var e = 5;', 'javascript', CellKind.Code, [], {}],
-			['var f = 6;', 'javascript', CellKind.Code, [], {}],
-			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+			[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+			[['var b = 2;'], 'javascript', CellKind.Code, [], {}],
+			[['var c = 3;'], 'javascript', CellKind.Code, [], {}],
+			[['var d = 4;'], 'javascript', CellKind.Code, [], {}],
+			[['var h = 8;'], 'javascript', CellKind.Code, [], {}],
+			[['var e = 5;'], 'javascript', CellKind.Code, [], {}],
+			[['var f = 6;'], 'javascript', CellKind.Code, [], {}],
+			[['var g = 7;'], 'javascript', CellKind.Code, [], {}],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -210,15 +213,15 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('LCS', async () => {
 		const mapping = mapCells([
-			['# Description', 'markdown', CellKind.Markup, [], { metadata: {} }],
-			['x = 3', 'javascript', CellKind.Code, [], { metadata: { collapsed: true }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [], { metadata: { collapsed: false } }]
+			[['# Description'], 'markdown', CellKind.Markup, [], { metadata: {} }],
+			[['x = 3'], 'javascript', CellKind.Code, [], { metadata: { collapsed: true }, executionOrder: 1 }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 1 }],
+			[['x'], 'javascript', CellKind.Code, [], { metadata: { collapsed: false } }]
 		], [
-			['# Description', 'markdown', CellKind.Markup, [], { metadata: {} }],
-			['x = 3', 'javascript', CellKind.Code, [], { metadata: { collapsed: true }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [], { metadata: { collapsed: false } }],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 1 }]
+			[['# Description'], 'markdown', CellKind.Markup, [], { metadata: {} }],
+			[['x = 3'], 'javascript', CellKind.Code, [], { metadata: { collapsed: true }, executionOrder: 1 }],
+			[['x'], 'javascript', CellKind.Code, [], { metadata: { collapsed: false } }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 1 }]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -231,21 +234,21 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('LCS 2', async () => {
 		const mapping = mapCells([
-			['# Description', 'markdown', CellKind.Markup, [], { metadata: {} }],
-			['x = 3', 'javascript', CellKind.Code, [], { metadata: { collapsed: true }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [], { metadata: { collapsed: false } }],
-			['x = 5', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], {}],
+			[['# Description'], 'markdown', CellKind.Markup, [], { metadata: {} }],
+			[['x = 3'], 'javascript', CellKind.Code, [], { metadata: { collapsed: true }, executionOrder: 1 }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 1 }],
+			[['x'], 'javascript', CellKind.Code, [], { metadata: { collapsed: false } }],
+			[['x = 5'], 'javascript', CellKind.Code, [], {}],
+			[['x'], 'javascript', CellKind.Code, [], {}],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], {}],
 		], [
-			['# Description', 'markdown', CellKind.Markup, [], { metadata: {} }],
-			['x = 3', 'javascript', CellKind.Code, [], { metadata: { collapsed: true }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [], { metadata: { collapsed: false } }],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 1 }],
-			['x = 5', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], {}],
-			['x', 'javascript', CellKind.Code, [], {}],
+			[['# Description'], 'markdown', CellKind.Markup, [], { metadata: {} }],
+			[['x = 3'], 'javascript', CellKind.Code, [], { metadata: { collapsed: true }, executionOrder: 1 }],
+			[['x'], 'javascript', CellKind.Code, [], { metadata: { collapsed: false } }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 1 }],
+			[['x = 5'], 'javascript', CellKind.Code, [], {}],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], {}],
+			[['x'], 'javascript', CellKind.Code, [], {}],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -261,22 +264,22 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('LCS 3', async () => {
 		const mapping = mapCells([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [], {}],
-			['var d = 4;', 'javascript', CellKind.Code, [], {}],
-			['var e = 5;', 'javascript', CellKind.Code, [], {}],
-			['var f = 6;', 'javascript', CellKind.Code, [], {}],
-			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+			[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+			[['var b = 2;'], 'javascript', CellKind.Code, [], {}],
+			[['var c = 3;'], 'javascript', CellKind.Code, [], {}],
+			[['var d = 4;'], 'javascript', CellKind.Code, [], {}],
+			[['var e = 5;'], 'javascript', CellKind.Code, [], {}],
+			[['var f = 6;'], 'javascript', CellKind.Code, [], {}],
+			[['var g = 7;'], 'javascript', CellKind.Code, [], {}],
 		], [
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [], {}],
-			['var d = 4;', 'javascript', CellKind.Code, [], {}],
-			['var h = 8;', 'javascript', CellKind.Code, [], {}],
-			['var e = 5;', 'javascript', CellKind.Code, [], {}],
-			['var f = 6;', 'javascript', CellKind.Code, [], {}],
-			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+			[['var a = 1;'], 'javascript', CellKind.Code, [], {}],
+			[['var b = 2;'], 'javascript', CellKind.Code, [], {}],
+			[['var c = 3;'], 'javascript', CellKind.Code, [], {}],
+			[['var d = 4;'], 'javascript', CellKind.Code, [], {}],
+			[['var h = 8;'], 'javascript', CellKind.Code, [], {}],
+			[['var e = 5;'], 'javascript', CellKind.Code, [], {}],
+			[['var f = 6;'], 'javascript', CellKind.Code, [], {}],
+			[['var g = 7;'], 'javascript', CellKind.Code, [], {}],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -293,11 +296,11 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('diff output', async () => {
 		const mapping = mapCells([
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([4])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([4])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		], [
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -308,11 +311,11 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('diff output fast check', async () => {
 		const mapping = mapCells([
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([4])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([4])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		], [
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
+			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -332,7 +335,7 @@ suite('NotebookDiff Cell Matching', () => {
 	test('No cells and add 1 cell', async () => {
 		const mapping = mapCells([
 		], [
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -341,7 +344,7 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('One cells and delete 1 cell', async () => {
 		const mapping = mapCells([
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		], [
 		]);
 
@@ -350,9 +353,9 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('No changes with 1 cell', async () => {
 		const mapping = mapCells([
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		], [
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -361,10 +364,10 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('One changes with 1 cell', async () => {
 		const mapping = mapCells([
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		],
 			[
-				['print("Foo Bar")', 'python', CellKind.Code, [], undefined]
+				[['print("Foo Bar")'], 'python', CellKind.Code, [], undefined]
 			]);
 
 		assert.deepStrictEqual(mapping, [
@@ -373,11 +376,11 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('No changes with 2 cells', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		], [
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -387,11 +390,11 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('One changes with 2 cells, 1st cell changed', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		], [
-			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -401,10 +404,10 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('2 cells, 1st cell deleted', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		], [
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -413,12 +416,12 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('2 cells, inserted a cell in the middle', async () => {
 		const mapping = mapCells([
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['print("Foo Bar")', 'python', CellKind.Code, [], undefined]
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['print("Foo Bar")'], 'python', CellKind.Code, [], undefined]
 		], [
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['print("Bar Baz")', 'python', CellKind.Code, [], undefined],
-			['print("Foo Bar")', 'python', CellKind.Code, [], undefined]
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['print("Bar Baz")'], 'python', CellKind.Code, [], undefined],
+			[['print("Foo Bar")'], 'python', CellKind.Code, [], undefined]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -429,11 +432,11 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('One changes with 2 cells, 2nd cell changed', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		], [
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Foo Bar")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Foo Bar")'], 'python', CellKind.Code, [], undefined]
 		]);
 
 		assert.deepStrictEqual(mapping, [
@@ -443,12 +446,12 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('One changes with 2 cells, all cells changed', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined]
 		]
 			, [
-				['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-				['print("Foo Bar")', 'python', CellKind.Code, [], undefined]
+				[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Foo Bar")'], 'python', CellKind.Code, [], undefined]
 			]
 		);
 
@@ -459,19 +462,19 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('Insert a md cell and modify the next code cell', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
-			['print("bar baz1234")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+			[['print("bar baz1234")'], 'python', CellKind.Code, [], undefined]
 		]
 			, [
-				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-				['print("Hello world")', 'python', CellKind.Code, [], undefined],
-				['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-				['# New Markdown cell', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo baz")', 'python', CellKind.Code, [], undefined],
-				['print("bar baz1234")', 'python', CellKind.Code, [], undefined]
+				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+				[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+				[['# New Markdown cell'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo baz")'], 'python', CellKind.Code, [], undefined],
+				[['print("bar baz1234")'], 'python', CellKind.Code, [], undefined]
 			]
 		);
 
@@ -486,18 +489,18 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('Delete MD cell and insert code cell, both will not match', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['import sys', 'python', CellKind.Code, [], undefined],
-			['sys.executable', 'python', CellKind.Code, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['import sys'], 'python', CellKind.Code, [], undefined],
+			[['sys.executable'], 'python', CellKind.Code, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
 		]
 			, [
-				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-				['import sys', 'python', CellKind.Code, [], undefined],
-				['# Header', 'python', CellKind.Markup, [], undefined],
-				['print("Hello world")', 'python', CellKind.Code, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
+				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+				[['import sys'], 'python', CellKind.Code, [], undefined],
+				[['# Header'], 'python', CellKind.Markup, [], undefined],
+				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
 			]
 		);
 
@@ -512,19 +515,19 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('Insert a md cell and modify the next 2 code cells', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-			['print("Foo Bar")', 'python', CellKind.Code, [], undefined],
-			['print("bar baz")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Foo Bar")'], 'python', CellKind.Code, [], undefined],
+			[['print("bar baz")'], 'python', CellKind.Code, [], undefined]
 		]
 			, [
-				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-				['print("Hello world")', 'python', CellKind.Code, [], undefined],
-				['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-				['# New Markdown cell', 'markdown', CellKind.Markup, [], undefined],
-				['print("Foo BaZ")', 'python', CellKind.Code, [], undefined],
-				['print("bar baz Modified")', 'python', CellKind.Code, [], undefined]
+				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+				[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+				[['# New Markdown cell'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Foo BaZ")'], 'python', CellKind.Code, [], undefined],
+				[['print("bar baz Modified")'], 'python', CellKind.Code, [], undefined]
 			]
 		);
 
@@ -540,21 +543,21 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('Insert a md cell, delete a cell and modify the next 2 code cells', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-			['print("Foo Bar")', 'python', CellKind.Code, [], undefined],
-			['print("bar baz")', 'python', CellKind.Code, [], undefined],
-			['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Foo Bar")'], 'python', CellKind.Code, [], undefined],
+			[['print("bar baz")'], 'python', CellKind.Code, [], undefined],
+			[['print("Fox Trot")'], 'python', CellKind.Code, [], undefined]
 		]
 			, [
-				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-				['print("Hello world")', 'python', CellKind.Code, [], undefined],
-				['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-				['# New Markdown cell', 'markdown', CellKind.Markup, [], undefined],
-				// ['print("Foo BaZ")', 'python', CellKind.Code, [], undefined],
-				['print("bar baz Modified")', 'python', CellKind.Code, [], undefined],
-				['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
+				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+				[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+				[['# New Markdown cell'], 'markdown', CellKind.Markup, [], undefined],
+				// [['print("Foo BaZ")'], 'python', CellKind.Code, [], undefined],
+				[['print("bar baz Modified")'], 'python', CellKind.Code, [], undefined],
+				[['print("Fox Trot")'], 'python', CellKind.Code, [], undefined]
 			]
 		);
 
@@ -569,21 +572,21 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('Insert a md cell, delete a code cell and modify the next 2 code cells (deleted and inserted lineup)', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['import sys', 'python', CellKind.Code, [], undefined],
-			['print("Foo Bar")', 'python', CellKind.Code, [], undefined],
-			['print("bar baz")', 'python', CellKind.Code, [], undefined],
-			['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['import sys'], 'python', CellKind.Code, [], undefined],
+			[['print("Foo Bar")'], 'python', CellKind.Code, [], undefined],
+			[['print("bar baz")'], 'python', CellKind.Code, [], undefined],
+			[['print("Fox Trot")'], 'python', CellKind.Code, [], undefined]
 		]
 			, [
-				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-				['print("Hello world")', 'python', CellKind.Code, [], undefined],
-				['import sys', 'python', CellKind.Code, [], undefined],
-				['sys.executable', 'python', CellKind.Code, [], undefined],
-				// ['print("Foo BaZ")', 'python', CellKind.Code, [], undefined],
-				['print("bar baz Modified")', 'python', CellKind.Code, [], undefined],
-				['print("Fox Trot")', 'python', CellKind.Code, [], undefined]
+				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+				[['import sys'], 'python', CellKind.Code, [], undefined],
+				[['sys.executable'], 'python', CellKind.Code, [], undefined],
+				// [['print("Foo BaZ")'], 'python', CellKind.Code, [], undefined],
+				[['print("bar baz Modified")'], 'python', CellKind.Code, [], undefined],
+				[['print("Fox Trot")'], 'python', CellKind.Code, [], undefined]
 			]
 		);
 
@@ -599,26 +602,26 @@ suite('NotebookDiff Cell Matching', () => {
 
 	test('Insert a few md cells and modify the next few code cells', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
-			['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
-			['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+			[['# Another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+			[['# Yet another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
 		]
 			, [
-				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-				['print("Hello world")', 'python', CellKind.Code, [], undefined],
-				['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
-				['# New 1', 'markdown', CellKind.Markup, [], undefined],
-				['# New 2', 'markdown', CellKind.Markup, [], undefined],
-				['# Another MD cell (modified1)', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
-				['# Another MD cell (modified)', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
+				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+				[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+				[['# New 1'], 'markdown', CellKind.Markup, [], undefined],
+				[['# New 2'], 'markdown', CellKind.Markup, [], undefined],
+				[['# Another MD cell (modified1)'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+				[['# Another MD cell (modified)'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
 			]
 		);
 
@@ -637,26 +640,26 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('Insert & delete a few md cells and modify the next few code cells', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
-			['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
-			['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+			[['# Another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+			[['# Yet another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
 		]
 			, [
-				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-				['print("Hello world")', 'python', CellKind.Code, [], undefined],
-				['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
-				['# New 1', 'markdown', CellKind.Markup, [], undefined],
-				['# New 2', 'markdown', CellKind.Markup, [], undefined],
-				['# Another MD cell (modified1)', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
-				['# Another MD cell (modified)', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
+				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+				[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+				[['# New 1'], 'markdown', CellKind.Markup, [], undefined],
+				[['# New 2'], 'markdown', CellKind.Markup, [], undefined],
+				[['# Another MD cell (modified1)'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+				[['# Another MD cell (modified)'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
 			]
 		);
 
@@ -675,25 +678,25 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('Modify, then insert ', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
-			['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
-			['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+			[['# Another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+			[['# Yet another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
 		]
 			, [
-				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-				['print("Hello world")', 'python', CellKind.Code, [], undefined],
-				['# Foo BaZ', 'markdown', CellKind.Markup, [], undefined],
-				['# Header', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
-				['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
-				['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
-				['print("foo bar")', 'python', CellKind.Code, [], undefined],
+				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+				[['# Foo BaZ'], 'markdown', CellKind.Markup, [], undefined],
+				[['# Header'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+				[['# Another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+				[['# Yet another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
 			]
 		);
 
@@ -711,23 +714,23 @@ suite('NotebookDiff Cell Matching', () => {
 	});
 	test('Modify, then delete ', async () => {
 		const mapping = mapCells([
-			['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-			['print("Hello world")', 'python', CellKind.Code, [], undefined],
-			['# Foo Bar', 'markdown', CellKind.Markup, [], undefined],
-			['print("foo bar")', 'python', CellKind.Code, [], undefined],
-			['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
-			['import sys', 'python', CellKind.Code, [], undefined],
-			['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
-			['sys.executable', 'python', CellKind.Code, [], undefined],
+			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+			[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
+			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
+			[['# Another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+			[['import sys'], 'python', CellKind.Code, [], undefined],
+			[['# Yet another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+			[['sys.executable'], 'python', CellKind.Code, [], undefined],
 		]
 			, [
-				['# Hello World', 'markdown', CellKind.Markup, [], undefined],
-				['print("Hello world")', 'python', CellKind.Code, [], undefined],
-				['# Foo BaZ', 'markdown', CellKind.Markup, [], undefined],
-				['# Another MD cell', 'markdown', CellKind.Markup, [], undefined],
-				['import sys', 'python', CellKind.Code, [], undefined],
-				['# Yet another MD cell', 'markdown', CellKind.Markup, [], undefined],
-				['sys.executable', 'python', CellKind.Code, [], undefined],
+				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
+				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
+				[['# Foo BaZ'], 'markdown', CellKind.Markup, [], undefined],
+				[['# Another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+				[['import sys'], 'python', CellKind.Code, [], undefined],
+				[['# Yet another MD cell'], 'markdown', CellKind.Markup, [], undefined],
+				[['sys.executable'], 'python', CellKind.Code, [], undefined],
 			]
 		);
 
@@ -748,7 +751,7 @@ suite('NotebookDiff Cell Matching', () => {
 					"# This is a simple notebook\n",
 					"\n",
 					"There's nothing special here, I am just writing some text and plotting a function"
-				].join('\n'), 'markdown', CellKind.Markup, [], undefined],
+				], 'markdown', CellKind.Markup, [], undefined],
 			[
 				[
 					"import numpy as np\n",
@@ -756,29 +759,29 @@ suite('NotebookDiff Cell Matching', () => {
 					"import pandas as pd\n",
 					"\n",
 					"%matplotlib inline"
-				].join('\n'), 'python', CellKind.Code, [], undefined],
+				], 'python', CellKind.Code, [], undefined],
 			[
 				[
 					"x = np.linspace(0, 4*np.pi,50)\n",
 					"y = np.sin(x)\n",
 					"\n",
 					"plt.plot(x, y)"
-				].join('\n'), 'python', CellKind.Code, [], undefined],
+				], 'python', CellKind.Code, [], undefined],
 			[
 				[
 					"df = pd.DataFrame({f\"column_{c}\": np.random.normal(size=100) for c in range(100)})\n",
 					"df"
-				].join('\n'), 'python', CellKind.Code, [], undefined],
+				], 'python', CellKind.Code, [], undefined],
 			[
 				[
 					"You could actually do some neat stuff with it, pandas like changing the colors (values above 1 should be green)"
-				].join('\n'), 'python', CellKind.Markup, [], undefined],
+				], 'python', CellKind.Markup, [], undefined],
 			[
 				[
 					"df.style.applymap(lambda x: \"background-color: green\" if x>1 else \"background-color: white\")"
-				].join('\n'), 'python', CellKind.Code, [], undefined],
+				], 'python', CellKind.Code, [], undefined],
 			[
-				[].join('\n'), 'python', CellKind.Code, [], undefined],
+				[], 'python', CellKind.Code, [], undefined],
 		]
 			, [
 				[
@@ -786,7 +789,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"# This is a simple notebook\n",
 						"\n",
 						"There's nothing special here, I am just writing some text and plotting a function"
-					].join('\n'), 'markdown', CellKind.Markup, [], undefined],
+					], 'markdown', CellKind.Markup, [], undefined],
 				[
 					[
 						"import numpy as np\n",
@@ -794,29 +797,29 @@ suite('NotebookDiff Cell Matching', () => {
 						"import pandas as pd\n",
 						"\n",
 						"%matplotlib inline"
-					].join('\n'), 'python', CellKind.Code, [], undefined],
+					], 'python', CellKind.Code, [], undefined],
 				[
 					[
 						"x = np.linspace(0, 4*np.pi,50)\n",
 						"y = 2 * np.sin(x)\n",
 						"\n",
 						"plt.plot(x, y)"
-					].join('\n'), 'python', CellKind.Code, [], undefined],
+					], 'python', CellKind.Code, [], undefined],
 				[
 					[
 						"df = pd.DataFrame({f\"column_{c}\": np.random.normal(size=100) for c in range(100)})\n",
 						"df"
-					].join('\n'), 'python', CellKind.Code, [], undefined],
+					], 'python', CellKind.Code, [], undefined],
 				[
 					[
 						"You could actually do some neat stuff with it, pandas like changing the colors (values above 1 should be green)"
-					].join('\n'), 'python', CellKind.Markup, [], undefined],
+					], 'python', CellKind.Markup, [], undefined],
 				[
 					[
 						"df.style.applymap(lambda x: \"background-color: green\" if x>1 else \"background-color: white\")"
-					].join('\n'), 'python', CellKind.Code, [], undefined],
+					], 'python', CellKind.Code, [], undefined],
 				[
-					[].join('\n'), 'python', CellKind.Code, [], undefined],
+					[], 'python', CellKind.Code, [], undefined],
 			]
 		);
 
@@ -835,7 +838,7 @@ suite('NotebookDiff Cell Matching', () => {
 			[
 				[
 					"# Hello World"
-				].join('\n'), 'markdown', CellKind.Markup, [], undefined],
+				], 'markdown', CellKind.Markup, [], undefined],
 			[
 				[
 					"import os\n",
@@ -845,7 +848,7 @@ suite('NotebookDiff Cell Matching', () => {
 					"import pandas as pd\n",
 					"from clipper import clipper\n",
 					"import ffmpeg"
-				].join('\n'), 'python', CellKind.Code, [], undefined],
+				], 'python', CellKind.Code, [], undefined],
 			[
 				[
 					"data_dir = '../../../app/data/'\n",
@@ -857,7 +860,7 @@ suite('NotebookDiff Cell Matching', () => {
 					"\n",
 					"df = pd.read_csv(file_path)\n",
 					"df.head()"
-				].join('\n'), 'python', CellKind.Code, [], undefined],
+				], 'python', CellKind.Code, [], undefined],
 			[
 				[
 					"# convert the string representation of results to a list\n",
@@ -865,7 +868,7 @@ suite('NotebookDiff Cell Matching', () => {
 					"\n",
 					"# get most likely label from each list\n",
 					"df['label'] = df['list_categories'].apply(lambda x: x[0] if x else None)"
-				].join('\n'), 'python', CellKind.Code, [], undefined],
+				], 'python', CellKind.Code, [], undefined],
 			[
 				[
 					"# initialize the LabelEncoder\n",
@@ -875,13 +878,13 @@ suite('NotebookDiff Cell Matching', () => {
 					"numerical_data = label_encoder.fit_transform(df['label'])\n",
 					"\n",
 					"df['label_value'] = numerical_data"
-				].join('\n'), 'python', CellKind.Markup, [], undefined],
+				], 'python', CellKind.Markup, [], undefined],
 		]
 			, [
 				[
 					[
 						"# Updated markdown cell"
-					].join('\n'), 'markdown', CellKind.Markup, [], undefined],
+					], 'markdown', CellKind.Markup, [], undefined],
 				[
 					[
 						"from sklearn.preprocessing import LabelEncoder\n",
@@ -889,7 +892,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"import pandas as pd\n",
 						"from clipper import clipper\n",
 						"import ffmpeg"
-					].join('\n'), 'python', CellKind.Code, [], undefined],
+					], 'python', CellKind.Code, [], undefined],
 				[
 					[
 						"data_dir = '../../../app/data/'\n",
@@ -901,7 +904,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"\n",
 						"df = pd.read_csv(file_path)\n",
 						"df.head()"
-					].join('\n'), 'python', CellKind.Code, [], undefined],
+					], 'python', CellKind.Code, [], undefined],
 				[
 					[
 						"# convert the string representation of results to a list\n",
@@ -909,7 +912,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"\n",
 						"# get most likely label from each list\n",
 						"df['label'] = df['list_categories'].apply(lambda x: x[0] if x else None)"
-					].join('\n'), 'python', CellKind.Code, [], undefined],
+					], 'python', CellKind.Code, [], undefined],
 				[
 					[
 						"# initialize the LabelEncoder\n",
@@ -919,7 +922,7 @@ suite('NotebookDiff Cell Matching', () => {
 						"numerical_data = label_encoder.fit_transform(df['label'])\n",
 						"\n",
 						"df['label_value'] = numerical_data"
-					].join('\n'), 'python', CellKind.Markup, [], undefined],
+					], 'python', CellKind.Markup, [], undefined],
 			]
 		);
 
@@ -15155,15 +15158,16 @@ suite('NotebookDiff Cell Matching', () => {
 function mapCells(original: MockNotebookCell[], modified: MockNotebookCell[]) {
 	return matchCellBasedOnSimilarties(modified.map(cellToDto), original.map(cellToDto)).map(mapping => ({ modified: mapping.modified, original: mapping.original }));
 }
-function cellToDto(cell: MockNotebookCell): { getValue(): string; cellKind: CellKind } {
+function cellToDto(cell: MockNotebookCell): { getValue(): string; getLinesContent(): string[]; cellKind: CellKind } {
 	return {
 		cellKind: cell[2],
-		getValue: () => cell[0]
+		getValue: () => cell[0].join('\n'),
+		getLinesContent: () => cell[0]
 	};
 }
 
 type MockNotebookCell = [
-	source: string,
+	lines: string[],
 	lang: string,
 	kind: CellKind,
 	output?: IOutputDto[],
@@ -15172,7 +15176,7 @@ type MockNotebookCell = [
 
 function fromJupyterCell(cell: { cell_type: string; source: string[] }): MockNotebookCell {
 	return [
-		cell.source.join('\n'),
+		cell.source,
 		cell.cell_type === 'code' ? 'python' : 'markdown',
 		cell.cell_type === 'code' ? CellKind.Code : CellKind.Markup,
 	];
