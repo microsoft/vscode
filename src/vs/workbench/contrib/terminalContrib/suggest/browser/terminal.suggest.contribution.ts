@@ -32,6 +32,7 @@ import { SuggestDetailsClassName } from '../../../../services/suggest/browser/si
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -104,6 +105,10 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		if (processTraits?.windowsPty && (processTraits.windowsPty.backend !== 'conpty' || processTraits?.windowsPty.buildNumber <= 19045)) {
 			return;
 		}
+
+		const lspCompletionProviderAddon = this.add(this._instantiationService.createInstance(LspCompletionProviderAddon));
+		xterm.loadAddon(lspCompletionProviderAddon);
+		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('lsp', lspCompletionProviderAddon.id, lspCompletionProviderAddon));
 
 		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
