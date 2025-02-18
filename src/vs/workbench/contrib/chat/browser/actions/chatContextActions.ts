@@ -265,7 +265,7 @@ class AttachFileToChatAction extends AttachFileAction {
 			f1: false,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
 			menu: [{
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatTitleBarMenu,
 				group: 'b_chat_context',
 				order: 15,
 			}, {
@@ -301,7 +301,7 @@ class AttachSelectionToChatAction extends Action2 {
 			f1: false,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
 			menu: [{
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatTitleBarMenu,
 				group: 'b_chat_context',
 				order: 10,
 			}, {
@@ -366,7 +366,7 @@ class AttachFileToEditingSessionAction extends AttachFileAction {
 			f1: false,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
 			menu: [{
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatTitleBarMenu,
 				group: 'c_edits_context',
 				order: 15,
 			}, {
@@ -402,7 +402,7 @@ class AttachSelectionToEditingSessionAction extends Action2 {
 			f1: false,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
 			menu: {
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatTitleBarMenu,
 				group: 'c_edits_context',
 				order: 10,
 			}
