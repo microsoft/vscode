@@ -299,7 +299,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _chatEditsActionsDisposables = this._register(new DisposableStore());
 	private readonly _chatEditsDisposables = this._register(new DisposableStore());
-	private _chatEditsProgress: ProgressBar | undefined;
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
 	get selectedElements(): URI[] {
@@ -1198,13 +1197,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
 			this._combinedChatEditWorkingSetEntries = [];
-			this._chatEditsProgress?.dispose();
 			return;
-		}
-
-		const currentChatEditingState = chatEditingSession.state.get();
-		if (this._chatEditList && !chatWidget?.viewModel?.requestInProgress && (currentChatEditingState === ChatEditingSessionState.Idle || currentChatEditingState === ChatEditingSessionState.Initial)) {
-			this._chatEditsProgress?.stop();
 		}
 
 		// Summary of number of files changed
@@ -1306,11 +1299,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (!chatEditingSession) {
 			return;
-		}
-
-		if (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress) {
-			// this._chatEditsProgress ??= new ProgressBar(innerContainer);
-			this._chatEditsProgress?.infinite().show(500);
 		}
 
 		// Working set
