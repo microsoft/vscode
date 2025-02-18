@@ -559,6 +559,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.Snippets,
 			label: getSyncAreaLabel(SyncResource.Snippets)
 		}, {
+			// TODO: @legomushroom - must be shown only if the feature is enabled?
+			id: SyncResource.Prompts,
+			label: getSyncAreaLabel(SyncResource.Prompts)
+		}, {
 			id: SyncResource.Tasks,
 			label: getSyncAreaLabel(SyncResource.Tasks)
 		}, {
