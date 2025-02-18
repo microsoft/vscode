@@ -10,7 +10,7 @@ import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 
-let zshBuiltinsCommandDescriptionsCache: Map<string, { description: string; args: string | undefined }> | undefined;
+let zshBuiltinsCommandDescriptionsCache: Map<string, { shortDescription?: string; description: string; args: string | undefined }> | undefined;
 
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
@@ -80,5 +80,12 @@ export function getCommandDescription(command: string): { description: string; a
 			console.warn('zsh builtins cache not found');
 		}
 	}
-	return zshBuiltinsCommandDescriptionsCache?.get(command);
+	const result = zshBuiltinsCommandDescriptionsCache?.get(command);
+	if (result?.shortDescription) {
+		return {
+			description: result.shortDescription,
+			args: result.args,
+		};
+	}
+	return result;
 }
