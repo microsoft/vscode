@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { mockService } from './testUtils/mock.js';
 import { randomInt } from '../../../../../../base/common/numbers.js';
-import { PromptFilesConfig } from '../../../common/promptSyntax/config.js';
 import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
+import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -19,8 +19,8 @@ const createMock = <T>(value: T): IConfigurationService => {
 		getValue(key?: string | IConfigurationOverrides) {
 			assert.strictEqual(
 				key,
-				PromptFilesConfig.CONFIG_KEY,
-				`Mocked service supports only one configuration key: '${PromptFilesConfig.CONFIG_KEY}'.`,
+				PromptsConfig.CONFIG_KEY,
+				`Mocked service supports only one configuration key: '${PromptsConfig.CONFIG_KEY}'.`,
 			);
 
 			return value;
@@ -36,7 +36,7 @@ suite('PromptFilesConfig', () => {
 			const configService = createMock(undefined);
 
 			assert.strictEqual(
-				PromptFilesConfig.getValue(configService),
+				PromptsConfig.getValue(configService),
 				undefined,
 				'Must read correct value.',
 			);
@@ -46,7 +46,7 @@ suite('PromptFilesConfig', () => {
 			const configService = createMock(null);
 
 			assert.strictEqual(
-				PromptFilesConfig.getValue(configService),
+				PromptsConfig.getValue(configService),
 				undefined,
 				'Must read correct value.',
 			);
@@ -55,43 +55,43 @@ suite('PromptFilesConfig', () => {
 		suite('• string', () => {
 			test('• empty', () => {
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('')),
+					PromptsConfig.getValue(createMock('')),
 					undefined,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('  ')),
+					PromptsConfig.getValue(createMock('  ')),
 					undefined,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('\t')),
+					PromptsConfig.getValue(createMock('\t')),
 					undefined,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('\v')),
+					PromptsConfig.getValue(createMock('\v')),
 					undefined,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('\f')),
+					PromptsConfig.getValue(createMock('\f')),
 					undefined,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('\n')),
+					PromptsConfig.getValue(createMock('\n')),
 					undefined,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('\r\n')),
+					PromptsConfig.getValue(createMock('\r\n')),
 					undefined,
 					'Must read correct value.',
 				);
@@ -99,19 +99,19 @@ suite('PromptFilesConfig', () => {
 
 			test('• true', () => {
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('true')),
+					PromptsConfig.getValue(createMock('true')),
 					true,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('TRUE')),
+					PromptsConfig.getValue(createMock('TRUE')),
 					true,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('TrUe')),
+					PromptsConfig.getValue(createMock('TrUe')),
 					true,
 					'Must read correct value.',
 				);
@@ -119,19 +119,19 @@ suite('PromptFilesConfig', () => {
 
 			test('• false', () => {
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('false')),
+					PromptsConfig.getValue(createMock('false')),
 					false,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('FALSE')),
+					PromptsConfig.getValue(createMock('FALSE')),
 					false,
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('fAlSe')),
+					PromptsConfig.getValue(createMock('fAlSe')),
 					false,
 					'Must read correct value.',
 				);
@@ -139,49 +139,49 @@ suite('PromptFilesConfig', () => {
 
 			test('• non-empty', () => {
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('/absolute/path/to/folder')),
+					PromptsConfig.getValue(createMock('/absolute/path/to/folder')),
 					'/absolute/path/to/folder',
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('/Absolute/path/to/folder')),
+					PromptsConfig.getValue(createMock('/Absolute/path/to/folder')),
 					'/Absolute/path/to/folder',
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('./relative-path/to/folder')),
+					PromptsConfig.getValue(createMock('./relative-path/to/folder')),
 					'./relative-path/to/folder',
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('./relative-path/To/folder')),
+					PromptsConfig.getValue(createMock('./relative-path/To/folder')),
 					'./relative-path/To/folder',
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('.github/prompts')),
+					PromptsConfig.getValue(createMock('.github/prompts')),
 					'.github/prompts',
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('.github/Prompts')),
+					PromptsConfig.getValue(createMock('.github/Prompts')),
 					'.github/Prompts',
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('/abs/path/to/file.prompt.md')),
+					PromptsConfig.getValue(createMock('/abs/path/to/file.prompt.md')),
 					'/abs/path/to/file.prompt.md',
 					'Must read correct value.',
 				);
 
 				assert.strictEqual(
-					PromptFilesConfig.getValue(createMock('/Abs/Path/To/File.prompt.md')),
+					PromptsConfig.getValue(createMock('/Abs/Path/To/File.prompt.md')),
 					'/Abs/Path/To/File.prompt.md',
 					'Must read correct value.',
 				);
@@ -190,13 +190,13 @@ suite('PromptFilesConfig', () => {
 
 		test('• boolean', () => {
 			assert.strictEqual(
-				PromptFilesConfig.getValue(createMock(true)),
+				PromptsConfig.getValue(createMock(true)),
 				true,
 				'Must read correct value.',
 			);
 
 			assert.strictEqual(
-				PromptFilesConfig.getValue(createMock(false)),
+				PromptsConfig.getValue(createMock(false)),
 				false,
 				'Must read correct value.',
 			);
@@ -205,7 +205,7 @@ suite('PromptFilesConfig', () => {
 		suite('• array', () => {
 			test('• empty', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.getValue(createMock([])),
+					PromptsConfig.getValue(createMock([])),
 					[],
 					'Must read correct value.',
 				);
@@ -213,7 +213,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• valid strings', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.getValue(createMock([
+					PromptsConfig.getValue(createMock([
 						'/absolute/path/to/folder',
 						'./relative-path/to/folder',
 						'./another-Relative/Path/to/folder',
@@ -235,7 +235,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• filters out not valid string values', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.getValue(createMock([
+					PromptsConfig.getValue(createMock([
 						'/usr/local/bin/.hidden-tool',
 						'../config/.env.example',
 						[
@@ -279,7 +279,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• only invalid values', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.getValue(createMock([
+					PromptsConfig.getValue(createMock([
 						null,
 						undefined,
 						'',
@@ -306,7 +306,7 @@ suite('PromptFilesConfig', () => {
 		suite('• object', () => {
 			test('• empty', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.getValue(createMock({})),
+					PromptsConfig.getValue(createMock({})),
 					{},
 					'Must read correct value.',
 				);
@@ -314,7 +314,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• only valid strings', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.getValue(createMock({
+					PromptsConfig.getValue(createMock({
 						'/root/.bashrc': true,
 						'../../folder/.hidden-folder/config.xml': true,
 						'/srv/www/Public_html/.htaccess': true,
@@ -348,7 +348,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• filters out non valid entries', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.getValue(createMock({
+					PromptsConfig.getValue(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'../assets/img/logo.v2.png': true,
@@ -387,7 +387,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• only invalid or false values', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.getValue(createMock({
+					PromptsConfig.getValue(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'../assets/IMG/logo.v2.png': '',
@@ -413,7 +413,7 @@ suite('PromptFilesConfig', () => {
 			const configService = createMock(undefined);
 
 			assert.deepStrictEqual(
-				PromptFilesConfig.promptSourceFolders(configService),
+				PromptsConfig.promptSourceFolders(configService),
 				[],
 				'Must read correct value.',
 			);
@@ -423,7 +423,7 @@ suite('PromptFilesConfig', () => {
 			const configService = createMock(null);
 
 			assert.deepStrictEqual(
-				PromptFilesConfig.promptSourceFolders(configService),
+				PromptsConfig.promptSourceFolders(configService),
 				[],
 				'Must read correct value.',
 			);
@@ -432,43 +432,43 @@ suite('PromptFilesConfig', () => {
 		suite('• string', () => {
 			test('• empty', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('')),
+					PromptsConfig.promptSourceFolders(createMock('')),
 					[],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('  ')),
+					PromptsConfig.promptSourceFolders(createMock('  ')),
 					[],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('\t')),
+					PromptsConfig.promptSourceFolders(createMock('\t')),
 					[],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('\v')),
+					PromptsConfig.promptSourceFolders(createMock('\v')),
 					[],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('\f')),
+					PromptsConfig.promptSourceFolders(createMock('\f')),
 					[],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('\n')),
+					PromptsConfig.promptSourceFolders(createMock('\n')),
 					[],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('\r\n')),
+					PromptsConfig.promptSourceFolders(createMock('\r\n')),
 					[],
 					'Must read correct value.',
 				);
@@ -476,19 +476,19 @@ suite('PromptFilesConfig', () => {
 
 			test('• true', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('true')),
+					PromptsConfig.promptSourceFolders(createMock('true')),
 					['.github/prompts'],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('TRUE')),
+					PromptsConfig.promptSourceFolders(createMock('TRUE')),
 					['.github/prompts'],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('TrUe')),
+					PromptsConfig.promptSourceFolders(createMock('TrUe')),
 					['.github/prompts'],
 					'Must read correct value.',
 				);
@@ -496,19 +496,19 @@ suite('PromptFilesConfig', () => {
 
 			test('• false', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('false')),
+					PromptsConfig.promptSourceFolders(createMock('false')),
 					[],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('FALSE')),
+					PromptsConfig.promptSourceFolders(createMock('FALSE')),
 					[],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('fAlSe')),
+					PromptsConfig.promptSourceFolders(createMock('fAlSe')),
 					[],
 					'Must read correct value.',
 				);
@@ -516,49 +516,49 @@ suite('PromptFilesConfig', () => {
 
 			test('• non-empty', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('/absolute/path/to/folder')),
+					PromptsConfig.promptSourceFolders(createMock('/absolute/path/to/folder')),
 					['.github/prompts', '/absolute/path/to/folder'],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('/Absolute/path/to/folder')),
+					PromptsConfig.promptSourceFolders(createMock('/Absolute/path/to/folder')),
 					['.github/prompts', '/Absolute/path/to/folder'],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('./relative-path/to/folder')),
+					PromptsConfig.promptSourceFolders(createMock('./relative-path/to/folder')),
 					['.github/prompts', './relative-path/to/folder'],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('./relative-path/To/folder')),
+					PromptsConfig.promptSourceFolders(createMock('./relative-path/To/folder')),
 					['.github/prompts', './relative-path/To/folder'],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('.github/prompts')),
+					PromptsConfig.promptSourceFolders(createMock('.github/prompts')),
 					['.github/prompts'],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('.github/Prompts')),
+					PromptsConfig.promptSourceFolders(createMock('.github/Prompts')),
 					['.github/prompts', '.github/Prompts'],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('/abs/path/to/file.prompt.md')),
+					PromptsConfig.promptSourceFolders(createMock('/abs/path/to/file.prompt.md')),
 					['.github/prompts', '/abs/path/to/file.prompt.md'],
 					'Must read correct value.',
 				);
 
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock('/Abs/Path/To/File.prompt.md')),
+					PromptsConfig.promptSourceFolders(createMock('/Abs/Path/To/File.prompt.md')),
 					['.github/prompts', '/Abs/Path/To/File.prompt.md'],
 					'Must read correct value.',
 				);
@@ -567,13 +567,13 @@ suite('PromptFilesConfig', () => {
 
 		test('• boolean', () => {
 			assert.deepStrictEqual(
-				PromptFilesConfig.promptSourceFolders(createMock(true)),
+				PromptsConfig.promptSourceFolders(createMock(true)),
 				['.github/prompts'],
 				'Must read correct value.',
 			);
 
 			assert.deepStrictEqual(
-				PromptFilesConfig.promptSourceFolders(createMock(false)),
+				PromptsConfig.promptSourceFolders(createMock(false)),
 				[],
 				'Must read correct value.',
 			);
@@ -582,7 +582,7 @@ suite('PromptFilesConfig', () => {
 		suite('• array', () => {
 			test('• empty', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock([])),
+					PromptsConfig.promptSourceFolders(createMock([])),
 					['.github/prompts'],
 					'Must read correct value.',
 				);
@@ -590,7 +590,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• valid strings', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock([
+					PromptsConfig.promptSourceFolders(createMock([
 						'/absolute/path/to/folder',
 						'./relative-path/to/folder',
 						'./another-Relative/Path/to/folder',
@@ -614,7 +614,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• filters out not valid string values', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock([
+					PromptsConfig.promptSourceFolders(createMock([
 						'/usr/local/bin/.hidden-tool',
 						'../config/.env.example',
 						[
@@ -659,7 +659,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• only invalid values', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock([
+					PromptsConfig.promptSourceFolders(createMock([
 						null,
 						undefined,
 						'',
@@ -686,7 +686,7 @@ suite('PromptFilesConfig', () => {
 		suite('• object', () => {
 			test('• empty', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock({})),
+					PromptsConfig.promptSourceFolders(createMock({})),
 					['.github/prompts'],
 					'Must read correct value.',
 				);
@@ -694,7 +694,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• only valid strings', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock({
+					PromptsConfig.promptSourceFolders(createMock({
 						'/root/.bashrc': true,
 						'../../folder/.hidden-folder/config.xml': true,
 						'/srv/www/Public_html/.htaccess': true,
@@ -731,7 +731,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• filters out non valid entries', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock({
+					PromptsConfig.promptSourceFolders(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'../assets/img/logo.v2.png': true,
@@ -773,7 +773,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• only invalid or false values', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock({
+					PromptsConfig.promptSourceFolders(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'../assets/IMG/logo.v2.png': '',
@@ -794,7 +794,7 @@ suite('PromptFilesConfig', () => {
 
 			test('• filters out disabled default location', () => {
 				assert.deepStrictEqual(
-					PromptFilesConfig.promptSourceFolders(createMock({
+					PromptsConfig.promptSourceFolders(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'.github/prompts': false,

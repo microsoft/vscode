@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
-import { PROMPT_FILE_EXTENSION } from '../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -19,6 +18,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -504,17 +504,10 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	}
 
 	/**
-	 * Check if the provided URI points to a prompt snippet.
-	 */
-	public static isPromptSnippet(uri: URI): boolean {
-		return uri.path.endsWith(PROMPT_FILE_EXTENSION);
-	}
-
-	/**
 	 * Check if the current reference points to a prompt snippet file.
 	 */
 	public get isPromptSnippet(): boolean {
-		return BasePromptParser.isPromptSnippet(this.uri);
+		return isPromptFile(this.uri);
 	}
 
 	/**

@@ -17,11 +17,11 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ChatInstructionsAttachmentModel } from '../../chatAttachmentModel/chatInstructionsAttachment.js';
@@ -132,7 +132,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 			title += `\n-\n[${errorCaption}]: ${details}`;
 		}
 
-		const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
+		const fileWithoutExtension = getCleanPromptName(file);
 		label.setFile(URI.file(fileWithoutExtension), {
 			fileKind: FileKind.FILE,
 			hidePath: true,
