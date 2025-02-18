@@ -214,17 +214,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 						documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
 
 					return localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", label, docs);
-
-					// if (!item.isResolved || !this._isDetailsVisible()) {
-					// 	return label;
-					// }
-
-					// const docs = strings.format(
-					// 	'{0}{1}',
-					// 	detail || '',
-					// 	documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
-
-					// return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", label, docs);
 				},
 			}
 		}));
