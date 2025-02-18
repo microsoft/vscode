@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch2 } from '../../../../../base/common/arrays.js';
-import { ITask, Sequencer, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, ITask, Sequencer, SequencerByKey, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -19,12 +20,15 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { IOffsetEdit, ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -38,10 +42,9 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
-import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedFileEntry, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedFileEntry, IStreamingEdits, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement, IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
@@ -107,7 +110,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._assertNotDisposed();
 		return this._entriesObs;
 	}
-	private readonly _sequencer = new ThrottledSequencer(15, 1000);
 
 	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
 	get workingSet() {
@@ -164,11 +166,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._onDidDispose.event;
 	}
 
-	private _isToolsAgentSession = false;
-	get isToolsAgentSession(): boolean {
-		return this._isToolsAgentSession;
-	}
-
 	constructor(
 		readonly chatSessionId: string,
 		readonly isGlobalEditingSession: boolean,
@@ -183,6 +180,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IChatService private readonly _chatService: IChatService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -215,8 +214,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}));
 	}
 
-	public getEntry(uri: URI): IModifiedFileEntry | undefined {
+	private _getEntry(uri: URI): ChatEditingModifiedFileEntry | undefined {
 		return this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
+	}
+
+	public getEntry(uri: URI): IModifiedFileEntry | undefined {
+		return this._getEntry(uri);
 	}
 
 	public readEntry(uri: URI, reader: IReader | undefined): IModifiedFileEntry | undefined {
@@ -332,6 +335,60 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._pendingSnapshot ??= this._createSnapshot(undefined, undefined);
 	}
 
+	private _diffsBetweenStops = new Map<string, IObservable<IDocumentDiff | undefined>>();
+	public getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined) {
+		const key = `${uri}\0${requestId}\0${stopId}`;
+		const existing = this._diffsBetweenStops.get(key);
+		if (existing) {
+			return existing;
+		}
+
+		const history = this._linearHistory.get();
+		const snapshotIndex = history.findIndex(s => s.requestId === requestId);
+		if (snapshotIndex === -1) { return undefined; }
+		const stopIndex = history[snapshotIndex].stops.findIndex(s => s.stopId === stopId);
+		if (stopIndex === -1) { return undefined; }
+
+		const currentStop = history[snapshotIndex].stops[stopIndex];
+		const nextStop = stopIndex === history[snapshotIndex].stops.length - 1 ? history[snapshotIndex + 1]?.stops[0] : history[snapshotIndex].stops[stopIndex + 1];
+		if (!nextStop) { return undefined; }
+
+		const before = currentStop.entries.get(uri);
+		const after = nextStop.entries.get(uri);
+		if (!before || !after) { return undefined; }
+
+		// todo@connor4312: make this _actually_ observable to react to change to the
+		// whitespace setting changes and changes from {@link ensureEditInUndoStopMatches}
+		// May also want to move this onto the ChatEditingModifiedFileEntry.
+		const value = observableValue<IDocumentDiff | undefined>('getEntryDiffBetweenStops', undefined);
+		this._diffsBetweenStops.set(key, value);
+
+		const store = new DisposableStore();
+		(async () => {
+			const [refA, refB] = await Promise.all([
+				this._textModelService.createModelReference(before.snapshotUri),
+				this._textModelService.createModelReference(after.snapshotUri),
+			]);
+			store.add(refA);
+			store.add(refB);
+
+			const diff = await this._editorWorkerService.computeDiff(
+				refA.object.textEditorModel.uri,
+				refB.object.textEditorModel.uri,
+				{ ignoreTrimWhitespace: this._configurationService.getValue('diffEditor.ignoreTrimWhitespace') ?? true, computeMoves: false, maxComputationTimeMs: 3000 },
+				'advanced'
+			);
+			if (diff) {
+				value.set(diff, undefined);
+			}
+		})().finally(() => {
+			store.dispose();
+		});
+
+
+		return value;
+	}
+
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {
 		const snapshot = this._createSnapshot(requestId, undoStop);
 		for (const [uri, data] of this._workingSet) {
@@ -365,10 +422,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _createSnapshot(requestId: string | undefined, undoStop: string | undefined): IChatEditingSessionStop {
-		const workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
-		for (const [file, state] of this._workingSet) {
-			workingSet.set(file, state);
-		}
+		const workingSet = new ResourceMap<WorkingSetDisplayMetadata>(this._workingSet);
 		const entries = new ResourceMap<ISnapshotEntry>();
 		for (const entry of this._entriesObs.get()) {
 			entries.set(entry.modifiedURI, entry.createSnapshot(requestId, undoStop));
@@ -435,8 +489,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _restoreSnapshot({ workingSet, entries }: IChatEditingSessionStop): Promise<void> {
-		this._workingSet = new ResourceMap();
-		workingSet.forEach((state, uri) => this._workingSet.set(uri, state));
+		this._workingSet = new ResourceMap(workingSet);
 
 		// Reset all the files which are modified in this session state
 		// but which are not found in the snapshot
@@ -563,19 +616,17 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 	}
 
-	private stopPromise: Promise<void> | undefined;
+	private _stopPromise: Promise<void> | undefined;
 
 	async stop(clearState = false): Promise<void> {
-		if (!this.stopPromise) {
-			this.stopPromise = this._performStop();
-		}
-		await this.stopPromise;
+		this._stopPromise ??= this._performStop();
+		await this._stopPromise;
 		if (clearState) {
 			await this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId).clearState();
 		}
 	}
 
-	async _performStop(): Promise<void> {
+	private async _performStop(): Promise<void> {
 		// Close out all open files
 		const schemes = [ChatEditingModifiedFileEntry.scheme, ChatEditingTextModelContentProvider.scheme];
 		await Promise.allSettled(this._editorGroupsService.groups.flatMap(async (g) => {
@@ -605,39 +656,64 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._onDidDispose.dispose();
 	}
 
-	acceptStreamingEditsStart(): void {
-		if (this._state.get() === ChatEditingSessionState.Disposed) {
-			// we don't throw in this case because there could be a builder still connected to a disposed session
-			return;
-		}
+	private _streamingEditLocks = new SequencerByKey</* URI */ string>();
 
-		// ensure that the edits are processed sequentially
-		this._sequencer.queue(() => this._acceptStreamingEditsStart());
+	private get isDisposed() {
+		return this._state.get() === ChatEditingSessionState.Disposed;
 	}
 
-	acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
-		if (this._state.get() === ChatEditingSessionState.Disposed) {
-			// we don't throw in this case because there could be a builder still connected to a disposed session
-			return;
-		}
+	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits {
+		const completePromise = new DeferredPromise<void>();
+		const startPromise = new DeferredPromise<void>();
 
-		this._isToolsAgentSession = !!responseModel.agent?.isToolsAgent;
+		// Sequence all edits made this this resource in this streaming edits instance,
+		// and also sequence the resource overall in the rare (currently invalid?) case
+		// that edits are made in parallel to the same resource,
+		const sequencer = new ThrottledSequencer(15, 1000);
+		sequencer.queue(() => startPromise.p);
 
-		// ensure that the edits are processed sequentially
-		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, isLastEdits, responseModel));
-	}
-	acceptNotebookEdits(_resource: URI, _edits: ICellEditOperation[], _isLastEdits: boolean, _responseModel: IChatResponseModel): void {
-		//
-	}
+		this._streamingEditLocks.queue(resource.toString(), async () => {
+			if (!this.isDisposed) {
+				await this._acceptStreamingEditsStart(responseModel, inUndoStop, resource);
+			}
 
-	resolve(): void {
-		if (this._state.get() === ChatEditingSessionState.Disposed) {
-			// we don't throw in this case because there could be a builder still connected to a disposed session
-			return;
-		}
+			startPromise.complete();
+			return completePromise.p;
+		});
 
-		// ensure that the edits are processed sequentially
-		this._sequencer.queue(() => this._resolve());
+
+		let didComplete = false;
+
+		return {
+			pushText: edits => {
+				sequencer.queue(async () => {
+					if (!this.isDisposed) {
+						await this._acceptTextEdits(resource, edits, false, responseModel);
+					}
+				});
+			},
+			pushNotebook: _edits => {
+				sequencer.queue(async () => {
+					if (!this.isDisposed) {
+						// todo@DonJayamanne
+					}
+				});
+			},
+			complete: () => {
+				if (didComplete) {
+					return;
+				}
+
+				didComplete = true;
+				sequencer.queue(async () => {
+					if (!this.isDisposed) {
+						await this._acceptTextEdits(resource, [], true, responseModel);
+						await this._resolve(responseModel.requestId, inUndoStop, resource);
+						completePromise.complete();
+					}
+				});
+			},
+		};
 	}
 
 	private _trackUntitledWorkingSetEntry(resource: URI) {
@@ -756,48 +832,97 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._chatService.getSession(this.chatSessionId)?.setDisabledRequests(undoRequests);
 	}
 
-	private async _acceptStreamingEditsStart(): Promise<void> {
+	private async _acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStop: string | undefined, resource: URI) {
+		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
 		transaction((tx) => {
 			this._state.set(ChatEditingSessionState.StreamingEdits, tx);
-			for (const entry of this._entriesObs.get()) {
-				entry.acceptStreamingEditsStart(tx);
-			}
+			entry.acceptStreamingEditsStart(responseModel, tx);
+			this.ensureEditInUndoStopMatches(responseModel.requestId, undoStop, entry, false, tx);
 		});
 	}
 
+	/**
+	 * Ensures the state of the file in the given snapshot matches the current
+	 * state of the {@param entry}. This is used to handle concurrent file edits.
+	 *
+	 * Given the case of two different edits, we will place and undo stop right
+	 * before we `textEditGroup` in the underlying markdown stream, but at the
+	 * time those are added the edits haven't been made yet, so both files will
+	 * simply have the unmodified state.
+	 *
+	 * This method is called after each edit, so after the first file finishes
+	 * being edits, it will update its content in the second undo snapshot such
+	 * that it can be undone successfully.
+	 *
+	 * We ensure that the same file is not concurrently edited via the
+	 * {@link _streamingEditLocks}, avoiding race conditions.
+	 *
+	 * @param next If true, this will edit the snapshot _after_ the undo stop
+	 */
+	private ensureEditInUndoStopMatches(requestId: string, undoStop: string | undefined, entry: ChatEditingModifiedFileEntry, next: boolean, tx: ITransaction) {
+		const history = this._linearHistory.get();
+		const snapIndex = history.findIndex(s => s.requestId === requestId);
+		if (snapIndex === -1) {
+			return;
+		}
+
+		const snap = history[snapIndex];
+		let stopIndex = snap.stops.findIndex(s => s.stopId === undoStop);
+		if (stopIndex === -1 || (next && stopIndex === snap.stops.length - 1)) {
+			return;
+		}
+		if (next) {
+			stopIndex++;
+		}
+
+		const stop = snap.stops[stopIndex];
+		if (entry.equalsSnapshot(stop.entries.get(entry.modifiedURI))) {
+			return;
+		}
+
+		const newMap = new ResourceMap(stop.entries);
+		newMap.set(entry.modifiedURI, entry.createSnapshot(requestId, stop.stopId));
+
+		const newStop = snap.stops.slice();
+		newStop[stopIndex] = { ...stop, entries: newMap };
+
+		const newHistory = history.slice();
+		newHistory[snapIndex] = { ...snap, stops: newStop };
+		this._linearHistory.set(newHistory, tx);
+	}
+
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
+		entry.acceptAgentEdits(textEdits, isLastEdits, responseModel);
+	}
+
+	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {
 		// Make these getters because the response result is not available when the file first starts to be edited
-		const telemetryInfo = new class {
+		return new class {
 			get agentId() { return responseModel.agent?.id; }
 			get command() { return responseModel.slashCommand?.name; }
 			get sessionId() { return responseModel.session.sessionId; }
 			get requestId() { return responseModel.requestId; }
 			get result() { return responseModel.result; }
 		};
-		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
-		entry.acceptAgentEdits(textEdits, isLastEdits, responseModel);
 	}
 
-	private async _resolve(): Promise<void> {
+	private async _resolve(requestId: string, undoStop: string | undefined, resource: URI): Promise<void> {
 		await asyncTransaction(async (tx) => {
-
-			const entriesWithoutChange = new ResourceMap<ChatEditingModifiedFileEntry>();
-
-			for (const entry of this._entriesObs.get()) {
-				await entry.acceptStreamingEditsEnd(tx);
-				if (entry.diffInfo.get().identical) {
-					entriesWithoutChange.set(entry.modifiedURI, entry);
-				}
+			const hasOtherTasks = Iterable.some(this._streamingEditLocks.keys(), k => k !== resource.toString());
+			if (!hasOtherTasks) {
+				this._state.set(ChatEditingSessionState.Idle, tx);
 			}
 
-			if (entriesWithoutChange.size > 0) {
-				const newEntries = this._entriesObs.get().filter(e => !entriesWithoutChange.has(e.modifiedURI));
-				this._entriesObs.set(newEntries, tx);
-
-				dispose(entriesWithoutChange.values());
+			const entry = this._getEntry(resource);
+			if (!entry) {
+				return;
 			}
-			this._state.set(ChatEditingSessionState.Idle, tx);
+
+			this.ensureEditInUndoStopMatches(requestId, undoStop, entry, /* next= */ true, tx);
+			return entry.acceptStreamingEditsEnd(tx);
 		});
+
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
@@ -1105,8 +1230,8 @@ export interface IChatEditingSessionSnapshot {
 interface IChatEditingSessionStop {
 	/** Edit stop ID, first for a request is always undefined. */
 	stopId: string | undefined;
+
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
-	/** todo@connor4312: for stops that don't modify (all) files, we can probably skip creating new snapshot entries */
 	readonly entries: ResourceMap<ISnapshotEntry>;
 }
 

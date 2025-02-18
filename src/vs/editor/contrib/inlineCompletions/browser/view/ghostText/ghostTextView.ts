@@ -28,7 +28,7 @@ import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayou
 import { InlineDecorationType } from '../../../../../common/viewModel.js';
 import { GhostText, GhostTextReplacement } from '../../model/ghostText.js';
 import { ColumnRange } from '../../utils.js';
-import { n } from '../inlineEdits/utils.js';
+import { n } from '../../../../../../base/browser/dom.js';
 import './ghostTextView.css';
 
 export interface IGhostTextWidgetModel {

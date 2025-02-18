@@ -22,6 +22,8 @@ import { IOutlineModelService } from '../../../../../editor/contrib/documentSymb
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -41,7 +43,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, SelectAndInsertFileAction, SelectAndInsertSymAction } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, getTopLevelDirectories, searchDirectories, SelectAndInsertDirectoryAction, SelectAndInsertFileAction, SelectAndInsertSymAction } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -447,7 +449,7 @@ interface IVariableCompletionsDetails {
 
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
-	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:]*`, 'g'); // MUST be using `g`-flag
 
 	private readonly queryBuilder: QueryBuilder;
 
@@ -462,6 +464,8 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutlineModelService private readonly outlineService: IOutlineModelService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -488,6 +492,36 @@ class BuiltinDynamicCompletions extends Disposable {
 			if (range2) {
 				await this.addFileEntries(widget, result, range2, token);
 			}
+
+			return result;
+		});
+
+		// Directory completions
+		this.registerVariableCompletions('directory', async ({ widget, range, position, model }, token) => {
+			if (!widget.supportsFileReferences) {
+				return null;
+			}
+
+			const result: CompletionList = { suggestions: [] };
+
+			const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#directory:'.length);
+			result.suggestions.push({
+				label: `${chatVariableLeader}directory`,
+				insertText: `${chatVariableLeader}directory:`,
+				documentation: localize('pickDirectoryLabel', "Pick a directory"),
+				range,
+				kind: CompletionItemKind.Text,
+				command: { id: SelectAndInsertDirectoryAction.ID, title: SelectAndInsertDirectoryAction.ID, arguments: [{ widget, range: afterRange }] },
+				sortText: 'z'
+			});
+
+			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
+			if (range2) {
+				await this.addDirectoryEntries(widget, result, range2, token);
+			} else {
+				console.log('no range');
+			}
+
 
 			return result;
 		});
@@ -673,25 +707,13 @@ class BuiltinDynamicCompletions extends Disposable {
 		// use file search when having a pattern
 		if (pattern) {
 
-			if (this.cacheKey && Date.now() - this.cacheKey.time > 60000) {
-				this.searchService.clearCache(this.cacheKey.key);
-				this.cacheKey = undefined;
-			}
-
-			if (!this.cacheKey) {
-				this.cacheKey = {
-					key: generateUuid(),
-					time: Date.now()
-				};
-			}
-
-			this.cacheKey.time = Date.now();
+			const cacheKey = this.updateCacheKey();
 
 			const query = this.queryBuilder.file(this.workspaceContextService.getWorkspace().folders, {
 				filePattern: pattern,
 				sortByScore: true,
 				maxResults: 250,
-				cacheKey: this.cacheKey.key
+				cacheKey: cacheKey.key
 			});
 
 			const data = await this.searchService.fileSearch(query, token);
@@ -701,6 +723,74 @@ class BuiltinDynamicCompletions extends Disposable {
 					continue;
 				}
 				result.suggestions.push(makeFileCompletionItem(match.resource));
+			}
+		}
+
+		// mark results as incomplete because further typing might yield
+		// in more search results
+		result.incomplete = true;
+	}
+
+	private async addDirectoryEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+
+		const directoryLeader = `${chatVariableLeader}directory:`;
+
+		const makeDirectoryCompletionItem = (resource: URI, description?: string): CompletionItem => {
+
+			const basename = this.labelService.getUriBasenameLabel(resource);
+			const text = `${directoryLeader}${basename}`;
+			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
+			const labelDescription = description
+				? localize('directoryEntryDescription', '{0} ({1})', uriLabel, description)
+				: uriLabel;
+			const sortText = description ? 'z' : '{'; // after `z`
+
+			return {
+				label: { label: basename, description: labelDescription },
+				filterText: `${directoryLeader}${basename}`,
+				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
+				range: info,
+				kind: CompletionItemKind.Folder,
+				sortText,
+				command: {
+					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
+						id: 'vscode.directory',
+						prefix: 'directory',
+						isFile: false,
+						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
+						data: resource
+					})]
+				}
+			};
+		};
+
+		const seen = new ResourceSet();
+		const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
+
+		let pattern: string | undefined;
+		if (info.varWord?.word && info.varWord.word.startsWith(directoryLeader)) {
+			pattern = info.varWord.word.toLowerCase().slice(directoryLeader.length);
+
+			for (const directory of await getTopLevelDirectories(workspaces, this.fileService)) {
+				result.suggestions.push(makeDirectoryCompletionItem(directory));
+				seen.add(directory);
+			}
+		}
+
+		// SEARCH
+		// use directory search when having a pattern
+		if (pattern) {
+
+			const cacheKey = this.updateCacheKey();
+
+			const folders = await Promise.all(workspaces.map(workspace => searchDirectories(workspace, pattern, token, cacheKey.key, this.configurationService, this.searchService)));
+			for (const resource of folders.flat()) {
+				if (seen.has(resource)) {
+					// already included via history
+					continue;
+				}
+				seen.add(resource);
+				result.suggestions.push(makeDirectoryCompletionItem(resource));
 			}
 		}
 
@@ -771,6 +861,24 @@ class BuiltinDynamicCompletions extends Disposable {
 		}
 
 		result.incomplete = !!pattern;
+	}
+
+	private updateCacheKey() {
+		if (this.cacheKey && Date.now() - this.cacheKey.time > 60000) {
+			this.searchService.clearCache(this.cacheKey.key);
+			this.cacheKey = undefined;
+		}
+
+		if (!this.cacheKey) {
+			this.cacheKey = {
+				key: generateUuid(),
+				time: Date.now()
+			};
+		}
+
+		this.cacheKey.time = Date.now();
+
+		return this.cacheKey;
 	}
 
 	private cmdAddReference(arg: ReferenceArgument) {

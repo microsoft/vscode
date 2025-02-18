@@ -333,7 +333,7 @@ class QuickDiffWidget extends PeekViewWidget {
 		this._actionbarWidget.clear();
 		this._actionbarWidget.push(actions.reverse(), { label: false, icon: true });
 		this._actionbarWidget.push([next, previous], { label: false, icon: true });
-		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose()), { label: false, icon: true });
+		this._actionbarWidget.push(this._disposables.add(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose())), { label: false, icon: true });
 	}
 
 	protected override _fillHead(container: HTMLElement): void {

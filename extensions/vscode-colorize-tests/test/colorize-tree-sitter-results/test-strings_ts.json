@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string punctuation.definition.template-expression.end",
+		"t": "string punctuation.definition.template-expression.end punctuation",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -407,7 +407,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string punctuation.definition.template-expression.end",
+		"t": "string punctuation.definition.template-expression.end punctuation",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -491,7 +491,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string punctuation.definition.template-expression.end",
+		"t": "string punctuation.definition.template-expression.end punctuation",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",

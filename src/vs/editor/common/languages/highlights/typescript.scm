@@ -122,6 +122,11 @@
 ; Tokens
 
 [
+  "{"
+  "}"
+] @punctuation
+
+[
   ";"
   "?."
   "."
@@ -312,11 +317,17 @@
 ; Language constants
 
 [
-  (true)
-  (false)
   (null)
   (undefined)
 ] @constant.language
+
+[
+  (true)
+] @constant.language.boolean.true
+
+[
+  (false)
+] @constant.language.boolean.false
 
 (namespace_import
   "*" @constant.language)

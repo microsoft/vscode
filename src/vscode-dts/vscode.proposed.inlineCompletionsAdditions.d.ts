@@ -34,6 +34,8 @@ declare module 'vscode' {
 
 		/** If set to `true`, this item is rendered as inline edit. */
 		isInlineEdit?: boolean;
+
+		action?: Command;
 	}
 
 	export interface InlineCompletionWarning {

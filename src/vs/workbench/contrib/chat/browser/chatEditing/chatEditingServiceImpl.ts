@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
-import { AsyncIterableSource } from '../../../../../base/common/async.js';
+import { findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
+import { ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { derived, IObservable, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType, isString } from '../../../../../base/common/types.js';
@@ -34,8 +35,8 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { IChatNotebookEditGroup, IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -215,7 +216,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	private installAutoApplyObserver(session: ChatEditingSession): IDisposable {
-
 		const chatModel = this._chatService.getOrRestoreSession(session.chatSessionId);
 		if (!chatModel) {
 			throw new ErrorNoTelemetry(`Edit session was created for a non-existing chat session: ${session.chatSessionId}`);
@@ -223,150 +223,136 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const observerDisposables = new DisposableStore();
 
-		let editsSource: AsyncIterableSource<IChatTextEditGroup | IChatNotebookEditGroup> | undefined;
-		let editsPromise: Promise<void> | undefined;
-		const editsSeen = new ResourceMap<{ seen: number }>();
-		const editedFilesExist = new ResourceMap<Promise<void>>();
-
-		const onResponseComplete = (responseModel: IChatResponseModel) => {
-			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
-				// Roll back everything
-				session.restoreSnapshot(responseModel.requestId, undefined);
-			}
-
-			editsSource?.resolve();
-			editsSource = undefined;
-			editsSeen.clear();
-			editedFilesExist.clear();
-		};
-
-
-		const handleResponseParts = async (responseModel: IChatResponseModel) => {
-
-			if (responseModel.isCanceled) {
-				return;
-			}
-
-			for (const part of responseModel.response.value) {
-				if (part.kind !== 'codeblockUri' && part.kind !== 'textEditGroup' && part.kind !== 'notebookEditGroup') {
-					continue;
-				}
-				// ensure editor is open asap
-				const uri = CellUri.parse(part.uri)?.notebook ?? part.uri;
-				if (!editedFilesExist.get(uri)) {
-					editedFilesExist.set(uri, this._fileService.exists(uri).then((e) => {
-						if (!e) {
-							return;
-						}
-						const activeUri = this._editorService.activeEditorPane?.input.resource;
-						const inactive = activeUri && session.workingSet.has(activeUri);
-						this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
-					}));
-				}
-
-				// get new edits and start editing session
-				const first = editsSeen.size === 0;
-				let entry = editsSeen.get(part.uri);
-				if (!entry) {
-					entry = { seen: 0 };
-					editsSeen.set(part.uri, entry);
-				}
-
-				const allEdits = part.kind !== 'codeblockUri' ? part.edits : [];
-				const newEdits = allEdits.slice(entry.seen);
-				entry.seen += newEdits.length;
-
-				if (newEdits.length > 0 || entry.seen === 0) {
-					// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
-					editsSource ??= new AsyncIterableSource();
-					if (part.kind === 'notebookEditGroup') {
-						editsSource.emitOne({ uri: part.uri, edits: newEdits as ICellEditOperation[][], kind: part.kind, done: part.done });
-					} else if (part.kind === 'textEditGroup') {
-						editsSource.emitOne({ uri: part.uri, edits: newEdits as TextEdit[][], kind: part.kind, done: part.done });
-					}
-				}
-
-				if (first) {
-
-					await editsPromise;
-
-					editsPromise = this._continueEditingSession(session, async (builder) => {
-						for await (const item of editsSource!.asyncIterable) {
-							if (responseModel.isCanceled) {
-								break;
-							}
-							if (item.edits.length === 0) {
-								// EMPTY edit, just signal via empty edits that work is starting
-								builder.textEdits(item.uri, [], item.done ?? false, responseModel);
-								continue;
-							}
-							for (let i = 0; i < item.edits.length; i++) {
-								const isLastGroup = i === item.edits.length - 1;
-								if (item.kind === 'notebookEditGroup') {
-									const group = item.edits[i];
-									builder.notebookEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
-								} else {
-									const group = item.edits[i];
-									builder.textEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
-								}
-							}
-						}
-					}).finally(() => {
-						editsPromise = undefined;
-					});
-				}
-			}
-		};
-
 		observerDisposables.add(chatModel.onDidChange(async e => {
 			if (e.kind !== 'addRequest') {
 				return;
 			}
 			session.createSnapshot(e.request.id, undefined);
 			const responseModel = e.request.response;
-			if (!responseModel) {
-				return;
-			}
-			if (responseModel.isComplete) {
-				await handleResponseParts(responseModel);
-				onResponseComplete(responseModel);
-			} else {
-				const disposable = observerDisposables.add(responseModel.onDidChange(e2 => {
-					if (e2.reason === 'undoStop') {
-						session.createSnapshot(e.request.id, e2.id);
-					} else {
-						handleResponseParts(responseModel).then(() => {
-							if (responseModel.isComplete) {
-								onResponseComplete(responseModel);
-								observerDisposables.delete(disposable);
-							}
-						});
-					}
-				}));
+			if (responseModel) {
+				this.observerEditsInResponse(e.request.id, responseModel, session, observerDisposables);
 			}
 		}));
 		observerDisposables.add(chatModel.onDidDispose(() => observerDisposables.dispose()));
 		return observerDisposables;
 	}
 
-	private async _continueEditingSession(session: ChatEditingSession, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
-		if (session.state.get() === ChatEditingSessionState.StreamingEdits) {
-			throw new BugIndicatingError('Cannot continue session that is still streaming');
-		}
+	private observerEditsInResponse(requestId: string, responseModel: IChatResponseModel, session: ChatEditingSession, observerDisposables: DisposableStore) {
+		// Sparse array: the indicies are indexes of `responseModel.response.value`
+		// that are edit groups, and then this tracks the edit application for
+		// each of them. Note that text edit groups can be updated
+		// multiple times during the process of response streaming.
+		const editsSeen: ({ seen: number; streaming: IStreamingEdits } | undefined)[] = [];
+		// Same deal as above, but for code block URIs. Code block URIs preceed a
+		// text edit group, and are used to allow us to start an editing state
+		// prior to the code actually streaming in. When a new edit block it seen,
+		// it'll look back and 'claim' the last unclaimed matchin codeblock URI.
+		const codeBlockUrisSeen: ({ uri: URI; streaming?: IStreamingEdits } | undefined)[] = [];
 
-		const stream: IChatEditingSessionStream = {
-			textEdits: (resource: URI, textEdits: TextEdit[], isDone: boolean, responseModel: IChatResponseModel) => {
-				session.acceptTextEdits(resource, textEdits, isDone, responseModel);
-			},
-			notebookEdits(resource: URI, edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel) {
-				session.acceptNotebookEdits(resource, edits, isLastEdits, responseModel);
-			},
+		const editedFilesExist = new ResourceMap<Promise<void>>();
+		const ensureEditorOpen = (partUri: URI) => {
+			const uri = CellUri.parse(partUri)?.notebook ?? partUri;
+			if (editedFilesExist.has(uri)) {
+				return;
+			}
+
+			editedFilesExist.set(uri, this._fileService.exists(uri).then((e) => {
+				if (!e) {
+					return;
+				}
+				const activeUri = this._editorService.activeEditorPane?.input.resource;
+				const inactive = activeUri && session.workingSet.has(activeUri);
+				this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
+			}));
 		};
-		session.acceptStreamingEditsStart();
-		try {
-			await builder(stream);
-		} finally {
-			session.resolve();
+
+		const onResponseComplete = () => {
+			for (const remaining of editsSeen) {
+				remaining?.streaming.complete();
+			}
+			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
+				// Roll back everything
+				session.restoreSnapshot(responseModel.requestId, undefined);
+			}
+
+			editsSeen.length = 0;
+			editedFilesExist.clear();
+		};
+
+		const handleResponseParts = async () => {
+			if (responseModel.isCanceled) {
+				return;
+			}
+
+			let undoStop: undefined | string;
+			for (let i = 0; i < responseModel.response.value.length; i++) {
+				const part = responseModel.response.value[i];
+
+				if (part.kind === 'undoStop') {
+					undoStop = part.id;
+					continue;
+				}
+
+				if (part.kind === 'codeblockUri') {
+					ensureEditorOpen(part.uri);
+					codeBlockUrisSeen[i] ??= { uri: part.uri, streaming: session.startStreamingEdits(part.uri, responseModel, undoStop) };
+					continue;
+				}
+
+				if (part.kind !== 'textEditGroup' && part.kind !== 'notebookEditGroup') {
+					continue;
+				}
+
+
+				// get new edits and start editing session
+				let entry = editsSeen[i];
+				if (!entry) {
+					const codeBlockIndex = findLastIdx(codeBlockUrisSeen, e => e?.streaming && isEqual(e.uri, part.uri), i - 1);
+					if (codeBlockIndex) {
+						entry = { seen: 0, streaming: codeBlockUrisSeen[codeBlockIndex]!.streaming! };
+						codeBlockUrisSeen[codeBlockIndex]!.streaming = undefined;
+					} else {
+						entry = { seen: 0, streaming: session.startStreamingEdits(part.uri, responseModel, undoStop) };
+					}
+
+					editsSeen[i] = entry;
+				}
+
+				const isFirst = entry.seen === 0;
+				const newEdits = part.edits.slice(entry.seen).flat();
+				entry.seen = part.edits.length;
+
+				if (newEdits.length > 0 || isFirst) {
+					if (part.kind === 'notebookEditGroup') {
+						entry.streaming.pushNotebook(newEdits as ICellEditOperation[]);
+					} else if (part.kind === 'textEditGroup') {
+						entry.streaming.pushText(newEdits as TextEdit[]);
+					}
+				}
+
+				if (part.done) {
+					entry.streaming.complete();
+				}
+			}
+		};
+
+		if (responseModel.isComplete) {
+			handleResponseParts().then(() => {
+				onResponseComplete();
+			});
+		} else {
+			const disposable = observerDisposables.add(responseModel.onDidChange(e2 => {
+				if (e2.reason === 'undoStop') {
+					session.createSnapshot(requestId, e2.id);
+				} else {
+					handleResponseParts().then(() => {
+						if (responseModel.isComplete) {
+							onResponseComplete();
+							observerDisposables.delete(disposable);
+						}
+					});
+				}
+			}));
 		}
 	}
 

@@ -52,9 +52,9 @@ export abstract class EditingSessionAction extends Action2 {
 		const context: IEditingSessionActionContext | undefined = args[0];
 
 		const chatEditingService = accessor.get(IChatEditingService);
-		const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		const chatWidget = context?.widget ?? accessor.get(IChatWidgetService).getWidgetsByLocations(ChatAgentLocation.EditingSession).at(0);
 
-		if (chatWidget?.location !== ChatAgentLocation.EditingSession || !chatWidget.viewModel) {
+		if (!chatWidget?.viewModel) {
 			return;
 		}
 

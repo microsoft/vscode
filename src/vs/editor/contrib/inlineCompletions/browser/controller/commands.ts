@@ -17,7 +17,7 @@ import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, togglePressToRevealId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
 
@@ -288,6 +288,24 @@ export class HideInlineCompletion extends EditorAction {
 			controller?.model.get()?.stop('explicitCancel', tx);
 		});
 		controller?.editor.focus();
+	}
+}
+
+export class ToggleInlineCompletionPressToReveal extends EditorAction {
+	public static ID = togglePressToRevealId;
+
+	constructor() {
+		super({
+			id: ToggleInlineCompletionPressToReveal.ID,
+			label: nls.localize2('action.inlineSuggest.togglePressToShow', "Toggle Inline Suggestions Press To Show"),
+			precondition: ContextKeyExpr.true(),
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const pressToReveal = configurationService.getValue<boolean>('editor.inlineSuggest.edits.pressToReveal');
+		configurationService.updateValue('editor.inlineSuggest.edits.pressToReveal', !pressToReveal);
 	}
 }
 

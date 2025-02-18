@@ -37,6 +37,7 @@ export interface ITreeSitterParserService {
 	readonly _serviceBrand: undefined;
 	onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
 	getOrInitLanguage(languageId: string): Parser.Language | undefined;
+	getLanguage(languageId: string): Promise<Parser.Language | undefined>;
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined;
 	getTree(content: string, languageId: string): Promise<Parser.Tree | undefined>;
 	getTreeSync(content: string, languageId: string): Parser.Tree | undefined;
