@@ -2954,11 +2954,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (task) {
 			this._restart(task);
 		} else {
-			this._reRunTaskCommand();
+			this._reRunTaskCommand(true);
 		}
 	}
 
-	private _reRunTaskCommand(): void {
+	private _reRunTaskCommand(onlyRerun?: boolean): void {
 
 		ProblemMatcherRegistry.onReady().then(() => {
 			return this._editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
@@ -2966,7 +2966,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);
 				} else {
-					if (!this._taskRunningState.get()) {
+					if (!onlyRerun && !this._taskRunningState.get()) {
 						// No task running, prompt to ask which to run
 						this._doRunTaskCommand();
 					}
