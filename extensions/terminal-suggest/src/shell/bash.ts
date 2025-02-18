@@ -43,8 +43,8 @@ export async function getBuiltins(
 				const helpLines = helpOutput?.split('\n');
 				completions.push({
 					label: cmd,
-					documentation: helpLines?.[1]?.split(' ').slice(2).join(' ').trim(),
-					detail: helpLines?.[0]?.split(' ').slice(2).join(' ').trim(),
+					detail: helpLines?.[1]?.split(' ').slice(2).join(' ').trim(),
+					documentation: helpLines?.[0]?.split(' ').slice(1).join(' ').trim(),
 					kind: vscode.TerminalCompletionItemKind.Method
 				});
 

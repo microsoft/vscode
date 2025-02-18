@@ -38,7 +38,10 @@ async function createCommandDescriptionsCache(): Promise<void> {
 
 				// Store the previous command, args, and its description
 				if (command && description.length) {
-					cachedCommandDescriptions.set(command, { description: description.join(' ').trim(), args });
+					cachedCommandDescriptions.set(command, {
+						description: description.join(' ').trim(),
+						args: `${command} ${args}`
+					});
 				}
 
 				// Capture the new command name
