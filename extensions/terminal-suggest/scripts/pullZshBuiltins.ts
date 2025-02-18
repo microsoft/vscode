@@ -105,6 +105,7 @@ let zshBuiltinsCommandDescriptionsCache = new Map<string, { description: string;
 async function createCommandDescriptionsCache(): Promise<void> {
 	const cachedCommandDescriptions: Map<string, { shortDescription?: string; description: string; args: string | undefined }> = new Map();
 	let output = '';
+
 	try {
 		output = await execAsync('man zshbuiltins').then(r => r.stdout);
 	} catch {
@@ -115,9 +116,10 @@ async function createCommandDescriptionsCache(): Promise<void> {
 		output = output.replace(/.\x08/g, '');
 		const lines = output.split('\n');
 
-		let command: string | undefined;
-		let desc: string[] = [];
-		let argsRaw: string | undefined;
+		let currentCommand: string | undefined;
+		let currentDescription: string[] = [];
+		let currentArgs: string | undefined;
+		let commandSectionStarted = false; // Flag to ensure we ignore unrelated lines at the start
 
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
@@ -125,12 +127,11 @@ async function createCommandDescriptionsCache(): Promise<void> {
 			// Detect command names (lines starting with exactly 7 spaces)
 			const cmdMatch = line.match(/^\s{7}(\S+)(?:\s+(.*))?/);
 			if (cmdMatch?.length && cmdMatch.length > 1) {
-				command = cmdMatch[1];
-				argsRaw = cmdMatch[2];
+				commandSectionStarted = true; // Now we know we're in the right section
 
-				// Store the previous command, args, and its description
-				if (command && desc.length) {
-					const shortDescription = shortDescriptions.get(command);
+				// Store the previous command before moving on to the new one
+				if (currentCommand && currentDescription.join(' ').trim().length) {
+					const shortDescription = shortDescriptions.get(currentCommand);
 					const description = desc.join(' ').trim();
 					const args = `${command} ${argsRaw}`;
 					if (shortDescription) {
@@ -147,25 +148,29 @@ async function createCommandDescriptionsCache(): Promise<void> {
 					}
 				}
 
-				// Capture the new command name
-				command = cmdMatch[1];
-				desc = [];
-				// Move to the next line to check for description
-				continue;
+				// Start a new command entry
+				currentCommand = cmdMatch[1];
+				currentArgs = cmdMatch[2];
+				currentDescription = []; // Reset description for the new command
 			}
-
-			// Capture description lines (14 spaces indentation)
-			if (command && line.match(/^\s{14}/)) {
-				desc.push(line.trim());
+			// Capture description lines (14 spaces indentation) only if we have detected a command section
+			else if (commandSectionStarted && currentCommand && line.match(/^\s{14}/)) {
+				currentDescription.push(line.trim());
 			}
 		}
-		// Store the last command, its args, and description
-		if (command && desc.length) {
-			cachedCommandDescriptions.set(command, { description: desc.join(' ').trim(), args: argsRaw });
+
+		// Store the last command in the loop
+		if (currentCommand && currentDescription.join(' ').trim().length) {
+			cachedCommandDescriptions.set(currentCommand, {
+				description: currentDescription.join(' ').trim(),
+				args: currentArgs ? `${currentCommand} ${currentArgs}` : undefined
+			});
 		}
 	}
+
 	zshBuiltinsCommandDescriptionsCache = cachedCommandDescriptions;
 }
+
 
 const main = async () => {
 	try {
