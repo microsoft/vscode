@@ -41,7 +41,8 @@ export async function getBuiltins(
 			try {
 				const helpOutput = (await execHelper(`help ${cmd}`, options))?.trim();
 				const helpLines = helpOutput?.split('\n');
-				const description = helpLines.splice(1).join('');
+				//TODO: This still has some extra spaces in it
+				const description = helpLines.splice(1).map(line => line.trim()).join('');
 				const args = helpLines?.[0]?.split(' ').slice(1).join(' ').trim();
 				const { detail, documentation } = generateDetailAndDocs(description, args);
 				completions.push({
