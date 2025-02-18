@@ -64,7 +64,7 @@ async function getBuiltins(
 	return completions;
 }
 
-export function getCommandDescription(command: string): { documentation?: string; description: string; args: string | undefined } | undefined {
+export function getCommandDescription(command: string): { documentation?: string; description?: string; args?: string | undefined } | undefined {
 	if (!zshBuiltinsCommandDescriptionsCache) {
 		const cacheFilePath = path.join(__dirname, 'zshBuiltinsCache.json');
 		if (fs.existsSync(cacheFilePath)) {
@@ -90,7 +90,7 @@ export function getCommandDescription(command: string): { documentation?: string
 		return {
 			description: result?.description,
 			args: result?.args,
-			documentation: result.description
+			documentation: result?.description
 		};
 	}
 	return result;
