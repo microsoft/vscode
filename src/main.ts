@@ -306,6 +306,11 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
 
+	// Use portal version 4 that supports current_folder option
+	// to address https://github.com/microsoft/vscode/issues/213780
+	// Runtime sets the default version to 3, refs https://github.com/electron/electron/pull/44426
+	app.commandLine.appendSwitch('xdg-portal-required-version', '4');
+
 	return argvConfig;
 }
 

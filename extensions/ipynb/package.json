@@ -43,7 +43,7 @@
             "type": "boolean",
             "scope": "resource",
             "markdownDescription": "%ipynb.experimental.serialization%",
-            "default": false,
+            "default": true,
             "tags": [
               "experimental"
             ]
@@ -69,6 +69,11 @@
       {
         "command": "notebook.cellOutput.copy",
         "title": "%copyCellOutput.title%",
+        "category": "Notebook"
+      },
+      {
+        "command": "notebook.cellOutput.addToChat",
+        "title": "%addCellOutputToChat.title%",
         "category": "Notebook"
       },
       {
@@ -130,11 +135,17 @@
       "webview/context": [
         {
           "command": "notebook.cellOutput.copy",
-          "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'",
+          "group": "context@1"
         },
         {
           "command": "notebook.cellOutput.copy",
           "when": "webviewId == 'notebook.output' && webviewSection == 'text'"
+        },
+        {
+          "command": "notebook.cellOutput.addToChat",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'",
+          "group": "context@2"
         },
         {
           "command": "notebook.cellOutput.openInTextEditor",

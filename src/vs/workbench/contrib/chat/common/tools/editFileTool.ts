@@ -8,6 +8,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { SaveReason } from '../../../../common/editor.js';
@@ -55,7 +56,7 @@ export const EditToolData: IToolData = {
 			},
 			filePath: {
 				type: 'string',
-				description: 'An absolute path to the file to edit',
+				description: 'An absolute path to the file to edit, or the URI of a untitled, not yet named, file, such as `untitled:Untitled-1.',
 			},
 			code: {
 				type: 'string',
@@ -95,6 +96,16 @@ export class EditTool implements IToolImpl {
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
 
+		// Undo stops mark groups of response data in the output. Operations, such
+		// as text edits, that happen between undo stops are all done or undone together.
+		if (request.response?.response.getMarkdown().length) {
+			// slightly hacky way to avoid an extra 'no-op' undo stop at the start of responses that are just edits
+			model.acceptResponseProgress(request, {
+				kind: 'undoStop',
+				id: generateUuid(),
+			});
+		}
+
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString('\n````\n')
@@ -107,8 +118,14 @@ export class EditTool implements IToolImpl {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
+		model.acceptResponseProgress(request, {
+			kind: 'textEdit',
+			edits: [],
+			uri
+		});
 
-		if (this.chatEditingService.currentEditingSession?.chatSessionId !== model.sessionId) {
+		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
+		if (!editSession) {
 			throw new Error('This tool must be called from within an editing session');
 		}
 
@@ -119,7 +136,10 @@ export class EditTool implements IToolImpl {
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });
-			}
+			},
+			notebookEdit(target, edits) {
+				model.acceptResponseProgress(request, { kind: 'notebookEdit', uri: target, edits });
+			},
 		}, token);
 
 		model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
@@ -135,11 +155,11 @@ export class EditTool implements IToolImpl {
 			let wasFileBeingModified = false;
 
 			dispose = autorun((r) => {
-				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.read(r);
-				const entries = currentEditingSession?.entries.read(r);
+
+				const entries = editSession.entries.read(r);
 				const currentFile = entries?.find((e) => e.modifiedURI.toString() === uri.toString());
 				if (currentFile) {
-					if (currentFile.isCurrentlyBeingModified.read(r)) {
+					if (currentFile.isCurrentlyBeingModifiedBy.read(r)) {
 						wasFileBeingModified = true;
 					} else if (wasFileBeingModified) {
 						resolve(true);
@@ -179,10 +199,10 @@ export class EditToolInputProcessor implements IToolInputProcessor {
 			// Tool name collision, or input wasn't properly validated upstream
 			return input as any;
 		}
-
+		const filePath = input.filePath;
 		// Runs in EH, will be mapped
 		return {
-			file: URI.file(input.filePath),
+			file: filePath.startsWith('untitled:') ? URI.parse(filePath) : URI.file(filePath),
 			explanation: input.explanation,
 			code: input.code,
 		};

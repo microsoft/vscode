@@ -23,8 +23,7 @@ export function getTokenType(ctx: { commandLine: string; cursorPosition: number 
 	if (spaceIndex === -1) {
 		return TokenType.Command;
 	}
-	const tokenIndex = spaceIndex === -1 ? 0 : spaceIndex + 1;
-	const previousTokens = ctx.commandLine.substring(0, tokenIndex).trim();
+	const previousTokens = ctx.commandLine.substring(0, spaceIndex + 1).trim();
 	const commandResetChars = shellType === undefined ? defaultShellTypeResetChars : shellTypeResetChars[shellType] ?? defaultShellTypeResetChars;
 	if (commandResetChars.some(e => previousTokens.endsWith(e))) {
 		return TokenType.Command;

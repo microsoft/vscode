@@ -1855,6 +1855,7 @@ export class InlineSuggestionList implements vscode.InlineCompletionList {
 
 export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
+	acceptedLength: number;
 }
 
 export enum PartialAcceptTriggerKind {
@@ -1951,7 +1952,6 @@ export namespace TextEditorSelectionChangeKind {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api':
 			case TextEditorSelectionSource.PROGRAMMATIC:
 			case TextEditorSelectionSource.JUMP:
 			case TextEditorSelectionSource.NAVIGATION:
@@ -2169,7 +2169,6 @@ export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	}
 }
 
-
 /**
  * Represents a collection of {@link CompletionItem completion items} to be presented
  * in the editor.
@@ -2202,7 +2201,6 @@ export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
 	cwd?: vscode.Uri;
-	pathSeparator: string;
 }
 
 export enum TaskRevealKind {
@@ -4518,16 +4516,6 @@ export class ChatResponseMarkdownWithVulnerabilitiesPart {
 	}
 }
 
-export class ChatResponseDetectedParticipantPart {
-	participant: string;
-	// TODO@API validate this against statically-declared slash commands?
-	command?: vscode.ChatCommand;
-	constructor(participant: string, command?: vscode.ChatCommand) {
-		this.participant = participant;
-		this.command = command;
-	}
-}
-
 export class ChatResponseConfirmationPart {
 	title: string;
 	message: string;
@@ -4647,6 +4635,22 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 			this.edits = [];
 		} else {
 			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+		}
+	}
+}
+
+export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebookEditPart {
+	uri: vscode.Uri;
+	edits: vscode.NotebookEdit[];
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
+		this.uri = uri;
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+
 		}
 	}
 }
@@ -4909,6 +4913,9 @@ export class LanguageModelToolResult {
 			content: this.content,
 		};
 	}
+}
+
+export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 }
 
 export enum LanguageModelChatToolMode {

@@ -1934,6 +1934,22 @@ class EffectiveCursorStyle extends ComputedEditorOption<EditorOption.effectiveCu
 
 //#endregion
 
+//#region effectiveExperimentalEditContext
+
+class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean> {
+
+	constructor() {
+		super(EditorOption.effectiveExperimentalEditContextEnabled);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
+		const editContextSupported = typeof (globalThis as any).EditContext === 'function';
+		return editContextSupported && env.accessibilitySupport !== AccessibilitySupport.Enabled && options.get(EditorOption.experimentalEditContextEnabled);
+	}
+}
+
+//#endregion
+
 //#region fontSize
 
 class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
@@ -4215,6 +4231,8 @@ export interface IInlineSuggestOptions {
 
 		renderSideBySide?: 'never' | 'auto';
 
+		pressToReveal?: boolean;
+
 		/**
 		* @internal
 		*/
@@ -4262,6 +4280,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			syntaxHighlightingEnabled: false,
 			edits: {
 				enabled: true,
+				pressToReveal: false,
 				useMixedLinesDiff: 'forStableInsertions',
 				useInterleavedLinesDiff: 'never',
 				renderSideBySide: 'auto',
@@ -4315,6 +4334,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.edits.codeShifting,
 					description: nls.localize('inlineSuggest.edits.codeShifting', "Controls whether showing a suggestion will shift the code to make space for the suggestion inline."),
+					tags: ['nextEditSuggestions']
 				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
@@ -4325,6 +4345,13 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 						nls.localize('editor.inlineSuggest.edits.renderSideBySide.auto', "Larger suggestions will show side by side if there is enough space, otherwise they will be shown bellow."),
 						nls.localize('editor.inlineSuggest.edits.renderSideBySide.never', "Larger suggestions are never shown side by side and will always be shown bellow."),
 					],
+					tags: ['nextEditSuggestions']
+				},
+				'editor.inlineSuggest.edits.pressToReveal': {
+					type: 'boolean',
+					default: defaults.edits.pressToReveal,
+					description: nls.localize('inlineSuggest.edits.pressToReveal', "Controls whether the suggestion will always reveal or after jumping to it."),
+					tags: ['nextEditSuggestions']
 				},
 				/* 'editor.inlineSuggest.edits.useMultiLineGhostText': {
 					type: 'boolean',
@@ -4361,6 +4388,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 			edits: {
 				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
+				pressToReveal: boolean(input.edits?.pressToReveal, this.defaultValue.edits.pressToReveal),
 				useMixedLinesDiff: stringSet(input.edits?.useMixedLinesDiff, this.defaultValue.edits.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
 				codeShifting: boolean(input.edits?.codeShifting, this.defaultValue.edits.codeShifting),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
@@ -5584,7 +5612,8 @@ export const enum EditorOption {
 	wrappingInfo,
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
-	inlineCompletionsAccessibilityVerbose
+	inlineCompletionsAccessibilityVerbose,
+	effectiveExperimentalEditContextEnabled
 }
 
 export const EditorOptions = {
@@ -6058,7 +6087,7 @@ export const EditorOptions = {
 	)),
 	occurrencesHighlightDelay: register(new EditorIntOption(
 		EditorOption.occurrencesHighlightDelay, 'occurrencesHighlightDelay',
-		250, 0, 2000,
+		0, 0, 2000,
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
@@ -6413,7 +6442,8 @@ export const EditorOptions = {
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
-	wrappingStrategy: register(new WrappingStrategy())
+	wrappingStrategy: register(new WrappingStrategy()),
+	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled())
 };
 
 type EditorOptionsType = typeof EditorOptions;

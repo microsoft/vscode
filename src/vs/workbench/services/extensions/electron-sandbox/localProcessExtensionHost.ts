@@ -473,7 +473,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				appName: this._productService.nameLong,
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
-				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,

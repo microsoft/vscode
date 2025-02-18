@@ -14,7 +14,9 @@ import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractSymbolDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { FileType, IFileService, IFileSystemProvider } from '../../../../platform/files/common/files.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
@@ -49,6 +51,8 @@ export class ChatDragAndDrop extends Themable {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IFileService protected readonly fileService: IFileService,
 		@IEditorService protected readonly editorService: IEditorService,
+		@IDialogService protected readonly dialogService: IDialogService,
+		@ITextModelService protected readonly textModelService: ITextModelService
 	) {
 		super(themeService);
 
@@ -233,7 +237,7 @@ export class ChatDragAndDrop extends Themable {
 
 	private async resolveAttachContext(editorInput: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
 		// Image
-		const imageContext = await getImageAttachContext(editorInput, this.fileService);
+		const imageContext = await getImageAttachContext(editorInput, this.fileService, this.dialogService);
 		if (imageContext) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 		}
@@ -264,13 +268,13 @@ export class ChatDragAndDrop extends Themable {
 			return undefined;
 		}
 
-		return getResourceAttachContext(editor.resource, stat.isDirectory);
+		return await getResourceAttachContext(editor.resource, stat.isDirectory, this.textModelService);
 	}
 
 	private async resolveUntitledAttachContext(editor: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
 		// If the resource is known, we can use it directly
 		if (editor.resource) {
-			return getResourceAttachContext(editor.resource, false);
+			return await getResourceAttachContext(editor.resource, false, this.textModelService);
 		}
 
 		// Otherwise, we need to check if the contents are already open in another editor
@@ -279,7 +283,7 @@ export class ChatDragAndDrop extends Themable {
 			const model = await canidate.resolve();
 			const contents = model.textEditorModel?.getValue();
 			if (contents === editor.contents) {
-				return getResourceAttachContext(canidate.resource, false);
+				return await getResourceAttachContext(canidate.resource, false, this.textModelService);
 			}
 		}
 
@@ -296,7 +300,6 @@ export class ChatDragAndDrop extends Themable {
 				symbolKind: symbol.kind,
 				fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
 				name: symbol.name,
-				isDynamic: true
 			};
 		});
 	}
@@ -351,8 +354,10 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@IEditorService editorService: IEditorService,
+		@IDialogService dialogService: IDialogService,
+		@ITextModelService textModelService: ITextModelService
 	) {
-		super(attachmentModel, styles, themeService, extensionService, fileService, editorService);
+		super(attachmentModel, styles, themeService, extensionService, fileService, editorService, dialogService, textModelService);
 	}
 
 	protected override handleDrop(context: IChatRequestVariableEntry[]): void {
@@ -374,8 +379,8 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 			}
 
 			const resolvedFiles = await resolveFilesInDirectory(directory, fileSystemProvider, true);
-			const resolvedFileContext = resolvedFiles.map(file => getResourceAttachContext(file, false)).filter(context => !!context);
-			nonDirectoryContext.push(...resolvedFileContext);
+			const resolvedFileContext = await Promise.all(resolvedFiles.map(file => getResourceAttachContext(file, false, this.textModelService)));
+			nonDirectoryContext.push(...resolvedFileContext.filter(context => !!context));
 		}
 
 		super.handleDrop(nonDirectoryContext);
@@ -415,18 +420,26 @@ async function resolveFilesInDirectory(resource: URI, fileSystemProvider: IFileS
 	return [...files, ...subFiles.flat()];
 }
 
-function getResourceAttachContext(resource: URI, isDirectory: boolean): IChatRequestVariableEntry | undefined {
+async function getResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
+	let isOmitted = false;
+	try {
+		const createdModel = await textModelService.createModelReference(resource);
+		createdModel.dispose();
+	} catch {
+		isOmitted = true;
+	}
+
 	return {
 		value: resource,
 		id: resource.toString(),
 		name: basename(resource),
 		isFile: !isDirectory,
 		isDirectory,
-		isDynamic: true
+		isOmitted
 	};
 }
 
-async function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService): Promise<IChatRequestVariableEntry | undefined> {
+async function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput, fileService: IFileService, dialogService: IDialogService): Promise<IChatRequestVariableEntry | undefined> {
 	if (!editor.resource) {
 		return undefined;
 	}
@@ -434,6 +447,10 @@ async function getImageAttachContext(editor: EditorInput | IDraggedResourceEdito
 	if (/\.(png|jpg|jpeg|gif|webp)$/i.test(editor.resource.path)) {
 		const fileName = basename(editor.resource);
 		const readFile = await fileService.readFile(editor.resource);
+		if (readFile.size > 30 * 1024 * 1024) { // 30 MB
+			dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
+			throw new Error('Image is too large');
+		}
 		const resizedImage = await resizeImage(readFile.value.buffer);
 		return {
 			id: editor.resource.toString(),
@@ -441,7 +458,6 @@ async function getImageAttachContext(editor: EditorInput | IDraggedResourceEdito
 			fullName: editor.resource.path,
 			value: resizedImage,
 			icon: Codicon.fileMedia,
-			isDynamic: true,
 			isImage: true,
 			isFile: false,
 			references: [{ reference: editor.resource, kind: 'reference' }]

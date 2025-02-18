@@ -794,6 +794,10 @@ declare namespace monaco {
 		 */
 		static areIntersecting(a: IRange, b: IRange): boolean;
 		/**
+		 * Test if the two ranges are intersecting, but not touching at all.
+		 */
+		static areOnlyIntersecting(a: IRange, b: IRange): boolean;
+		/**
 		 * A function that compares ranges, useful for sorting ranges
 		 * It will first compare ranges on the startPosition and then on the endPosition
 		 */
@@ -1526,6 +1530,11 @@ declare namespace monaco.editor {
 
 	export interface ThemeColor {
 		id: string;
+	}
+
+	export interface ThemeIcon {
+		readonly id: string;
+		readonly color?: ThemeColor;
 	}
 
 	/**
@@ -5042,7 +5051,8 @@ declare namespace monaco.editor {
 		wrappingInfo = 152,
 		defaultColorDecorators = 153,
 		colorDecoratorsActivatedOn = 154,
-		inlineCompletionsAccessibilityVerbose = 155
+		inlineCompletionsAccessibilityVerbose = 155,
+		effectiveExperimentalEditContextEnabled = 156
 	}
 
 	export const EditorOptions: {
@@ -5202,6 +5212,7 @@ declare namespace monaco.editor {
 		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
 		wrappingIndent: IEditorOption<EditorOption.wrappingIndent, WrappingIndent>;
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
+		effectiveExperimentalEditContextEnabled: IEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;
@@ -7136,6 +7147,10 @@ declare namespace monaco.languages {
 		 * A command that should be run upon acceptance of this item.
 		 */
 		command?: Command;
+		/**
+		 * A command that should be run upon acceptance of this item.
+		 */
+		action?: Command;
 	}
 
 	export interface CompletionList {
@@ -7149,6 +7164,7 @@ declare namespace monaco.languages {
 	 */
 	export interface PartialAcceptInfo {
 		kind: PartialAcceptTriggerKind;
+		acceptedLength: number;
 	}
 
 	/**
@@ -7276,6 +7292,7 @@ declare namespace monaco.languages {
 		*/
 		readonly range?: IRange;
 		readonly command?: Command;
+		readonly action?: Command;
 		/**
 		 * Is called the first time an inline completion is shown.
 		*/
@@ -7287,7 +7304,18 @@ declare namespace monaco.languages {
 		readonly completeBracketPairs?: boolean;
 		readonly isInlineEdit?: boolean;
 		readonly showRange?: IRange;
+		readonly warning?: InlineCompletionWarning;
 	}
+
+	export interface InlineCompletionWarning {
+		message: IMarkdownString | string;
+		icon?: IconPath;
+	}
+
+	/**
+	 * TODO: add `| Uri | { light: Uri; dark: Uri }`.
+	*/
+	export type IconPath = editor.ThemeIcon;
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 		readonly items: readonly TItem[];
@@ -7313,6 +7341,7 @@ declare namespace monaco.languages {
 		handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 		/**
 		 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
+		 * @param acceptedCharacters Deprecated. Use `info.acceptedCharacters` instead.
 		 */
 		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 		handleRejection?(completions: T, item: T['items'][number]): void;
@@ -7331,6 +7360,7 @@ declare namespace monaco.languages {
 		 */
 		yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 		displayName?: string;
+		debounceDelayMs?: number;
 		toString?(): string;
 	}
 
@@ -8156,6 +8186,7 @@ declare namespace monaco.languages {
 		rejected?: Command;
 		shown?: Command;
 		commands?: Command[];
+		action?: Command;
 	}
 
 	export interface IInlineEditContext {

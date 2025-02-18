@@ -913,6 +913,8 @@
 		"--test-bar-width",
 		"--widget-color",
 		"--text-link-decoration",
-		"--vscode-action-item-auto-timeout"
+		"--vscode-action-item-auto-timeout",
+		"--monaco-editor-warning-decoration",
+		"--animation-opacity"
 	]
 }

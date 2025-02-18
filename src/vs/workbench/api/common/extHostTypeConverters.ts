@@ -38,7 +38,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatModel.js';
-import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -58,6 +58,9 @@ import { IChatResponseTextPart, IChatResponsePromptTsxPart } from '../../contrib
 import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostTypes.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 
 export namespace Command {
 
@@ -2430,19 +2433,6 @@ export namespace ChatResponseMarkdownWithVulnerabilitiesPart {
 	}
 }
 
-export namespace ChatResponseDetectedParticipantPart {
-	export function from(part: vscode.ChatResponseDetectedParticipantPart): Dto<IChatAgentDetection> {
-		return {
-			kind: 'agentDetection',
-			agentId: part.participant,
-			command: part.command,
-		};
-	}
-	export function to(part: Dto<IChatAgentDetection>): vscode.ChatResponseDetectedParticipantPart {
-		return new types.ChatResponseDetectedParticipantPart(part.agentId, part.command);
-	}
-}
-
 export namespace ChatResponseConfirmationPart {
 	export function from(part: vscode.ChatResponseConfirmationPart): Dto<IChatConfirmation> {
 		return {
@@ -2611,6 +2601,42 @@ export namespace ChatResponseTextEditPart {
 
 }
 
+export namespace NotebookEdit {
+	export function from(edit: vscode.NotebookEdit): extHostProtocol.ICellEditOperationDto {
+		if (edit.newCellMetadata) {
+			return {
+				editType: CellEditType.Metadata,
+				index: edit.range.start,
+				metadata: edit.newCellMetadata
+			};
+		} else if (edit.newNotebookMetadata) {
+			return {
+				editType: CellEditType.DocumentMetadata,
+				metadata: edit.newNotebookMetadata
+			};
+		} else {
+			return {
+				editType: CellEditType.Replace,
+				index: edit.range.start,
+				count: edit.range.end - edit.range.start,
+				cells: edit.newCells.map(NotebookCellData.from)
+			};
+		}
+	}
+}
+
+
+export namespace ChatResponseNotebookEditPart {
+	export function from(part: vscode.ChatResponseNotebookEditPart): extHostProtocol.IChatNotebookEditDto {
+		return {
+			kind: 'notebookEdit',
+			uri: part.uri,
+			edits: part.edits.map(NotebookEdit.from),
+			done: part.isDone
+		};
+	}
+}
+
 export namespace ChatResponseReferencePart {
 	export function from(part: types.ChatResponseReferencePart): Dto<IChatContentReference> {
 		const iconPath = ThemeIcon.isThemeIcon(part.iconPath) ? part.iconPath
@@ -2671,7 +2697,7 @@ export namespace ChatResponseCodeCitationPart {
 
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2 | vscode.ChatResponseMovePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2 | vscode.ChatResponseMovePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2686,12 +2712,12 @@ export namespace ChatResponsePart {
 			return ChatResponseCommandButtonPart.from(part, commandsConverter, commandDisposables);
 		} else if (part instanceof types.ChatResponseTextEditPart) {
 			return ChatResponseTextEditPart.from(part);
+		} else if (part instanceof types.ChatResponseNotebookEditPart) {
+			return ChatResponseNotebookEditPart.from(part);
 		} else if (part instanceof types.ChatResponseMarkdownWithVulnerabilitiesPart) {
 			return ChatResponseMarkdownWithVulnerabilitiesPart.from(part);
 		} else if (part instanceof types.ChatResponseCodeblockUriPart) {
 			return ChatResponseCodeblockUriPart.from(part);
-		} else if (part instanceof types.ChatResponseDetectedParticipantPart) {
-			return ChatResponseDetectedParticipantPart.from(part);
 		} else if (part instanceof types.ChatResponseWarningPart) {
 			return ChatResponseWarningPart.from(part);
 		} else if (part instanceof types.ChatResponseConfirmationPart) {
@@ -2922,10 +2948,30 @@ export namespace TerminalQuickFix {
 	}
 }
 
+export namespace TerminalCompletionList {
+	export function from(completionList: vscode.TerminalCompletionList): extHostProtocol.TerminalCompletionListDto {
+		return {
+			...completionList,
+			resourceRequestConfig: completionList.resourceRequestConfig ? TerminalResourceRequestConfig.from(completionList.resourceRequestConfig) : undefined,
+		};
+	}
+}
+
+export namespace TerminalResourceRequestConfig {
+	export function from(resourceRequestConfig: vscode.TerminalResourceRequestConfig): extHostProtocol.TerminalResourceRequestConfigDto {
+		return {
+			...resourceRequestConfig,
+			pathSeparator: isWindows ? '\\' : '/',
+			cwd: resourceRequestConfig.cwd ? URI.revive(resourceRequestConfig.cwd) : undefined,
+		};
+	}
+}
+
 export namespace PartialAcceptInfo {
 	export function to(info: languages.PartialAcceptInfo): types.PartialAcceptInfo {
 		return {
 			kind: PartialAcceptTriggerKind.to(info.kind),
+			acceptedLength: info.acceptedLength,
 		};
 	}
 }
@@ -2981,7 +3027,11 @@ export namespace LanguageModelToolResult {
 		}));
 	}
 
-	export function from(result: vscode.LanguageModelToolResult): IToolResult {
+	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> {
+		if (result.toolResultMessage) {
+			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+		}
+
 		return {
 			content: result.content.map(item => {
 				if (item instanceof types.LanguageModelTextPart) {
@@ -2997,7 +3047,15 @@ export namespace LanguageModelToolResult {
 				} else {
 					throw new Error('Unknown LanguageModelToolResult part type');
 				}
-			})
+			}),
+			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
+			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
 		};
+	}
+}
+
+export namespace IconPath {
+	export function fromThemeIcon(iconPath: vscode.ThemeIcon): languages.IconPath {
+		return iconPath;
 	}
 }

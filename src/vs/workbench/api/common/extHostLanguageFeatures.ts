@@ -649,7 +649,7 @@ class DocumentPasteEditProvider {
 		}));
 	}
 
-	async resolvePasteEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
+	async resolvePasteEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ insertText?: string | vscode.SnippetString; additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
 		const [sessionId, itemId] = id;
 		const item = this._cache.get(sessionId, itemId);
 		if (!item || !this._provider.resolveDocumentPasteEdit) {
@@ -657,8 +657,10 @@ class DocumentPasteEditProvider {
 		}
 
 		const resolvedItem = (await this._provider.resolveDocumentPasteEdit(item, token)) ?? item;
-		const additionalEdit = resolvedItem.additionalEdit ? typeConvert.WorkspaceEdit.from(resolvedItem.additionalEdit, undefined) : undefined;
-		return { additionalEdit };
+		return {
+			insertText: resolvedItem.insertText,
+			additionalEdit: resolvedItem.additionalEdit ? typeConvert.WorkspaceEdit.from(resolvedItem.additionalEdit, undefined) : undefined
+		};
 	}
 
 	releasePasteEdits(id: number): any {
@@ -1392,14 +1394,28 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					command = this._commands.toInternal(item.command, disposableStore);
 				}
 
+				let action: languages.Command | undefined = undefined;
+				if (item.action) {
+					if (!disposableStore) {
+						disposableStore = new DisposableStore();
+					}
+					action = this._commands.toInternal(item.action, disposableStore);
+				}
+
 				const insertText = item.insertText;
 				return ({
 					insertText: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
 					filterText: item.filterText,
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
+					action,
 					idx: idx,
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
+					isInlineEdit: this._isAdditionsProposedApiEnabled ? item.isInlineEdit : false,
+					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
+						message: typeConvert.MarkdownString.from(item.warning.message),
+						icon: item.warning.icon ? typeConvert.IconPath.fromThemeIcon(item.warning.icon) : undefined,
+					} : undefined,
 				});
 			}),
 			commands: commands.map(c => {
@@ -1469,12 +1485,21 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					command = this._commands.toInternal(item.command, disposableStore);
 				}
 
+				let action: languages.Command | undefined = undefined;
+				if (item.action) {
+					if (!disposableStore) {
+						disposableStore = new DisposableStore();
+					}
+					action = this._commands.toInternal(item.action, disposableStore);
+				}
+
 				const insertText = item.insertText;
 				return ({
 					insertText: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
 					filterText: item.filterText,
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
+					action,
 					idx: idx,
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 				});
@@ -1574,6 +1599,14 @@ class InlineEditAdapter {
 			shownCommand = this._commands.toInternal(result.shown, disposableStore);
 		}
 
+		let action: languages.Command | undefined = undefined;
+		if (result.action) {
+			if (!disposableStore) {
+				disposableStore = new DisposableStore();
+			}
+			action = this._commands.toInternal(result.action, disposableStore);
+		}
+
 		if (!disposableStore) {
 			disposableStore = new DisposableStore();
 		}
@@ -1585,6 +1618,7 @@ class InlineEditAdapter {
 			accepted: acceptCommand,
 			rejected: rejectCommand,
 			shown: shownCommand,
+			action,
 			commands: result.commands?.map(c => this._commands.toInternal(c, disposableStore)),
 		};
 
@@ -2648,7 +2682,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
 		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector, extension), adapter.supportsHandleEvents,
-			ExtensionIdentifier.toKey(extension.identifier.value), metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || []);
+			ExtensionIdentifier.toKey(extension.identifier.value), metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || [], metadata?.debounceDelayMs);
 		return this._createDisposable(handle);
 	}
 

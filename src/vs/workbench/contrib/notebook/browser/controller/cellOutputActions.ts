@@ -121,7 +121,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 });
 
-function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEditor): ICellOutputViewModel | undefined {
+export function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEditor): ICellOutputViewModel | undefined {
 	const notebookViewModel = notebookEditor.getViewModel();
 	if (notebookViewModel) {
 		const codeCells = notebookViewModel.viewCells.filter(cell => cell.cellKind === CellKind.Code) as CodeCellViewModel[];

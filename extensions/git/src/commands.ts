@@ -5,16 +5,16 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
-import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
+import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { dispose, getCommitShortHash, grep, isDefined, isDescendant, pathEquals, relativePath, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, getCommitShortHash, grep, isDefined, isDescendant, isRemote, isWindows, pathEquals, relativePath, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -155,8 +155,11 @@ class CheckoutTagItem extends RefItem {
 class BranchDeleteItem extends RefItem {
 
 	async run(repository: Repository, force?: boolean): Promise<void> {
-		if (this.ref.name) {
-			await repository.deleteBranch(this.ref.name, force);
+		if (this.ref.type === RefType.Head && this.refName) {
+			await repository.deleteBranch(this.refName, force);
+		} else if (this.ref.type === RefType.RemoteHead && this.refRemote && this.refName) {
+			const refName = this.refName.substring(this.refRemote.length + 1);
+			await repository.deleteRemoteRef(this.refRemote, refName, { force });
 		}
 	}
 }
@@ -178,7 +181,7 @@ class RemoteTagDeleteItem extends RefItem {
 
 	async run(repository: Repository, remote: string): Promise<void> {
 		if (this.ref.name) {
-			await repository.deleteRemoteTag(remote, this.ref.name);
+			await repository.deleteRemoteRef(remote, this.ref.name);
 		}
 	}
 }
@@ -612,6 +615,87 @@ class CommandErrorOutputTextDocumentContentProvider implements TextDocumentConte
 	provideTextDocumentContent(uri: Uri): string | undefined {
 		return this.items.get(uri.path);
 	}
+}
+
+async function evaluateDiagnosticsCommitHook(repository: Repository, options: CommitOptions): Promise<boolean> {
+	const config = workspace.getConfiguration('git', Uri.file(repository.root));
+	const enabled = config.get<boolean>('diagnosticsCommitHook.Enabled', false) === true;
+	const sourceSeverity = config.get<Record<string, DiagnosticSeverityConfig>>('diagnosticsCommitHook.Sources', { '*': 'error' });
+
+	if (!enabled) {
+		return true;
+	}
+
+	const changes: Uri[] = [];
+	if (repository.indexGroup.resourceStates.length > 0) {
+		// Staged files
+		changes.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri));
+	} else if (options.all === 'tracked') {
+		// Tracked files
+		changes.push(...repository.workingTreeGroup.resourceStates
+			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED)
+			.map(r => r.resourceUri));
+	} else {
+		// All files
+		changes.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri));
+		changes.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri));
+	}
+
+	const diagnostics = languages.getDiagnostics();
+	const changesDiagnostics = diagnostics.filter(([uri, diags]) => {
+		// File
+		if (uri.scheme !== 'file' || !changes.find(c => pathEquals(c.fsPath, uri.fsPath))) {
+			return false;
+		}
+
+		// Diagnostics
+		return diags.find(d => {
+			// No source or ignored source
+			if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+				return false;
+			}
+
+			// Source severity
+			if (Object.keys(sourceSeverity).includes(d.source) &&
+				d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
+				return true;
+			}
+
+			// Wildcard severity
+			if (Object.keys(sourceSeverity).includes('*') &&
+				d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
+				return true;
+			}
+
+			return false;
+		});
+	});
+
+	if (changesDiagnostics.length === 0) {
+		return true;
+	}
+
+	// Show dialog
+	const commit = l10n.t('Commit Anyway');
+	const view = l10n.t('View Problems');
+
+	const message = changesDiagnostics.length === 1
+		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(changesDiagnostics[0][0].fsPath))
+		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', changesDiagnostics.length);
+
+	const choice = await window.showWarningMessage(message, { modal: true }, commit, view);
+
+	// Commit Anyway
+	if (choice === commit) {
+		return true;
+	}
+
+	// View Problems
+	if (choice === view) {
+		commands.executeCommand('workbench.panel.markers.view.focus');
+	}
+
+	return false;
 }
 
 export class CommandCenter {
@@ -1567,17 +1651,20 @@ export class CommandCenter {
 			return;
 		}
 
-		this.logger.trace(`[CommandCenter][stageSelectedChanges] changes: ${JSON.stringify(changes)}`);
-
 		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
-		if (workingTreeDiffInformation) {
-			this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
-			this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation changes: ${JSON.stringify(toLineChanges(workingTreeDiffInformation))}`);
+		if (!workingTreeDiffInformation) {
+			return;
 		}
+
+		const workingTreeLineChanges = toLineChanges(workingTreeDiffInformation);
+
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] changes: ${JSON.stringify(changes)}`);
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
+		this.logger.trace(`[CommandCenter][stageSelectedChanges] diffInformation changes: ${JSON.stringify(workingTreeLineChanges)}`);
 
 		const modifiedDocument = textEditor.document;
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedChanges = changes
+		const selectedChanges = workingTreeLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(d => !!d) as LineChange[];
 
@@ -1759,22 +1846,25 @@ export class CommandCenter {
 			return;
 		}
 
-		this.logger.trace(`[CommandCenter][revertSelectedRanges] changes: ${JSON.stringify(changes)}`);
-
 		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
-		if (workingTreeDiffInformation) {
-			this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
-			this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation changes: ${JSON.stringify(toLineChanges(workingTreeDiffInformation))}`);
+		if (!workingTreeDiffInformation) {
+			return;
 		}
+
+		const workingTreeLineChanges = toLineChanges(workingTreeDiffInformation);
+
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] changes: ${JSON.stringify(changes)}`);
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation: ${JSON.stringify(workingTreeDiffInformation)}`);
+		this.logger.trace(`[CommandCenter][revertSelectedRanges] diffInformation changes: ${JSON.stringify(workingTreeLineChanges)}`);
 
 		const modifiedDocument = textEditor.document;
 		const selections = textEditor.selections;
-		const selectedChanges = changes.filter(change => {
+		const selectedChanges = workingTreeLineChanges.filter(change => {
 			const modifiedRange = getModifiedRange(modifiedDocument, change);
 			return selections.every(selection => !selection.intersection(modifiedRange));
 		});
 
-		if (selectedChanges.length === changes.length) {
+		if (selectedChanges.length === workingTreeLineChanges.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
@@ -1859,24 +1949,32 @@ export class CommandCenter {
 			return;
 		}
 
+		const repository = this.model.getRepository(modifiedUri);
+		if (!repository) {
+			return;
+		}
+
+		const resource = repository.indexGroup.resourceStates
+			.find(r => pathEquals(r.resourceUri.fsPath, modifiedUri.fsPath));
+		if (!resource) {
+			return;
+		}
+
+		const indexDiffInformation = getIndexDiffInformation(textEditor);
+		if (!indexDiffInformation) {
+			return;
+		}
+
+		const indexLineChanges = toLineChanges(indexDiffInformation);
+
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] changes: ${JSON.stringify(changes)}`);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation: ${JSON.stringify(indexDiffInformation)}`);
+		this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes: ${JSON.stringify(indexLineChanges)}`);
 
-		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
-		if (workingTreeDiffInformation) {
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation (working tree): ${JSON.stringify(workingTreeDiffInformation)}`);
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes (working tree): ${JSON.stringify(toLineChanges(workingTreeDiffInformation))}`);
-		}
-
-		const workingTreeAndIndexDiffInformation = getWorkingTreeAndIndexDiffInformation(textEditor);
-		if (workingTreeAndIndexDiffInformation) {
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation (working tree + index): ${JSON.stringify(workingTreeAndIndexDiffInformation)}`);
-			this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes (working tree + index): ${JSON.stringify(toLineChanges(workingTreeAndIndexDiffInformation))}`);
-		}
-
-		const originalUri = toGitUri(modifiedUri, 'HEAD');
+		const originalUri = toGitUri(resource.original, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = changes
+		const selectedDiffs = indexLineChanges
 			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(c => !!c) as LineChange[];
 
@@ -1891,7 +1989,7 @@ export class CommandCenter {
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] invertedDiffs: ${JSON.stringify(invertedDiffs)}`);
 
 		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
-		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
+		await repository.stage(modifiedUri, result);
 	}
 
 	@command('git.unstageFile')
@@ -1951,84 +2049,12 @@ export class CommandCenter {
 			return;
 		}
 
-		const untrackedCount = scmResources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
-		let message: string;
-		let yes = l10n.t('Discard Changes');
-
-		if (scmResources.length === 1) {
-			if (untrackedCount > 0) {
-				message = l10n.t('Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.', path.basename(scmResources[0].resourceUri.fsPath));
-				yes = l10n.t('Delete file');
-			} else {
-				if (scmResources[0].type === Status.DELETED) {
-					yes = l10n.t('Restore file');
-					message = l10n.t('Are you sure you want to restore {0}?', path.basename(scmResources[0].resourceUri.fsPath));
-				} else {
-					message = l10n.t('Are you sure you want to discard changes in {0}?', path.basename(scmResources[0].resourceUri.fsPath));
-				}
-			}
-		} else {
-			if (scmResources.every(resource => resource.type === Status.DELETED)) {
-				yes = l10n.t('Restore files');
-				message = l10n.t('Are you sure you want to restore {0} files?', scmResources.length);
-			} else {
-				message = l10n.t('Are you sure you want to discard changes in {0} files?', scmResources.length);
-			}
-
-			if (untrackedCount > 0) {
-				message = `${message}\n\n${l10n.t('This will DELETE {0} untracked files!\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST.', untrackedCount)}`;
-			}
-		}
-
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-		if (pick !== yes) {
-			return;
-		}
-
-		const resources = scmResources.map(r => r.resourceUri);
-		await this.runByRepository(resources, async (repository, resources) => repository.clean(resources));
+		await this._cleanAll(scmResources);
 	}
 
 	@command('git.cleanAll', { repository: true })
 	async cleanAll(repository: Repository): Promise<void> {
-		let resources = repository.workingTreeGroup.resourceStates;
-
-		if (resources.length === 0) {
-			return;
-		}
-
-		const trackedResources = resources.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
-		const untrackedResources = resources.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
-
-		if (untrackedResources.length === 0) {
-			await this._cleanTrackedChanges(repository, resources);
-		} else if (resources.length === 1) {
-			await this._cleanUntrackedChange(repository, resources[0]);
-		} else if (trackedResources.length === 0) {
-			await this._cleanUntrackedChanges(repository, resources);
-		} else { // resources.length > 1 && untrackedResources.length > 0 && trackedResources.length > 0
-			const untrackedMessage = untrackedResources.length === 1
-				? l10n.t('The following untracked file will be DELETED FROM DISK if discarded: {0}.', path.basename(untrackedResources[0].resourceUri.fsPath))
-				: l10n.t('There are {0} untracked files which will be DELETED FROM DISK if discarded.', untrackedResources.length);
-
-			const message = l10n.t('{0}\n\nThis is IRREVERSIBLE, your current working set will be FOREVER LOST.', untrackedMessage, resources.length);
-
-			const yesTracked = trackedResources.length === 1
-				? l10n.t('Discard 1 Tracked File', trackedResources.length)
-				: l10n.t('Discard {0} Tracked Files', trackedResources.length);
-
-			const yesAll = l10n.t('Discard All {0} Files', resources.length);
-			const pick = await window.showWarningMessage(message, { modal: true }, yesTracked, yesAll);
-
-			if (pick === yesTracked) {
-				resources = trackedResources;
-			} else if (pick !== yesAll) {
-				return;
-			}
-
-			await repository.clean(resources.map(r => r.resourceUri));
-		}
+		await this._cleanAll(repository.workingTreeGroup.resourceStates);
 	}
 
 	@command('git.cleanAllTracked', { repository: true })
@@ -2040,7 +2066,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._cleanTrackedChanges(repository, resources);
+		await this._cleanTrackedChanges(resources);
 	}
 
 	@command('git.cleanAllUntracked', { repository: true })
@@ -2052,51 +2078,123 @@ export class CommandCenter {
 			return;
 		}
 
-		if (resources.length === 1) {
-			await this._cleanUntrackedChange(repository, resources[0]);
+		await this._cleanUntrackedChanges(resources);
+	}
+
+	private async _cleanAll(resources: Resource[]): Promise<void> {
+		if (resources.length === 0) {
+			return;
+		}
+
+		const trackedResources = resources.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+		const untrackedResources = resources.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
+
+		if (untrackedResources.length === 0) {
+			// Tracked files only
+			await this._cleanTrackedChanges(resources);
+		} else if (trackedResources.length === 0) {
+			// Untracked files only
+			await this._cleanUntrackedChanges(resources);
 		} else {
-			await this._cleanUntrackedChanges(repository, resources);
+			// Tracked & Untracked files
+			const [untrackedMessage, untrackedMessageDetail] = this.getDiscardUntrackedChangesDialogDetails(untrackedResources);
+
+			const trackedMessage = trackedResources.length === 1
+				? l10n.t('\n\nAre you sure you want to discard changes in \'{0}\'?', path.basename(trackedResources[0].resourceUri.fsPath))
+				: l10n.t('\n\nAre you sure you want to discard ALL changes in {0} files?', trackedResources.length);
+
+			const yesTracked = trackedResources.length === 1
+				? l10n.t('Discard 1 Tracked File')
+				: l10n.t('Discard All {0} Tracked Files', trackedResources.length);
+
+			const yesAll = l10n.t('Discard All {0} Files', resources.length);
+			const pick = await window.showWarningMessage(`${untrackedMessage} ${untrackedMessageDetail}${trackedMessage}\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.`, { modal: true }, yesTracked, yesAll);
+
+			if (pick === yesTracked) {
+				resources = trackedResources;
+			} else if (pick !== yesAll) {
+				return;
+			}
+
+			const resourceUris = resources.map(r => r.resourceUri);
+			await this.runByRepository(resourceUris, async (repository, resources) => repository.clean(resources));
 		}
 	}
 
-	private async _cleanTrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
+	private async _cleanTrackedChanges(resources: Resource[]): Promise<void> {
+		const allResourcesDeleted = resources.every(r => r.type === Status.DELETED);
+
+		const message = allResourcesDeleted
+			? resources.length === 1
+				? l10n.t('Are you sure you want to restore \'{0}\'?', path.basename(resources[0].resourceUri.fsPath))
+				: l10n.t('Are you sure you want to restore ALL {0} files?', resources.length)
+			: resources.length === 1
+				? l10n.t('Are you sure you want to discard changes in \'{0}\'?', path.basename(resources[0].resourceUri.fsPath))
+				: l10n.t('Are you sure you want to discard ALL changes in {0} files?\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.', resources.length);
+
+		const yes = allResourcesDeleted
+			? resources.length === 1
+				? l10n.t('Restore File')
+				: l10n.t('Restore All {0} Files', resources.length)
+			: resources.length === 1
+				? l10n.t('Discard File')
+				: l10n.t('Discard All {0} Files', resources.length);
+
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		const resourceUris = resources.map(r => r.resourceUri);
+		await this.runByRepository(resourceUris, async (repository, resources) => repository.clean(resources));
+	}
+
+	private async _cleanUntrackedChanges(resources: Resource[]): Promise<void> {
+		const [message, messageDetail, primaryAction] = this.getDiscardUntrackedChangesDialogDetails(resources);
+		const pick = await window.showWarningMessage(message, { detail: messageDetail, modal: true }, primaryAction);
+
+		if (pick !== primaryAction) {
+			return;
+		}
+
+		const resourceUris = resources.map(r => r.resourceUri);
+		await this.runByRepository(resourceUris, async (repository, resources) => repository.clean(resources));
+	}
+
+	private getDiscardUntrackedChangesDialogDetails(resources: Resource[]): [string, string, string] {
+		const config = workspace.getConfiguration('git');
+		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) && !isRemote;
+
+		const messageWarning = !untrackedChangesSoftDelete
+			? resources.length === 1
+				? '\n\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.'
+				: '\n\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.'
+			: '';
+
 		const message = resources.length === 1
-			? l10n.t('Are you sure you want to discard changes in {0}?', path.basename(resources[0].resourceUri.fsPath))
-			: l10n.t('Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.', resources.length);
-		const yes = resources.length === 1
-			? l10n.t('Discard 1 File')
-			: l10n.t('Discard All {0} Files', resources.length);
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+			? l10n.t('Are you sure you want to DELETE the following untracked file: \'{0}\'?{1}', path.basename(resources[0].resourceUri.fsPath), messageWarning)
+			: l10n.t('Are you sure you want to DELETE the {0} untracked files?{1}', resources.length, messageWarning);
 
-		if (pick !== yes) {
-			return;
-		}
+		const messageDetail = untrackedChangesSoftDelete
+			? isWindows
+				? resources.length === 1
+					? 'You can restore this file from the Recycle Bin.'
+					: 'You can restore these files from the Recycle Bin.'
+				: resources.length === 1
+					? 'You can restore this file from the Trash.'
+					: 'You can restore these files from the Trash.'
+			: '';
 
-		await repository.clean(resources.map(r => r.resourceUri));
-	}
+		const primaryAction = untrackedChangesSoftDelete
+			? isWindows
+				? l10n.t('Move to Recycle Bin')
+				: l10n.t('Move to Trash')
+			: resources.length === 1
+				? l10n.t('Delete File')
+				: l10n.t('Delete All {0} Files', resources.length);
 
-	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {
-		const message = l10n.t('Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.', path.basename(resource.resourceUri.fsPath));
-		const yes = l10n.t('Delete file');
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-		if (pick !== yes) {
-			return;
-		}
-
-		await repository.clean([resource.resourceUri]);
-	}
-
-	private async _cleanUntrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
-		const message = l10n.t('Are you sure you want to DELETE {0} files?\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.', resources.length);
-		const yes = l10n.t('Delete Files');
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-		if (pick !== yes) {
-			return;
-		}
-
-		await repository.clean(resources.map(r => r.resourceUri));
+		return [message, messageDetail, primaryAction];
 	}
 
 	private async smartCommit(
@@ -2267,7 +2365,13 @@ export class CommandCenter {
 			opts.all = 'tracked';
 		}
 
-		// Branch protection
+		// Diagnostics commit hook
+		const diagnosticsResult = await evaluateDiagnosticsCommitHook(repository, opts);
+		if (!diagnosticsResult) {
+			return;
+		}
+
+		// Branch protection commit hook
 		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
 		if (repository.isBranchProtected() && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
 			const commitToNewBranch = l10n.t('Commit to a New Branch');
@@ -2880,7 +2984,7 @@ export class CommandCenter {
 
 	@command('git.deleteBranch', { repository: true })
 	async deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
-		await this._deleteBranch(repository, name, force);
+		await this._deleteBranch(repository, undefined, name, { remote: false, force });
 	}
 
 	@command('git.graph.deleteBranch', { repository: true })
@@ -2890,22 +2994,76 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._deleteBranch(repository, historyItemRef.name);
+		// Local branch
+		if (historyItemRef.id.startsWith('refs/heads/')) {
+			if (historyItemRef.id === repository.historyProvider.currentHistoryItemRef?.id) {
+				window.showInformationMessage(l10n.t('The active branch cannot be deleted.'));
+				return;
+			}
+
+			await this._deleteBranch(repository, undefined, historyItemRef.name, { remote: false });
+			return;
+		}
+
+		// Remote branch
+		if (historyItemRef.id === repository.historyProvider.currentHistoryItemRemoteRef?.id) {
+			window.showInformationMessage(l10n.t('The remote branch of the active branch cannot be deleted.'));
+			return;
+		}
+
+		const index = historyItemRef.name.indexOf('/');
+		if (index === -1) {
+			return;
+		}
+
+		const remoteName = historyItemRef.name.substring(0, index);
+		const refName = historyItemRef.name.substring(index + 1);
+
+		await this._deleteBranch(repository, remoteName, refName, { remote: true });
 	}
 
-	private async _deleteBranch(repository: Repository, name: string | undefined, force?: boolean): Promise<void> {
+	@command('git.deleteRemoteBranch', { repository: true })
+	async deleteRemoteBranch(repository: Repository): Promise<void> {
+		await this._deleteBranch(repository, undefined, undefined, { remote: true });
+	}
+
+	private async _deleteBranch(repository: Repository, remote: string | undefined, name: string | undefined, options: { remote: boolean; force?: boolean }): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
-		if (typeof name === 'string') {
+
+		if (!options.remote && typeof name === 'string') {
+			// Local branch
 			run = force => repository.deleteBranch(name!, force);
+		} else if (options.remote && typeof remote === 'string' && typeof name === 'string') {
+			// Remote branch
+			run = force => repository.deleteRemoteRef(remote, name!, { force });
 		} else {
 			const getBranchPicks = async () => {
-				const refs = await repository.getRefs({ pattern: 'refs/heads' });
-				const currentHead = repository.HEAD && repository.HEAD.name;
+				const pattern = options.remote ? 'refs/remotes' : 'refs/heads';
+				const refs = await repository.getRefs({ pattern });
 
-				return refs.filter(ref => ref.name !== currentHead).map(ref => new BranchDeleteItem(ref));
+				const refsToExclude: string[] = [];
+				if (options.remote) {
+					refsToExclude.push('origin/HEAD');
+
+					if (repository.HEAD?.upstream) {
+						// Current branch's upstream
+						refsToExclude.push(`${repository.HEAD.upstream.remote}/${repository.HEAD.upstream.name}`);
+					}
+				} else {
+					if (repository.HEAD?.name) {
+						// Current branch
+						refsToExclude.push(repository.HEAD.name);
+					}
+				}
+
+				return refs.filter(ref => ref.name && !refsToExclude.includes(ref.name))
+					.map(ref => new BranchDeleteItem(ref));
 			};
 
-			const placeHolder = l10n.t('Select a branch to delete');
+			const placeHolder = !options.remote
+				? l10n.t('Select a branch to delete')
+				: l10n.t('Select a remote branch to delete');
+
 			const choice = await this.pickRef<BranchDeleteItem>(getBranchPicks(), placeHolder);
 
 			if (!choice || !choice.refName) {
@@ -2916,7 +3074,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await run(force);
+			await run(options.force);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
 				throw err;

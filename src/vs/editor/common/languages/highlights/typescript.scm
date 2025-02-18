@@ -122,6 +122,11 @@
 ; Tokens
 
 [
+  "{"
+  "}"
+] @punctuation
+
+[
   ";"
   "?."
   "."
@@ -306,16 +311,23 @@
 
 (rest_pattern) @keyword.operator.rest
 
-(spread_element) @keyword.operator.spread
+(spread_element
+  ("...") @keyword.operator.spread)
 
 ; Language constants
 
 [
-  (true)
-  (false)
   (null)
   (undefined)
 ] @constant.language
+
+[
+  (true)
+] @constant.language.boolean.true
+
+[
+  (false)
+] @constant.language.boolean.false
 
 (namespace_import
   "*" @constant.language)

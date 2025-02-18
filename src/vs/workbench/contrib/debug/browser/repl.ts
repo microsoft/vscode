@@ -215,6 +215,8 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			const focusedSession = this.debugService.getViewModel().focusedSession;
 			if (this.tree && this.tree.getInput() !== focusedSession) {
 				this.onDidFocusSession(focusedSession);
+			} else {
+				this.selectSession();
 			}
 
 			this.setMode();
@@ -270,12 +272,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 						const model = this.replInput.getModel();
 						if (model) {
-							const word = model.getWordAtPosition(position);
-							const overwriteBefore = word ? word.word.length : 0;
 							const text = model.getValue();
 							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 							const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-							const response = await session.completions(frameId, focusedStackFrame?.thread.threadId || 0, text, position, overwriteBefore, token);
+							const response = await session.completions(frameId, focusedStackFrame?.thread.threadId || 0, text, position, token);
 
 							const suggestions: CompletionItem[] = [];
 							const computeRange = (length: number) => Range.fromPositions(position.delta(0, -length), position);
@@ -298,7 +298,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 											detail: item.detail,
 											kind: CompletionItemKinds.fromString(item.type || 'property'),
 											filterText: (item.start && item.length) ? text.substring(item.start, item.start + item.length).concat(item.label) : undefined,
-											range: computeRange(item.length || overwriteBefore),
+											range: computeRange(item.length || 0),
 											sortText: item.sortText,
 											insertTextRules
 										});
@@ -569,13 +569,13 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replInput.focus();
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override createActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === selectReplCommandId) {
 			const session = (this.tree ? this.tree.getInput() : undefined) ?? this.debugService.getViewModel().focusedSession;
 			return this.instantiationService.createInstance(SelectReplActionViewItem, action, session);
 		}
 
-		return super.getActionViewItem(action);
+		return super.createActionViewItem(action);
 	}
 
 	private get isMultiSessionView(): boolean {

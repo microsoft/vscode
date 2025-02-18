@@ -72,6 +72,7 @@ import { GettingStartedIndexList } from './gettingStartedList.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -820,8 +821,8 @@ export class GettingStartedPage extends EditorPane {
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});
 
-		this.detailsPageScrollbar = this._register(new DomScrollableElement(this.stepsContent, { className: 'full-height-scrollable' }));
-		this.categoriesPageScrollbar = this._register(new DomScrollableElement(this.categoriesSlide, { className: 'full-height-scrollable categoriesScrollbar' }));
+		this.detailsPageScrollbar = this._register(new DomScrollableElement(this.stepsContent, { className: 'full-height-scrollable', vertical: ScrollbarVisibility.Hidden }));
+		this.categoriesPageScrollbar = this._register(new DomScrollableElement(this.categoriesSlide, { className: 'full-height-scrollable categoriesScrollbar', vertical: ScrollbarVisibility.Hidden }));
 
 		this.stepsSlide.appendChild(this.detailsPageScrollbar.getDomNode());
 

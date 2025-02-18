@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { hash } from '../../../../base/common/hash.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, dispose } from '../../../../base/common/lifecycle.js';
 import * as marked from '../../../../base/common/marked/marked.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { annotateVulnerabilitiesInText } from './annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from './chatAgents.js';
-import { ChatModelInitState, ChatPauseState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
+import { ChatModelInitState, ChatPauseState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
-import { hash } from '../../../../base/common/hash.js';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -75,7 +76,7 @@ export interface IChatRequestViewModel {
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly workingSet?: ReadonlyArray<URI>;
 	readonly confirmation?: string;
-	readonly shouldBeRemovedOnSend: boolean;
+	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
@@ -181,8 +182,9 @@ export interface IChatResponseViewModel {
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
-	readonly shouldBeRemovedOnSend: boolean;
+	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isCompleteAddedRequest: boolean;
+	readonly isPaused: IObservable<boolean>;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
@@ -304,7 +306,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
-		return this._items.filter((item) => !item.shouldBeRemovedOnSend);
+		return this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
 	}
 
 	override dispose() {
@@ -538,7 +540,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			return this._usedReferencesExpanded;
 		}
 
-		return this.response.value.length === 0 && !this.errorDetails;
+		return undefined;
 	}
 
 	set usedReferencesExpanded(v: boolean) {
@@ -557,6 +559,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
 	get contentUpdateTimings(): IChatLiveUpdateData | undefined {
 		return this._contentUpdateTimings;
+	}
+
+	get isPaused() {
+		return this._model.isPaused;
 	}
 
 	constructor(
@@ -580,15 +586,15 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			// This should be true, if the model is changing
 			if (this._contentUpdateTimings) {
 				const now = Date.now();
-				const wordCount = countWords(_model.response.getMarkdown());
+				const wordCount = countWords(_model.entireResponse.getMarkdown());
 
 				if (wordCount > 0 && wordCount === this._contentUpdateTimings.lastWordCount) {
 					this.trace('onDidChange', `Update- no new words`);
 				} else {
 					const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
 					const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
-					const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (newTotalTime / 1000);
-					this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
+					const impliedWordLoadRate = wordCount / (newTotalTime / 1000);
+					this.trace('onDidChange', `Update- got ${wordCount} words over last ${newTotalTime}ms = ${impliedWordLoadRate} words/s`);
 					this._contentUpdateTimings = {
 						totalTime: this._contentUpdateTimings.totalTime !== 0 || this.response.value.some(v => v.kind === 'markdownContent') ?
 							newTotalTime :

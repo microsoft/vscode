@@ -794,7 +794,7 @@ class TestResultsPeek extends PeekViewWidget {
 
 			const displayed = this._getMaximumHeightInLines();
 			if (displayed) {
-				this._relayout(Math.min(displayed, this.getVisibleEditorLines() / 2));
+				this._relayout(Math.min(displayed, this.getVisibleEditorLines() / 2), true);
 				if (!contentHeightSettleTimer.isScheduled()) {
 					contentHeightSettleTimer.schedule();
 				}
