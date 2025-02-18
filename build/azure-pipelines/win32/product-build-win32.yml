@@ -239,6 +239,8 @@ steps:
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
           $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\resources\app\package.json | ConvertFrom-Json
           $Version = $PackageJson.version
           echo "##vso[task.setvariable variable=VSCODE_VERSION]$Version"
