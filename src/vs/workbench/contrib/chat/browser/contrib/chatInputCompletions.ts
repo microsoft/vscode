@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
+import { dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -43,7 +44,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, getTopLevelDirectories, searchDirectories, SelectAndInsertDirectoryAction, SelectAndInsertFileAction, SelectAndInsertSymAction } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, getTopLevelFolders, searchFolders, SelectAndInsertFolderAction, SelectAndInsertFileAction, SelectAndInsertSymAction } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -496,32 +497,29 @@ class BuiltinDynamicCompletions extends Disposable {
 			return result;
 		});
 
-		// Directory completions
-		this.registerVariableCompletions('directory', async ({ widget, range, position, model }, token) => {
+		// Folder completions
+		this.registerVariableCompletions('folder', async ({ widget, range, position, model }, token) => {
 			if (!widget.supportsFileReferences) {
 				return null;
 			}
 
 			const result: CompletionList = { suggestions: [] };
 
-			const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#directory:'.length);
+			const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#folder:'.length);
 			result.suggestions.push({
-				label: `${chatVariableLeader}directory`,
-				insertText: `${chatVariableLeader}directory:`,
-				documentation: localize('pickDirectoryLabel', "Pick a directory"),
+				label: `${chatVariableLeader}folder`,
+				insertText: `${chatVariableLeader}folder:`,
+				documentation: localize('pickFolderLabel', "Pick a folder"),
 				range,
 				kind: CompletionItemKind.Text,
-				command: { id: SelectAndInsertDirectoryAction.ID, title: SelectAndInsertDirectoryAction.ID, arguments: [{ widget, range: afterRange }] },
+				command: { id: SelectAndInsertFolderAction.ID, title: SelectAndInsertFolderAction.ID, arguments: [{ widget, range: afterRange }] },
 				sortText: 'z'
 			});
 
 			const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 			if (range2) {
-				await this.addDirectoryEntries(widget, result, range2, token);
-			} else {
-				console.log('no range');
+				await this.addFolderEntries(widget, result, range2, token);
 			}
-
 
 			return result;
 		});
@@ -731,31 +729,31 @@ class BuiltinDynamicCompletions extends Disposable {
 		result.incomplete = true;
 	}
 
-	private async addDirectoryEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+	private async addFolderEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
-		const directoryLeader = `${chatVariableLeader}directory:`;
+		const folderLeader = `${chatVariableLeader}folder:`;
 
-		const makeDirectoryCompletionItem = (resource: URI, description?: string): CompletionItem => {
+		const makeFolderCompletionItem = (resource: URI, description?: string): CompletionItem => {
 
 			const basename = this.labelService.getUriBasenameLabel(resource);
-			const text = `${directoryLeader}${basename}`;
-			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
+			const text = `${folderLeader}${basename}`;
+			const uriLabel = this.labelService.getUriLabel(dirname(resource), { relative: true });
 			const labelDescription = description
-				? localize('directoryEntryDescription', '{0} ({1})', uriLabel, description)
+				? localize('folderEntryDescription', '{0} ({1})', uriLabel, description)
 				: uriLabel;
 			const sortText = description ? 'z' : '{'; // after `z`
 
 			return {
 				label: { label: basename, description: labelDescription },
-				filterText: `${directoryLeader}${basename}`,
+				filterText: `${folderLeader}${basename}`,
 				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
 				range: info,
 				kind: CompletionItemKind.Folder,
 				sortText,
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-						id: 'vscode.directory',
-						prefix: 'directory',
+						id: 'vscode.folder',
+						prefix: 'folder',
 						isFile: false,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: resource
@@ -768,29 +766,29 @@ class BuiltinDynamicCompletions extends Disposable {
 		const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
 
 		let pattern: string | undefined;
-		if (info.varWord?.word && info.varWord.word.startsWith(directoryLeader)) {
-			pattern = info.varWord.word.toLowerCase().slice(directoryLeader.length);
+		if (info.varWord?.word && info.varWord.word.startsWith(folderLeader)) {
+			pattern = info.varWord.word.toLowerCase().slice(folderLeader.length);
 
-			for (const directory of await getTopLevelDirectories(workspaces, this.fileService)) {
-				result.suggestions.push(makeDirectoryCompletionItem(directory));
-				seen.add(directory);
+			for (const folder of await getTopLevelFolders(workspaces, this.fileService)) {
+				result.suggestions.push(makeFolderCompletionItem(folder));
+				seen.add(folder);
 			}
 		}
 
 		// SEARCH
-		// use directory search when having a pattern
+		// use folder search when having a pattern
 		if (pattern) {
 
 			const cacheKey = this.updateCacheKey();
 
-			const folders = await Promise.all(workspaces.map(workspace => searchDirectories(workspace, pattern, token, cacheKey.key, this.configurationService, this.searchService)));
+			const folders = await Promise.all(workspaces.map(workspace => searchFolders(workspace, pattern, token, cacheKey.key, this.configurationService, this.searchService)));
 			for (const resource of folders.flat()) {
 				if (seen.has(resource)) {
 					// already included via history
 					continue;
 				}
 				seen.add(resource);
-				result.suggestions.push(makeDirectoryCompletionItem(resource));
+				result.suggestions.push(makeFolderCompletionItem(resource));
 			}
 		}
 
