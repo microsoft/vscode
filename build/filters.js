@@ -89,7 +89,7 @@ module.exports.indentationFilter = [
 	'!test/automation/out/**',
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
-	'!extensions/terminal-suggest/zshbuiltins.json',
+	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.json',
 	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/typescript-language-features/resources/walkthroughs/**',
