@@ -267,7 +267,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
 	private actionToolBarElement!: HTMLElement;
 
+	private globalToolbarMenu = this.menuService.createMenu(MenuId.TitleBar, this.contextKeyService);
 	private layoutToolbarMenu: IMenu | undefined;
+
+	private readonly globalToolbarMenuDisposables = this._register(new DisposableStore());
 	private readonly editorToolbarMenuDisposables = this._register(new DisposableStore());
 	private readonly layoutToolbarMenuDisposables = this._register(new DisposableStore());
 	private readonly activityToolbarDisposables = this._register(new DisposableStore());
@@ -363,10 +366,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Actions
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle) && this.actionToolBar) {
+			const affectsGlobalActions = event.affectsConfiguration(LayoutSettings.COMMAND_CENTER);
 			const affectsLayoutControl = event.affectsConfiguration(LayoutSettings.LAYOUT_ACTIONS);
 			const affectsActivityControl = event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 
-			if (affectsLayoutControl || affectsActivityControl) {
+			if (affectsGlobalActions || affectsLayoutControl || affectsActivityControl) {
 				this.createActionToolBarMenus({ layoutActions: affectsLayoutControl, activityActions: affectsActivityControl });
 
 				this._onDidChange.fire(undefined);
@@ -637,10 +641,17 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				if (isAccountsActionVisible(this.storageService)) {
 					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
 				}
+
 				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
 			}
 
-			// --- Layout Actions
+			// --- Global Actions
+			fillInActionBarActions(
+				this.globalToolbarMenu.getActions(),
+				actions
+			);
+
+			// --- Layout Actions (always at the end)
 			if (this.layoutToolbarMenu) {
 				fillInActionBarActions(
 					this.layoutToolbarMenu.getActions(),
@@ -682,6 +693,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				this.layoutToolbarMenu = undefined;
 			}
 		}
+
+		this.globalToolbarMenuDisposables.clear();
+		this.globalToolbarMenuDisposables.add(this.globalToolbarMenu.onDidChange(() => updateToolBarActions()));
 
 		if (update.activityActions) {
 			this.activityToolbarDisposables.clear();
