@@ -132,16 +132,16 @@ async function createCommandDescriptionsCache(): Promise<void> {
 				// Store the previous command before moving on to the new one
 				if (currentCommand && currentDescription.join(' ').trim().length) {
 					const shortDescription = shortDescriptions.get(currentCommand);
-					const description = desc.join(' ').trim();
-					const args = `${command} ${argsRaw}`;
+					const description = currentDescription.join(' ').trim();
+					const args = `${currentCommand} ${currentArgs}`;
 					if (shortDescription) {
-						cachedCommandDescriptions.set(command, {
+						cachedCommandDescriptions.set(currentCommand, {
 							shortDescription,
 							description,
 							args
 						});
 					} else {
-						cachedCommandDescriptions.set(command, {
+						cachedCommandDescriptions.set(currentCommand, {
 							description,
 							args
 						});
