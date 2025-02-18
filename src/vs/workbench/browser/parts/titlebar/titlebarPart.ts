@@ -366,11 +366,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Actions
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle) && this.actionToolBar) {
-			const affectsGlobalActions = event.affectsConfiguration(LayoutSettings.COMMAND_CENTER);
 			const affectsLayoutControl = event.affectsConfiguration(LayoutSettings.LAYOUT_ACTIONS);
 			const affectsActivityControl = event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 
-			if (affectsGlobalActions || affectsLayoutControl || affectsActivityControl) {
+			if (affectsLayoutControl || affectsActivityControl) {
 				this.createActionToolBarMenus({ layoutActions: affectsLayoutControl, activityActions: affectsActivityControl });
 
 				this._onDidChange.fire(undefined);
