@@ -1230,15 +1230,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
 		const overviewTitle = overviewRegion.querySelector('.working-set-title') as HTMLElement ?? dom.append(overviewRegion, $('.working-set-title'));
-		const overviewWorkingSet = overviewTitle.querySelector('span') ?? dom.append(overviewTitle, $('span'));
 		const overviewFileCount = overviewTitle.querySelector('span.working-set-count') ?? dom.append(overviewTitle, $('span.working-set-count'));
-
-		overviewWorkingSet.textContent = localize('chatEditingSession.workingSet', 'Changed Files');
 
 		let suggestedFilesInWorkingSetCount = 0;
 		overviewFileCount.textContent = '';
 		if (entries.length === 1) {
-			overviewFileCount.textContent = ' ' + localize('chatEditingSession.oneFile', '(1 file)');
+			overviewFileCount.textContent = localize('chatEditingSession.oneFile.1', '1 file changed');
 			suggestedFilesInWorkingSetCount = entries[0].kind === 'reference' && entries[0].state === WorkingSetEntryState.Suggested ? 1 : 0;
 		} else {
 			suggestedFilesInWorkingSetCount = entries.filter(e => e.kind === 'reference' && e.state === WorkingSetEntryState.Suggested).length;
@@ -1246,10 +1243,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (entries.length > 1) {
 			const fileCount = entries.length - suggestedFilesInWorkingSetCount;
-			overviewFileCount.textContent = ' ' + (fileCount === 1 ? localize('chatEditingSession.oneFile', '(1 file)') : localize('chatEditingSession.manyFiles', '({0} files)', fileCount));
+			overviewFileCount.textContent = (fileCount === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', fileCount));
 		}
 
-		overviewTitle.ariaLabel = overviewWorkingSet.textContent + overviewFileCount.textContent;
+		overviewTitle.ariaLabel = overviewFileCount.textContent;
 		overviewTitle.tabIndex = 0;
 
 		// Clear out the previous actions (if any)
