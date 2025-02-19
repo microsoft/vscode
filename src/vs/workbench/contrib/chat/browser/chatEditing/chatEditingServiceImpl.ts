@@ -367,24 +367,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		});
 	}
 
-	async getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
-		const currentSession = this.getEditingSession(chatSessionId);
-		if (!currentSession) {
-			return undefined;
-		}
-		const userAddedWorkingSetEntries: URI[] = [];
-		for (const [uri, metadata] of currentSession.workingSet) {
-			// Don't incorporate suggested files into the related files request
-			// but do consider transient entries like open editors
-			if (metadata.state !== WorkingSetEntryState.Suggested) {
-				userAddedWorkingSetEntries.push(uri);
-			}
-		}
-
+	async getRelatedFiles(chatSessionId: string, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
 		const providers = Array.from(this._chatRelatedFilesProviders.values());
 		const result = await Promise.all(providers.map(async provider => {
 			try {
-				const relatedFiles = await provider.provideRelatedFiles({ prompt, files: userAddedWorkingSetEntries }, token);
+				const relatedFiles = await provider.provideRelatedFiles({ prompt, files }, token);
 				if (relatedFiles?.length) {
 					return { group: provider.description, files: relatedFiles };
 				}

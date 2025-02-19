@@ -7,11 +7,11 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { ChatEditingSessionChangeType, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatRelatedFilesContribution extends Disposable implements IWorkbenchContribution {
@@ -26,16 +26,15 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 	) {
 		super();
 
-		this._register(
-			this.chatWidgetService.onDidAddWidget(widget => {
-				if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel?.sessionId) {
-					const editingSession = this.chatEditingService.getEditingSession(widget.viewModel.sessionId);
-					if (editingSession) {
-						this._handleNewEditingSession(editingSession, widget);
-					}
+		this._register(autorun((reader) => {
+			const sessions = this.chatEditingService.editingSessionsObs.read(reader);
+			sessions.forEach(session => {
+				const widget = this.chatWidgetService.getWidgetBySessionId(session.chatSessionId);
+				if (widget && !this.chatEditingSessionDisposables.has(session.chatSessionId)) {
+					this._handleNewEditingSession(session, widget);
 				}
-			}),
-		);
+			});
+		}));
 	}
 
 	private _updateRelatedFileSuggestions(currentEditingSession: IChatEditingSession, widget: IChatWidget) {
@@ -49,7 +48,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 			return;
 		}
 
-		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), CancellationToken.None)
+		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
 			.then((files) => {
 				if (!files?.length || !widget.viewModel?.sessionId) {
 					return;
@@ -101,10 +100,8 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 		disposableStore.add(onDebouncedType(() => {
 			this._updateRelatedFileSuggestions(currentEditingSession, widget);
 		}));
-		disposableStore.add(currentEditingSession.onDidChange((e) => {
-			if (e === ChatEditingSessionChangeType.WorkingSet) {
-				this._updateRelatedFileSuggestions(currentEditingSession, widget);
-			}
+		disposableStore.add(widget.attachmentModel.onDidChangeContext(() => {
+			this._updateRelatedFileSuggestions(currentEditingSession, widget);
 		}));
 		disposableStore.add(currentEditingSession.onDidDispose(() => {
 			disposableStore.dispose();

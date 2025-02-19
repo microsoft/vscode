@@ -391,7 +391,7 @@ export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 
 		// Remove all file attachments
 		const fileAttachments = chatWidget.attachmentModel ? chatWidget.attachmentModel.fileAttachments : [];
-		const attachmentIdsToRemove = fileAttachments.map(attachment => (attachment.value as URI).toString());
+		const attachmentIdsToRemove = fileAttachments.map(attachment => attachment.toString());
 		chatWidget.attachmentModel.delete(...attachmentIdsToRemove);
 	}
 }
