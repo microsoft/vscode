@@ -113,63 +113,74 @@ async function createCommandDescriptionsCache(): Promise<void> {
 	let output = '';
 
 	try {
-		output = await execAsync('man zshbuiltins').then(r => r.stdout);
+		output = await execAsync('pandoc --from man --to markdown --wrap=none < $(man -w zshbuiltins)').then(r => r.stdout);
 	} catch {
 	}
 
+	const commands: Map<string, string[]> = new Map();
 	if (output) {
-		// Strip all backspaces from the output
-		output = output.replace(/.\x08/g, '');
+		console.log('!');
 		const lines = output.split('\n');
-
 		let currentCommand: string | undefined;
-		let currentDescription: string[] = [];
-		let currentArgs: string | undefined;
-		let commandSectionStarted = false; // Flag to ensure we ignore unrelated lines at the start
-
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-
-			// Detect command names (lines starting with exactly 7 spaces)
-			const cmdMatch = line.match(/^\s{7}(\S+)(?:\s+(.*))?/);
-			if (cmdMatch?.length && cmdMatch.length > 1) {
-				commandSectionStarted = true; // Now we know we're in the right section
-
-				// Store the previous command before moving on to the new one
-				if (currentCommand && currentDescription.join(' ').trim().length) {
-					const shortDescription = shortDescriptions.get(currentCommand);
-					const description = currentDescription.join(' ').trim();
-					const args = `${currentCommand} ${currentArgs}`;
-					if (shortDescription) {
-						cachedCommandDescriptions.set(currentCommand, {
-							shortDescription,
-							description,
-							args
-						});
-					} else {
-						cachedCommandDescriptions.set(currentCommand, {
-							description,
-							args
-						});
+		let currentCommandStart = 0;
+		let seenOutput = false;
+		let i = 0;
+		for (; i < lines.length; i++) {
+			if (!currentCommand || seenOutput) {
+				const match = lines[i].match(/^\*\*(?<command>[a-z]+)\*\*(?:\s\*.+\*)?$/);
+				if (match?.groups?.command) {
+					if (currentCommand) {
+						commands.set(currentCommand, lines.slice(currentCommandStart, i));
 					}
+					currentCommand = match.groups.command;
+					currentCommandStart = i;
+					seenOutput = false;
 				}
-
-				// Start a new command entry
-				currentCommand = cmdMatch[1];
-				currentArgs = cmdMatch[2];
-				currentDescription = []; // Reset description for the new command
 			}
-			// Capture description lines (14 spaces indentation) only if we have detected a command section
-			else if (commandSectionStarted && currentCommand && line.match(/^\s{14}/)) {
-				currentDescription.push(line.trim());
+			if (!currentCommand) {
+				continue;
+			}
+			// There may be several examples of usage
+			if (!seenOutput) {
+				seenOutput = lines[i].length > 0 && !lines[i].match(/^\*\*(?<command>[a-z]+)\*\*(?:\s\*.+\*)?$/);
 			}
 		}
+		if (currentCommand) {
+			commands.set(currentCommand, lines.slice(currentCommandStart, i - 1));
+		}
+	}
 
-		// Store the last command in the loop
-		if (currentCommand && currentDescription.join(' ').trim().length) {
-			cachedCommandDescriptions.set(currentCommand, {
-				description: currentDescription.join(' ').trim(),
-				args: currentArgs ? `${currentCommand} ${currentArgs}` : undefined
+	if (commands.size === 0) {
+		console.error('\x1b[31mFailed to parse command descriptions\x1b[30m');
+		process.exit(1);
+	}
+
+	for (const [command, lines] of commands) {
+		const shortDescription = shortDescriptions.get(command);
+		let argsEnd = 0;
+		try {
+			while (true) {
+				const line = lines[++argsEnd];
+				if (line.trim().length > 0 && !line.match(/^\*\*(?<command>[a-z]+)\*\*(?:\s\*.+\*)?$/)) {
+					break;
+				}
+			}
+		} catch (e) {
+			console.log(e);
+		}
+		const formattedArgs = lines.slice(0, argsEnd - 1).join('\n');
+		const args = (await execAsync(`pandoc --from markdown --to plain <<< "${formattedArgs}"`)).stdout.trim();
+		const description = lines.slice(argsEnd).join('\n').trim();
+		if (shortDescription) {
+			cachedCommandDescriptions.set(command, {
+				shortDescription,
+				description,
+				args
+			});
+		} else {
+			cachedCommandDescriptions.set(command, {
+				description,
+				args
 			});
 		}
 	}
