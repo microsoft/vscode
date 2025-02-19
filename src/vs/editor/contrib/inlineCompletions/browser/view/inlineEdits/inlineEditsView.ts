@@ -105,7 +105,7 @@ export class InlineEditsView extends Disposable {
 			this._previewTextModel.setValue(newText);
 		}
 
-		if (this._showCollapsed.read(reader) && this._host.tabAction.read(reader) !== InlineEditTabAction.Accept && !this._indicator.read(reader).isHoverVisible.read(reader)) {
+		if (this._showCollapsed.read(reader) && this._host.tabAction.read(reader) !== InlineEditTabAction.Accept && !this._indicator.read(reader).isHoverVisible.read(reader) && !this._model.get()!.inAcceptFlow.read(reader)) {
 			state = { kind: 'hidden' };
 		}
 
@@ -127,7 +127,7 @@ export class InlineEditsView extends Disposable {
 		null
 	));
 
-	// TODO: This has become messy, should it be passed in to the InlineEditsView?
+	// TODO: This has become messy, should it be passed in to the InlineEditsView? Maybe include in accept flow?
 	private readonly _host: IInlineEditsViewHost = {
 		displayName: derivedObservableWithCache<string>(this, (reader, previousDisplayName) => {
 			const state = this._model.read(reader)?.inlineEditState;
