@@ -139,7 +139,9 @@ export enum SettingMatchType {
 	RemoteMatch = 1 << 1,
 	DescriptionOrValueMatch = 1 << 2,
 	KeyMatch = 1 << 3,
-	KeyIdMatch = 1 << 4,
+	NonContiguousKeyIdMatch = 1 << 4,
+	ContiguousKeyIdMatch = 1 << 5,
+	AllWordsKeyMatch = 1 << 6,
 }
 
 export interface ISettingMatch {

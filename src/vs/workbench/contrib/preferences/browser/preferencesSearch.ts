@@ -129,6 +129,14 @@ export class LocalSearchProvider implements ISearchProvider {
 				filterMatches: [exactMatch],
 				exactMatch: true
 			});
+		} else if (useNewKeyMatchingSearch) {
+			// Only return matches of the best match type.
+			const topMatchType = Math.max(...filterMatches.map(m => m.matchType));
+			const topMatchTypeMatches = filterMatches.filter(m => m.matchType === topMatchType);
+			return Promise.resolve({
+				filterMatches: topMatchTypeMatches,
+				exactMatch: false
+			});
 		} else {
 			return Promise.resolve({
 				filterMatches: filterMatches,
@@ -198,18 +206,9 @@ export class SettingMatches {
 		}
 		if (this.useNewKeyMatchingSearch) {
 			if (keyMatchingWords.size === queryWords.size) {
-				// All words in the query matched with something in the setting key.
-				this.matchType |= SettingMatchType.KeyMatch;
-				// Score based on how many words matched out of the entire key, penalizing longer setting names.
-				const settingKeyAsWordsCount = settingKeyAsWords.split(' ').length;
-				this.keyMatchScore = (keyMatchingWords.size / settingKeyAsWordsCount) + (1 / setting.key.length);
-			}
-			const keyMatches = matchesSubString(searchString, settingKeyAsWords);
-			if (keyMatches?.length) {
-				// Handles cases such as "editor formonpast" with missing letters.
-				keyMatchingWords.set(searchString, keyMatches.map(match => this.toKeyRange(setting, match)));
-				this.matchType |= SettingMatchType.KeyMatch;
-				this.keyMatchScore = keyMatchingWords.size;
+				this.matchType |= SettingMatchType.AllWordsKeyMatch;
+				// Penalize longer setting names.
+				this.keyMatchScore = 1 / setting.key.length;
 			}
 		} else {
 			// Fall back to the old algorithm.
@@ -218,15 +217,29 @@ export class SettingMatches {
 				this.keyMatchScore = keyMatchingWords.size;
 			}
 		}
-		const keyIdMatches = matchesContiguousSubString(searchString, setting.key);
-		if (keyIdMatches?.length) {
-			// Handles cases such as "editor.formatonpaste" where the user tries searching for the ID.
-			keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
-			if (this.useNewKeyMatchingSearch) {
-				this.matchType |= SettingMatchType.KeyMatch;
-				this.keyMatchScore = Math.max(this.keyMatchScore, searchString.length / setting.key.length);
+
+		if (this.useNewKeyMatchingSearch) {
+			// Reduce the query and the key to get rid of punctuation and spaces.
+			const queryNoPunctuation = searchString.replace(/[^a-zA-Z0-9]/g, '');
+			const keyNoPunctuation = setting.key.replace(/[^a-zA-Z0-9]/g, '');
+			// Does a contiguous search, and does a non-contiguous search if that fails.
+			const keyIdMatches = matchesContiguousSubString(queryNoPunctuation, keyNoPunctuation);
+			if (keyIdMatches?.length) {
+				keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
+				this.matchType |= SettingMatchType.ContiguousKeyIdMatch;
 			} else {
-				this.matchType |= SettingMatchType.KeyIdMatch;
+				const nonContiguousMatches = matchesSubString(queryNoPunctuation, keyNoPunctuation);
+				if (nonContiguousMatches?.length) {
+					keyMatchingWords.set(setting.key, nonContiguousMatches.map(match => this.toKeyRange(setting, match)));
+					this.matchType |= SettingMatchType.NonContiguousKeyIdMatch;
+				}
+			}
+		} else {
+			const keyIdMatches = matchesContiguousSubString(searchString, setting.key);
+			if (keyIdMatches?.length) {
+				// Handles cases such as "editor.formatonpaste" where the user tries searching for the ID.
+				keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
+				this.matchType |= SettingMatchType.ContiguousKeyIdMatch;
 			}
 		}
 
