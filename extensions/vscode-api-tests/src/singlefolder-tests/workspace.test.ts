@@ -1360,6 +1360,19 @@ suite('vscode API - workspace', () => {
 		} finally {
 			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'utf8', vscode.ConfigurationTarget.Global);
 		}
+
+		// with encoding provided
+		assert.strictEqual(await vscode.workspace.decode(new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100]), uri, { encoding: 'windows1252' }), 'Hellö Wörld');
+		assert.strictEqual(await vscode.workspace.decode(Buffer.from('Hello World'), uri, { encoding: 'foobar123' }), 'Hello World');
+
+		// binary
+		let err;
+		try {
+			await vscode.workspace.decode(new Uint8Array([0, 0, 0, 0]), uri);
+		} catch (e) {
+			err = e;
+		}
+		assert.ok(err);
 	});
 
 	test('fs.encode', async function () {
@@ -1384,6 +1397,14 @@ suite('vscode API - workspace', () => {
 		} finally {
 			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'utf8', vscode.ConfigurationTarget.Global);
 		}
+
+		// with encoding provided
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'utf8' }), new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'utf8bom' }), new Uint8Array([0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'utf16le' }), new Uint8Array([0xFF, 0xFE, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'utf16be' }), new Uint8Array([0xFE, 0xFF, 0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hellö Wörld', uri, { encoding: 'cp1252' }), new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100])));
+		assert.ok(equalsUint8Array(await vscode.workspace.encode('Hello World', uri, { encoding: 'foobar123' }), new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])));
 	});
 
 	function equalsUint8Array(a: Uint8Array, b: Uint8Array): boolean {
