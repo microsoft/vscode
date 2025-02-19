@@ -246,6 +246,7 @@ export async function getCompletionItemsFromSpecs(
 					command.detail,
 					command.documentation
 				));
+				labels.add(commandTextLabel);
 			}
 		}
 		filesRequested = true;
