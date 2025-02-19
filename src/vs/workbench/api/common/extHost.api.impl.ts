@@ -1231,6 +1231,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getCanonicalUri: (uri: vscode.Uri, options: vscode.CanonicalUriRequestOptions, token: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'canonicalUriProvider');
 				return extHostWorkspace.provideCanonicalUri(uri, options, token);
+			},
+			decode(content: Uint8Array, uri: vscode.Uri | undefined, options?: { encoding: string }) {
+				checkProposedApiEnabled(extension, 'textDocumentEncoding');
+				return extHostWorkspace.decode(content, uri, options);
+			},
+			encode(content: string, uri: vscode.Uri | undefined, options?: { encoding: string }) {
+				checkProposedApiEnabled(extension, 'textDocumentEncoding');
+				return extHostWorkspace.encode(content, uri, options);
 			}
 		};
 
