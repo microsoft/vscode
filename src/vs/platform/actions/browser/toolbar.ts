@@ -88,6 +88,10 @@ export class WorkbenchToolBar extends ToolBar {
 
 	private readonly _sessionDisposables = this._store.add(new DisposableStore());
 
+	private _primaryActions: ReadonlyArray<IAction> = [];
+	private _secondaryActions: ReadonlyArray<IAction> | undefined;
+	private _menuIds: readonly MenuId[] | undefined;
+
 	constructor(
 		container: HTMLElement,
 		private _options: IWorkbenchToolBarOptions | undefined,
@@ -119,7 +123,9 @@ export class WorkbenchToolBar extends ToolBar {
 	}
 
 	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
-
+		this._primaryActions = _primary;
+		this._secondaryActions = _secondary;
+		this._menuIds = menuIds;
 		this._sessionDisposables.clear();
 		const primary: Array<IAction | undefined> = _primary.slice(); // for hiding and overflow we set some items to undefined
 		const secondary = _secondary.slice();
@@ -255,13 +261,40 @@ export class WorkbenchToolBar extends ToolBar {
 				if (this._options?.resetMenu && !menuIds) {
 					menuIds = [this._options.resetMenu];
 				}
+				let separatorAdded = false;
 				if (someAreHidden && menuIds) {
 					actions.push(new Separator());
+					separatorAdded = true;
 					actions.push(toAction({
 						id: 'resetThisMenu',
 						label: localize('resetThisMenu', "Reset Menu"),
 						run: () => this._menuService.resetHiddenStates(menuIds)
 					}));
+				}
+				if (secondary.length > 0 || extraSecondary.length > 0) {
+					if (!separatorAdded) {
+						actions.push(new Separator());
+						separatorAdded = true;
+					}
+					if (this.isToggleMenuHidden) {
+						actions.push(toAction({
+							id: 'showToggleMenu',
+							label: localize('showToggleMenu', "Show 'More Actions...'"),
+							run: () => {
+								this.isToggleMenuHidden = false;
+								this.setActions(this._primaryActions, this._secondaryActions, this._menuIds);
+							}
+						}));
+					} else {
+						actions.push(toAction({
+							id: 'hideToggleMenu',
+							label: localize('hideToggleMenu', "Hide 'More Actions...'"),
+							run: () => {
+								this.isToggleMenuHidden = true;
+								this.setActions(this._primaryActions, this._secondaryActions, this._menuIds);
+							}
+						}));
+					}
 				}
 
 				if (actions.length === 0) {
