@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IShellEnvDetectionCapability, TerminalCapability } from './capabilities.js';
+import { IShellEnvDetectionCapability, TerminalCapability, TerminalShellIntegrationEnvironment } from './capabilities.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { equals } from '../../../../base/common/objects.js';
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalShellIntegrationEnvironment } from 'vscode';
 
 export class ShellEnvDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
 	readonly type = TerminalCapability.ShellEnvDetection;
