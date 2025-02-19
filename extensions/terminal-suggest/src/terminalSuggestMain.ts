@@ -104,7 +104,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!commandsInPath?.completionResources) {
 				return;
 			}
-			const commands = [...commandsInPath.completionResources, ...shellGlobals];
+			// Order is important here, add shell globals first so they are prioritized over path commands
+			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, shellType);
@@ -246,6 +247,7 @@ export async function getCompletionItemsFromSpecs(
 					command.detail,
 					command.documentation
 				));
+				labels.add(commandTextLabel);
 			}
 		}
 		filesRequested = true;
