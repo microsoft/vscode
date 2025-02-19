@@ -179,6 +179,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	windowsUseConptyDll?: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];
@@ -211,9 +212,6 @@ export interface ITerminalConfiguration {
 		enabled: boolean;
 		featureSettings: string;
 		fallbackLigatures: string[];
-	};
-	experimental?: {
-		windowsUseConptyDll?: boolean;
 	};
 	hideOnLastClosed: boolean;
 }

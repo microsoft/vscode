@@ -127,7 +127,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		n.div({ class: 'preview', style: { pointerEvents: 'none' }, ref: this.previewRef }),
 	]).keepUpdated(this._store);
 
-	public readonly isHovered = this._editorContainer.isHovered;
+	public readonly isHovered = this._editorContainer.didMouseMoveDuringHover;
 
 	public readonly previewEditor = this._register(this._instantiationService.createInstance(
 		EmbeddedCodeEditorWidget,

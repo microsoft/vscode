@@ -19,18 +19,18 @@ const allOptions = [
 	'-p',
 	'-v',
 ];
-
+const expectedCompletions = [{ label: 'mkdir', description: (mkdirSpec as any).description }];
 export const mkdirTestSuiteSpec: ISuiteSpec = {
 	name: 'mkdir',
 	completionSpecs: mkdirSpec,
 	availableCommands: 'mkdir',
 	testSpecs: [
 		// Empty input
-		{ input: '|', expectedCompletions: ['mkdir'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: '|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Typing the command
-		{ input: 'm|', expectedCompletions: ['mkdir'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: 'mkdir|', expectedCompletions: ['mkdir'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'm|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'mkdir|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Basic options
 		{ input: 'mkdir |', expectedCompletions: allOptions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },

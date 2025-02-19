@@ -21,9 +21,9 @@ import { IModelDecorationOptions, TrackedRangeStickiness } from '../../../../../
 import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
-import { IInlineEditsView } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from '../theme.js';
-import { getPrefixTrim, InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
+import { getPrefixTrim, mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { rangesToBubbleRanges, Replacement } from './inlineEditsWordReplacementView.js';
 
 export class InlineEditsLineReplacementView extends Disposable implements IInlineEditsView {
@@ -189,7 +189,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 				l.style.position = 'relative';
 			});
 
-			const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+			const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
 
 			return [
 				n.div({
@@ -223,6 +223,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							borderTop: `1px solid ${modifiedBorderColor}`,
 							overflow: 'hidden',
 						},
+						//onmouseup: () => this._host.accept(),
 					}, [
 						n.div({
 							style: {
@@ -263,7 +264,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		})
 	]).keepUpdated(this._store);
 
-	readonly isHovered = this._div.isHovered;
+	readonly isHovered = this._div.didMouseMoveDuringHover;
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
@@ -273,7 +274,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			modifiedLines: string[];
 			replacements: Replacement[];
 		} | undefined>,
-		private readonly _tabAction: IObservable<InlineEditTabAction>,
+		private readonly _host: IInlineEditsViewHost,
 		@ILanguageService private readonly _languageService: ILanguageService
 	) {
 		super();

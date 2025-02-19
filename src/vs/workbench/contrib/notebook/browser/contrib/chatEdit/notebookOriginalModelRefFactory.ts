@@ -9,6 +9,7 @@ import { INotebookService } from '../../../common/notebookService.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 
 
 export const INotebookOriginalModelReferenceFactory = createDecorator<INotebookOriginalModelReferenceFactory>('INotebookOriginalModelReferenceFactory');
@@ -21,7 +22,9 @@ export interface INotebookOriginalModelReferenceFactory {
 
 export class OriginalNotebookModelReferenceCollection extends ReferenceCollection<Promise<NotebookTextModel>> {
 	private readonly modelsToDispose = new Set<string>();
-	constructor(@INotebookService private readonly notebookService: INotebookService) {
+	constructor(@INotebookService private readonly notebookService: INotebookService,
+		@ITextModelService private readonly modelService: ITextModelService
+	) {
 		super();
 	}
 
@@ -32,8 +35,10 @@ export class OriginalNotebookModelReferenceCollection extends ReferenceCollectio
 		if (model) {
 			return model;
 		}
-		const bytes = VSBuffer.fromString(fileEntry.originalModel.getValue());
+		const modelRef = await this.modelService.createModelReference(uri);
+		const bytes = VSBuffer.fromString(modelRef.object.textEditorModel.getValue());
 		const stream = bufferToStream(bytes);
+		modelRef.dispose();
 
 		return this.notebookService.createNotebookTextModel(viewType, uri, stream);
 	}
@@ -87,4 +92,3 @@ export class NotebookOriginalModelReferenceFactory implements INotebookOriginalM
 		return this.asyncModelCollection.acquire(fileEntry.originalURI.toString(), fileEntry, viewType);
 	}
 }
-

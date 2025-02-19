@@ -35,10 +35,10 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
+import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -78,10 +78,12 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	) {
 		super();
 		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this.editingSessionsObs)));
-		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver)));
-		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider)));
-		this._register(textModelService.registerTextModelContentProvider(ChatEditingSnapshotTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider)));
+		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this.editingSessionsObs)));
 
+		// TODO@jrieken
+		// some ugly casting so that this service can pass itself as argument instad as service dependeny
+		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider as any, this)));
+		this._register(textModelService.registerTextModelContentProvider(chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider as any, this)));
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared') {
@@ -172,11 +174,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 
-	private _lookupEntry(uri: URI): ChatEditingModifiedFileEntry | undefined {
+	private _lookupEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
 
 		for (const item of Iterable.concat(this.editingSessionsObs.get())) {
 			const candidate = item.getEntry(uri);
-			if (candidate instanceof ChatEditingModifiedFileEntry) {
+			if (candidate instanceof AbstractChatEditingModifiedFileEntry) {
 				// make sure to ref-count this object
 				return candidate.acquire();
 			}
@@ -308,7 +310,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				let entry = editsSeen[i];
 				if (!entry) {
 					const codeBlockIndex = findLastIdx(codeBlockUrisSeen, e => e?.streaming && isEqual(e.uri, part.uri), i - 1);
-					if (codeBlockIndex) {
+					if (codeBlockIndex !== -1) {
 						entry = { seen: 0, streaming: codeBlockUrisSeen[codeBlockIndex]!.streaming! };
 						codeBlockUrisSeen[codeBlockIndex]!.streaming = undefined;
 					} else {
@@ -318,10 +320,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					editsSeen[i] = entry;
 				}
 
+				const isFirst = entry.seen === 0;
 				const newEdits = part.edits.slice(entry.seen).flat();
 				entry.seen = part.edits.length;
 
-				if (newEdits.length > 0) {
+				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
 						entry.streaming.pushNotebook(newEdits as ICellEditOperation[]);
 					} else if (part.kind === 'textEditGroup') {
@@ -477,8 +480,8 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	constructor(
+		private readonly _editingSessionsObs: IObservable<readonly IChatEditingSession[]>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService
 	) { }
 
 	canHandleUri(uri: URI): boolean {
@@ -488,7 +491,7 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 
 		const thisSession = derived(this, r => {
-			return this._chatEditingService.editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
+			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
 		});
 
 		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession);

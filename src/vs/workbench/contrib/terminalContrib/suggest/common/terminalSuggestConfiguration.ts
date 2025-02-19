@@ -43,7 +43,11 @@ export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
 
 export interface ITerminalSuggestConfiguration {
 	enabled: boolean;
-	quickSuggestions: boolean;
+	quickSuggestions: /*Legacy - was this when experimental*/boolean | {
+		commands: 'off' | 'on';
+		arguments: 'off' | 'on';
+		unknown: 'off' | 'on';
+	};
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
 	windowsExecutableExtensions: { [key: string]: boolean };
@@ -78,8 +82,29 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
 		markdownDescription: localize('suggest.quickSuggestions', "Controls whether suggestions should automatically show up while typing. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", `\`#${TerminalSuggestSettingId.SuggestOnTriggerCharacters}#\``),
-		type: 'boolean',
-		default: true,
+		type: 'object',
+		properties: {
+			commands: {
+				description: localize('suggest.quickSuggestions.commands', 'Enable quick suggestions for commands, the first word in a command line input.'),
+				type: 'string',
+				enum: ['off', 'on'],
+			},
+			arguments: {
+				description: localize('suggest.quickSuggestions.arguments', 'Enable quick suggestions for arguments, anything after the first word in a command line input.'),
+				type: 'string',
+				enum: ['off', 'on'],
+			},
+			unknown: {
+				description: localize('suggest.quickSuggestions.unknown', 'Enable quick suggestions when it\'s unclear what the best suggestion is, if this is on files and folders will be suggested as a fallback.'),
+				type: 'string',
+				enum: ['off', 'on'],
+			},
+		},
+		default: {
+			commands: 'on',
+			arguments: 'on',
+			unknown: 'off',
+		},
 		tags: ['preview']
 	},
 	[TerminalSuggestSettingId.SuggestOnTriggerCharacters]: {
@@ -122,6 +147,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.CdPath]: {
 		restricted: true,
 		markdownDescription: localize('suggest.cdPath', "Controls whether to enable $CDPATH support which exposes children of the folders in the $CDPATH variable regardless of the current working directory. $CDPATH is expected to be semi colon-separated on Windows and colon-separated on other platforms."),
+		type: 'string',
 		enum: ['off', 'relative', 'absolute'],
 		markdownEnumDescriptions: [
 			localize('suggest.cdPath.off', "Disable the feature."),

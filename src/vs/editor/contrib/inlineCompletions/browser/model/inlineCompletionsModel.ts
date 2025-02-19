@@ -7,9 +7,10 @@ import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
 import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
@@ -21,16 +22,18 @@ import { LineRange } from '../../../../common/core/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit, TextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
 import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
-import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
+import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
+import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
 import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
+import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from './inlineCompletionsSource.js';
@@ -59,6 +62,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
 	private readonly _inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
 	private readonly _inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
+	private readonly _inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -71,6 +75,7 @@ export class InlineCompletionsModel extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -388,7 +393,10 @@ export class InlineCompletionsModel extends Disposable {
 			const renderExplicitly = this._jumpedTo.read(reader);
 			const inlineEdit = new InlineEdit(edit, renderExplicitly, commands ?? [], inlineEditResult.inlineCompletion);
 
-			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: [edit], cursorAtInlineEdit };
+			const edits = inlineEditResult.updatedEdit.read(reader);
+			const e = edits ? TextEdit.fromOffsetEdit(edits, new TextModelText(this.textModel)).edits : [edit];
+
+			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: e, cursorAtInlineEdit };
 		}
 
 		this._jumpedTo.set(false, undefined);
@@ -536,6 +544,11 @@ export class InlineCompletionsModel extends Disposable {
 		if (!s) {
 			return false;
 		}
+
+		if (this._inlineEditsShowCollapsed.read(reader)) {
+			return !this._jumpedTo.read(reader);
+		}
+
 		return !s.cursorAtInlineEdit;
 	});
 
@@ -543,6 +556,9 @@ export class InlineCompletionsModel extends Disposable {
 		const s = this.inlineEditState.read(reader);
 		if (!s) {
 			return false;
+		}
+		if (this._inlineEditsShowCollapsed.read(reader)) {
+			return this._jumpedTo.read(reader);
 		}
 		if (s.inlineEdit.range.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
 			return true;
@@ -578,19 +594,21 @@ export class InlineCompletionsModel extends Disposable {
 			throw new BugIndicatingError();
 		}
 
-		let completion: InlineCompletionItem;
+		let completionWithUpdatedRange: InlineCompletionWithUpdatedRange;
 
 		const state = this.state.get();
 		if (state?.kind === 'ghostText') {
 			if (!state || state.primaryGhostText.isEmpty() || !state.inlineCompletion) {
 				return;
 			}
-			completion = state.inlineCompletion.toInlineCompletion(undefined);
+			completionWithUpdatedRange = state.inlineCompletion;
 		} else if (state?.kind === 'inlineEdit') {
-			completion = state.inlineCompletion.toInlineCompletion(undefined);
+			completionWithUpdatedRange = state.inlineCompletion;
 		} else {
 			return;
 		}
+
+		const completion = completionWithUpdatedRange.toInlineCompletion(undefined);
 
 		if (completion.command) {
 			// Make sure the completion list will not be disposed.
@@ -615,7 +633,15 @@ export class InlineCompletionsModel extends Disposable {
 				...edits.map(edit => EditOperation.replace(edit.range, edit.text)),
 				...completion.additionalTextEdits
 			]);
-			editor.setSelections(selections, 'inlineCompletionAccept');
+			editor.setSelections(state.kind === 'inlineEdit' ? selections.slice(-1) : selections, 'inlineCompletionAccept');
+
+			if (state.kind === 'inlineEdit' && !this._accessibilityService.isMotionReduced()) {
+				// we can assume that edits is sorted!
+				const editRanges = new TextEdit(edits).getNewRanges();
+				const dec = this._store.add(new FadeoutDecoration(editor, editRanges, () => {
+					this._store.delete(dec);
+				}));
+			}
 		}
 
 		// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).
@@ -849,4 +875,38 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 		const range = Range.fromPositions(pos, pos.delta(0, l));
 		return new SingleTextEdit(range, secondaryEditText);
 	});
+}
+
+class FadeoutDecoration extends Disposable {
+	constructor(
+		editor: ICodeEditor,
+		ranges: Range[],
+		onDispose?: () => void,
+	) {
+		super();
+
+		if (onDispose) {
+			this._register({ dispose: () => onDispose() });
+		}
+
+		this._register(observableCodeEditor(editor).setDecorations(constObservable(ranges.map<IModelDeltaDecoration>(range => ({
+			range: range,
+			options: {
+				description: 'animation',
+				className: 'edits-fadeout-decoration',
+				zIndex: 1,
+			}
+		})))));
+
+		const animation = new AnimatedValue(1, 0, 1000, easeOutCubic);
+		const val = new ObservableAnimatedValue(animation);
+
+		this._register(autorun(reader => {
+			const opacity = val.getValue(reader);
+			editor.getContainerDomNode().style.setProperty('--animation-opacity', opacity.toString());
+			if (animation.isFinished()) {
+				this.dispose();
+			}
+		}));
+	}
 }

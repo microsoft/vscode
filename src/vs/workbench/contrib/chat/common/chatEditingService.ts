@@ -9,10 +9,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
-import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,7 +22,6 @@ export const IChatEditingService = createDecorator<IChatEditingService>('chatEdi
 export interface IChatEditingService {
 
 	_serviceBrand: undefined;
-
 
 	startOrContinueGlobalEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 
@@ -82,6 +78,8 @@ export interface IStreamingEdits {
 	complete(): void;
 }
 
+export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
+
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
@@ -100,7 +98,12 @@ export interface IChatEditingSession extends IDisposable {
 	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
 
 	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
-	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
+
+	/**
+	 * Gets the snapshot URI of a file at the request and _after_ changes made in the undo stop.
+	 * @param uri File in the workspace
+	 */
+	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined;
 
 	/**
 	 * Will lead to this object getting disposed
@@ -120,12 +123,27 @@ export interface IChatEditingSession extends IDisposable {
 	 * the next one.
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
-	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IDocumentDiff | undefined> | undefined;
+	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
+}
+
+export interface IEditSessionEntryDiff {
+	/** LHS and RHS of a diff editor, if opened: */
+	originalURI: URI;
+	modifiedURI: URI;
+
+	/** Diff state information: */
+	quitEarly: boolean;
+	identical: boolean;
+
+	/** Added data (e.g. line numbers) to show in the UI */
+	added: number;
+	/** Removed data (e.g. line numbers) to show in the UI */
+	removed: number;
 }
 
 export const enum WorkingSetEntryRemovalReason {
@@ -148,16 +166,63 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
-export interface IModifiedFileEntryNavigator {
+/**
+ * Represents a part of a change
+ */
+export interface IModifiedFileEntryChangeHunk {
+	accept(): Promise<boolean>;
+	reject(): Promise<boolean>;
+}
+
+export interface IModifiedFileEntryEditorIntegration extends IDisposable {
+
+	/**
+	 * The index of a change
+	 */
 	currentIndex: IObservable<number>;
+
+	/**
+	 * Reveal the first (`true`) or last (`false`) change
+	 */
+	reveal(firstOrLast: boolean): void;
+
+	/**
+	 * Go to next change and increate `currentIndex`
+	 * @param wrap When at the last, start over again or not
+	 * @returns If it went next
+	 */
 	next(wrap: boolean): boolean;
+
+	/**
+	 * @see `next`
+	 */
 	previous(wrap: boolean): boolean;
+
+	/**
+	 * Enable the accessible diff viewer for this editor
+	 */
+	enableAccessibleDiffView(): void;
+
+	/**
+	 * Accept the change given or the nearest
+	 * @param change An opaque change object
+	 */
+	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void;
+
+	/**
+	 * @see `acceptNearestChange`
+	 */
+	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void;
+
+	/**
+	 * Toggle between diff-editor and normal editor
+	 */
+	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void>;
 }
 
 export interface IModifiedFileEntry {
 	readonly entryId: string;
 	readonly originalURI: URI;
-	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 
 	readonly lastModifyingRequestId: string;
@@ -166,25 +231,19 @@ export interface IModifiedFileEntry {
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 
-	readonly diffInfo: IObservable<IDocumentDiff>;
-
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
-
-	acceptHunk(change: DetailedLineRangeMapping): Promise<boolean>;
-	rejectHunk(change: DetailedLineRangeMapping): Promise<boolean>;
 
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
-
 
 	/**
 	 * Number of changes for this file
 	 */
 	readonly changesCount: IObservable<number>;
 
-	getChangeNavigator(editor: IEditorPane): IModifiedFileEntryNavigator;
+	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 }
 
 export interface IChatEditingSessionStream {

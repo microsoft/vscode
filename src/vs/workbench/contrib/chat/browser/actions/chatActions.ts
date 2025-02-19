@@ -102,7 +102,7 @@ class OpenChatGlobalAction extends Action2 {
 				}
 			},
 			menu: {
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatTitleBarMenu,
 				group: 'a_open',
 				order: 1
 			}
@@ -471,7 +471,7 @@ export function registerChatActions() {
 					f1: true,
 					precondition: contextKey,
 					menu: {
-						id: MenuId.ChatCommandCenter,
+						id: MenuId.ChatTitleBarMenu,
 						group: 'y_manage',
 						order,
 						when: contextKey
@@ -516,7 +516,7 @@ export function registerChatActions() {
 				title: localize2('configureCompletions', "Configure Code Completions..."),
 				precondition: ChatContextKeys.enabled,
 				menu: {
-					id: MenuId.ChatCommandCenter,
+					id: MenuId.ChatTitleBarMenu,
 					group: 'f_completions',
 					order: 10,
 				}
@@ -539,7 +539,7 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 }
 
 
-// --- command center chat
+// --- Title Bar Copilot Controls
 
 const defaultChat = {
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
@@ -549,15 +549,30 @@ const defaultChat = {
 	providerSetting: product.defaultChatAgent?.providerSetting ?? '',
 };
 
+// Add next to the command center if command center is disabled
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
-	submenu: MenuId.ChatCommandCenter,
-	title: localize('title4', "Chat"),
+	submenu: MenuId.ChatTitleBarMenu,
+	title: localize('title4', "Copilot"),
 	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
 		ContextKeyExpr.has('config.chat.commandCenter.enabled')
 	),
-	order: 10001,
+	order: 10001 // to the right of command center
+});
+
+// Add to the global title bar if command center is disabled
+MenuRegistry.appendMenuItem(MenuId.TitleBar, {
+	submenu: MenuId.ChatTitleBarMenu,
+	title: localize('title4', "Copilot"),
+	group: 'navigation',
+	icon: Codicon.copilot,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.supported,
+		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
+		ContextKeyExpr.has('config.window.commandCenter').negate(),
+	),
+	order: 1
 });
 
 registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
@@ -566,17 +581,14 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 			'chat.commandCenter.enabled',
 			localize('toggle.chatControl', 'Copilot Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 5, false,
-			ContextKeyExpr.and(
-				ChatContextKeys.supported,
-				ContextKeyExpr.has('config.window.commandCenter')
-			)
+			ChatContextKeys.supported
 		);
 	}
 });
 
-export class ChatCommandCenterRendering extends Disposable implements IWorkbenchContribution {
+export class CopilotTitleBarMenuRendering extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.commandCenterRendering';
+	static readonly ID = 'copilot.titleBarMenuRendering';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -589,13 +601,13 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 
 		const contextKeySet = new Set([ChatContextKeys.Setup.signedOut.key]);
 
-		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
+		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatTitleBarMenu, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
 
 			const dropdownAction = toAction({
-				id: 'chat.commandCenter.more',
+				id: 'copilot.titleBarMenuRendering.more',
 				label: localize('more', "More..."),
 				run() { }
 			});

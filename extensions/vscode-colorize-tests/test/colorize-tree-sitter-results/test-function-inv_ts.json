@@ -183,7 +183,7 @@
 	},
 	{
 		"c": "false",
-		"t": "constant.language",
+		"t": "constant.language.boolean.false",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",

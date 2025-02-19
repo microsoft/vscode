@@ -20,9 +20,9 @@ import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
 import { GhostTextView } from '../../ghostText/ghostTextView.js';
-import { IInlineEditsView } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from '../theme.js';
-import { createRectangle, InlineEditTabAction, mapOutFalsy } from '../utils/utils.js';
+import { createRectangle, mapOutFalsy } from '../utils/utils.js';
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -67,7 +67,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			startColumn: number;
 			text: string;
 		} | undefined>,
-		private readonly _tabAction: IObservable<InlineEditTabAction>,
+		private readonly _host: IInlineEditsViewHost,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
@@ -213,7 +213,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
 		);
 
-		const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+		const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
 
 		return [
 			n.svgElem('path', {

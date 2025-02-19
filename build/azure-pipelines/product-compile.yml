@@ -153,13 +153,8 @@ steps:
     - script: ./build/azure-pipelines/common/extract-telemetry.sh
       displayName: Generate lists of telemetry events
 
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: tar -cz --ignore-failed-read --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
-        displayName: Compress compilation artifact
-
-    - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: tar -cz --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
-        displayName: Compress compilation artifact
+    - script: tar -cz --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz $(ls -d .build out-* test/integration/browser/out test/smoke/out test/automation/out 2>/dev/null)
+      displayName: Compress compilation artifact
 
     - task: 1ES.PublishPipelineArtifact@1
       inputs:

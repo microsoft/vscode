@@ -18,7 +18,7 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
 import { IToolInputProcessor } from './tools.js';
 
 const codeInstructions = `
@@ -118,6 +118,11 @@ export class EditTool implements IToolImpl {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
 		});
+		model.acceptResponseProgress(request, {
+			kind: 'textEdit',
+			edits: [],
+			uri
+		});
 
 		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
 		if (!editSession) {
@@ -172,6 +177,12 @@ export class EditTool implements IToolImpl {
 
 		return {
 			content: [{ kind: 'text', value: 'The file was edited successfully' }]
+		};
+	}
+
+	async prepareToolInvocation(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		return {
+			presentation: 'hidden'
 		};
 	}
 }

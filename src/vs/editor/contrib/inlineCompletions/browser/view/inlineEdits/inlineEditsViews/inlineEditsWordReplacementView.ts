@@ -35,7 +35,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 	private readonly _hoverableElement = observableValue<ObserverNodeWithElement | null>(this, null);
 
-	readonly isHovered = this._hoverableElement.map((e, reader) => e?.isHovered.read(reader) ?? false);
+	readonly isHovered = this._hoverableElement.map((e, reader) => e?.didMouseMoveDuringHover.read(reader) ?? false);
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,

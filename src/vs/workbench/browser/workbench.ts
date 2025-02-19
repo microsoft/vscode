@@ -319,11 +319,6 @@ export class Workbench extends Layout {
 		]);
 
 		this.mainContainer.classList.add(...workbenchClasses);
-		mainWindow.document.body.classList.add(platformClass); // used by our fonts
-
-		if (isWeb) {
-			mainWindow.document.body.classList.add('web');
-		}
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
