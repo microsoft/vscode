@@ -158,6 +158,7 @@
 
 	.inlineCompletions-char-insert {
 		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+		cursor: pointer;
 	}
 
 	.inlineCompletions-char-delete {
