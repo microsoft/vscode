@@ -248,25 +248,13 @@ export async function getCompletionItemsFromSpecs(
 				));
 				labels.add(commandTextLabel);
 			} else {
-				// Potential builitin that should override the spec's description
-				let score = typeof command.label === 'object' ? (command.label.detail !== undefined ? 2 : 0) : 0;
-				score += typeof command.label === 'object' ? (command.label.description !== undefined ? 1 : 0) : 0;
-				if (score > 0) {
-					const existingItem = items.find(i => typeof i.label === 'string' ? i.label : i.label.label === commandTextLabel);
-					if (existingItem) {
-						score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 2 : 0) : 0;
-						score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 1 : 0) : 0;
-						if (score >= 0) {
-							items.splice(items.indexOf(existingItem), 1);
-							items.push(createCompletionItem(
-								terminalContext.cursorPosition,
-								prefix,
-								command,
-								command.detail,
-								command.documentation
-							));
-						}
-					}
+				const existingItem = items.find(i => typeof i.label === 'string' ? i.label : i.label.label === commandTextLabel);
+				if (!existingItem) {
+					continue;
+				}
+				const preferredItem = compareItems(existingItem, command);
+				if (preferredItem) {
+					items.splice(items.indexOf(existingItem), 1, { ...preferredItem, replacementIndex: existingItem.replacementIndex, replacementLength: existingItem.replacementLength });
 				}
 			}
 		}
@@ -287,6 +275,22 @@ export async function getCompletionItemsFromSpecs(
 	}
 
 	return { items, filesRequested, foldersRequested, cwd };
+}
+
+function compareItems(existingItem: vscode.TerminalCompletionItem | undefined, command: ICompletionResource): ICompletionResource | undefined {
+	let score = typeof command.label === 'object' ? (command.label.detail !== undefined ? 1 : 0) : 0;
+	score += typeof command.label === 'object' ? (command.label.description !== undefined ? 2 : 0) : 0;
+	score += command.documentation ? typeof command.documentation === 'string' ? 1 : 2 : 0;
+	if (score > 0) {
+		if (existingItem) {
+			score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 1 : 0) : 0;
+			score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 2 : 0) : 0;
+			score -= existingItem.documentation ? typeof existingItem.documentation === 'string' ? 1 : 2 : 0;
+			if (score >= 0) {
+				return command;
+			}
+		}
+	}
 }
 
 function getShell(shellType: TerminalShellType): string | undefined {
