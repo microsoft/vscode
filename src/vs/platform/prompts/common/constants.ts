@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { assert } from '../../../base/common/assert.js';
-import { basename } from '../../../base/common/resources.js';
+import { basename } from '../../../base/common/path.js';
 
 /**
  * File extension for the reusable prompt files.
@@ -37,7 +37,5 @@ export const getCleanPromptName = (
 		`Provided path '${fileUri.fsPath}' is not a prompt file.`,
 	);
 
-	const fileBasename = basename(fileUri);
-	return fileBasename
-		.substring(0, fileBasename.length - PROMPT_FILE_EXTENSION.length);
+	return basename(fileUri.path, PROMPT_FILE_EXTENSION);
 };
