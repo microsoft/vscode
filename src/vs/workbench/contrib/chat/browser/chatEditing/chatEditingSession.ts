@@ -51,6 +51,7 @@ import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISna
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -778,10 +779,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					}
 				});
 			},
-			pushNotebook: _edits => {
+			pushNotebook: edits => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						// todo@DonJayamanne
+						await this._acceptNotebookEdits(resource, edits, false, responseModel);
 					}
 				});
 			},
@@ -793,7 +794,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				didComplete = true;
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
-						await this._acceptTextEdits(resource, [], true, responseModel);
+						const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel)) as IModifiedFileEntry;
+						if (entry.acceptAgentNotebookEdits) {
+							await this._acceptNotebookEdits(resource, [], true, responseModel);
+						} else {
+							await this._acceptTextEdits(resource, [], true, responseModel);
+						}
 						await this._resolve(responseModel.requestId, inUndoStop, resource);
 						completePromise.complete();
 					}
@@ -997,6 +1003,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
 		entry.acceptAgentEdits(textEdits, isLastEdits, responseModel);
+	}
+
+	private async _acceptNotebookEdits(resource: URI, edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel)) as IModifiedFileEntry;
+		if (entry.acceptAgentNotebookEdits) {
+			entry.acceptAgentNotebookEdits(edits, isLastEdits, responseModel);
+		}
 	}
 
 	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {

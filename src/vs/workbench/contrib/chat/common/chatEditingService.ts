@@ -234,6 +234,8 @@ export interface IModifiedFileEntry {
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 
+	acceptAgentNotebookEdits?(edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
+
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
