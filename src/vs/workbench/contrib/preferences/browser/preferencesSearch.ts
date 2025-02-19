@@ -233,6 +233,7 @@ export class SettingMatches {
 				}
 			}
 		} else {
+			// Fall back to the old algorithm.
 			const keyIdMatches = matchesContiguousSubString(searchString, setting.key);
 			if (keyIdMatches?.length) {
 				// Handles cases such as "editor.formatonpaste" where the user tries searching for the ID.
