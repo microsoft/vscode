@@ -6,19 +6,8 @@
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 /**
- * TODO: @legomushroom
- *  - update doc comment for config.ts
- *  - move unit tests for config.ts
- *  - add unit tests for config.ts
- */
-
-/**
- * `!Note!` This doc comment is deprecated and is set to be updated during `debt` week.
- *         The configuration value can now be one of `{ '/path/to/folder': boolean }` or 'null' types.
- *         This comment is tracked by [#13119](https://github.com/microsoft/vscode-copilot/issues/13119).
- *
- * Configuration helper for the `prompt files` feature.
- * @see {@link CONFIG_KEY} and {@link DEFAULT_SOURCE_FOLDER}
+ * Configuration helper for the `reusable prompts` feature.
+ * @see {@link CONFIG_KEY}.
  *
  * ### Functions
  *
@@ -28,23 +17,14 @@ import { IConfigurationService } from '../../configuration/common/configuration.
  *
  * ### Configuration Examples
  *
- * Enable the feature, using defaults for prompt files source folders
- * (see {@link DEFAULT_SOURCE_FOLDER}):
+ * Enable the feature using the default `'.github/prompts'` folder as a source of prompt files:
  * ```json
  * {
- *   "chat.promptFiles": true,
+ *   "chat.promptFiles": {},
  * }
  * ```
  *
- * Enable the feature, specifying a single prompt files source folders,
- * in addition to the default `'.github/prompts'` one:
- * ```json
- * {
- *   "chat.promptFiles": '.copilot/prompts',
- * }
- * ```
- *
- * Enable the feature, specifying multiple prompt files source folders,
+ * Enable the feature, providing multiple source folder paths for prompt files,
  * in addition to the default `'.github/prompts'` one:
  * ```json
  * {
@@ -55,50 +35,15 @@ import { IConfigurationService } from '../../configuration/common/configuration.
  * }
  * ```
  *
- * Enable the feature, specifying multiple prompt files source folders,
- * in addition to the default `'.github/prompts'` one:
- * ```json
- * {
- *   "chat.promptFiles": [
- *     ".copilot/prompts",
- *     "/Users/legomushroom/repos/prompts",
- *   ],
- * }
- * ```
- *
- * The "array" case is similar to the "object" one, but there is one difference.
- * At the time of writing, configuration settings with the `array` value cannot
- * be merged into a single entry when the setting is specified in both the `user`
- * and the `workspace` settings. On the other hand, the "object" case provides
- * more flexibility - the settings are combined into a single object.
- *
- * Enable the feature, using defaults for prompt files source folders
- * (see {@link DEFAULT_SOURCE_FOLDER}):
- * ```jsonc
- * {
- *   "chat.promptFiles": {}, // same as setting to `true`
- * }
- * ```
- *
  * See the next section for details on how we treat the config value.
  *
  * ### Possible Values
  *
- * - `undefined`/`null`: feature is disabled
- * - `boolean`:
- *   - `true`: feature is enabled, prompt files source folders
- *             fallback to {@link DEFAULT_SOURCE_FOLDER}
- *   - `false`: feature is disabled
- * - `string`:
- *   - values that can be mapped to `boolean`(`"true"`, `"FALSE", "TrUe"`, etc.)
- *     are treated the same as the `boolean` case above
- *   - any other `non-empty` string value is treated as a single prompt files source folder path,
- *     which is used in addition to the default {@link DEFAULT_SOURCE_FOLDER}
- *   - `empty` string value is treated the same as the `undefined`/`null` case above (disabled)
+ * - `undefined`/`null`: feature is disabledx
  * - `object`:
  *   - expects the { "string": `boolean` } pairs, where the `string` is a path and the `boolean`
  *     is a flag that defines if this additional source folder is enabled or disabled;
- *     enabled source folders are used in addition to the default {@link DEFAULT_SOURCE_FOLDER} path
+ *     enabled source folders are used in addition to the default {@link DEFAULT_SOURCE_FOLDER} path;
  *     you can explicitly disable the default source folder by setting it to `false` in the object
  *   - value of a record in the object can also be a `string`:
  *     - if the string can be clearly mapped to a `boolean` (e.g., `"true"`, `"FALSE", "TrUe"`, etc.),
@@ -106,18 +51,14 @@ import { IConfigurationService } from '../../configuration/common/configuration.
  *     - any other string value is treated as `false` and is effectively ignored
  *   - if the record `key` is an `empty` string, it is ignored
  *   - if the resulting object is empty, the feature is considered `enabled`, prompt files source
- *     folders fallback to {@link DEFAULT_SOURCE_FOLDER}
- * - `array`:
- *   - `string` items(non-empty) in the array are treated as prompt files source folder paths,
- *     in addition to the default {@link DEFAULT_SOURCE_FOLDER} folder
- *   - all `non-string` items in the array are `ignored`
- *   - if the resulting array is empty, the feature is considered `enabled`, prompt files
- *     source folders fallback to {@link DEFAULT_SOURCE_FOLDER}
+ *     folders fallback to the default {@link DEFAULT_SOURCE_FOLDER} path
+ *   - if the resulting object is not empty, and the default {@link DEFAULT_SOURCE_FOLDER} path
+ *     is not explicitly disabled, it is added to the list of prompt files source folders
  *
  * ### File Paths Resolution
  *
- * We resolve only `*.prompt.md` files inside the resulting source folders and
- * all `relative` folder paths are resolved relative to:
+ * We resolve only `*.prompt.md` files inside the resulting source folders. Relative paths are resolved
+ * relative to:
  *
  * - the current workspace `root`, if applicable, in other words one of the workspace folders
  *   can be used as a prompt files source folder
