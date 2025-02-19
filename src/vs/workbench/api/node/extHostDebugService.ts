@@ -171,7 +171,18 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					}
 
 					if (terminal.shellIntegration) {
-						terminal.shellIntegration.executeCommand(clearCommand);
+						const ds = new DisposableStore();
+						const execution = terminal.shellIntegration.executeCommand(clearCommand);
+						await new Promise<void>(resolve => {
+							ds.add(this._terminalShellIntegrationService.onDidEndTerminalShellExecution(e => {
+								if (e.execution === execution) {
+									resolve();
+								}
+							}));
+							ds.add(disposableTimeout(resolve, 5000)); // 5s timeout to ensure we resolve
+						});
+
+						ds.dispose();
 					} else {
 						terminal.sendText(clearCommand);
 						await timeout(200); // add a small delay to ensure the command is processed, see #240953
