@@ -18,11 +18,12 @@ import { Range } from '../../../../../../common/core/range.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
 import { GhostTextView } from '../../ghostText/ghostTextView.js';
 import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from '../theme.js';
-import { createRectangle, mapOutFalsy } from '../utils/utils.js';
+import { createRectangle, getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -42,10 +43,37 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		return { lineNumber: state.lineNumber, column: state.startColumn, text: state.text };
 	});
 
+	private readonly _maxPrefixTrim = derived(reader => {
+		const state = this._state.read(reader);
+		if (!state) {
+			return { prefixLeftOffset: 0, prefixTrim: 0 };
+
+		}
+		const textModel = this._editor.getModel()!;
+		const eol = textModel.getEOL();
+		const startsWithEol = state.text.startsWith(eol);
+		const originalRange = new LineRange(state.lineNumber, state.lineNumber + (startsWithEol ? 0 : 1));
+		const modifiedLines = state.text.split(eol).splice(startsWithEol ? 0 : 1);
+
+		return getPrefixTrim([], originalRange, modifiedLines, this._editor);
+	});
+
 	private readonly _ghostText = derived<GhostText | undefined>(reader => {
 		const state = this._state.read(reader);
+		const prefixTrim = this._maxPrefixTrim.read(reader);
 		if (!state) { return undefined; }
-		return new GhostText(state.lineNumber, [new GhostTextPart(state.column, state.text, false)]);
+
+		const textModel = this._editor.getModel()!;
+		const eol = textModel.getEOL();
+		const modifiedLines = state.text.split(eol);
+
+		const inlineDecorations = modifiedLines.map((line, i) => new InlineDecoration(
+			new Range(i + 1, i === 0 ? 1 : prefixTrim.prefixTrim + 1, i + 1, line.length + 1),
+			'modified-background',
+			InlineDecorationType.Regular
+		));
+
+		return new GhostText(state.lineNumber, [new GhostTextPart(state.column, state.text, false, inlineDecorations)]);
 	});
 
 	protected readonly _ghostTextView = this._register(this._instantiationService.createInstance(GhostTextView,
@@ -165,7 +193,8 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 
 		const left = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
-		const codeLeft = editorLayout.contentLeft;
+		const prefixTrim = this._maxPrefixTrim.read(reader);
+		const codeLeft = editorLayout.contentLeft + (prefixTrim?.prefixLeftOffset ?? 0 /* fix due to observable bug? */);
 		if (left <= codeLeft) {
 			return null;
 		}

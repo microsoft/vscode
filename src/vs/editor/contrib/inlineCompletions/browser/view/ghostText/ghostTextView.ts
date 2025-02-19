@@ -26,7 +26,7 @@ import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
 import { InlineDecorationType } from '../../../../../common/viewModel.js';
-import { GhostText, GhostTextReplacement } from '../../model/ghostText.js';
+import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
 import { ColumnRange } from '../../utils.js';
 import { n } from '../../../../../../base/browser/dom.js';
 import './ghostTextView.css';
@@ -205,7 +205,7 @@ export class GhostTextView extends Disposable {
 					after: {
 						content: p.text,
 						tokens: p.tokens,
-						inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' + extraClassNames,
+						inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' + extraClassNames + p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
 						cursorStops: InjectedTextCursorStops.Left,
 					},
 					showIfCollapsed: true,
@@ -250,33 +250,33 @@ interface WidgetDomElement {
 }
 
 function computeGhostTextViewData(ghostText: GhostText | GhostTextReplacement, textModel: ITextModel, ghostTextClassName: string) {
-	const inlineTexts: { column: number; text: string; preview: boolean }[] = [];
+	const inlineTexts: { column: number; text: string; preview: boolean; lineDecorations: LineDecoration[] }[] = [];
 	const additionalLines: { content: string; decorations: LineDecoration[] }[] = [];
 
-	function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
+	function addToAdditionalLines(ghLines: readonly IGhostTextLine[], className: string | undefined) {
 		if (additionalLines.length > 0) {
 			const lastLine = additionalLines[additionalLines.length - 1];
 			if (className) {
 				lastLine.decorations.push(new LineDecoration(
 					lastLine.content.length + 1,
-					lastLine.content.length + 1 + lines[0].length,
+					lastLine.content.length + 1 + ghLines[0].line.length,
 					className,
 					InlineDecorationType.Regular
 				));
 			}
-			lastLine.content += lines[0];
+			lastLine.content += ghLines[0].line;
 
-			lines = lines.slice(1);
+			ghLines = ghLines.slice(1);
 		}
-		for (const line of lines) {
+		for (const ghLine of ghLines) {
 			additionalLines.push({
-				content: line,
+				content: ghLine.line,
 				decorations: className ? [new LineDecoration(
 					1,
-					line.length + 1,
+					ghLine.line.length + 1,
 					className,
 					InlineDecorationType.Regular
-				)] : []
+				), ...ghLine.lineDecorations] : [...ghLine.lineDecorations]
 			});
 		}
 	}
@@ -286,16 +286,16 @@ function computeGhostTextViewData(ghostText: GhostText | GhostTextReplacement, t
 	let hiddenTextStartColumn: number | undefined = undefined;
 	let lastIdx = 0;
 	for (const part of ghostText.parts) {
-		let lines = part.lines;
+		let ghLines = part.lines;
 		if (hiddenTextStartColumn === undefined) {
-			inlineTexts.push({ column: part.column, text: lines[0], preview: part.preview });
-			lines = lines.slice(1);
+			inlineTexts.push({ column: part.column, text: ghLines[0].line, preview: part.preview, lineDecorations: ghLines[0].lineDecorations });
+			ghLines = ghLines.slice(1);
 		} else {
-			addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined);
+			addToAdditionalLines([{ line: textBufferLine.substring(lastIdx, part.column - 1), lineDecorations: [] }], undefined);
 		}
 
-		if (lines.length > 0) {
-			addToAdditionalLines(lines, ghostTextClassName);
+		if (ghLines.length > 0) {
+			addToAdditionalLines(ghLines, ghostTextClassName);
 			if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
 				hiddenTextStartColumn = part.column;
 			}
@@ -304,7 +304,7 @@ function computeGhostTextViewData(ghostText: GhostText | GhostTextReplacement, t
 		lastIdx = part.column - 1;
 	}
 	if (hiddenTextStartColumn !== undefined) {
-		addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined);
+		addToAdditionalLines([{ line: textBufferLine.substring(lastIdx), lineDecorations: [] }], undefined);
 	}
 
 	const hiddenRange = hiddenTextStartColumn !== undefined ? new ColumnRange(hiddenTextStartColumn, textBufferLine.length + 1) : undefined;

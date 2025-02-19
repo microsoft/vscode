@@ -128,7 +128,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (!!this?._selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
 			const { column, lines } = ghostText.parts[0];
 
-			const firstLine = lines[0];
+			const firstLine = lines[0].line;
 
 			const indentationEndColumn = this.textModel.getLineIndentColumn(ghostText.lineNumber);
 			const inIndentation = column <= indentationEndColumn;
