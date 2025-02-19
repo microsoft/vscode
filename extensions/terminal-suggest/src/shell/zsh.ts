@@ -39,7 +39,22 @@ async function getBuiltins(
 		});
 	}
 
-	for (const cmd of builtins) {
+	if (!zshBuiltinsCommandDescriptionsCache) {
+		const cacheFilePath = path.join(__dirname, 'zshBuiltinsCache.json');
+		if (fs.existsSync(cacheFilePath)) {
+			try {
+				const cacheFileContent = fs.readFileSync(cacheFilePath, 'utf8');
+				const cacheObject = JSON.parse(cacheFileContent);
+				zshBuiltinsCommandDescriptionsCache = new Map(Object.entries(cacheObject));
+			} catch (e) {
+				console.error('Failed to load zsh builtins cache', e);
+			}
+		} else {
+			console.warn('zsh builtins cache not found');
+		}
+	}
+
+	for (const cmd of zshBuiltinsCommandDescriptionsCache?.keys() ?? []) {
 		if (typeof cmd === 'string') {
 			try {
 				const result = getCommandDescription(cmd);
@@ -66,18 +81,7 @@ async function getBuiltins(
 
 export function getCommandDescription(command: string): { documentation?: string; description?: string; args?: string | undefined } | undefined {
 	if (!zshBuiltinsCommandDescriptionsCache) {
-		const cacheFilePath = path.join(__dirname, 'zshBuiltinsCache.json');
-		if (fs.existsSync(cacheFilePath)) {
-			try {
-				const cacheFileContent = fs.readFileSync(cacheFilePath, 'utf8');
-				const cacheObject = JSON.parse(cacheFileContent);
-				zshBuiltinsCommandDescriptionsCache = new Map(Object.entries(cacheObject));
-			} catch (e) {
-				console.error('Failed to load zsh builtins cache', e);
-			}
-		} else {
-			console.warn('zsh builtins cache not found');
-		}
+		return undefined;
 	}
 	const result = zshBuiltinsCommandDescriptionsCache?.get(command);
 	if (result?.shortDescription) {
@@ -93,5 +97,4 @@ export function getCommandDescription(command: string): { documentation?: string
 			documentation: result?.description
 		};
 	}
-	return result;
 }

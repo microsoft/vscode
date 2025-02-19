@@ -104,7 +104,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!commandsInPath?.completionResources) {
 				return;
 			}
-			const commands = [...commandsInPath.completionResources, ...shellGlobals];
+			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, shellType);
