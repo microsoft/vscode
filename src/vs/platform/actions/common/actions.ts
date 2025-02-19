@@ -335,6 +335,16 @@ export interface IMenuService {
 	 * Reset the menu's hidden states.
 	 */
 	resetHiddenStates(menuIds: readonly MenuId[] | undefined): void;
+
+	/**
+	 * Get the hidden state of a menu item.
+	 */
+	getHiddenState(id: MenuId, commandId: string): boolean;
+
+	/**
+	 * Set the hidden state of a menu item.
+	 */
+	setHiddenState(id: MenuId, commandId: string, value: boolean): void;
 }
 
 type ICommandsMap = Map<string, ICommandAction>;

@@ -91,6 +91,7 @@ export class WorkbenchToolBar extends ToolBar {
 	private _primaryActions: ReadonlyArray<IAction> = [];
 	private _secondaryActions: ReadonlyArray<IAction> | undefined;
 	private _menuIds: readonly MenuId[] | undefined;
+	private readonly _resetMenu: MenuId | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -111,6 +112,11 @@ export class WorkbenchToolBar extends ToolBar {
 			allowContextMenu: true,
 			skipTelemetry: typeof _options?.telemetrySource === 'string',
 		});
+
+		if (_options?.resetMenu) {
+			this._resetMenu = _options.resetMenu;
+			this.isToggleMenuHidden = this._menuService.getHiddenState(this._resetMenu, this.toggleMenuAction.id);
+		}
 
 		// telemetry logic
 		const telemetrySource = _options?.telemetrySource;
@@ -245,6 +251,18 @@ export class WorkbenchToolBar extends ToolBar {
 						}
 						primaryActions.push(action.hideActions.hide);
 
+					} else if (action instanceof ToggleMenuAction) {
+						primaryActions.push(toAction({
+							id: 'label',
+							label: localize('hide.moreActions', 'Hide \'{0}\'', action.label),
+							run: () => {
+								this.isToggleMenuHidden = true;
+								if (this._resetMenu) {
+									this._menuService.setHiddenState(this._resetMenu, this.toggleMenuAction.id, true);
+								}
+								this.setActions(this._primaryActions, this._secondaryActions, this._menuIds);
+							}
+						}));
 					} else {
 						primaryActions.push(toAction({
 							id: 'label',
@@ -282,15 +300,9 @@ export class WorkbenchToolBar extends ToolBar {
 							label: localize('showToggleMenu', "Show 'More Actions...'"),
 							run: () => {
 								this.isToggleMenuHidden = false;
-								this.setActions(this._primaryActions, this._secondaryActions, this._menuIds);
-							}
-						}));
-					} else {
-						actions.push(toAction({
-							id: 'hideToggleMenu',
-							label: localize('hideToggleMenu', "Hide 'More Actions...'"),
-							run: () => {
-								this.isToggleMenuHidden = true;
+								if (this._resetMenu) {
+									this._menuService.setHiddenState(this._resetMenu, this.toggleMenuAction.id, false);
+								}
 								this.setActions(this._primaryActions, this._secondaryActions, this._menuIds);
 							}
 						}));

@@ -56,7 +56,7 @@ export interface IToolBarOptions {
 export class ToolBar extends Disposable {
 	private options: IToolBarOptions;
 	protected readonly actionBar: ActionBar;
-	private toggleMenuAction: ToggleMenuAction;
+	protected readonly toggleMenuAction: ToggleMenuAction;
 	private toggleMenuActionViewItem: DropdownMenuActionViewItem | undefined;
 	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
 	private hasSecondaryActions: boolean = false;
