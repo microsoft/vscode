@@ -316,9 +316,9 @@ export function signalFromObservable<T>(owner: DebugOwner | undefined, observabl
 }
 
 /**
- * @deprecated Use `debouncedObservable2` instead.
+ * @deprecated Use `debouncedObservable` instead.
  */
-export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
+export function debouncedObservableDeprecated<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
 	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
 
 	let timeout: any = undefined;
@@ -344,7 +344,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 /**
  * Creates an observable that debounces the input observable.
  */
-export function debouncedObservable2<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
+export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
 	let hasValue = false;
 	let lastValue: T | undefined;
 
