@@ -559,6 +559,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.Snippets,
 			label: getSyncAreaLabel(SyncResource.Snippets)
 		}, {
+			id: SyncResource.Prompts,
+			label: getSyncAreaLabel(SyncResource.Prompts)
+		}, {
 			id: SyncResource.Tasks,
 			label: getSyncAreaLabel(SyncResource.Tasks)
 		}, {

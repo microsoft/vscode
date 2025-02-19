@@ -536,6 +536,9 @@ export class Response extends AbstractResponse implements IDisposable {
 					this._updateRepr(false);
 				});
 			}
+			progress.isCompletePromise.then(() => {
+				this._updateRepr(false);
+			});
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
 		} else {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FuzzyScore } from '../../../../base/common/filters.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export interface CompletionItemLabel {
@@ -37,7 +37,7 @@ export interface ISimpleCompletion {
 	/**
 	 * A human-readable string that represents a doc-comment.
 	 */
-	documentation?: string | MarkdownString;
+	documentation?: string | IMarkdownString;
 
 	/**
 	 * The start of the replacement.

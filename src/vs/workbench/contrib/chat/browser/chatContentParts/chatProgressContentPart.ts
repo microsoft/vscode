@@ -11,9 +11,10 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressMessage, IChatTask } from '../../common/chatService.js';
-import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -93,4 +94,26 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 function shouldShowSpinner(followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 	return isResponseVM(element) && !element.isComplete && followingContent.length === 0;
+}
+
+export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
+	constructor(
+		private readonly workingProgress: IChatWorkingProgress,
+		renderer: MarkdownRenderer,
+		context: IChatContentPartRenderContext,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
+	) {
+		const progressMessage: IChatProgressMessage = {
+			kind: 'progressMessage',
+			content: workingProgress.isPaused ?
+				new MarkdownString().appendText(localize('pausedMessage', "Paused")) :
+				new MarkdownString().appendText(localize('workingMessage', "Working"))
+		};
+		super(progressMessage, renderer, context, undefined, undefined, workingProgress.isPaused ? Codicon.debugPause : undefined, instantiationService, chatMarkdownAnchorService);
+	}
+
+	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		return other.kind === 'working' && this.workingProgress.isPaused === other.isPaused;
+	}
 }
