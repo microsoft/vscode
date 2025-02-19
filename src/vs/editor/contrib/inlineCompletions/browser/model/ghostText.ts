@@ -32,7 +32,7 @@ export class GhostText {
 		return new TextEdit([
 			...this.parts.map(p => new SingleTextEdit(
 				Range.fromPositions(new Position(this.lineNumber, p.column)),
-				debug ? `[${p.lines.join('\n')}]` : p.lines.join('\n')
+				debug ? `[${p.lines.map(line => line.line).join('\n')}]` : p.lines.map(line => line.line).join('\n')
 			)),
 		]).applyToString(documentText);
 	}
