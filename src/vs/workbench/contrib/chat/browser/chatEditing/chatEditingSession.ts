@@ -51,6 +51,7 @@ import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISna
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { CellUri } from '../../../notebook/common/notebookCommon.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -250,15 +251,18 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _getEntry(uri: URI): ChatEditingModifiedDocumentEntry | undefined {
-		return this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
+		const notebookUri = CellUri.parse(uri)?.notebook;
+		return this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri) || isEqual(e.modifiedURI, notebookUri));
 	}
 
 	public getEntry(uri: URI): IModifiedFileEntry | undefined {
-		return this._getEntry(uri);
+		const notebookUri = CellUri.parse(uri)?.notebook;
+		return this._getEntry(uri) || (notebookUri && this._getEntry(notebookUri));
 	}
 
 	public readEntry(uri: URI, reader: IReader | undefined): IModifiedFileEntry | undefined {
-		return this._entriesObs.read(reader).find(e => isEqual(e.modifiedURI, uri));
+		const notebookUri = CellUri.parse(uri)?.notebook;
+		return this._entriesObs.read(reader).find(e => isEqual(e.modifiedURI, uri) || isEqual(e.modifiedURI, notebookUri));
 	}
 
 	public storeState(): Promise<void> {
