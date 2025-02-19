@@ -685,25 +685,66 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: start;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:first-child {
+.chat-related-files {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.chat-related-files .monaco-button-dropdown .monaco-text-button {
+	font-size: 11px;
+	justify-content: left;
+	width: fit-content;
+	padding: 0px;
+	border: none;
+}
+
+.chat-related-files .monaco-button-dropdown .monaco-text-button span {
+	font-style: italic;
+	height: 18px;
+	opacity: 0.7;
+}
+
+.chat-related-files .monaco-button-dropdown {
+	border-radius: 4px;
+	height: 18px;
+	border: 1px solid var(--vscode-input-border);
+	align-items: center;
+	overflow: hidden;
+	padding: 0 0 0 2px;
+}
+
+.chat-related-files .monaco-button.codicon.codicon-close {
+	display: flex;
+	color: var(--vscode-descriptionForeground);
+	padding-right: 4px;
+	padding-left: 2px;
+	height: 100%;
+}
+
+.interactive-session .chat-related-files .monaco-icon-label::before {
+	padding: 2px 2px 0 0;
+}
+
+.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:first-child {
 	margin: 3px 0px 3px 3px;
 	flex-shrink: 0;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary.monaco-icon-label::before {
+.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary.monaco-icon-label::before {
 	display: inline-flex;
 	align-items: center;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:only-child {
+.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:only-child {
 	width: 100%;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary.disabled {
+.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary.disabled {
 	cursor: initial;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary .codicon {
+.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary .codicon {
 	font-size: 12px;
 	margin-left: 4px;
 }
@@ -1091,6 +1132,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline-offset: -4px;
 }
 
+.chat-related-files .monaco-button.codicon.codicon-close:hover,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
 	background: var(--vscode-toolbar-hoverBackground);

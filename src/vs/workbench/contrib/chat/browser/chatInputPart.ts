@@ -239,6 +239,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
 
+	private relatedFilesContainer!: HTMLElement;
+
 	private chatEditingSessionWidgetContainer!: HTMLElement;
 
 	private _inputPartHeight: number = 0;
@@ -678,6 +680,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						]),
 					]),
 					dom.h('.chat-attached-context@attachedContextContainer'),
+					dom.h('.chat-related-files@relatedFilesContainer'),
 					dom.h('.interactive-input-followups@followupsContainer'),
 				])
 			]);
@@ -688,6 +691,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 					dom.h('.chat-input-container@inputContainer', [
 						dom.h('.chat-attached-context@attachedContextContainer'),
+						dom.h('.chat-related-files@relatedFilesContainer'),
 						dom.h('.chat-editor-container@editorContainer'),
 						dom.h('.chat-input-toolbars@inputToolbars'),
 					]),
@@ -702,6 +706,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		const editorContainer = elements.editorContainer;
 		this.attachedContextContainer = elements.attachedContextContainer;
+		this.relatedFilesContainer = elements.relatedFilesContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.renderAttachedContext();
@@ -1182,6 +1187,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
+		if (chatEditingSession) {
+			this.renderChatRelatedFiles(chatEditingSession, this.relatedFilesContainer);
+		}
+
 		const seenEntries = new ResourceSet();
 		const entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
 			seenEntries.add(entry.modifiedURI);
@@ -1315,31 +1324,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, entries);
 		this._combinedChatEditWorkingSetEntries = coalesce(entries.map((e) => e.kind === 'reference' && URI.isUri(e.reference) ? ({ uri: e.reference, isMarkedReadonly: e.isMarkedReadonly }) : undefined));
+	}
 
-		const addFilesElement = innerContainer.querySelector('.chat-editing-session-toolbar-actions') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-toolbar-actions'));
-
+	async renderChatRelatedFiles(chatEditingSession: IChatEditingSession, anchor: HTMLElement) {
+		dom.clearNode(anchor);
 		const hoverDelegate = getDefaultHoverDelegate('element');
-
-		// RELATED files (after Add Files...)
 		for (const [uri, metadata] of chatEditingSession.workingSet) {
 			if (metadata.state !== WorkingSetEntryState.Suggested) {
 				continue;
 			}
-			const addBtn = this._chatEditsActionsDisposables.add(new Button(addFilesElement, {
+			const addBtn = this._chatEditsActionsDisposables.add(new Button(anchor, {
 				supportIcons: true,
 				secondary: true,
 				hoverDelegate
 			}));
 			addBtn.label = this.labelService.getUriBasenameLabel(uri);
 			addBtn.element.classList.add('monaco-icon-label', ...getIconClasses(this.modelService, this.languageService, uri, FileKind.FILE));
-			addBtn.setTitle(localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), metadata.description ?? ''));
+			addBtn.element.title = localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), metadata.description ?? '');
 
 			this._chatEditsActionsDisposables.add(addBtn.onDidClick(() => {
 				group.remove(); // REMOVE asap
-				chatEditingSession.addFileToWorkingSet(uri);
+				this._attachmentModel.addFile(uri);
 			}));
 
-			const rmBtn = this._chatEditsActionsDisposables.add(new Button(addFilesElement, {
+			const rmBtn = this._chatEditsActionsDisposables.add(new Button(anchor, {
 				supportIcons: false,
 				secondary: true,
 				hoverDelegate,
@@ -1356,17 +1364,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			sep.classList.add('separator');
 
 			const group = document.createElement('span');
-			group.classList.add('monaco-button-dropdown', 'sidebyside-button');
+			group.classList.add('monaco-button-dropdown', 'sidebyside-button', 'show-file-icons');
 			group.appendChild(addBtn.element);
 			group.appendChild(sep);
 			group.appendChild(rmBtn.element);
-			dom.append(addFilesElement, group);
+			dom.append(anchor, group);
 
 			this._chatEditsActionsDisposables.add(toDisposable(() => {
 				group.remove();
 			}));
 		}
-
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
@@ -1432,7 +1439,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 32,
 			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 28,
-			attachmentsHeight: this.attachedContextContainer.offsetHeight,
+			attachmentsHeight: this.attachedContextContainer.offsetHeight + this.relatedFilesContainer.offsetHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + inputToolbarWidth + inputToolbarPadding : 0,

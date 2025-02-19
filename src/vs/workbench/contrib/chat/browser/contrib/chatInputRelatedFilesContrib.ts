@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -59,12 +59,17 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 					return; // Might have disposed while we were calculating
 				}
 
+				const existingFiles = new ResourceSet(widget.attachmentModel.fileAttachments);
+
 				// Pick up to 2 related files
 				const newSuggestions = new ResourceMap<{ description: string; group: string }>();
 				for (const group of files) {
 					for (const file of group.files) {
 						if (newSuggestions.size >= 2) {
 							break;
+						}
+						if (existingFiles.has(file.uri)) {
+							continue;
 						}
 						newSuggestions.set(file.uri, { group: group.group, description: file.description });
 					}
