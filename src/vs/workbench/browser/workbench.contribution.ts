@@ -682,7 +682,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('focusedView', "`${focusedView}`: the name of the view that is currently focused."),
 		localize('activeRepositoryName', "`${activeRepositoryName}`: the name of the active repository (e.g. vscode)."),
 		localize('activeRepositoryBranchName', "`${activeRepositoryBranchName}`: the name of the active branch in the active repository (e.g. main)."),
-		localize('activeEditorState', "`${activeEditorState}`: provides information about the state of the active editor (e.g. modified). This will be appended by default when in screen reader mode with {0} enabled.", '`window.titleAccessibilityOptimized`'),
+		localize('activeEditorState', "`${activeEditorState}`: provides information about the state of the active editor (e.g. modified). This will be appended by default when in screen reader mode with {0} enabled.", '`accessibility.windowTitleOptimized`'),
 		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
@@ -698,11 +698,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'default': defaultWindowTitleSeparator,
 				'markdownDescription': localize("window.titleSeparator", "Separator used by {0}.", '`#window.title#`')
-			},
-			'window.titleAccessibilityOptimized': {
-				'type': 'boolean',
-				'default': true,
-				'markdownDescription': localize('window.titleAccessibilityOptimized', "Controls whether the {0} should be optimized for screen readers when in screen reader mode. When enabled, the window title will have {1} appended to the end.", '`#window.title#`', '`activeEditorState`')
 			},
 			[LayoutSettings.COMMAND_CENTER]: {
 				type: 'boolean',

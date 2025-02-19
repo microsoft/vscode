@@ -728,7 +728,12 @@ const configuration: IConfigurationNode = {
 			enum: ['none', 'input', 'lastExecution'],
 			default: 'input',
 			description: localize('replEditor.autoFocusAppendedCell', "Control whether focus should automatically be sent to the REPL when code is executed."),
-		}
+		},
+		'accessibility.windowTitleOptimized': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.windowTitleOptimized', "Controls whether the {0} should be optimized for screen readers when in screen reader mode. When enabled, the window title will have {1} appended to the end.", '`#window.title#`', '`activeEditorState`')
+		},
 	}
 };
 

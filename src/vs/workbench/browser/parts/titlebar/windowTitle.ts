@@ -35,7 +35,6 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
 	title = 'window.title',
-	accessibilityOptimized = 'window.titleAccessibilityOptimized',
 }
 
 export const defaultWindowTitle = (() => {
@@ -132,9 +131,8 @@ export class WindowTitle extends Disposable {
 			}
 		}));
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			if (this.accessibilityService.isScreenReaderOptimized() && !this.titleIncludesEditorState) {
-				this.titleUpdater.schedule();
-			} else if (!this.accessibilityService.isScreenReaderOptimized() && this.titleIncludesEditorState) {
+			if (this.accessibilityService.isScreenReaderOptimized() && !this.titleIncludesEditorState
+				|| !this.accessibilityService.isScreenReaderOptimized() && this.titleIncludesEditorState) {
 				this.titleUpdater.schedule();
 			}
 		}));
@@ -382,7 +380,7 @@ export class WindowTitle extends Disposable {
 			titleTemplate = defaultWindowTitle;
 		}
 
-		if (!this.titleIncludesEditorState && this.accessibilityService.isScreenReaderOptimized() && this.configurationService.getValue(WindowSettingNames.accessibilityOptimized)) {
+		if (!this.titleIncludesEditorState && this.accessibilityService.isScreenReaderOptimized() && this.configurationService.getValue('accessibility.windowTitleOptimized')) {
 			titleTemplate += '${separator}${activeEditorState}';
 		}
 
