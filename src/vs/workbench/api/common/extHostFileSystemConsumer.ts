@@ -154,6 +154,9 @@ export class ExtHostConsumerFileSystem {
 					return !(capabilities & files.FileSystemProviderCapabilities.Readonly);
 				}
 				return undefined;
+			},
+			decode(uri: vscode.Uri, content: Uint8Array): Promise<string> {
+				return that._proxy.$decode(uri, VSBuffer.wrap(content));
 			}
 		});
 	}

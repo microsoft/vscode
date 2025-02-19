@@ -1489,7 +1489,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$unregisterProvider(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 
-	$stat(uri: UriComponents): Promise<files.IStat>;
+	$stat(resource: UriComponents): Promise<files.IStat>;
 	$readdir(resource: UriComponents): Promise<[string, files.FileType][]>;
 	$readFile(resource: UriComponents): Promise<VSBuffer>;
 	$writeFile(resource: UriComponents, content: VSBuffer): Promise<void>;
@@ -1497,6 +1497,8 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$copy(resource: UriComponents, target: UriComponents, opts: files.IFileOverwriteOptions): Promise<void>;
 	$mkdir(resource: UriComponents): Promise<void>;
 	$delete(resource: UriComponents, opts: files.IFileDeleteOptions): Promise<void>;
+
+	$decode(resource: UriComponents, content: VSBuffer): Promise<string>;
 
 	$ensureActivation(scheme: string): Promise<void>;
 }

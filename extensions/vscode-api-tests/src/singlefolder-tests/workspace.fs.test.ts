@@ -260,4 +260,32 @@ suite('vscode API - workspace-fs', () => {
 
 		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
 	});
+
+	test('fs.decode', async function () {
+		const uri = root.with({ path: posix.join(root.path, 'file.txt') });
+
+		// without setting
+		assert.strictEqual(await vscode.workspace.fs.decode(uri, Buffer.from('Hello World')), 'Hello World');
+		assert.strictEqual(await vscode.workspace.fs.decode(uri, new Uint8Array([0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])), 'Hello World'); // UTF-8 with BOM
+		assert.strictEqual(await vscode.workspace.fs.decode(uri, new Uint8Array([0xFE, 0xFF, 0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100])), 'Hello World'); // UTF-16 BE with BOM
+		assert.strictEqual(await vscode.workspace.fs.decode(uri, new Uint8Array([0xFF, 0xFE, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0])), 'Hello World'); // UTF-16 LE with BOM
+		assert.strictEqual(await vscode.workspace.fs.decode(uri, new Uint8Array([0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100])), 'Hello World');
+		assert.strictEqual(await vscode.workspace.fs.decode(uri, new Uint8Array([72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0])), 'Hello World');
+
+		// with auto-guess encoding
+		try {
+			await vscode.workspace.getConfiguration('files', uri).update('autoGuessEncoding', true, vscode.ConfigurationTarget.Global);
+			assert.strictEqual(await vscode.workspace.fs.decode(uri, new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100])), 'Hellö Wörld');
+		} finally {
+			await vscode.workspace.getConfiguration('files', uri).update('autoGuessEncoding', false, vscode.ConfigurationTarget.Global);
+		}
+
+		// with encoding setting
+		try {
+			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'windows1252', vscode.ConfigurationTarget.Global);
+			assert.strictEqual(await vscode.workspace.fs.decode(uri, new Uint8Array([72, 101, 108, 108, 0xF6, 32, 87, 0xF6, 114, 108, 100])), 'Hellö Wörld');
+		} finally {
+			await vscode.workspace.getConfiguration('files', uri).update('encoding', 'utf8', vscode.ConfigurationTarget.Global);
+		}
+	});
 });

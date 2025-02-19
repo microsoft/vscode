@@ -27,4 +27,21 @@ declare module 'vscode' {
 		 */
 		readonly encoding: string;
 	}
+
+	export interface FileSystem {
+
+		/**
+		 * Decodes the content from a `Uint8Array` to a `string` using
+		 * the same encoding logic that is used when opening text documents.
+		 *
+		 * This method will respect the user configured file encoding,
+		 * whether encodings are guessed and BOMs (byte order marks).
+		 *
+		 * @param uri The URI that represents the file. This information
+		 * is used to figure out the encoding related configuration for the file.
+		 * @param content The content to decode as a `Uint8Array`.
+		 * @returns A Thenable that resolves to the decoded string.
+		 */
+		decode(uri: Uri, content: Uint8Array): Thenable<string>;
+	}
 }
