@@ -214,19 +214,8 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	// --- from extension host process
 
-	async $trySaveDocument(uri: UriComponents, options?: { encoding?: string }): Promise<boolean> {
-		const inputUri = URI.revive(uri);
-
-		if (options?.encoding) {
-			const model = uri.scheme === Schemas.untitled ? this._textFileService.untitled.get(inputUri) : this._textFileService.files.get(inputUri);
-			const result = await model?.setEncoding(options.encoding, EncodingMode.Encode);
-
-			if (uri.scheme !== Schemas.untitled) {
-				return Boolean(result); // non untitled files get saved right away
-			}
-		}
-
-		const target = await this._textFileService.save(inputUri);
+	async $trySaveDocument(uri: UriComponents): Promise<boolean> {
+		const target = await this._textFileService.save(URI.revive(uri));
 		return Boolean(target);
 	}
 

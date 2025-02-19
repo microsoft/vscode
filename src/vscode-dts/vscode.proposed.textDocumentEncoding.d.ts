@@ -26,8 +26,6 @@ declare module 'vscode' {
 		 * 'cp865', 'cp850'.
 		 */
 		readonly encoding: string;
-
-		save(options?: { encoding?: string }): Thenable<boolean>;
 	}
 
 	export namespace workspace {
