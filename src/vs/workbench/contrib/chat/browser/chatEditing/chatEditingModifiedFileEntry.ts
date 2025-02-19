@@ -10,7 +10,6 @@ import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
-import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -219,7 +218,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	 */
 	protected abstract _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 
-	abstract readonly diffInfo: IObservable<IDocumentDiff>;
 	abstract readonly changesCount: IObservable<number>;
 
 	acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {

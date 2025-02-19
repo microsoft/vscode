@@ -87,9 +87,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	private _diffOperationIds: number = 0;
 
 	private readonly _diffInfo = observableValue<IDocumentDiff>(this, nullDocumentDiff);
-	get diffInfo(): IObservable<IDocumentDiff> {
-		return this._diffInfo;
-	}
 
 	readonly changesCount = this._diffInfo.map(diff => diff.changes.length);
 
@@ -332,7 +329,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 		this.docSnapshot.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
-		if (this.diffInfo.get().identical) {
+		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Accepted, undefined);
 		}
 		return true;
@@ -349,7 +346,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 		this.doc.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
-		if (this.diffInfo.get().identical) {
+		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
 		}
 		return true;
@@ -452,6 +449,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	protected _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
-		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, codeEditor, this);
+		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, codeEditor, this, this._diffInfo);
 	}
 }
