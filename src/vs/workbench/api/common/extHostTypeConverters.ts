@@ -60,6 +60,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 
 export namespace Command {
 
@@ -2600,6 +2601,42 @@ export namespace ChatResponseTextEditPart {
 
 }
 
+export namespace NotebookEdit {
+	export function from(edit: vscode.NotebookEdit): extHostProtocol.ICellEditOperationDto {
+		if (edit.newCellMetadata) {
+			return {
+				editType: CellEditType.Metadata,
+				index: edit.range.start,
+				metadata: edit.newCellMetadata
+			};
+		} else if (edit.newNotebookMetadata) {
+			return {
+				editType: CellEditType.DocumentMetadata,
+				metadata: edit.newNotebookMetadata
+			};
+		} else {
+			return {
+				editType: CellEditType.Replace,
+				index: edit.range.start,
+				count: edit.range.end - edit.range.start,
+				cells: edit.newCells.map(NotebookCellData.from)
+			};
+		}
+	}
+}
+
+
+export namespace ChatResponseNotebookEditPart {
+	export function from(part: vscode.ChatResponseNotebookEditPart): extHostProtocol.IChatNotebookEditDto {
+		return {
+			kind: 'notebookEdit',
+			uri: part.uri,
+			edits: part.edits.map(NotebookEdit.from),
+			done: part.isDone
+		};
+	}
+}
+
 export namespace ChatResponseReferencePart {
 	export function from(part: types.ChatResponseReferencePart): Dto<IChatContentReference> {
 		const iconPath = ThemeIcon.isThemeIcon(part.iconPath) ? part.iconPath
@@ -2675,6 +2712,8 @@ export namespace ChatResponsePart {
 			return ChatResponseCommandButtonPart.from(part, commandsConverter, commandDisposables);
 		} else if (part instanceof types.ChatResponseTextEditPart) {
 			return ChatResponseTextEditPart.from(part);
+		} else if (part instanceof types.ChatResponseNotebookEditPart) {
+			return ChatResponseNotebookEditPart.from(part);
 		} else if (part instanceof types.ChatResponseMarkdownWithVulnerabilitiesPart) {
 			return ChatResponseMarkdownWithVulnerabilitiesPart.from(part);
 		} else if (part instanceof types.ChatResponseCodeblockUriPart) {
@@ -2988,7 +3027,7 @@ export namespace LanguageModelToolResult {
 		}));
 	}
 
-	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): IToolResult {
+	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> {
 		if (result.toolResultMessage) {
 			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 		}
@@ -3009,7 +3048,8 @@ export namespace LanguageModelToolResult {
 					throw new Error('Unknown LanguageModelToolResult part type');
 				}
 			}),
-			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage)
+			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
+			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
 		};
 	}
 }

@@ -16,7 +16,7 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Promises } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -949,19 +949,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const fileBasename = basename(resource.path);
 				const fileDirname = dirname(resource.path);
 				const friendlyName = `${fileBasename} ${fileDirname}`;
-
 				ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 
-				const fileOptions: IFileLabelOptions = { hidePath: true };
-				label.setFile(resource, attachment.isFile ? {
-					...fileOptions,
-					fileKind: FileKind.FILE,
-					range,
-				} : {
-					...fileOptions,
-					fileKind: FileKind.FOLDER,
-					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
-				});
+				if (attachment.isOmitted) {
+					this.customAttachment(widget, friendlyName, hoverDelegate, ariaLabel, store);
+				} else {
+					const fileOptions: IFileLabelOptions = { hidePath: true };
+					label.setFile(resource, attachment.isFile ? {
+						...fileOptions,
+						fileKind: FileKind.FILE,
+						range,
+					} : {
+						...fileOptions,
+						fileKind: FileKind.FOLDER,
+						icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
+					});
+				}
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 				this.instantiationService.invokeFunction(accessor => {
@@ -969,17 +972,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						store.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
 					}
 				});
-
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
-				const hoverElement = dom.$('div.chat-attached-context-hover');
-				hoverElement.setAttribute('aria-label', ariaLabel);
-
 				const supportsVision = this.supportsVision();
-				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
-				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
-				widget.appendChild(pillIcon);
-				widget.appendChild(textLabel);
+				const hoverElement = this.customAttachment(widget, attachment.name, hoverDelegate, ariaLabel, store, attachment.isImage, supportsVision);
 
 				if (attachment.references) {
 					widget.style.cursor = 'pointer';
@@ -991,17 +987,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					store.add(addDisposableListener(widget, 'click', clickHandler));
 				}
 
-				if (!supportsVision) {
-					widget.classList.add('warning');
-					hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel)?.name : this.currentLanguageModel);
-					textLabel.style.textDecoration = 'line-through';
-					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
-					this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
-				} else {
+				if (supportsVision) {
 					attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
 						let buffer: Uint8Array;
 						try {
-							this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 							if (attachment.value instanceof URI) {
 								const readFile = await this.fileService.readFile(attachment.value);
 								if (store.isDisposed) {
@@ -1019,6 +1008,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						resolve();
 					}));
 				}
+
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 				widget.style.position = 'relative';
 			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
@@ -1101,6 +1092,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (oldHeight !== container.offsetHeight) {
 			this._onDidChangeHeight.fire();
 		}
+	}
+
+	private customAttachment(widget: HTMLElement, friendlyName: string, hoverDelegate: IHoverDelegate, ariaLabel: string, store: DisposableStore, isImage?: boolean, supportsVision?: boolean): HTMLElement {
+		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
+		const textLabel = dom.$('span.chat-attached-context-custom-text', {}, friendlyName);
+		widget.appendChild(pillIcon);
+		widget.appendChild(textLabel);
+
+		const hoverElement = dom.$('div.chat-attached-context-hover');
+		hoverElement.setAttribute('aria-label', ariaLabel);
+
+		if (!supportsVision) {
+			widget.classList.add('warning');
+			hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel)?.name : this.currentLanguageModel, isImage ? 'image' : 'file');
+			store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
+		}
+
+		return hoverElement;
 	}
 
 	private openResource(resource: URI, isDirectory: true): void;
@@ -1313,21 +1322,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.add(list.onDidFocus(() => {
 				this._onDidFocus.fire();
 			}));
-			this._chatEditsDisposables.add(list.onDidOpen((e) => {
+			this._chatEditsDisposables.add(list.onDidOpen(async (e) => {
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
 
 					const entry = chatEditingSession.getEntry(modifiedFileUri);
-					const diffInfo = entry?.diffInfo.get();
-					const range = diffInfo?.changes.at(0)?.modified.toExclusiveRange();
 
-					this.editorService.openEditor({
+					const pane = await this.editorService.openEditor({
 						resource: modifiedFileUri,
-						options: {
-							...e.editorOptions,
-							selection: range,
-						}
+						options: e.editorOptions
 					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+
+					if (pane) {
+						entry?.getEditorIntegration(pane).reveal(true);
+					}
 				}
 			}));
 			this._chatEditsDisposables.add(addDisposableListener(list.getHTMLElement(), 'click', e => {
@@ -1491,7 +1499,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	saveState(): void {
-		this.saveCurrentValue(this.getInputState());
+		if (this.history.isAtEnd()) {
+			this.saveCurrentValue(this.getInputState());
+		}
+
 		const inputHistory = [...this.history];
 		this.historyService.saveHistory(this.location, inputHistory);
 	}
@@ -1567,9 +1578,9 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 		private currentLanguageModel: ILanguageModelChatMetadataAndIdentifier,
 		private readonly delegate: ModelPickerDelegate,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAccessibilityService _accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
 	) {
 		const modelActionsProvider: IActionProvider = {
 			getActions: () => {
@@ -1590,7 +1601,13 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 				};
 
 				const models: ILanguageModelChatMetadataAndIdentifier[] = this.delegate.getModels();
-				return models.map(entry => setLanguageModelAction(entry));
+				const actions = models.map(entry => setLanguageModelAction(entry));
+				if (contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
+					actions.push(new Separator());
+					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan') }));
+				}
+
+				return actions;
 			}
 		};
 

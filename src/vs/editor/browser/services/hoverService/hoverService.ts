@@ -82,8 +82,8 @@ export class HoverService extends Disposable implements IHoverService {
 		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId'>,
 	): IHoverWidget | undefined {
 		if (!this._currentDelayedHover || this._currentDelayedHoverWasShown) {
-			// Current hover is sticky, reject
-			if (this._currentHover && this._currentHoverOptions?.persistence?.sticky) {
+			// Current hover is locked, reject
+			if (this._currentHover?.isLocked) {
 				return undefined;
 			}
 
@@ -183,7 +183,7 @@ export class HoverService extends Disposable implements IHoverService {
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): HoverWidget | undefined {
 		this._currentDelayedHover = undefined;
 
-		if (this._currentHover && this._currentHoverOptions?.persistence?.sticky) {
+		if (this._currentHover?.isLocked) {
 			return undefined;
 		}
 		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
@@ -237,7 +237,7 @@ export class HoverService extends Disposable implements IHoverService {
 			// Only clear the current options if it's the current hover, the current options help
 			// reduce flickering when the same hover is shown multiple times
 			if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
-				this._currentHoverOptions = undefined;
+				this.doHideHover();
 			}
 			hoverDisposables.dispose();
 		}, undefined, hoverDisposables);

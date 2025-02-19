@@ -285,7 +285,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const authentication: typeof vscode.authentication = {
 			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
-				if (typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) {
+				if (
+					(typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) ||
+					(typeof options?.createIfNone === 'object' && options.createIfNone.learnMore)
+				) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
@@ -1224,6 +1227,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getCanonicalUri: (uri: vscode.Uri, options: vscode.CanonicalUriRequestOptions, token: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'canonicalUriProvider');
 				return extHostWorkspace.provideCanonicalUri(uri, options, token);
+			},
+			decode(content: Uint8Array, uri: vscode.Uri | undefined, options?: { encoding: string }) {
+				checkProposedApiEnabled(extension, 'textDocumentEncoding');
+				return extHostWorkspace.decode(content, uri, options);
+			},
+			encode(content: string, uri: vscode.Uri | undefined, options?: { encoding: string }) {
+				checkProposedApiEnabled(extension, 'textDocumentEncoding');
+				return extHostWorkspace.encode(content, uri, options);
 			}
 		};
 
@@ -1758,6 +1769,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseCodeblockUriPart: extHostTypes.ChatResponseCodeblockUriPart,
 			ChatResponseWarningPart: extHostTypes.ChatResponseWarningPart,
 			ChatResponseTextEditPart: extHostTypes.ChatResponseTextEditPart,
+			ChatResponseNotebookEditPart: extHostTypes.ChatResponseNotebookEditPart,
 			ChatResponseMarkdownWithVulnerabilitiesPart: extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatResponseConfirmationPart: extHostTypes.ChatResponseConfirmationPart,

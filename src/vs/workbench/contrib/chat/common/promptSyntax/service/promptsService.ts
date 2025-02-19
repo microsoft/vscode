@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPrompt, IPromptsService } from './types.js';
+import { IPromptPath, IPromptsService } from './types.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
@@ -11,6 +12,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ObjectCache } from '../../../../../../base/common/objectCache.js';
 import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 
 /**
  * Provides prompt services.
@@ -30,6 +32,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	constructor(
 		@IInstantiationService private readonly initService: IInstantiationService,
+		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 	) {
 		super();
 
@@ -78,15 +81,56 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cache.get(model);
 	}
 
-	public async listPromptFiles(): Promise<readonly IPrompt[]> {
-		const promptFiles = await this.fileLocator.listFiles([]);
+	public async listPromptFiles(): Promise<readonly IPromptPath[]> {
+		const globalLocations = [this.userDataService.currentProfile.promptsHome];
 
-		return promptFiles.map((uri) => {
-			return {
-				uri,
-				// right now all prompts are coming from the local disk
-				source: 'local',
-			};
-		});
+		const prompts = await Promise.all([
+			this.fileLocator.listFilesIn(globalLocations, [])
+				.then(withType('global')),
+			this.fileLocator.listFiles([])
+				.then(withType('local')),
+		]);
+
+		return prompts.flat();
+	}
+
+	public getSourceFolders(
+		type: IPromptPath['type'],
+	): readonly IPromptPath[] {
+		// sanity check to make sure we don't miss a new prompt type
+		// added in the future
+		assert(
+			type === 'local' || type === 'global',
+			`Unknown prompt type '${type}'.`,
+		);
+
+		const prompts = (type === 'global')
+			? [this.userDataService.currentProfile.promptsHome]
+			: this.fileLocator.getConfigBasedSourceFolders();
+
+		return prompts.map(addType(type));
 	}
 }
+
+/**
+ * Utility to add a provided prompt `type` to a prompt URI.
+ */
+const addType = (
+	type: 'local' | 'global',
+): (uri: URI) => IPromptPath => {
+	return (uri) => {
+		return { uri, type: type };
+	};
+};
+
+/**
+ * Utility to add a provided prompt `type` to a list of prompt URIs.
+ */
+const withType = (
+	type: 'local' | 'global',
+): (uris: readonly URI[]) => (readonly IPromptPath[]) => {
+	return (uris) => {
+		return uris
+			.map(addType(type));
+	};
+};

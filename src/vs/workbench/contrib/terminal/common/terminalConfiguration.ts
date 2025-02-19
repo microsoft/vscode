@@ -378,7 +378,7 @@ const terminalConfiguration: IConfigurationNode = {
 			scope: ConfigurationScope.RESOURCE
 		},
 		[TerminalSettingId.ConfirmOnExit]: {
-			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions."),
+			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions. Background terminals like those launched by some extensions will not trigger the confirmation."),
 			type: 'string',
 			enum: ['never', 'always', 'hasChildProcesses'],
 			enumDescriptions: [
@@ -482,11 +482,14 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		[TerminalSettingId.ExperimentalWindowsUseConptyDll]: {
-			markdownDescription: localize('terminal.integrated.experimentalWindowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.20.240626001) shipped with VS Code, instead of the one bundled with Windows."),
+		[TerminalSettingId.WindowsUseConptyDll]: {
+			markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
 			type: 'boolean',
-			tags: ['experimental'],
-			default: false
+			tags: ['preview'],
+			default: ((): boolean => {
+				const productService = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations()[0] as IProductConfiguration;
+				return productService?.quality !== 'stable';
+			})()
 		},
 		[TerminalSettingId.SplitCwd]: {
 			description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -627,7 +630,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.EnableImages]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS. This will only work on Windows for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.ExperimentalWindowsUseConptyDll}#\``),
+			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS. This will only work on Windows for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
 			type: 'boolean',
 			default: false
 		},

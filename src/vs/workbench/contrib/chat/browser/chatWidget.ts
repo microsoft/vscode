@@ -593,7 +593,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							// Re-render once content references are loaded
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes hidden due to undo/redo
-							`_${element.shouldBeRemovedOnSend ? '1' : '0'}` +
+							`_${element.shouldBeRemovedOnSend ? `${element.shouldBeRemovedOnSend.afterUndoStop || '1'}` : '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
 							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');

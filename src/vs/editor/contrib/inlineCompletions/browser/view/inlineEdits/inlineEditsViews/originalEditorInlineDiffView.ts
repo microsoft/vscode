@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, constObservable, derived, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
-import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { rangeIsSingleLine } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
-import { LineSource, renderLines, RenderOptions } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
-import { diffAddDecoration } from '../../../../../browser/widget/diffEditor/registrations.contribution.js';
-import { applyViewZones, IObservableViewZone } from '../../../../../browser/widget/diffEditor/utils.js';
-import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { OffsetRange } from '../../../../../common/core/offsetRange.js';
-import { Range } from '../../../../../common/core/range.js';
-import { AbstractText } from '../../../../../common/core/textEdit.js';
-import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
-import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../../common/model.js';
-import { ModelDecorationOptions } from '../../../../../common/model/textModel.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel.js';
-import { IInlineEditsView } from './sideBySideDiff.js';
-import { classNames } from './utils.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorunWithStore, constObservable, derived, IObservable, observableFromEvent } from '../../../../../../../base/common/observable.js';
+import { ICodeEditor, MouseTargetType } from '../../../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { rangeIsSingleLine } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
+import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
+import { diffAddDecoration } from '../../../../../../browser/widget/diffEditor/registrations.contribution.js';
+import { applyViewZones, IObservableViewZone } from '../../../../../../browser/widget/diffEditor/utils.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { Range } from '../../../../../../common/core/range.js';
+import { AbstractText } from '../../../../../../common/core/textEdit.js';
+import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMapping.js';
+import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../../../common/model.js';
+import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
+import { IInlineEditsView } from '../inlineEditsViewInterface.js';
+import { classNames } from '../utils/utils.js';
 
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
@@ -57,6 +57,15 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		}));
 
 		const editor = observableCodeEditor(this._originalEditor);
+
+		this._register(this._originalEditor.onMouseUp(e => {
+			if (e.target.type === MouseTargetType.CONTENT_TEXT) {
+				const a = e.target.detail.injectedText?.options.attachedData;
+				if (a) {
+
+				}
+			}
+		}));
 
 		const originalViewZones = derived(this, (reader) => {
 			const originalModel = editor.model.read(reader);

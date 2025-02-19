@@ -42,7 +42,7 @@ import { ViewCursors } from './viewParts/viewCursors/viewCursors.js';
 import { ViewZones } from './viewParts/viewZones/viewZones.js';
 import { WhitespaceOverlay } from './viewParts/whitespace/whitespace.js';
 import { IEditorConfiguration } from '../common/config/editorConfiguration.js';
-import { EditorOption, IComputedEditorOptions } from '../common/config/editorOptions.js';
+import { EditorOption } from '../common/config/editorOptions.js';
 import { Position } from '../common/core/position.js';
 import { Range } from '../common/core/range.js';
 import { Selection } from '../common/core/selection.js';
@@ -61,7 +61,6 @@ import { AbstractEditContext } from './controller/editContext/editContext.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
-import { EditContext } from './controller/editContext/native/editContextFactory.js';
 import { GpuMarkOverlay } from './viewParts/gpuMark/gpuMark.js';
 import { AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
 
@@ -146,7 +145,7 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
+		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
 		this._accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
 		this._editContext = this._instantiateEditContext();
 
@@ -278,7 +277,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(): AbstractEditContext {
-		const usingExperimentalEditContext = useExperimentalEditContext(dom.getWindow(this._overflowGuardContainer.domNode), this._context.configuration.options);
+		const usingExperimentalEditContext = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
 		if (usingExperimentalEditContext) {
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
@@ -287,7 +286,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _updateEditContext(): void {
-		const experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
+		const experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
 		const accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
 		if (this._experimentalEditContextEnabled === experimentalEditContextEnabled && this._accessibilitySupport === accessibilitySupport) {
 			return;
@@ -852,9 +851,3 @@ class EditorRenderingCoordinator {
 	}
 }
 
-export function useExperimentalEditContext(activeWindow: CodeWindow, options: IComputedEditorOptions): boolean {
-	const isEditContextSupported = EditContext.supported(activeWindow);
-	const experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
-	const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-	return experimentalEditContextEnabled && isEditContextSupported && accessibilitySupport !== AccessibilitySupport.Enabled;
-}

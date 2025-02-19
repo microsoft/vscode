@@ -18,11 +18,11 @@ export class TerminalCompletionModel extends SimpleCompletionModel<TerminalCompl
 }
 
 const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionItem, b: TerminalCompletionItem) => {
-	// Boost inline completions first as matches should be first regardless of score
-	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+	// Boost always on top inline completions
+	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop && a.completion.kind !== b.completion.kind) {
 		return -1;
 	}
-	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop && a.completion.kind !== b.completion.kind) {
 		return 1;
 	}
 
@@ -30,6 +30,14 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	let score = b.score[0] - a.score[0];
 	if (score !== 0) {
 		return score;
+	}
+
+	// Boost inline completions
+	if (a.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return -1;
+	}
+	if (b.completion.kind === TerminalCompletionItemKind.InlineSuggestion && a.completion.kind !== b.completion.kind) {
+		return 1;
 	}
 
 	// Sort by underscore penalty (eg. `__init__/` should be penalized)
@@ -52,6 +60,14 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		}
 		// Then by file extension length ascending
 		score = a.fileExtLow.length - b.fileExtLow.length;
+		if (score !== 0) {
+			return score;
+		}
+	}
+
+	// Sort by more detailed completions
+	if (a.completion.kind === TerminalCompletionItemKind.Method && b.completion.kind === TerminalCompletionItemKind.Method) {
+		score = (b.completion.detail ? 1 : 0) + (b.completion.documentation ? 2 : 0) - (a.completion.detail ? 1 : 0) - (a.completion.documentation ? 2 : 0);
 		if (score !== 0) {
 			return score;
 		}

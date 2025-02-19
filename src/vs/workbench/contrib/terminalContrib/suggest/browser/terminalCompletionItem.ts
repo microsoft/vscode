@@ -15,9 +15,16 @@ export enum TerminalCompletionItemKind {
 	Argument = 4,
 	Alias = 5,
 	InlineSuggestion = 6,
+	InlineSuggestionAlwaysOnTop = 7,
 }
 
 export interface ITerminalCompletion extends ISimpleCompletion {
+	/**
+	 * A custom string that should be input into the terminal when selecting this completion. This
+	 * is only required if the label is not what's being input.
+	 */
+	inputData?: string;
+
 	/**
 	 * The kind of terminal completion item.
 	 */

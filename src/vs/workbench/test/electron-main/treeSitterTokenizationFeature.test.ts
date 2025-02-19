@@ -116,7 +116,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 	let languageConfigurationService: ILanguageConfigurationService;
 	const telemetryService: ITelemetryService = new MockTelemetryService();
 	const logService: ILogService = new NullLogService();
-	const configurationService: IConfigurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter': ['typescript'] });
+	const configurationService: IConfigurationService = new TestConfigurationService({ 'editor.experimental.preferTreeSitter.typescript': true });
 	const themeService: IThemeService = new TestThemeService(new TestTreeSitterColorTheme());
 	let languageService: ILanguageService;
 	const environmentService: IEnvironmentService = {} as IEnvironmentService;
@@ -271,7 +271,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 24);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 10);
+		assert.deepStrictEqual(tokens?.length, 14);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -281,7 +281,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 28);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 10);
+		assert.deepStrictEqual(tokens?.length, 14);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -322,7 +322,7 @@ class Y {
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 7, 1), 0, 63);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 22);
+		assert.deepStrictEqual(tokens?.length, 30);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -332,7 +332,7 @@ class Y {
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 7, 1), 0, 69);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 22);
+		assert.deepStrictEqual(tokens?.length, 30);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -384,6 +384,16 @@ class y {
 		assert.strictEqual(change.ranges[0].oldRangeLength, 28);
 
 		updateListener?.dispose();
+		modelService.destroyModel(model.uri);
+	});
+
+	test('Template string', async () => {
+		const content = '`t ${6}`';
+		const model = await getModelAndPrepTree(content);
+		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 1, 8), 0, 8);
+		verifyTokens(tokens);
+		assert.deepStrictEqual(tokens?.length, 5);
+		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
 });

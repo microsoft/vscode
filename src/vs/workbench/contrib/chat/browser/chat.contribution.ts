@@ -8,7 +8,6 @@ import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlCo
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -47,11 +46,12 @@ import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import './promptSyntax/contributions/usePromptCommand.js';
+import './promptSyntax/contributions/createPromptCommand/createPromptCommand.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
-import { ChatCommandCenterRendering, registerChatActions } from './actions/chatActions.js';
+import { CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from './actions/chatClearActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
@@ -71,8 +71,7 @@ import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatCon
 import { ChatInputBoxContentProvider } from './chatEdinputInputContentProvider.js';
 import { ChatEditingEditorAccessibility } from './chatEditing/chatEditingEditorAccessibility.js';
 import { registerChatEditorActions } from './chatEditing/chatEditingEditorActions.js';
-import { ChatEditorController } from './chatEditing/chatEditingEditorController.js';
-import { ChatEditorOverlayController } from './chatEditing/chatEditingEditorOverlay.js';
+import { ChatEditingEditorOverlay } from './chatEditing/chatEditingEditorOverlay.js';
 import { ChatEditingService } from './chatEditing/chatEditingServiceImpl.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
@@ -93,6 +92,7 @@ import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { ChatEditingEditorContextKeys } from './chatEditing/chatEditingEditorContextKeys.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -167,9 +167,9 @@ configurationRegistry.registerConfiguration({
 			title: PromptFilesConfig.CONFIG_TITLE,
 			markdownDescription: PromptFilesConfig.CONFIG_DESCRIPTION,
 			default: {
-				[PromptFilesConfig.DEFAULT_LOCATION]: false,
+				[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: false,
 			},
-			required: [PromptFilesConfig.DEFAULT_LOCATION],
+			required: [PromptFilesConfig.DEFAULT_SOURCE_FOLDER],
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
@@ -177,10 +177,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			examples: [
 				{
-					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+					[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[PromptFilesConfig.DEFAULT_LOCATION]: true,
+					[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
@@ -400,7 +400,7 @@ registerWorkbenchContribution2(ChatSlashStaticSlashCommandsContribution.ID, Chat
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(ChatCommandCenterRendering.ID, ChatCommandCenterRendering, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(CopilotTitleBarMenuRendering.ID, CopilotTitleBarMenuRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatRelatedFilesContribution.ID, ChatRelatedFilesContribution, WorkbenchPhase.Eventually);
@@ -411,6 +411,8 @@ registerWorkbenchContribution2(ChatQuotasStatusBarEntry.ID, ChatQuotasStatusBarE
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatCopyActions();
@@ -428,8 +430,7 @@ registerChatDeveloperActions();
 registerChatEditorActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
-registerEditorContribution(ChatEditorOverlayController.ID, ChatEditorOverlayController, EditorContributionInstantiation.Lazy);
-registerEditorContribution(ChatEditorController.ID, ChatEditorController, EditorContributionInstantiation.Eventually);
+
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);

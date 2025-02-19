@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string punctuation.definition.template-expression.end",
+		"t": "string punctuation punctuation.definition.template-expression.end",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -197,7 +197,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -253,7 +253,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -407,7 +407,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string punctuation.definition.template-expression.end",
+		"t": "string punctuation punctuation.definition.template-expression.end",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -491,7 +491,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string punctuation.definition.template-expression.end",
+		"t": "string punctuation punctuation.definition.template-expression.end",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",

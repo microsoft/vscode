@@ -59,3 +59,9 @@
 	}
 }
 
+.monaco-editor {
+	.edits-fadeout-decoration {
+		opacity: var(--animation-opacity, 1);
+		background-color: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+	}
+}

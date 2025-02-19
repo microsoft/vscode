@@ -106,10 +106,11 @@ export interface ITreeSitterTokenizationSupport {
 	 * exposed for testing
 	 */
 	getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
-	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
+	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): void;
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
+	onDidCompleteFirstTokenization: Event<{ textModel: model.ITextModel }>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
 
@@ -594,6 +595,10 @@ export interface CompletionItem {
 	 */
 	command?: Command;
 	/**
+	 * A command that should be run upon acceptance of this item.
+	 */
+	action?: Command;
+	/**
 	 * @internal
 	 */
 	extensionId?: ExtensionIdentifier;
@@ -779,6 +784,8 @@ export interface InlineCompletion {
 	readonly range?: IRange;
 
 	readonly command?: Command;
+
+	readonly action?: Command;
 
 	/**
 	 * Is called the first time an inline completion is shown.
@@ -1514,6 +1521,10 @@ export interface TextEdit {
 export abstract class TextEdit {
 	static asEditOperation(edit: TextEdit): ISingleEditOperation {
 		return EditOperation.replace(Range.lift(edit.range), edit.text);
+	}
+	static isTextEdit(thing: any): thing is TextEdit {
+		const possibleTextEdit = thing as TextEdit;
+		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
 	}
 }
 
@@ -2382,6 +2393,7 @@ export interface IInlineEdit {
 	rejected?: Command;
 	shown?: Command;
 	commands?: Command[];
+	action?: Command;
 }
 
 export interface IInlineEditContext {

@@ -10,6 +10,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
 import { FileOperation } from '../../../../../platform/files/common/files.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { EncodingMode } from '../../common/textfiles.js';
 
 suite('Files - TextFileService', () => {
 
@@ -197,6 +198,23 @@ suite('Files - TextFileService', () => {
 
 		const suggested = accessor.textFileService.suggestFilename('plumbus2', 'foobar');
 		assert.strictEqual(suggested, 'plumbus');
+	});
+
+	test('getEncoding() - files and untitled', async function () {
+		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined));
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+
+		await model.resolve();
+
+		assert.strictEqual(accessor.textFileService.getEncoding(model.resource), 'utf8');
+		await model.setEncoding('utf16', EncodingMode.Encode);
+		assert.strictEqual(accessor.textFileService.getEncoding(model.resource), 'utf16');
+
+		const untitled = disposables.add(await accessor.textFileService.untitled.resolve());
+
+		assert.strictEqual(accessor.textFileService.getEncoding(untitled.resource), 'utf8');
+		await untitled.setEncoding('utf16');
+		assert.strictEqual(accessor.textFileService.getEncoding(untitled.resource), 'utf16');
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

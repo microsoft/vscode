@@ -3,28 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
-import { IObservable, autorun, constObservable, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { OS } from '../../../../../../base/common/platform.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { localize } from '../../../../../../nls.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { Command } from '../../../../../common/languages.js';
-import { AcceptInlineCompletion, HideInlineCompletion, JumpToNextInlineEdit } from '../../controller/commands.js';
-import { ChildNode, FirstFnArg, InlineEditTabAction, LiveElement, n } from './utils.js';
+import { ChildNode, LiveElement, n } from '../../../../../../../base/browser/dom.js';
+import { ActionBar, IActionBarOptions } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IAction } from '../../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../../../../../../base/common/keybindings.js';
+import { IObservable, autorun, constObservable, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
+import { OS } from '../../../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../../nls.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { nativeHoverDelegate } from '../../../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
+import { IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { FirstFnArg, InlineEditTabAction } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
+
+	private readonly _inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+
 	constructor(
-		private readonly _menuTitle: IObservable<string>,
-		private readonly _tabAction: IObservable<InlineEditTabAction>,
+		private readonly _host: IInlineEditsViewHost,
 		private readonly _close: (focusEditor: boolean) => void,
-		private readonly _extensionCommands: IObservable<readonly Command[] | undefined>,
+		private readonly _editorObs: ObservableCodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -54,15 +62,37 @@ export class GutterIndicatorMenuContent {
 
 		// TODO make this menu contributable!
 		return hoverContent([
-			header(this._menuTitle),
-			option(createOptionArgs({ id: 'gotoAndAccept', title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`, icon: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight), commandId: this._tabAction.map(action => action === 'accept' ? new AcceptInlineCompletion().id : new JumpToNextInlineEdit().id) })),
-			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: new HideInlineCompletion().id })),
+			header(this._host.displayName),
+			option(createOptionArgs({
+				id: 'gotoAndAccept', title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
+				icon: this._host.tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.check : Codicon.arrowRight),
+				commandId: this._host.tabAction.map(action => action === InlineEditTabAction.Accept ? inlineSuggestCommitId : jumpToNextInlineEditId)
+			})),
+			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: hideInlineCompletionId })),
 			separator(),
-			this._extensionCommands?.map(c => c && c.length > 0 ? [
+			this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
+				option(createOptionArgs({ id: 'showExpanded', title: localize('showExpanded', "Show Expanded"), icon: Codicon.expandAll, commandId: toggleShowCollapsedId })) :
+				option(createOptionArgs({ id: 'showCollapsed', title: localize('showCollapsed', "Show Collapsed"), icon: Codicon.collapseAll, commandId: toggleShowCollapsedId }))
+			),
+			this._host.extensionCommands?.map(c => c && c.length > 0 ? [
 				...c.map(c => option(createOptionArgs({ id: c.id, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments }))),
 				separator()
 			] : []),
 			option(createOptionArgs({ id: 'settings', title: localize('settings', "Settings"), icon: Codicon.gear, commandId: 'workbench.action.openSettings', commandArgs: ['@tag:nextEditSuggestions'] })),
+			this._host.action.map(action => action ? [
+				separator(),
+				actionBar(
+					[{
+						id: action.id,
+						label: action.title,
+						enabled: true,
+						run: () => this._commandService.executeCommand(action.id),
+						class: undefined,
+						tooltip: action.tooltip ?? action.title
+					}],
+					{ hoverDelegate: nativeHoverDelegate /* unable to show hover inside another hover */ }
+				)
+			] : [])
 		]);
 	}
 
@@ -116,6 +146,9 @@ function option(props: {
 			}
 		},
 		tabIndex: 0,
+		style: {
+			borderRadius: 3, // same as hover widget border radius
+		}
 	}, [
 		n.elem('span', {
 			style: {
@@ -136,12 +169,29 @@ function option(props: {
 	]));
 }
 
+// TODO: make this observable
+function actionBar(actions: IAction[], options: IActionBarOptions) {
+	return derivedWithStore((_reader, store) => n.div({
+		class: ['action-widget-action-bar'],
+		style: {
+			padding: '0 10px',
+		}
+	}, [
+		n.div({
+			ref: elem => {
+				const actionBar = store.add(new ActionBar(elem, options));
+				actionBar.push(actions, { icon: false, label: true });
+			}
+		})
+	]));
+}
+
 function separator() {
 	return n.div({
 		class: 'menu-separator',
 		style: {
 			color: asCssVariable(editorActionListForeground),
-			padding: '2px 0',
+			padding: '4px 0',
 		}
 	}, n.div({
 		style: {

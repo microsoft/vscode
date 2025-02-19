@@ -144,6 +144,7 @@ export class MenuId {
 	static readonly TestCallStack = new MenuId('TestCallStack');
 	static readonly TestCoverageFilterItem = new MenuId('TestCoverageFilterItem');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
+	static readonly TitleBar = new MenuId('TitleBar');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');
@@ -240,7 +241,7 @@ export class MenuId {
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
 	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
-	static readonly ChatCommandCenter = new MenuId('ChatCommandCenter');
+	static readonly ChatTitleBarMenu = new MenuId('ChatTitleBarMenu');
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');

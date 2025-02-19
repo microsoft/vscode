@@ -171,4 +171,10 @@
 	"eslint.useFlatConfig": true,
 	"editor.occurrencesHighlightDelay": 0,
 	"typescript.experimental.expandableHover": true,
+	"git.diagnosticsCommitHook.Enabled": true,
+	"git.diagnosticsCommitHook.Sources": {
+		"*": "error",
+		"ts": "warning",
+		"eslint": "warning"
+	}
 }

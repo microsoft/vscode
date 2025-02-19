@@ -702,7 +702,7 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		// (2) import-require statements
 		info.importedFiles.forEach(ref => {
 
-			if (!ref.fileName.startsWith('.') || path.extname(ref.fileName) === '') {
+			if (!ref.fileName.startsWith('.')) {
 				// node module?
 				return;
 			}

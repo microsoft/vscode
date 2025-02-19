@@ -57,7 +57,7 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
-      isHidden: false,
+      shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
       followups: [
         {
@@ -132,7 +132,7 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
-      isHidden: false,
+      shouldBeRemovedOnSend: undefined,
       result: {  },
       followups: [  ],
       isCanceled: false,

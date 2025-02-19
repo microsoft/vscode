@@ -533,6 +533,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
 				]
 			},
+			'workbench.secondarySideBar.showLabels': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('secondarySideBarShowLabels', "Controls whether activity items in the secondary sidebar title are shown as label or icon. This setting only has an effect when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`top`'),
+			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
 				'default': true,

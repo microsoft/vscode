@@ -218,9 +218,18 @@ class ChatAgentResponseStream {
 					throwIfDone(this.textEdit);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const part = new extHostTypes.ChatResponseTextEditPart(target, Array.isArray(edits) ? edits : []);
+					const part = new extHostTypes.ChatResponseTextEditPart(target, edits);
 					part.isDone = edits === true ? true : undefined;
 					const dto = typeConvert.ChatResponseTextEditPart.from(part);
+					_report(dto);
+					return this;
+				},
+				notebookEdit(target, edits) {
+					throwIfDone(this.notebookEdit);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const part = new extHostTypes.ChatResponseNotebookEditPart(target, edits);
+					const dto = typeConvert.ChatResponseNotebookEditPart.from(part);
 					_report(dto);
 					return this;
 				},
@@ -238,6 +247,7 @@ class ChatAgentResponseStream {
 
 					if (
 						part instanceof extHostTypes.ChatResponseTextEditPart ||
+						part instanceof extHostTypes.ChatResponseNotebookEditPart ||
 						part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart ||
 						part instanceof extHostTypes.ChatResponseWarningPart ||
 						part instanceof extHostTypes.ChatResponseConfirmationPart ||

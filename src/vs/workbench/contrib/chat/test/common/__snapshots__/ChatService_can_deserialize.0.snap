@@ -57,7 +57,7 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
-      isHidden: false,
+      shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
       followups: undefined,
       isCanceled: false,

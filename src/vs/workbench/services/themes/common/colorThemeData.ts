@@ -891,7 +891,7 @@ function isSemanticTokenColorizationSetting(style: any): style is ISemanticToken
 		|| types.isBoolean(style.underline) || types.isBoolean(style.strikethrough) || types.isBoolean(style.bold));
 }
 
-export function findMetadata(colorThemeData: ColorThemeData, captureNames: string[], languageId: number): number {
+export function findMetadata(colorThemeData: ColorThemeData, captureNames: string[], languageId: number, bracket: boolean): number {
 	let metadata = 0;
 
 	metadata |= (languageId << MetadataConsts.LANGUAGEID_OFFSET);
@@ -904,7 +904,8 @@ export function findMetadata(colorThemeData: ColorThemeData, captureNames: strin
 		metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
 	}
 
-	switch (definitions.foreground?.settings.fontStyle) {
+	const fontStyle = definitions.foreground?.settings.fontStyle || definitions.bold?.settings.fontStyle;
+	switch (fontStyle) {
 		case 'italic':
 			metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
 			break;
@@ -921,6 +922,10 @@ export function findMetadata(colorThemeData: ColorThemeData, captureNames: strin
 	const foreground = tokenStyle?.foreground;
 	const tokenStyleForeground = (foreground !== undefined) ? colorThemeData.getTokenColorIndex().get(foreground) : ColorId.DefaultForeground;
 	metadata |= tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
+
+	if (bracket) {
+		metadata |= MetadataConsts.BALANCED_BRACKETS_MASK;
+	}
 
 	return metadata;
 }

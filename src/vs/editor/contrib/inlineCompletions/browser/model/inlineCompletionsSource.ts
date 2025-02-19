@@ -78,7 +78,8 @@ export class InlineCompletionsSource extends Disposable {
 		this._structuredFetchLogger.log(entry);
 	}
 
-	public readonly loading = observableValue(this, false);
+	private readonly _loadingCount = observableValue(this, 0);
+	public readonly loading = this._loadingCount.map(this, v => v > 0);
 
 	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined, withDebounce: boolean): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
@@ -91,95 +92,98 @@ export class InlineCompletionsSource extends Disposable {
 			return Promise.resolve(true);
 		}
 
-		this.loading.set(true, undefined);
-
 		const updateOngoing = !!this._updateOperation.value;
 		this._updateOperation.clear();
 
 		const source = new CancellationTokenSource();
 
 		const promise = (async () => {
-			const recommendedDebounceValue = this._debounceValue.get(this._textModel);
-			const debounceValue = findLastMax(
-				this._languageFeaturesService.inlineCompletionsProvider.all(this._textModel).map(p => p.debounceDelayMs),
-				compareUndefinedSmallest(numberComparator)
-			) ?? recommendedDebounceValue;
-
-			// Debounce in any case if update is ongoing
-			const shouldDebounce = updateOngoing || (withDebounce && context.triggerKind === InlineCompletionTriggerKind.Automatic);
-			if (shouldDebounce) {
-				// This debounces the operation
-				await wait(debounceValue, source.token);
-			}
-
-			if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
-				return false;
-			}
-
-			const requestId = InlineCompletionsSource._requestId++;
-			if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
-				this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri.toString(), modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
-			}
-
-			const startTime = new Date();
-			let updatedCompletions: InlineCompletionProviderResult | undefined = undefined;
-			let error: any = undefined;
+			this._loadingCount.set(this._loadingCount.get() + 1, undefined);
 			try {
-				updatedCompletions = await provideInlineCompletions(
-					this._languageFeaturesService.inlineCompletionsProvider,
-					position,
-					this._textModel,
-					context,
-					source.token,
-					this._languageConfigurationService
-				);
-			} catch (e) {
-				error = e;
-				throw e;
-			} finally {
+				const recommendedDebounceValue = this._debounceValue.get(this._textModel);
+				const debounceValue = findLastMax(
+					this._languageFeaturesService.inlineCompletionsProvider.all(this._textModel).map(p => p.debounceDelayMs),
+					compareUndefinedSmallest(numberComparator)
+				) ?? recommendedDebounceValue;
+
+				// Debounce in any case if update is ongoing
+				const shouldDebounce = updateOngoing || (withDebounce && context.triggerKind === InlineCompletionTriggerKind.Automatic);
+				if (shouldDebounce) {
+					// This debounces the operation
+					await wait(debounceValue, source.token);
+				}
+
+				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+					return false;
+				}
+
+				const requestId = InlineCompletionsSource._requestId++;
 				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
-					if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
-						error = 'canceled';
+					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri.toString(), modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
+				}
+
+				const startTime = new Date();
+				let updatedCompletions: InlineCompletionProviderResult | undefined = undefined;
+				let error: any = undefined;
+				try {
+					updatedCompletions = await provideInlineCompletions(
+						this._languageFeaturesService.inlineCompletionsProvider,
+						position,
+						this._textModel,
+						context,
+						source.token,
+						this._languageConfigurationService
+					);
+				} catch (e) {
+					error = e;
+					throw e;
+				} finally {
+					if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
+						if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+							error = 'canceled';
+						}
+						const result = updatedCompletions?.completions.map(c => ({
+							range: c.range.toString(),
+							text: c.insertText,
+							isInlineEdit: !!c.sourceInlineCompletion.isInlineEdit,
+							source: c.source.provider.groupId,
+						}));
+						this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now() });
 					}
-					const result = updatedCompletions?.completions.map(c => ({
-						range: c.range.toString(),
-						text: c.insertText,
-						isInlineEdit: !!c.sourceInlineCompletion.isInlineEdit,
-						source: c.source.provider.groupId,
-					}));
-					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now() });
 				}
-			}
 
-			if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
-				updatedCompletions.dispose();
-				return false;
-			}
-
-			// Reuse Inline Edit if possible
-			if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && (activeInlineCompletion.canBeReused(this._textModel, position) || updatedCompletions.has(activeInlineCompletion.inlineCompletion) /* Inline Edit wins over completions if it's already been shown*/)) {
-				updatedCompletions.dispose();
-				return false;
-			}
-
-			const endTime = new Date();
-			this._debounceValue.update(this._textModel, endTime.getTime() - startTime.getTime());
-
-			// Reuse Inline Completion if possible
-			const completions = new UpToDateInlineCompletions(updatedCompletions, request, this._textModel, this._versionId);
-			if (activeInlineCompletion && !activeInlineCompletion.isInlineEdit && activeInlineCompletion.canBeReused(this._textModel, position)) {
-				const asInlineCompletion = activeInlineCompletion.toInlineCompletion(undefined);
-				if (!updatedCompletions.has(asInlineCompletion)) {
-					completions.prepend(activeInlineCompletion.inlineCompletion, asInlineCompletion.range, true);
+				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+					updatedCompletions.dispose();
+					return false;
 				}
-			}
 
-			this._updateOperation.clear();
-			transaction(tx => {
-				/** @description Update completions with provider result */
-				target.set(completions, tx);
-				this.loading.set(false, tx);
-			});
+				// Reuse Inline Edit if possible
+				if (activeInlineCompletion && activeInlineCompletion.isInlineEdit && (activeInlineCompletion.canBeReused(this._textModel, position) || updatedCompletions.has(activeInlineCompletion.inlineCompletion) /* Inline Edit wins over completions if it's already been shown*/)) {
+					updatedCompletions.dispose();
+					return false;
+				}
+
+				const endTime = new Date();
+				this._debounceValue.update(this._textModel, endTime.getTime() - startTime.getTime());
+
+				// Reuse Inline Completion if possible
+				const completions = new UpToDateInlineCompletions(updatedCompletions, request, this._textModel, this._versionId);
+				if (activeInlineCompletion && !activeInlineCompletion.isInlineEdit && activeInlineCompletion.canBeReused(this._textModel, position)) {
+					const asInlineCompletion = activeInlineCompletion.toInlineCompletion(undefined);
+					if (!updatedCompletions.has(asInlineCompletion)) {
+						completions.prepend(activeInlineCompletion.inlineCompletion, asInlineCompletion.range, true);
+					}
+				}
+
+				this._updateOperation.clear();
+				transaction(tx => {
+					/** @description Update completions with provider result */
+					target.set(completions, tx);
+				});
+
+			} finally {
+				this._loadingCount.set(this._loadingCount.get() - 1, undefined);
+			}
 
 			return true;
 		})();

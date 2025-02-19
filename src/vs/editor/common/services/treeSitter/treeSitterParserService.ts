@@ -5,7 +5,7 @@
 
 import type * as Parser from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter, RangeChange, TreeUpdateEvent, TreeParseUpdateEvent, ITreeSitterImporter } from '../treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter, RangeChange, TreeUpdateEvent, TreeParseUpdateEvent, ITreeSitterImporter, TREESITTER_ALLOWED_SUPPORT } from '../treeSitterParserService.js';
 import { IModelService } from '../model.js';
 import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../model.js';
@@ -610,9 +610,6 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		return undefined;
 	}
 
-	/**
-	 * For testing
-	 */
 	async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
 		await this._init;
 		return this._treeSitterLanguages.getLanguage(languageId);
@@ -654,33 +651,31 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	}
 
 	private async _supportedLanguagesChanged() {
-		const setting = this._getSetting();
+		let hasLanguages = false;
 
-		let hasLanguages = true;
-		if (setting.length === 0) {
-			hasLanguages = false;
-		}
+		const handleLanguage = (languageId: string) => {
+			if (this._getSetting(languageId)) {
+				hasLanguages = true;
+				this._addGrammar(languageId, `tree-sitter-${languageId}`);
+			} else {
+				this._removeGrammar(languageId);
+			}
+		};
+
 		// Eventually, this should actually use an extension point to add tree sitter grammars, but for now they are hard coded in core
-		if (setting.includes('typescript')) {
-			this._addGrammar('typescript', 'tree-sitter-typescript');
-		} else {
-			this._removeGrammar('typescript');
+		for (const languageId of TREESITTER_ALLOWED_SUPPORT) {
+			handleLanguage(languageId);
 		}
 
 		return this._initParser(hasLanguages);
 	}
 
-	private _getSetting(): string[] {
-		const setting = this._configurationService.getValue<string[]>(EDITOR_EXPERIMENTAL_PREFER_TREESITTER);
-		if (setting && setting.length > 0) {
-			return setting;
-		} else {
-			const expSetting = this._configurationService.getValue<boolean>(EDITOR_TREESITTER_TELEMETRY);
-			if (expSetting) {
-				return ['typescript'];
-			}
+	private _getSetting(languageId: string): boolean {
+		const setting = this._configurationService.getValue<boolean>(`${EDITOR_EXPERIMENTAL_PREFER_TREESITTER}.${languageId}`);
+		if (!setting && TREESITTER_ALLOWED_SUPPORT.includes(languageId)) {
+			return this._configurationService.getValue<boolean>(EDITOR_TREESITTER_TELEMETRY);
 		}
-		return [];
+		return setting;
 	}
 
 	private async _registerModelServiceListeners() {

@@ -2148,7 +2148,7 @@ export enum TerminalCompletionItemKind {
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
-	label: string;
+	label: string | CompletionItemLabel;
 	icon?: ThemeIcon | undefined;
 	detail?: string | undefined;
 	isFile?: boolean | undefined;
@@ -2157,7 +2157,7 @@ export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	replacementIndex: number;
 	replacementLength: number;
 
-	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
 		this.label = label;
 		this.icon = icon;
 		this.detail = detail;
@@ -4635,6 +4635,22 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 			this.edits = [];
 		} else {
 			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+		}
+	}
+}
+
+export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebookEditPart {
+	uri: vscode.Uri;
+	edits: vscode.NotebookEdit[];
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
+		this.uri = uri;
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+
 		}
 	}
 }

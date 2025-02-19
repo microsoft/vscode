@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -295,7 +295,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -323,7 +323,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -337,7 +337,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -351,7 +351,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -379,7 +379,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -547,7 +547,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -561,7 +561,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -575,7 +575,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -603,7 +603,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -771,7 +771,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -785,7 +785,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -799,7 +799,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -827,7 +827,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -995,7 +995,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1009,7 +1009,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1023,7 +1023,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1051,7 +1051,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1135,7 +1135,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1149,7 +1149,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1163,7 +1163,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1191,7 +1191,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1303,7 +1303,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1359,7 +1359,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1443,7 +1443,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1457,7 +1457,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1471,7 +1471,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1541,7 +1541,7 @@
 	},
 	{
 		"c": "?",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1569,7 +1569,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1583,7 +1583,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1639,7 +1639,7 @@
 	},
 	{
 		"c": "?",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1667,7 +1667,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1695,7 +1695,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1821,7 +1821,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1835,7 +1835,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1919,7 +1919,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1947,21 +1947,21 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1975,7 +1975,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2017,7 +2017,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2045,7 +2045,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2059,7 +2059,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2101,7 +2101,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2115,7 +2115,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2157,7 +2157,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2171,7 +2171,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2255,7 +2255,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2269,7 +2269,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2283,7 +2283,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2339,7 +2339,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2381,16 +2381,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -2409,7 +2409,7 @@
 	},
 	{
 		"c": "<",
-		"t": "punctuation.bracket",
+		"t": "punctuation.definition.typeparameters",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2423,7 +2423,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2437,7 +2437,7 @@
 	},
 	{
 		"c": "param",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2465,16 +2465,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -2493,7 +2493,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2563,7 +2563,7 @@
 	},
 	{
 		"c": ">",
-		"t": "punctuation.bracket",
+		"t": "punctuation.definition.typeparameters",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2619,16 +2619,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -2647,7 +2647,7 @@
 	},
 	{
 		"c": "<",
-		"t": "punctuation.bracket",
+		"t": "punctuation.definition.typeparameters",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2675,7 +2675,7 @@
 	},
 	{
 		"c": "|",
-		"t": "keyword.operator",
+		"t": "keyword.operator keyword.operator.type",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2731,7 +2731,7 @@
 	},
 	{
 		"c": "&",
-		"t": "keyword.operator",
+		"t": "keyword.operator keyword.operator.type",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2759,7 +2759,7 @@
 	},
 	{
 		"c": ">",
-		"t": "punctuation.bracket",
+		"t": "punctuation.definition.typeparameters",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2857,7 +2857,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2913,7 +2913,7 @@
 	},
 	{
 		"c": "?",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2941,7 +2941,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2969,7 +2969,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3081,7 +3081,7 @@
 	},
 	{
 		"c": "<",
-		"t": "punctuation.bracket",
+		"t": "punctuation.definition.typeparameters",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3109,7 +3109,7 @@
 	},
 	{
 		"c": ">",
-		"t": "punctuation.bracket",
+		"t": "punctuation.definition.typeparameters",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3123,7 +3123,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3137,7 +3137,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

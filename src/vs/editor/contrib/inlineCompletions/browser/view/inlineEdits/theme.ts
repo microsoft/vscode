@@ -8,7 +8,7 @@ import { IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { diffRemoved, diffInsertedLine, diffInserted, editorHoverBorder, editorHoverStatusBarBackground, buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { registerColor, transparent, asCssVariable, lighten, darken } from '../../../../../../platform/theme/common/colorUtils.js';
-import { InlineEditTabAction } from './utils.js';
+import { InlineEditTabAction } from './utils/utils.js';
 
 export const originalBackgroundColor = registerColor(
 	'inlineEdit.originalBackground',

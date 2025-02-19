@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { basename, dirname, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
@@ -16,17 +18,24 @@ import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { FileType, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { getExcludes, ISearchConfiguration, IFileQuery, QueryType, ISearchComplete, ISearchService } from '../../../../services/search/common/search.js';
 import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
 import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
 import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
+import * as glob from '../../../../../base/common/glob.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -289,6 +298,219 @@ export class SelectAndInsertFileAction extends Action2 {
 	}
 }
 registerAction2(SelectAndInsertFileAction);
+
+export class SelectAndInsertFolderAction extends Action2 {
+	static readonly Name = 'folder';
+	static readonly ID = 'workbench.action.chat.selectAndInsertFolder';
+
+	constructor() {
+		super({
+			id: SelectAndInsertFolderAction.ID,
+			title: '' // not displayed
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const logService = accessor.get(ILogService);
+
+		const context = args[0];
+		if (!isSelectAndInsertActionContext(context)) {
+			return;
+		}
+
+		const doCleanup = () => {
+			// Failed, remove the dangling `folder`
+			context.widget.inputEditor.executeEdits('chatInsertFolder', [{ range: context.range, text: `` }]);
+		};
+
+		const folder = await createFolderQuickPick(accessor);
+		if (!folder) {
+			logService.trace('SelectAndInsertFolderAction: no folder selected');
+			doCleanup();
+			return;
+		}
+
+		const editor = context.widget.inputEditor;
+		const range = context.range;
+
+		const folderName = basename(folder);
+		const text = `#folder:${folderName}`;
+		const success = editor.executeEdits('chatInsertFolder', [{ range, text: text + ' ' }]);
+		if (!success) {
+			logService.trace(`SelectAndInsertFolderAction: failed to insert "${text}"`);
+			doCleanup();
+			return;
+		}
+
+		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			id: 'vscode.folder',
+			isFile: false,
+			prefix: 'folder',
+			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
+			data: folder
+		});
+	}
+
+}
+registerAction2(SelectAndInsertFolderAction);
+
+export async function createFolderQuickPick(accessor: ServicesAccessor): Promise<URI | undefined> {
+	const quickInputService = accessor.get(IQuickInputService);
+	const searchService = accessor.get(ISearchService);
+	const configurationService = accessor.get(IConfigurationService);
+	const workspaceService = accessor.get(IWorkspaceContextService);
+	const fileService = accessor.get(IFileService);
+	const labelService = accessor.get(ILabelService);
+
+	const workspaces = workspaceService.getWorkspace().folders.map(folder => folder.uri);
+	const topLevelFolderItems = (await getTopLevelFolders(workspaces, fileService)).map(createQuickPickItem);
+
+	const quickPick = quickInputService.createQuickPick();
+	quickPick.placeholder = 'Search folder by name';
+	quickPick.items = topLevelFolderItems;
+
+	return await new Promise<URI | undefined>(_resolve => {
+
+		const disposables = new DisposableStore();
+		const resolve = (res: URI | undefined) => {
+			_resolve(res);
+			disposables.dispose();
+			quickPick.dispose();
+		};
+
+		disposables.add(quickPick.onDidChangeValue(async value => {
+			if (value === '') {
+				quickPick.items = topLevelFolderItems;
+				return;
+			}
+
+			const workspaceFolders = await Promise.all(
+				workspaces.map(workspace =>
+					searchFolders(
+						workspace,
+						value,
+						undefined,
+						undefined,
+						configurationService,
+						searchService
+					)
+				));
+
+			quickPick.items = workspaceFolders.flat().map(createQuickPickItem);
+		}));
+
+		disposables.add(quickPick.onDidAccept((e) => {
+			const value = (quickPick.selectedItems[0] as any)?.resource;
+			resolve(value);
+		}));
+
+		disposables.add(quickPick.onDidHide(() => {
+			resolve(undefined);
+		}));
+
+		quickPick.show();
+	});
+
+	function createQuickPickItem(folder: URI): IQuickPickItem & { resource: URI } {
+		return {
+			type: 'item',
+			id: folder.toString(),
+			resource: folder,
+			label: basename(folder),
+			description: labelService.getUriLabel(dirname(folder), { relative: true }),
+			iconClass: ThemeIcon.asClassName(Codicon.folder),
+		};
+	}
+}
+
+export async function getTopLevelFolders(workspaces: URI[], fileService: IFileService): Promise<URI[]> {
+	const folders: URI[] = [];
+	for (const workspace of workspaces) {
+		const fileSystemProvider = fileService.getProvider(workspace.scheme);
+		if (!fileSystemProvider) {
+			continue;
+		}
+
+		const entries = await fileSystemProvider.readdir(workspace);
+		for (const [name, type] of entries) {
+			const entryResource = joinPath(workspace, name);
+			if (type === FileType.Directory) {
+				folders.push(entryResource);
+			}
+		}
+	}
+
+	return folders;
+}
+
+export async function searchFolders(
+	workspace: URI,
+	pattern: string,
+	token: CancellationToken | undefined,
+	cacheKey: string | undefined,
+	configurationService: IConfigurationService,
+	searchService: ISearchService
+): Promise<URI[]> {
+	const searchExcludePattern = getExcludes(configurationService.getValue<ISearchConfiguration>({ resource: workspace })) || {};
+	const searchOptions: IFileQuery = {
+		folderQueries: [{
+			folder: workspace,
+			disregardIgnoreFiles: configurationService.getValue<boolean>('explorer.excludeGitIgnore'),
+		}],
+		type: QueryType.File,
+		shouldGlobMatchFilePattern: true,
+		cacheKey,
+		excludePattern: searchExcludePattern,
+	};
+
+	let folderResults: ISearchComplete | undefined;
+	try {
+		folderResults = await searchService.fileSearch({ ...searchOptions, filePattern: `**/*${pattern}*/**` }, token);
+	} catch (e) {
+		if (!isCancellationError(e)) {
+			throw e;
+		}
+	}
+
+	if (!folderResults || token?.isCancellationRequested) {
+		return [];
+	}
+
+	const folderResources = getMatchingFoldersFromFiles(folderResults.results.map(result => result.resource), workspace, pattern);
+	return folderResources;
+}
+
+
+// TODO: remove this and have support from the search service
+function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, pattern: string): URI[] {
+	const uniqueFolders = new ResourceSet();
+	for (const resource of resources) {
+		const relativePathToRoot = relativePath(workspace, resource);
+		if (!relativePathToRoot) {
+			throw new Error('Resource is not a child of the workspace');
+		}
+
+		let dirResource = workspace;
+		const stats = relativePathToRoot.split('/').slice(0, -1);
+		for (const stat of stats) {
+			dirResource = dirResource.with({ path: `${dirResource.path}/${stat}` });
+			uniqueFolders.add(dirResource);
+		}
+	}
+
+	const matchingFolders: URI[] = [];
+	for (const folderResource of uniqueFolders) {
+		const stats = folderResource.path.split('/');
+		const dirStat = stats[stats.length - 1];
+		if (!dirStat || !glob.match(`*${pattern}*`, dirStat)) {
+			continue;
+		}
+
+		matchingFolders.push(folderResource);
+	}
+
+	return matchingFolders;
+}
 
 export class SelectAndInsertSymAction extends Action2 {
 	static readonly Name = 'symbols';
