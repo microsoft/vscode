@@ -44,7 +44,7 @@ export function insertFinalNewLine(model: ITextModel): ISingleEditOperation | un
 	const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
 
 	if (!lineCount || lastLineIsEmptyOrWhitespace) {
-		return undefined;
+		return;
 	}
 
 	return EditOperation.insert(
