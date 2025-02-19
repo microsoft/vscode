@@ -239,7 +239,6 @@ export async function getCompletionItemsFromSpecs(
 		for (const command of availableCommands) {
 			const commandTextLabel = typeof command.label === 'string' ? command.label : command.label.label;
 			if (!labels.has(commandTextLabel)) {
-				//TODO: maybe prioritize builtin label over spec's
 				items.push(createCompletionItem(
 					terminalContext.cursorPosition,
 					prefix,
@@ -248,6 +247,15 @@ export async function getCompletionItemsFromSpecs(
 					command.documentation
 				));
 				labels.add(commandTextLabel);
+			} else {
+				const existingItem = items.find(i => (typeof i.label === 'string' ? i.label : i.label.label) === commandTextLabel);
+				if (!existingItem) {
+					continue;
+				}
+				const preferredItem = compareItems(existingItem, command);
+				if (preferredItem) {
+					items.splice(items.indexOf(existingItem), 1, preferredItem);
+				}
 			}
 		}
 		filesRequested = true;
@@ -267,6 +275,20 @@ export async function getCompletionItemsFromSpecs(
 	}
 
 	return { items, filesRequested, foldersRequested, cwd };
+}
+
+function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICompletionResource): vscode.TerminalCompletionItem | undefined {
+	let score = typeof command.label === 'object' ? (command.label.detail !== undefined ? 1 : 0) : 0;
+	score += typeof command.label === 'object' ? (command.label.description !== undefined ? 2 : 0) : 0;
+	score += command.documentation ? typeof command.documentation === 'string' ? 2 : 3 : 0;
+	if (score > 0) {
+		score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 1 : 0) : 0;
+		score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 2 : 0) : 0;
+		score -= existingItem.documentation ? typeof existingItem.documentation === 'string' ? 2 : 3 : 0;
+		if (score >= 0) {
+			return { ...command, replacementIndex: existingItem.replacementIndex, replacementLength: existingItem.replacementLength };
+		}
+	}
 }
 
 function getShell(shellType: TerminalShellType): string | undefined {
