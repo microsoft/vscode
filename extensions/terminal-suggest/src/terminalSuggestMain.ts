@@ -239,7 +239,6 @@ export async function getCompletionItemsFromSpecs(
 		for (const command of availableCommands) {
 			const commandTextLabel = typeof command.label === 'string' ? command.label : command.label.label;
 			if (!labels.has(commandTextLabel)) {
-				//TODO: maybe prioritize builtin label over spec's
 				items.push(createCompletionItem(
 					terminalContext.cursorPosition,
 					prefix,
@@ -248,6 +247,29 @@ export async function getCompletionItemsFromSpecs(
 					command.documentation
 				));
 				labels.add(commandTextLabel);
+			} else {
+				// Potential builitin that should override the spec's description
+				let score = typeof command.label === 'object' ? (command.label.detail !== undefined ? 2 : 0) : 0;
+				score += typeof command.label === 'object' ? (command.label.description !== undefined ? 1 : 0) : 0;
+				if (score > 0) {
+					const existingItem = items.find(i => typeof i.label === 'string' ? i.label : i.label.label === commandTextLabel);
+					if (existingItem) {
+						existingItem.detail = command.detail;
+						existingItem.documentation = command.documentation;
+						score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 2 : 0) : 0;
+						score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 1 : 0) : 0;
+						if (score > 0) {
+							items.splice(items.indexOf(existingItem), 1);
+							items.push(createCompletionItem(
+								terminalContext.cursorPosition,
+								prefix,
+								command,
+								command.detail,
+								command.documentation
+							));
+						}
+					}
+				}
 			}
 		}
 		filesRequested = true;
