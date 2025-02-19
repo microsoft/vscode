@@ -52,7 +52,6 @@ export class LineHeightManager {
 			return;
 		}
 		specialLine.deleted = true;
-		// this._decorationIDToSpecialLine.delete(decorationID);
 		this._invalidIndex = Math.min(this._invalidIndex, specialLine.index);
 		this._hasPending = true;
 	}
@@ -154,52 +153,52 @@ export class LineHeightManager {
 	}
 
 	public commit(): void {
-		// insert the special lines and then update all of the prefix sums
+
+		// Insert the pending special lines
+		for (const pendingChange of this._pendingSpecialLinesToInsert) {
+			const searchIndex = this._binarySearchOverSpecialLinesArray(pendingChange.lineNumber);
+			this._orderedSpecialLines.splice(searchIndex, 0, pendingChange);
+			this._invalidIndex = Math.min(this._invalidIndex, searchIndex);
+		}
+		this._pendingSpecialLinesToInsert = [];
+
+		const newDecorationIDToSpecialLineMap = new Map<string, SpecialLine>(this._decorationIDToSpecialLine);
+		const newOrderedSpecialLines: SpecialLine[] = [];
+
+		let numberOfDeletions = 0;
 		for (let i = this._invalidIndex; i <= this._orderedSpecialLines.length; i++) {
-			// need to reconcile the data
-		}
-
-		/*
-		public _commitPendingSpecialLineHeightChanges(inserts: { decorationId: string; lineNumber: number; lineHeight: number }[], changes: { decorationId: string; lineNumber: number; lineHeight: number }[], removes: { decorationId: string }[]): void {
-
-			if (inserts.length + changes.length + removes.length <= 1) {
-				for (const insert of inserts) {
-					this._specialLineHeightsManager.insertSpecialLineHeightUsingDecorationID(insert.decorationId, insert.lineNumber, insert.lineHeight);
-				}
-				for (const change of changes) {
-					this._specialLineHeightsManager.changeSpecialLineHeightUsingDecorationID(change.decorationId, change.lineNumber, change.lineHeight);
-				}
-				for (const remove of removes) {
-					this._specialLineHeightsManager.removeSpecialLineHeightUsingDecorationID(remove.decorationId);
-				}
-				return;
+			const specialLine = this._orderedSpecialLines[i];
+			if (specialLine.deleted) {
+				numberOfDeletions++;
+				newDecorationIDToSpecialLineMap.delete(specialLine.decorationId);
+				continue;
 			}
-
-			const newSpecialLineHeightsManager = new LineHeightManager(this._lineHeight, this._specialLineHeightsManager);
-
-			changes.forEach((change) => {
-				newSpecialLineHeightsManager.changeSpecialLineHeightUsingDecorationID(change.decorationId, change.lineNumber, change.lineHeight);
-				inserts.forEach((value) => {
-					if (value.decorationId === change.decorationId) {
-						value.lineNumber = change.lineNumber;
-						value.lineHeight = change.lineHeight;
+			const previousSpecialLine: SpecialLine | undefined = i > 0 ? this._orderedSpecialLines[i - 1] : undefined;
+			specialLine.index = i - numberOfDeletions;
+			specialLine.lineNumber += (specialLine.lineDelta - numberOfDeletions);
+			if (previousSpecialLine && previousSpecialLine.lineNumber === specialLine.lineNumber) {
+				specialLine.maximumSpecialHeight = previousSpecialLine.maximumSpecialHeight;
+				specialLine.prefixSum = previousSpecialLine.prefixSum;
+			} else {
+				let maximumSpecialHeight = specialLine.specialHeight;
+				for (let j = i; j <= this._orderedSpecialLines.length; j++) {
+					const nextSpecialLine = this._orderedSpecialLines[j];
+					if (nextSpecialLine.deleted) {
+						continue;
 					}
-				});
-			});
-
-			const filteredInserts: { decorationId: string; lineNumber: number; lineHeight: number }[] = inserts;
-			removes.forEach((removal) => {
-				newSpecialLineHeightsManager.removeSpecialLineHeightUsingDecorationID(removal.decorationId);
-				inserts.filter((insert) => insert.decorationId !== removal.decorationId);
-			});
-
-			filteredInserts.forEach((insert) => {
-				newSpecialLineHeightsManager.insertSpecialLineHeightUsingDecorationID(insert.decorationId, insert.lineNumber, insert.lineHeight);
-			});
-
-			this._specialLineHeightsManager = newSpecialLineHeightsManager;
-			this._prefixSumSpecialLineHeightsValidIndex = -1;
+					if (nextSpecialLine.lineNumber !== specialLine.lineNumber) {
+						break;
+					}
+					maximumSpecialHeight = Math.max(maximumSpecialHeight, nextSpecialLine.specialHeight);
+				}
+				specialLine.maximumSpecialHeight = maximumSpecialHeight;
+				specialLine.prefixSum = maximumSpecialHeight + (previousSpecialLine ? previousSpecialLine.prefixSum : 0);
+			}
+			newOrderedSpecialLines.push(specialLine);
+			newDecorationIDToSpecialLineMap.set(specialLine.decorationId, specialLine);
 		}
-		*/
+
+		this._orderedSpecialLines = newOrderedSpecialLines;
+		this._decorationIDToSpecialLine = newDecorationIDToSpecialLineMap;
 	}
 }
