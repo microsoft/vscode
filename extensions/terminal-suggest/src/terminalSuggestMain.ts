@@ -248,7 +248,7 @@ export async function getCompletionItemsFromSpecs(
 				));
 				labels.add(commandTextLabel);
 			} else {
-				const existingItem = items.find(i => typeof i.label === 'string' ? i.label : i.label.label === commandTextLabel);
+				const existingItem = items.find(i => (typeof i.label === 'string' ? i.label : i.label.label) === commandTextLabel);
 				if (!existingItem) {
 					continue;
 				}
