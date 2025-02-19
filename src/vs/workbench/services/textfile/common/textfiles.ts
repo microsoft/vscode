@@ -504,7 +504,7 @@ export interface IEncodingSupport {
 	/**
 	 * Sets the encoding for the object for saving.
 	 */
-	setEncoding(encoding: string, mode: EncodingMode): Promise<boolean>;
+	setEncoding(encoding: string, mode: EncodingMode): Promise<void>;
 }
 
 export interface ILanguageSupport {

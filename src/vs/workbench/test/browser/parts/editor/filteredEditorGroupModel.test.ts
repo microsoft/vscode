@@ -115,7 +115,7 @@ suite('FilteredEditorGroupModel', () => {
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }
 		setPreferredResource(resource: URI): void { }
-		async setEncoding(encoding: string) { return true; }
+		async setEncoding(encoding: string) { }
 		getEncoding() { return undefined; }
 		setPreferredEncoding(encoding: string) { }
 		setForceOpenAsBinary(): void { }

@@ -388,8 +388,7 @@ suite('Untitled text editors', () => {
 
 		// encoding
 		const model = disposables.add(await input.resolve());
-		const res = await model.setEncoding('utf16');
-		assert.strictEqual(res, true);
+		await model.setEncoding('utf16');
 		assert.strictEqual(counter, 1);
 	});
 
@@ -586,12 +585,10 @@ suite('Untitled text editors', () => {
 		const model = disposables.add(await input.resolve());
 		disposables.add(model.onDidChangeEncoding(() => counter++));
 
-		let res = await model.setEncoding('utf16');
-		assert.strictEqual(res, true);
+		await model.setEncoding('utf16');
 
 		assert.strictEqual(counter, 1, 'Dirty model should trigger event');
-		res = await model.setEncoding('utf16');
-		assert.strictEqual(res, true);
+		await model.setEncoding('utf16');
 
 		assert.strictEqual(counter, 1, 'Another change to same encoding does not fire event');
 	});

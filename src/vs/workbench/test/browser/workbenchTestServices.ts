@@ -1770,7 +1770,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		return isEqual(this.resource, other.resource) && (this.editorId === other.options?.override || other.options?.override === undefined);
 	}
 	setPreferredResource(resource: URI): void { }
-	async setEncoding(encoding: string) { return true; }
+	async setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredName(name: string): void { }
 	setPreferredDescription(description: string): void { }
