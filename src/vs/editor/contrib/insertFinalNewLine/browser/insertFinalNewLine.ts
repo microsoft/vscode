@@ -5,7 +5,7 @@
 
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
-import { InsertFinalNewLineCommand } from '../../../common/commands/insertFinalNewLineCommand.js';
+import { InsertFinalNewLineCommand } from './insertFinalNewLineCommand.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import * as nls from '../../../../nls.js';
 

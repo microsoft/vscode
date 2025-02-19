@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from '../../../base/common/strings.js';
-import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
-import { Position } from '../core/position.js';
-import { Selection } from '../core/selection.js';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon.js';
-import { ITextModel } from '../model.js';
+import * as strings from '../../../../base/common/strings.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
 
 export class InsertFinalNewLineCommand implements ICommand {
 
