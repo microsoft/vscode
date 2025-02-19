@@ -112,16 +112,23 @@ export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: 
 		computeFn = computeFnOrUndefined as any;
 	}
 
-	const store = new DisposableStore();
+	// Intentionally re-assigned in case an inactive observable is re-used later
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
+	let store = new DisposableStore();
+
 	return new Derived(
 		new DebugNameData(owner, undefined, computeFn),
 		r => {
-			store.clear();
+			if (store.isDisposed) {
+				store = new DisposableStore();
+			} else {
+				store.clear();
+			}
 			return computeFn(r, store);
 		}, undefined,
 		undefined,
 		() => store.dispose(),
-		strictEquals
+		strictEquals,
 	);
 }
 
