@@ -261,7 +261,10 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	private async _handleAsResourceInput(uri: URI, options?: { encoding?: string }): Promise<URI> {
 		if (options?.encoding) {
-			const model = await this._textFileService.files.resolve(uri);
+			const model = await this._textFileService.files.resolve(uri, { encoding: options.encoding });
+			if (model.isDirty()) {
+				throw new ErrorNoTelemetry(`Cannot re-open a dirty text document with different encoding.`);
+			}
 			await model.setEncoding(options.encoding, EncodingMode.Decode);
 		}
 
