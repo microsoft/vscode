@@ -74,8 +74,8 @@ export abstract class ResolveError extends ParseError {
 /**
  * Error that reflects the case when attempt to open target file fails.
  */
-export class FileOpenFailed extends FailedToResolveContentsStream {
-	public override errorType = 'FileOpenError';
+export class OpenFailed extends FailedToResolveContentsStream {
+	public override errorType = 'OpenError';
 
 	constructor(
 		uri: URI,
@@ -84,29 +84,10 @@ export class FileOpenFailed extends FailedToResolveContentsStream {
 		super(
 			uri,
 			originalError,
-			`Failed to open file '${uri.fsPath}': ${originalError}.`,
+			`Failed to open '${uri.fsPath}': ${originalError}.`,
 		);
 	}
 }
-
-// /**
-//  * TODO: @legomushroom
-//  */
-// export class FolderReference extends FailedToResolveContentsStream {
-// 	public override errorType = 'FolderReferenceError';
-
-// 	constructor(
-// 		uri: URI,
-// 		originalError: unknown,
-// 	) {
-// 		super(
-// 			uri,
-// 			originalError,
-// 			`Entity at '${uri.fsPath}' is a folder.`,
-// 		);
-// 	}
-// }
-
 
 /**
  * Error that reflects the case when attempt resolve nested file
@@ -169,11 +150,10 @@ export class RecursiveReference extends ResolveError {
 }
 
 /**
- * Error that reflects the case when resource URI does not point to
- * a prompt snippet file, hence was not attempted to be resolved.
+ * Error for the case when a resource URI doesn't point to a prompt file.
  */
-export class NonPromptSnippetFile extends ResolveError {
-	public override errorType = 'NonPromptSnippetFileError';
+export class NotPromptFile extends ResolveError {
+	public override errorType = 'NotPromptFileError';
 
 	constructor(
 		uri: URI,
@@ -184,7 +164,7 @@ export class NonPromptSnippetFile extends ResolveError {
 
 		super(
 			uri,
-			`Resource at ${uri.path} is not a prompt snippet file${suffix}`,
+			`Resource at ${uri.path} is not a prompt file${suffix}`,
 		);
 	}
 }

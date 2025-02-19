@@ -9,7 +9,7 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { NonPromptSnippetFile } from '../../promptFileReferenceErrors.js';
+import { NotPromptFile } from '../../promptFileReferenceErrors.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
@@ -69,7 +69,8 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 					return true;
 				}
 
-				return errorCondition instanceof NonPromptSnippetFile;
+				// TODO: @legomushroom - add the "folder" error
+				return errorCondition instanceof NotPromptFile;
 			})
 			.map((reference) => {
 				const { linkRange } = reference;
@@ -79,7 +80,6 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 					linkRange,
 					'Link range must be defined.',
 				);
-
 
 				return {
 					range: linkRange,
