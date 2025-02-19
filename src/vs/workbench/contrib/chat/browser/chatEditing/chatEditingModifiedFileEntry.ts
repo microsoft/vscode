@@ -10,6 +10,7 @@ import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -255,6 +256,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		}
 	}
 
+	abstract acceptAgentEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
 	protected _resetEditsState(tx: ITransaction): void {
 		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
 		this._rewriteRatioObs.set(0, tx);

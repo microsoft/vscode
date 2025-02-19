@@ -271,7 +271,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
+	async acceptAgentEdits(_resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 
 		// push stack element for the first edit
 		if (this._isFirstEditAfterStartOrSnapshot) {
