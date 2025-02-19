@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, derivedObservableWithCache, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
+import { derived, derivedObservableWithCache, derivedWithStore, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
@@ -105,7 +105,7 @@ export class InlineEditsView extends Disposable {
 			this._previewTextModel.setValue(newText);
 		}
 
-		if (this._showCollapsed.read(reader) && this._host.tabAction.read(reader) !== InlineEditTabAction.Accept) {
+		if (this._showCollapsed.read(reader) && this._host.tabAction.read(reader) !== InlineEditTabAction.Accept && !this._indicator.read(reader).isHoverVisible.read(reader)) {
 			state = { kind: 'hidden' };
 		}
 
@@ -232,7 +232,7 @@ export class InlineEditsView extends Disposable {
 		return 0;
 	});
 
-	protected readonly _indicator = this._register(autorunWithStore((reader, store) => {
+	protected readonly _indicator = derivedWithStore<InlineEditsGutterIndicator | InlineEditsIndicator>(this, (reader, store) => {
 
 		const indicatorDisplayRange = derived(this, reader => {
 			const state = this._uiState.read(reader);
@@ -243,7 +243,7 @@ export class InlineEditsView extends Disposable {
 		});
 
 		if (this._useGutterIndicator.read(reader)) {
-			store.add(this._instantiationService.createInstance(
+			return store.add(this._instantiationService.createInstance(
 				InlineEditsGutterIndicator,
 				this._editorObs,
 				indicatorDisplayRange,
@@ -254,7 +254,7 @@ export class InlineEditsView extends Disposable {
 				this._focusIsInMenu,
 			));
 		} else {
-			store.add(new InlineEditsIndicator(
+			return store.add(new InlineEditsIndicator(
 				this._editorObs,
 				derived<IInlineEditsIndicatorState | undefined>(reader => {
 					const state = this._uiState.read(reader);
@@ -266,7 +266,7 @@ export class InlineEditsView extends Disposable {
 				this._model,
 			));
 		}
-	}));
+	}).recomputeInitiallyAndOnChange(this._store);
 
 	private determineView(edit: InlineEditWithChanges, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange): string {
 		// Check if we can use the previous view if it is the same InlineCompletion as previously shown

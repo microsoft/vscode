@@ -121,11 +121,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 	});
 
 	private readonly _iconRef = n.ref<HTMLDivElement>();
-	private _hoverVisible: boolean = false;
+	private readonly _hoverVisible = observableValue(this, false);
+	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
 	private readonly _isHoveredOverIcon = observableValue(this, false);
 
 	private _showHover(): void {
-		if (this._hoverVisible) {
+		if (this._hoverVisible.get()) {
 			return;
 		}
 
@@ -152,9 +153,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 			content: content.element,
 		}) as HoverWidget | undefined;
 		if (h) {
-			this._hoverVisible = true;
+			this._hoverVisible.set(true, undefined);
 			disposableStore.add(h.onDispose(() => {
-				this._hoverVisible = false;
+				this._hoverVisible.set(false, undefined);
 				disposableStore.dispose();
 			}));
 		} else {
