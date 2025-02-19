@@ -421,10 +421,10 @@ _setKeepObserved(keepObserved);
 export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>, handleValue?: (value: T) => void): IDisposable {
 	const o = new KeepAliveObserver(true, handleValue);
 	observable.addObserver(o);
-	if (handleValue) {
-		handleValue(observable.get());
-	} else {
-		observable.reportChanges();
+	try {
+		o.beginUpdate(observable);
+	} finally {
+		o.endUpdate(observable);
 	}
 
 	return toDisposable(() => {
@@ -447,14 +447,14 @@ export class KeepAliveObserver implements IObserver {
 	}
 
 	endUpdate<T>(observable: IObservable<T>): void {
-		this._counter--;
-		if (this._counter === 0 && this._forceRecompute) {
+		if (this._counter === 1 && this._forceRecompute) {
 			if (this._handleValue) {
 				this._handleValue(observable.get());
 			} else {
 				observable.reportChanges();
 			}
 		}
+		this._counter--;
 	}
 
 	handlePossibleChange<T>(observable: IObservable<T>): void {
