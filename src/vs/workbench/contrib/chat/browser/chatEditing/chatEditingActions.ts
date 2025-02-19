@@ -33,7 +33,6 @@ import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
-import { EditsAttachmentModel } from '../chatAttachmentModel.js';
 
 export interface IEditingSessionActionContext {
 	widget?: IChatWidget;
@@ -129,7 +128,7 @@ registerAction2(class AddFileToWorkingSet extends WorkingSetAction {
 			icon: Codicon.plus,
 			menu: [{
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested)),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested),
 				order: 0,
 				group: 'navigation'
 			}],
@@ -391,8 +390,8 @@ export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 		editingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove all file attachments
-		const fileAttachments = chatWidget.attachmentModel ? [...(chatWidget.attachmentModel as EditsAttachmentModel).excludedFileAttachments, ...(chatWidget.attachmentModel as EditsAttachmentModel).fileAttachments] : [];
-		const attachmentIdsToRemove = fileAttachments.map(attachment => (attachment.value as URI).toString());
+		const fileAttachments = chatWidget.attachmentModel ? chatWidget.attachmentModel.fileAttachments : [];
+		const attachmentIdsToRemove = fileAttachments.map(attachment => attachment.toString());
 		chatWidget.attachmentModel.delete(...attachmentIdsToRemove);
 	}
 }

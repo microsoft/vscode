@@ -476,7 +476,6 @@ export class ChatService extends Disposable implements IChatService {
 			...options,
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
-			workingSet: request.workingSet,
 			hasInstructionAttachments: options?.hasInstructionAttachments ?? false,
 		};
 		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions).responseCompletePromise;
@@ -635,7 +634,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = async (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): Promise<IChatAgentRequest> => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, options?.workingSet);
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext);
 
 						let variableData: IChatRequestVariableData;
 						let message: string;
@@ -644,11 +643,6 @@ export class ChatService extends Disposable implements IChatService {
 							message = getPromptText(request.message).message;
 						} else {
 							variableData = this.chatVariablesService.resolveVariables(parsedRequest, request.attachedContext);
-							for (const variable of variableData.variables) {
-								if (request.workingSet && variable.isFile && URI.isUri(variable.value)) {
-									request.workingSet.push(variable.value);
-								}
-							}
 							model.updateRequest(request, variableData);
 
 							const promptTextResult = getPromptText(request.message);
