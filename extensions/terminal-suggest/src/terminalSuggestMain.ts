@@ -254,8 +254,6 @@ export async function getCompletionItemsFromSpecs(
 				if (score > 0) {
 					const existingItem = items.find(i => typeof i.label === 'string' ? i.label : i.label.label === commandTextLabel);
 					if (existingItem) {
-						existingItem.detail = command.detail;
-						existingItem.documentation = command.documentation;
 						score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 2 : 0) : 0;
 						score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 1 : 0) : 0;
 						if (score > 0) {
