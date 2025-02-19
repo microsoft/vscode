@@ -18,7 +18,7 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
 import { IToolInputProcessor } from './tools.js';
 
 const codeInstructions = `
@@ -95,13 +95,17 @@ export class EditTool implements IToolImpl {
 
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
-		// slightly hacky way to avoid an extra 'no-op' undo stop at the start of responses that are just edits
+
+		// Undo stops mark groups of response data in the output. Operations, such
+		// as text edits, that happen between undo stops are all done or undone together.
 		if (request.response?.response.getMarkdown().length) {
+			// slightly hacky way to avoid an extra 'no-op' undo stop at the start of responses that are just edits
 			model.acceptResponseProgress(request, {
 				kind: 'undoStop',
 				id: generateUuid(),
 			});
 		}
+
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString('\n````\n')
@@ -113,6 +117,11 @@ export class EditTool implements IToolImpl {
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
+		});
+		model.acceptResponseProgress(request, {
+			kind: 'textEdit',
+			edits: [],
+			uri
 		});
 
 		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
@@ -168,6 +177,12 @@ export class EditTool implements IToolImpl {
 
 		return {
 			content: [{ kind: 'text', value: 'The file was edited successfully' }]
+		};
+	}
+
+	async prepareToolInvocation(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		return {
+			presentation: 'hidden'
 		};
 	}
 }

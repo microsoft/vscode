@@ -2,27 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $ } from '../../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, constObservable, derived, derivedWithStore, observableValue } from '../../../../../../base/common/observable.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
-import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../browser/point.js';
-import { LineSource, renderLines, RenderOptions } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
-import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
-import { Position } from '../../../../../common/core/position.js';
-import { Range } from '../../../../../common/core/range.js';
-import { ILanguageService } from '../../../../../common/languages/language.js';
-import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
-import { TokenArray } from '../../../../../common/tokens/tokenArray.js';
-import { GhostText, GhostTextPart } from '../../model/ghostText.js';
-import { GhostTextView } from '../ghostText/ghostTextView.js';
-import { IInlineEditsView } from './sideBySideDiff.js';
-import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from './theme.js';
-import { createRectangle, InlineEditTabAction, mapOutFalsy, n } from './utils.js';
+import { $, n } from '../../../../../../../base/browser/dom.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { constObservable, derived, derivedWithStore, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { Point } from '../../../../../../browser/point.js';
+import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../../../common/core/lineRange.js';
+import { Position } from '../../../../../../common/core/position.js';
+import { Range } from '../../../../../../common/core/range.js';
+import { ILanguageService } from '../../../../../../common/languages/language.js';
+import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
+import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
+import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
+import { GhostTextView } from '../../ghostText/ghostTextView.js';
+import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from '../theme.js';
+import { createRectangle, mapOutFalsy } from '../utils/utils.js';
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -67,7 +67,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			startColumn: number;
 			text: string;
 		} | undefined>,
-		private readonly _tabAction: IObservable<InlineEditTabAction>,
+		private readonly _host: IInlineEditsViewHost,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
@@ -213,7 +213,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
 		);
 
-		const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
+		const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
 
 		return [
 			n.svgElem('path', {

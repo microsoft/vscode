@@ -12,11 +12,19 @@ import { AbstractTokens } from './tokens.js';
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ITreeSitterTokenizationStoreService } from './treeSitterTokenStoreService.js';
 import { Range } from '../core/range.js';
+import { BackgroundTokenizationState } from '../tokenizationTextModelPart.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;
+
+	protected _backgroundTokenizationState: BackgroundTokenizationState = BackgroundTokenizationState.InProgress;
+	protected readonly _onDidChangeBackgroundTokenizationState: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
+
 	private _lastLanguageId: string | undefined;
 	private readonly _tokensChangedListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _firstTokenizationCompleteListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	constructor(languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
@@ -35,6 +43,13 @@ export class TreeSitterTokens extends AbstractTokens {
 			this._tokensChangedListener.value = this._tokenizationSupport?.onDidChangeTokens((e) => {
 				if (e.textModel === this._textModel) {
 					this._onDidChangeTokens.fire(e.changes);
+				}
+			});
+			this._firstTokenizationCompleteListener.value = this._tokenizationSupport?.onDidCompleteFirstTokenization(e => {
+				if (e.textModel === this._textModel) {
+					this._backgroundTokenizationState = BackgroundTokenizationState.Completed;
+					this._onDidChangeBackgroundTokenizationState.fire();
+					this._firstTokenizationCompleteListener.clear();
 				}
 			});
 		}

@@ -79,7 +79,7 @@ class QuickChatGlobalAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyL,
 			},
 			menu: {
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatTitleBarMenu,
 				group: 'e_quickChat',
 				order: 5
 			},

@@ -1322,21 +1322,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.add(list.onDidFocus(() => {
 				this._onDidFocus.fire();
 			}));
-			this._chatEditsDisposables.add(list.onDidOpen((e) => {
+			this._chatEditsDisposables.add(list.onDidOpen(async (e) => {
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
 
 					const entry = chatEditingSession.getEntry(modifiedFileUri);
-					const diffInfo = entry?.diffInfo.get();
-					const range = diffInfo?.changes.at(0)?.modified.toExclusiveRange();
 
-					this.editorService.openEditor({
+					const pane = await this.editorService.openEditor({
 						resource: modifiedFileUri,
-						options: {
-							...e.editorOptions,
-							selection: range,
-						}
+						options: e.editorOptions
 					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+
+					if (pane) {
+						entry?.getEditorIntegration(pane).reveal(true);
+					}
 				}
 			}));
 			this._chatEditsDisposables.add(addDisposableListener(list.getHTMLElement(), 'click', e => {
@@ -1500,7 +1499,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	saveState(): void {
-		this.saveCurrentValue(this.getInputState());
+		if (this.history.isAtEnd()) {
+			this.saveCurrentValue(this.getInputState());
+		}
+
 		const inputHistory = [...this.history];
 		this.historyService.saveHistory(this.location, inputHistory);
 	}

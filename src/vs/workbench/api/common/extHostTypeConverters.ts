@@ -3027,7 +3027,7 @@ export namespace LanguageModelToolResult {
 		}));
 	}
 
-	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): IToolResult {
+	export function from(result: vscode.ExtendedLanguageModelToolResult, extension: IExtensionDescription): Dto<IToolResult> {
 		if (result.toolResultMessage) {
 			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 		}
@@ -3048,7 +3048,8 @@ export namespace LanguageModelToolResult {
 					throw new Error('Unknown LanguageModelToolResult part type');
 				}
 			}),
-			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage)
+			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
+			toolResultDetails: result.toolResultDetails?.map(detail => URI.isUri(detail) ? detail : Location.from(detail as vscode.Location)),
 		};
 	}
 }

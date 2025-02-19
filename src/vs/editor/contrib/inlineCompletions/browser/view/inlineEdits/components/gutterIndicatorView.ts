@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../browser/rect.js';
-import { HoverService } from '../../../../../browser/services/hoverService/hoverService.js';
-import { HoverWidget } from '../../../../../browser/services/hoverService/hoverWidget.js';
-import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../common/core/offsetRange.js';
-import { StickyScrollController } from '../../../../stickyScroll/browser/stickyScrollController.js';
-import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
+import { n, trackFocus } from '../../../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, constObservable, derived, observableFromEvent, observableValue, runOnChange } from '../../../../../../../base/common/observable.js';
+import { debouncedObservable2 } from '../../../../../../../base/common/observableInternal/utils.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { Rect } from '../../../../../../browser/rect.js';
+import { HoverService } from '../../../../../../browser/services/hoverService/hoverService.js';
+import { HoverWidget } from '../../../../../../browser/services/hoverService/hoverWidget.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
+import { LineRange } from '../../../../../../common/core/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
+import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
+import { IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
+import { InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
-import { InlineEditTabAction, mapOutFalsy, n, rectToProps } from './utils.js';
-import { localize } from '../../../../../../nls.js';
-import { trackFocus } from '../../../../../../base/browser/dom.js';
-import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
-import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
-import { inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulForeground } from './theme.js';
 
 export class InlineEditsGutterIndicator extends Disposable {
 	constructor(
@@ -32,7 +33,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _originalRange: IObservable<LineRange | undefined>,
 		private readonly _verticalOffset: IObservable<number>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
-		private readonly _tabAction: IObservable<InlineEditTabAction>,
+		private readonly _host: IInlineEditsViewHost,
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
@@ -48,11 +49,22 @@ export class InlineEditsGutterIndicator extends Disposable {
 			minContentWidthInPx: constObservable(0),
 		}));
 
-		this._register(autorun(reader => {
-			if (!accessibilityService.isMotionReduced()) {
-				this._indicator.element.classList.toggle('wiggle', this._isHoveringOverInlineEdit.read(reader));
-			}
-		}));
+		if (!accessibilityService.isMotionReduced()) {
+			const debouncedIsHovering = debouncedObservable2(this._isHoveringOverInlineEdit, 100);
+			this._register(runOnChange(debouncedIsHovering, (isHovering) => {
+				if (!isHovering) {
+					return;
+				}
+				this._iconRef.element.animate([
+					{ transform: 'rotate(0) scale(1)', offset: 0 },
+					{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.15 },
+					{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.3 },
+					{ transform: 'rotate(14.4deg) scale(1.1)', offset: 0.45 },
+					{ transform: 'rotate(-14.4deg) scale(1.2)', offset: 0.6 },
+					{ transform: 'rotate(0) scale(1)', offset: 1 }
+				], { duration: 800 });
+			}));
+		}
 	}
 
 	private readonly _originalRangeObs = mapOutFalsy(this._originalRange);
@@ -90,7 +102,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
 		const pillOffset = this._verticalOffset.read(reader);
-		const pillRect = targetRect.withHeight(lineHeight).withWidth(22).moveDown(pillOffset);
+		const pillRect = targetRect.withHeight(lineHeight).withWidth(22).translateY(pillOffset);
 		const pillRectMoved = pillRect.moveToBeContainedIn(viewPortWithStickyScroll);
 
 		const rect = targetRect;
@@ -117,27 +129,17 @@ export class InlineEditsGutterIndicator extends Disposable {
 			return;
 		}
 
-		const displayName = derived(this, reader => {
-			const state = this._model.read(reader)?.inlineEditState;
-			const item = state?.read(reader);
-			const completionSource = item?.inlineCompletion?.source;
-			// TODO: expose the provider (typed) and expose the provider the edit belongs totyping and get correct edit
-			const displayName = (completionSource?.inlineCompletions as any).edits[0]?.provider?.displayName ?? localize('inlineEdit', "Inline Edit");
-			return displayName;
-		});
-
 		const disposableStore = new DisposableStore();
 		const content = disposableStore.add(this._instantiationService.createInstance(
 			GutterIndicatorMenuContent,
-			displayName,
-			this._tabAction,
+			this._host,
 			(focusEditor) => {
 				if (focusEditor) {
 					this._editorObs.editor.focus();
 				}
 				h?.dispose();
 			},
-			this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.source.inlineCompletions.commands),
+			this._editorObs,
 		).toDisposableLiveElement());
 
 		const focusTracker = disposableStore.add(trackFocus(content.element));
@@ -151,10 +153,10 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}) as HoverWidget | undefined;
 		if (h) {
 			this._hoverVisible = true;
-			h.onDispose(() => { // TODO:@hediet fix leak
-				disposableStore.dispose();
+			disposableStore.add(h.onDispose(() => {
 				this._hoverVisible = false;
-			});
+				disposableStore.dispose();
+			}));
 		} else {
 			disposableStore.dispose();
 		}
@@ -200,14 +202,14 @@ export class InlineEditsGutterIndicator extends Disposable {
 				cursor: 'pointer',
 				zIndex: '1000',
 				position: 'absolute',
-				backgroundColor: this._tabAction.map(v => {
+				backgroundColor: this._host.tabAction.map(v => {
 					switch (v) {
 						case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryBackground);
 						case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryBackground);
 						case InlineEditTabAction.Accept: return asCssVariable(inlineEditIndicatorsuccessfulBackground);
 					}
 				}),
-				['--vscodeIconForeground' as any]: this._tabAction.map(v => {
+				['--vscodeIconForeground' as any]: this._host.tabAction.map(v => {
 					switch (v) {
 						case InlineEditTabAction.Inactive: return asCssVariable(inlineEditIndicatorSecondaryForeground);
 						case InlineEditTabAction.Jump: return asCssVariable(inlineEditIndicatorPrimaryForeground);
@@ -236,7 +238,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					justifyContent: 'center',
 				}
 			}, [
-				this._tabAction.map(v => v === InlineEditTabAction.Accept ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
+				this._host.tabAction.map(v => v === InlineEditTabAction.Accept ? renderIcon(Codicon.keyboardTab) : renderIcon(Codicon.arrowRight))
 			])
 		]),
 	])).keepUpdated(this._store);

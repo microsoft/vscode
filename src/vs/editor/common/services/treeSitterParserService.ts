@@ -15,6 +15,12 @@ export const TREESITTER_ALLOWED_SUPPORT = ['typescript', 'ini'];
 
 export const ITreeSitterParserService = createDecorator<ITreeSitterParserService>('treeSitterParserService');
 
+export interface RangeWithOffsets {
+	range: Range;
+	startOffset: number;
+	endOffset: number;
+}
+
 export interface RangeChange {
 	newRange: Range;
 	oldRangeLength: number;
@@ -37,6 +43,7 @@ export interface ITreeSitterParserService {
 	readonly _serviceBrand: undefined;
 	onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
 	getOrInitLanguage(languageId: string): Parser.Language | undefined;
+	getLanguage(languageId: string): Promise<Parser.Language | undefined>;
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined;
 	getTree(content: string, languageId: string): Promise<Parser.Tree | undefined>;
 	getTreeSync(content: string, languageId: string): Parser.Tree | undefined;

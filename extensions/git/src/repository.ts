@@ -23,7 +23,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isRemote, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { detectEncoding } from './encoding';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
@@ -1294,20 +1294,7 @@ export class Repository implements Disposable {
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
 			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
 
-		if (this.mergeInProgress) {
-			await this.run(
-				Operation.MergeContinue,
-				async () => {
-					if (opts.all) {
-						const addOpts = opts.all === 'tracked' ? { update: true } : {};
-						await this.repository.add([], addOpts);
-					}
-
-					await this.repository.mergeContinue();
-					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
-				},
-				() => this.commitOperationGetOptimisticResourceGroups(opts));
-		} else if (this.rebaseCommit) {
+		if (this.rebaseCommit) {
 			await this.run(
 				Operation.RebaseContinue,
 				async () => {
@@ -1374,7 +1361,7 @@ export class Repository implements Disposable {
 
 	async clean(resources: Uri[]): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) === true;
+		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) && !isRemote;
 
 		await this.run(
 			Operation.Clean(!this.optimisticUpdateEnabled()),

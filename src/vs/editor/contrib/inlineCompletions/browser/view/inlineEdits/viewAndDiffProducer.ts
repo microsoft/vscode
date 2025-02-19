@@ -14,7 +14,7 @@ import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-import { InlineEditsView } from './view.js';
+import { InlineEditsView } from './inlineEditsView.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This class is no longer a diff producer. Rename it or get rid of it
 	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
@@ -56,4 +56,3 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEdit, this._model, this._focusIsInMenu));
 	}
 }
-

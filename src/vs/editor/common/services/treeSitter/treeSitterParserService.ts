@@ -610,9 +610,6 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		return undefined;
 	}
 
-	/**
-	 * For testing
-	 */
 	async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
 		await this._init;
 		return this._treeSitterLanguages.getLanguage(languageId);

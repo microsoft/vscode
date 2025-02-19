@@ -28,6 +28,7 @@ import { NotebookMultiTextDiffEditor } from './notebookMultiDiffEditor.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import type { URI } from '../../../../../base/common/uri.js';
 import { TextEditorSelectionRevealType, type ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import product from '../../../../../platform/product/common/product.js';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -741,7 +742,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'notebook.diff.experimental.toggleInline': {
 			type: 'boolean',
-			default: false,
+			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
 			markdownDescription: localize('notebook.diff.toggleInline', "Enable the command to toggle the experimental notebook inline diff editor.")
 		},
 	}

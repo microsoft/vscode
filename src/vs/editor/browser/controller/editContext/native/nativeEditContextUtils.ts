@@ -30,6 +30,11 @@ export class FocusTracker extends Disposable {
 			return;
 		}
 		this._isFocused = focused;
+		if (this._isFocused) {
+			this._domNode.focus();
+		} else {
+			this._domNode.blur();
+		}
 		this._onFocusChange(this._isFocused);
 	}
 
