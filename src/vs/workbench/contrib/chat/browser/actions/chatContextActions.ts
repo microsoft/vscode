@@ -451,7 +451,7 @@ export class AttachContextAction extends Action2 {
 		},
 		menu: [
 			{
-				when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), AttachContextAction._cdt)),
+				when: AttachContextAction._cdt,
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 2
@@ -672,103 +672,103 @@ export class AttachContextAction extends Action2 {
 		const chatEditingService = widget.location === ChatAgentLocation.EditingSession ? accessor.get(IChatEditingService) : undefined;
 
 		const quickPickItems: IAttachmentQuickPickItem[] = [];
-		if (!context || !context.showFilesOnly) {
-			if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
-				const imageData = await clipboardService.readImage();
-				if (isImage(imageData)) {
-					quickPickItems.push({
-						kind: 'image',
-						id: await imageToHash(imageData),
-						label: localize('imageFromClipboard', 'Image from Clipboard'),
-						iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
-					});
-				}
-
+		if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
+			const imageData = await clipboardService.readImage();
+			if (isImage(imageData)) {
 				quickPickItems.push({
-					kind: 'screenshot',
-					id: ScreenshotVariableId,
-					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
-					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-					label: (isElectron
-						? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
-						: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
+					kind: 'image',
+					id: await imageToHash(imageData),
+					label: localize('imageFromClipboard', 'Image from Clipboard'),
+					iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
 				});
 			}
 
-			if (widget.viewModel?.sessionId) {
-				const agentPart = widget.parsedInput.parts.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
-				if (agentPart) {
-					const completions = await chatAgentService.getAgentCompletionItems(agentPart.agent.id, '', CancellationToken.None);
-					for (const variable of completions) {
-						if (variable.fullName && variable.command) {
-							quickPickItems.push({
-								kind: 'command',
-								label: variable.fullName,
-								id: variable.id,
-								command: variable.command,
-								icon: variable.icon,
-								iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
-								value: variable.value,
-								name: variable.name
-							});
-						} else {
-							// Currently there's nothing that falls into this category
-						}
+			quickPickItems.push({
+				kind: 'screenshot',
+				id: ScreenshotVariableId,
+				icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
+				iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
+				label: (isElectron
+					? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
+					: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
+			});
+		}
+
+		if (widget.viewModel?.sessionId) {
+			const agentPart = widget.parsedInput.parts.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
+			if (agentPart) {
+				const completions = await chatAgentService.getAgentCompletionItems(agentPart.agent.id, '', CancellationToken.None);
+				for (const variable of completions) {
+					if (variable.fullName && variable.command) {
+						quickPickItems.push({
+							kind: 'command',
+							label: variable.fullName,
+							id: variable.id,
+							command: variable.command,
+							icon: variable.icon,
+							iconClass: variable.icon ? ThemeIcon.asClassName(variable.icon) : undefined,
+							value: variable.value,
+							name: variable.name
+						});
+					} else {
+						// Currently there's nothing that falls into this category
 					}
 				}
 			}
+		}
 
-			for (const tool of languageModelToolsService.getTools()) {
-				if (tool.canBeReferencedInPrompt) {
-					const item: IToolQuickPickItem = {
-						kind: 'tool',
-						label: tool.displayName ?? '',
-						id: tool.id,
-						icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined // TODO need to support icon path?
-					};
-					if (ThemeIcon.isThemeIcon(tool.icon)) {
-						item.iconClass = ThemeIcon.asClassName(tool.icon);
-					} else if (tool.icon) {
-						item.iconPath = tool.icon;
-					}
-
-					quickPickItems.push(item);
+		for (const tool of languageModelToolsService.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				const item: IToolQuickPickItem = {
+					kind: 'tool',
+					label: tool.displayName ?? '',
+					id: tool.id,
+					icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined // TODO need to support icon path?
+				};
+				if (ThemeIcon.isThemeIcon(tool.icon)) {
+					item.iconClass = ThemeIcon.asClassName(tool.icon);
+				} else if (tool.icon) {
+					item.iconPath = tool.icon;
 				}
+
+				quickPickItems.push(item);
 			}
+		}
 
+		quickPickItems.push({
+			kind: 'quickaccess',
+			label: localize('chatContext.symbol', 'Symbol...'),
+			iconClass: ThemeIcon.asClassName(Codicon.symbolField),
+			prefix: SymbolsQuickAccessProvider.PREFIX,
+			id: 'symbol'
+		});
+
+		quickPickItems.push({
+			kind: 'folder',
+			label: localize('chatContext.folder', 'Folder...'),
+			iconClass: ThemeIcon.asClassName(Codicon.folder),
+			id: 'folder',
+		});
+
+		if (widget.location === ChatAgentLocation.Notebook) {
 			quickPickItems.push({
-				kind: 'quickaccess',
-				label: localize('chatContext.symbol', 'Symbol...'),
-				iconClass: ThemeIcon.asClassName(Codicon.symbolField),
-				prefix: SymbolsQuickAccessProvider.PREFIX,
-				id: 'symbol'
+				kind: 'command',
+				id: 'chatContext.notebook.kernelVariable',
+				icon: ThemeIcon.fromId(Codicon.serverEnvironment.id),
+				iconClass: ThemeIcon.asClassName(Codicon.serverEnvironment),
+				value: 'kernelVariable',
+				label: localize('chatContext.notebook.kernelVariable', 'Kernel Variable...'),
+				command: {
+					id: 'notebook.chat.selectAndInsertKernelVariable',
+					title: localize('chatContext.notebook.selectkernelVariable', 'Select and Insert Kernel Variable'),
+					arguments: [{ widget, range: undefined }]
+				}
 			});
+		}
 
-			quickPickItems.push({
-				kind: 'folder',
-				label: localize('chatContext.folder', 'Folder...'),
-				iconClass: ThemeIcon.asClassName(Codicon.folder),
-				id: 'folder',
-			});
-
-			if (widget.location === ChatAgentLocation.Notebook) {
-				quickPickItems.push({
-					kind: 'command',
-					id: 'chatContext.notebook.kernelVariable',
-					icon: ThemeIcon.fromId(Codicon.serverEnvironment.id),
-					iconClass: ThemeIcon.asClassName(Codicon.serverEnvironment),
-					value: 'kernelVariable',
-					label: localize('chatContext.notebook.kernelVariable', 'Kernel Variable...'),
-					command: {
-						id: 'notebook.chat.selectAndInsertKernelVariable',
-						title: localize('chatContext.notebook.selectkernelVariable', 'Select and Insert Kernel Variable'),
-						arguments: [{ widget, range: undefined }]
-					}
-				});
-			}
-		} else if (context.showFilesOnly) {
+		if (context?.showFilesOnly) {
 			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || (getEditingSession(chatEditingService, widget)?.workingSet.size))) {
-				quickPickItems.push({
+				quickPickItems.unshift({
 					kind: 'related-files',
 					id: 'related-files',
 					label: localize('chatContext.relatedFiles', 'Related Files'),
@@ -776,7 +776,7 @@ export class AttachContextAction extends Action2 {
 				});
 			}
 			if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0) {
-				quickPickItems.push({
+				quickPickItems.unshift({
 					kind: 'open-editors',
 					id: 'open-editors',
 					label: localize('chatContext.editors', 'Open Editors'),
@@ -784,7 +784,7 @@ export class AttachContextAction extends Action2 {
 				});
 			}
 			if (SearchContext.HasSearchResults.getValue(contextKeyService)) {
-				quickPickItems.push({
+				quickPickItems.unshift({
 					kind: 'search-results',
 					id: 'search-results',
 					label: localize('chatContext.searchResults', 'Search Results'),
@@ -813,6 +813,9 @@ export class AttachContextAction extends Action2 {
 		}
 
 		this._show(quickInputService, commandService, widget, quickChatService, quickPickItems.sort(function (a, b) {
+
+			if (a.kind === 'open-editors') { return -1; }
+			if (b.kind === 'open-editors') { return 1; }
 
 			const first = extractTextFromIconLabel(a.label).toUpperCase();
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
@@ -915,7 +918,7 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.editing.attachFiles',
-			title: localize2('workbench.action.chat.editing.attachFiles.label', "Add Files to Working Set"),
+			title: localize2('workbench.action.chat.editing.attachFiles.label', "Add Files to Copilot Edits"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
@@ -924,7 +927,7 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const context = args[0];
-		const attachFilesContext = { ...context, showFilesOnly: true, placeholder: localize('chatAttachFiles', 'Search for files to add to your working set') };
+		const attachFilesContext = { ...context, showFilesOnly: true };
 		return super.run(accessor, attachFilesContext);
 	}
 });

@@ -704,7 +704,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.relatedFilesContainer = elements.relatedFilesContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
-		this.renderAttachedContext();
+		this.renderAttachedContext(widget);
 		this._implicitContext = this._register(new ChatImplicitContext());
 		this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
 
@@ -822,7 +822,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
 							setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 								this.setCurrentLanguageModelByUser(model);
-								this.renderAttachedContext();
+								this.renderAttachedContext(widget);
 							},
 							getModels: () => this.getModels()
 						};
@@ -899,11 +899,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		onDidChangeCursorPosition();
 
 		this._register(this.themeService.onDidFileIconThemeChange(() => {
-			this.renderAttachedContext();
+			this.renderAttachedContext(widget);
 		}));
 	}
 
-	private async renderAttachedContext() {
+	private renderAddFilesHint(container: HTMLElement, hoverDelegate: IHoverDelegate, store: DisposableStore, chatWidget: IChatWidget) {
+		const button = store.add(new Button(container, {
+			supportIcons: true,
+			secondary: true,
+			hoverDelegate
+		}));
+		button.element.classList.add('chat-attached-context-attachment', 'chat-add-files');
+		button.label = localize('chatAddFiles', '{0} Add Files...', '$(attach)');
+		button.setTitle(localize('attachFiles.label', 'Attach files to your request'));
+		store.add(button.onDidClick(() => {
+			this.commandService.executeCommand('workbench.action.chat.editing.attachFiles', { widget: chatWidget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') });
+		}));
+		dom.append(container, button.element);
+	}
+
+	private async renderAttachedContext(widget?: IChatWidget) {
 		const container = this.attachedContextContainer;
 		const oldHeight = container.offsetHeight;
 		const store = new DisposableStore();
@@ -911,8 +926,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		dom.clearNode(container);
 		const hoverDelegate = store.add(createInstantHoverDelegate());
+		if (widget && this.options.renderWorkingSet) {
+			this.renderAddFilesHint(container, hoverDelegate, store, widget);
+		}
 		const attachments = [...this.attachmentModel.attachments.entries()];
-		dom.setVisibility(Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.instructionAttachmentsPart.empty, this.attachedContextContainer);
+		dom.setVisibility(Boolean(widget && this.options.renderWorkingSet) || Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.instructionAttachmentsPart.empty, this.attachedContextContainer);
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
@@ -1182,6 +1200,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
+		await this.renderAttachedContext(chatWidget);
 		if (chatEditingSession) {
 			this.renderChatRelatedFiles(chatEditingSession, this.relatedFilesContainer);
 		}
@@ -1313,6 +1332,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		list.layout(height);
 		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, entries);
+		this._onDidChangeHeight.fire();
 	}
 
 	async renderChatRelatedFiles(chatEditingSession: IChatEditingSession, anchor: HTMLElement) {
@@ -1365,6 +1385,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				group.remove();
 			}));
 		}
+		this._onDidChangeHeight.fire();
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
