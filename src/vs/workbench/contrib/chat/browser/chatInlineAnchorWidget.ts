@@ -16,7 +16,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { Location, SymbolKinds } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -100,6 +100,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		let iconText: string;
 		let iconClasses: string[];
+		let iconAttributes: Record<string, string>;
 
 		let location: { readonly uri: URI; readonly range?: IRange };
 
@@ -109,7 +110,9 @@ export class InlineAnchorWidget extends Disposable {
 
 			location = this.data.symbol.location;
 			iconText = this.data.symbol.name;
+
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
+			iconAttributes = getIconAttributes(undefined);
 
 			this._register(dom.addDisposableListener(element, 'click', () => {
 				telemetryService.publicLog2<{
@@ -134,6 +137,7 @@ export class InlineAnchorWidget extends Disposable {
 
 			const fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			iconClasses = getIconClasses(modelService, languageService, location.uri, fileKind);
+			iconAttributes = getIconAttributes(location.uri);
 
 			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
 			fileService.stat(location.uri)
@@ -186,6 +190,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		const iconEl = dom.$('span.icon');
 		iconEl.classList.add(...iconClasses);
+		Object.assign(iconEl.dataset, iconAttributes);
 		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 
 		const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';
