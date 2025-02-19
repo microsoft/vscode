@@ -16,7 +16,7 @@ if (platform() === 'win32') {
 
 const shortDescriptions: Map<string, string> = new Map([
 	['.', 'Source a file'],
-	[':', 'Null command'],
+	[':', 'No effect'],
 	['alias', 'Define or view aliases'],
 	['autoload', 'Autoload a function'],
 	['bg', 'Put a job in the background'],

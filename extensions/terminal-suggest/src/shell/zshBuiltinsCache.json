@@ -9,7 +9,7 @@
     "args": ". file [ arg ... ]"
   },
   ":": {
-    "shortDescription": "Null command",
+    "shortDescription": "No effect",
     "description": "This command does nothing, although normal argument expansions is performed which may have effects on shell parameters.  A zero exit status is returned.",
     "args": ": [ arg ... ]"
   },
