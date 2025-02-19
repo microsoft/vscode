@@ -6,7 +6,7 @@
 import { createHotClass } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorunWithStore, derived } from '../../../../base/common/observable.js';
-import { debouncedObservable2 } from '../../../../base/common/observableInternal/utils.js';
+import { debouncedObservable } from '../../../../base/common/observableInternal/utils.js';
 import Severity from '../../../../base/common/severity.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
@@ -25,7 +25,7 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 
 		return {
 			model,
-			status: debouncedObservable2(model.status, 300),
+			status: debouncedObservable(model.status, 300),
 		};
 	});
 
