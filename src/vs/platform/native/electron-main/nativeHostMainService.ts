@@ -533,13 +533,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		try {
-			const { default: open } = await import('open');
+			const { default: open, apps } = await import('open');
 			const res = await open(url, {
 				app: {
 					// Use `open.apps` helper to allow cross-platform browser
 					// aliases to be looked up properly. Fallback to the
 					// configured value if not found.
-					name: Object.hasOwn(open.apps, configuredBrowser) ? open.apps[(configuredBrowser as keyof typeof open['apps'])] : configuredBrowser
+					name: Object.hasOwn(apps, configuredBrowser) ? apps[(configuredBrowser as keyof typeof apps)] : configuredBrowser
 				}
 			});
 
