@@ -14,7 +14,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { NotebookCellDiffDecorator } from './notebookCellDecorators.js';
 import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer } from './notebookSynchronizer.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
-import { debouncedObservable2 } from '../../../../../../base/common/observableInternal/utils.js';
+import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { NotebookChatActionsOverlayController } from './notebookChatActionsOverlay.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -61,7 +61,7 @@ class NotebookChatEditorController extends Disposable {
 		// https://github.com/microsoft/vscode/issues/234718
 		const readyToRenderViewzones = observableValue<boolean>('viewModelAttached', false);
 		this._register(Event.once(this.notebookEditor.onDidAttachViewModel)(() => readyToRenderViewzones.set(true, undefined)));
-		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
+		const onDidChangeVisibleRanges = debouncedObservable(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
 		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
 
 		let updatedCellDecoratorsOnceBefore = false;

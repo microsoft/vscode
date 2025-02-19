@@ -28,6 +28,7 @@ export class TreeSitterCodeEditors extends Disposable {
 		super();
 		this._register(this._codeEditorService.onCodeEditorAdd(this._onCodeEditorAdd, this));
 		this._register(this._codeEditorService.onCodeEditorRemove(this._onCodeEditorRemove, this));
+		this._codeEditorService.listCodeEditors().forEach(this._onCodeEditorAdd, this);
 	}
 
 	public async getInitialViewPorts(): Promise<IViewPortChangeEvent[]> {

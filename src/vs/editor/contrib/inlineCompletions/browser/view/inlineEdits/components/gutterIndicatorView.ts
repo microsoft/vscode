@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconL
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, constObservable, derived, observableFromEvent, observableValue, runOnChange } from '../../../../../../../base/common/observable.js';
-import { debouncedObservable2 } from '../../../../../../../base/common/observableInternal/utils.js';
+import { debouncedObservable } from '../../../../../../../base/common/observableInternal/utils.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -50,7 +50,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}));
 
 		if (!accessibilityService.isMotionReduced()) {
-			const debouncedIsHovering = debouncedObservable2(this._isHoveringOverInlineEdit, 100);
+			const debouncedIsHovering = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 			this._register(runOnChange(debouncedIsHovering, (isHovering) => {
 				if (!isHovering) {
 					return;

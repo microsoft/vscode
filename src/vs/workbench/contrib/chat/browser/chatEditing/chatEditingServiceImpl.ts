@@ -38,7 +38,7 @@ import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
+import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -174,11 +174,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 
-	private _lookupEntry(uri: URI): ChatEditingModifiedDocumentEntry | undefined {
+	private _lookupEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
 
 		for (const item of Iterable.concat(this.editingSessionsObs.get())) {
 			const candidate = item.getEntry(uri);
-			if (candidate instanceof ChatEditingModifiedDocumentEntry) {
+			if (candidate instanceof AbstractChatEditingModifiedFileEntry) {
 				// make sure to ref-count this object
 				return candidate.acquire();
 			}
