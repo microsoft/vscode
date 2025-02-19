@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mockService } from './testUtils/mock.js';
-import { randomInt } from '../../../../../../base/common/numbers.js';
-import { randomBoolean } from '../../../../../../base/test/common/testUtils.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { mockService } from './utils/mock.js';
+import { PromptsConfig } from '../../common/config.js';
+import { randomInt } from '../../../../base/common/numbers.js';
+import { randomBoolean } from '../../../../base/test/common/testUtils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../configuration/common/configuration.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.
@@ -28,7 +28,7 @@ const createMock = <T>(value: T): IConfigurationService => {
 	});
 };
 
-suite('PromptFilesConfig', () => {
+suite('PromptsConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('• getValue', () => {
@@ -657,7 +657,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('• only invalid values', () => {
+			test('only invalid values', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.promptSourceFolders(createMock([
 						null,
@@ -683,8 +683,8 @@ suite('PromptFilesConfig', () => {
 			});
 		});
 
-		suite('• object', () => {
-			test('• empty', () => {
+		suite('object', () => {
+			test('empty', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.promptSourceFolders(createMock({})),
 					['.github/prompts'],
@@ -692,7 +692,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('• only valid strings', () => {
+			test('only valid strings', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.promptSourceFolders(createMock({
 						'/root/.bashrc': true,
@@ -729,7 +729,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('• filters out non valid entries', () => {
+			test('filters out non valid entries', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.promptSourceFolders(createMock({
 						'/etc/hosts.backup': '\t\n\t',
@@ -771,7 +771,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('• only invalid or false values', () => {
+			test('only invalid or false values', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.promptSourceFolders(createMock({
 						'/etc/hosts.backup': '\t\n\t',
@@ -792,7 +792,7 @@ suite('PromptFilesConfig', () => {
 				);
 			});
 
-			test('• filters out disabled default location', () => {
+			test('filters out disabled default location', () => {
 				assert.deepStrictEqual(
 					PromptsConfig.promptSourceFolders(createMock({
 						'/etc/hosts.backup': '\t\n\t',
