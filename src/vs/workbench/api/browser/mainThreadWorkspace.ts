@@ -307,7 +307,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	async $decode(resource: UriComponents | undefined, content: VSBuffer): Promise<string> {
 		const stream = await this._textFileService.getDecodedStream(URI.revive(resource) ?? URI.file('/'), bufferToStream(content));
-
 		return consumeStream(stream, chunks => chunks.join());
 	}
 
