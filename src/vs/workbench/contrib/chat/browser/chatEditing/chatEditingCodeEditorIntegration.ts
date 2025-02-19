@@ -66,8 +66,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
 
 	constructor(
-		private readonly _editor: ICodeEditor,
 		private readonly _entry: IModifiedFileEntry,
+		private readonly _editor: ICodeEditor,
 		documentDiffInfo: IObservable<IDocumentDiff2>,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
