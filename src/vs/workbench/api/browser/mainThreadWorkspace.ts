@@ -306,12 +306,12 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	// --- encodings
 
 	async $decode(content: VSBuffer, resource: UriComponents | undefined, options?: { encoding: string }): Promise<string> {
-		const stream = await this._textFileService.getDecodedStream(URI.revive(resource) ?? URI.file('/'), bufferToStream(content), { acceptTextOnly: true, encoding: options?.encoding });
+		const stream = await this._textFileService.getDecodedStream(URI.revive(resource) ?? undefined, bufferToStream(content), { acceptTextOnly: true, encoding: options?.encoding });
 		return consumeStream(stream, chunks => chunks.join());
 	}
 
 	async $encode(content: string, resource: UriComponents | undefined, options?: { encoding: string }): Promise<VSBuffer> {
-		const res = await this._textFileService.getEncodedReadable(URI.revive(resource) ?? URI.file('/'), content, { encoding: options?.encoding });
+		const res = await this._textFileService.getEncodedReadable(URI.revive(resource) ?? undefined, content, { encoding: options?.encoding });
 		return res instanceof VSBuffer ? res : readableToBuffer(res);
 	}
 }

@@ -275,13 +275,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return model?.getEncoding() ?? this.encoding.getUnvalidatedEncodingForResource(resource);
 	}
 
-	async getEncodedReadable(resource: URI, value: ITextSnapshot): Promise<VSBufferReadable>;
-	async getEncodedReadable(resource: URI, value: string): Promise<VSBuffer | VSBufferReadable>;
-	async getEncodedReadable(resource: URI, value?: ITextSnapshot): Promise<VSBufferReadable | undefined>;
-	async getEncodedReadable(resource: URI, value?: string): Promise<VSBuffer | VSBufferReadable | undefined>;
-	async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined>;
-	async getEncodedReadable(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable>;
-	async getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined> {
+	async getEncodedReadable(resource: URI | undefined, value: ITextSnapshot): Promise<VSBufferReadable>;
+	async getEncodedReadable(resource: URI | undefined, value: string): Promise<VSBuffer | VSBufferReadable>;
+	async getEncodedReadable(resource: URI | undefined, value?: ITextSnapshot): Promise<VSBufferReadable | undefined>;
+	async getEncodedReadable(resource: URI | undefined, value?: string): Promise<VSBuffer | VSBufferReadable | undefined>;
+	async getEncodedReadable(resource: URI | undefined, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined>;
+	async getEncodedReadable(resource: URI | undefined, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable>;
+	async getEncodedReadable(resource: URI | undefined, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined> {
 
 		// check for encoding
 		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
@@ -299,11 +299,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return toEncodeReadable(snapshot, encoding, { addBOM });
 	}
 
-	async getDecodedStream(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>> {
+	async getDecodedStream(resource: URI | undefined, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>> {
 		return (await this.doGetDecodedStream(resource, value, options)).stream;
 	}
 
-	private doGetDecodedStream(resource: URI, stream: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<IDecodeStreamResult> {
+	private doGetDecodedStream(resource: URI | undefined, stream: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<IDecodeStreamResult> {
 
 		// read through encoding library
 		return toDecodeStream(stream, {
@@ -771,13 +771,13 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		return defaultEncodingOverrides;
 	}
 
-	async getWriteEncoding(resource: URI, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }> {
+	async getWriteEncoding(resource: URI | undefined, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }> {
 		const { encoding, hasBOM } = await this.getPreferredWriteEncoding(resource, options ? options.encoding : undefined);
 
 		return { encoding, addBOM: hasBOM };
 	}
 
-	async getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding> {
+	async getPreferredWriteEncoding(resource: URI | undefined, preferredEncoding?: string): Promise<IResourceEncoding> {
 		const resourceEncoding = await this.getValidatedEncodingForResource(resource, preferredEncoding);
 
 		return {
@@ -786,7 +786,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		};
 	}
 
-	async getPreferredReadEncoding(resource: URI, options?: IReadTextFileEncodingOptions, detectedEncoding?: string): Promise<IResourceEncoding> {
+	async getPreferredReadEncoding(resource: URI | undefined, options?: IReadTextFileEncodingOptions, detectedEncoding?: string): Promise<IResourceEncoding> {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
@@ -816,7 +816,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		};
 	}
 
-	getUnvalidatedEncodingForResource(resource: URI, preferredEncoding?: string): string {
+	getUnvalidatedEncodingForResource(resource: URI | undefined, preferredEncoding?: string): string {
 		let fileEncoding: string;
 
 		const override = this.getEncodingOverride(resource);
@@ -831,7 +831,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		return fileEncoding || UTF8;
 	}
 
-	private async getValidatedEncodingForResource(resource: URI, preferredEncoding?: string): Promise<string> {
+	private async getValidatedEncodingForResource(resource: URI | undefined, preferredEncoding?: string): Promise<string> {
 		let fileEncoding = this.getUnvalidatedEncodingForResource(resource, preferredEncoding);
 		if (fileEncoding !== UTF8 && !(await encodingExists(fileEncoding))) {
 			fileEncoding = UTF8;
@@ -840,8 +840,8 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		return fileEncoding;
 	}
 
-	private getEncodingOverride(resource: URI): string | undefined {
-		if (this.encodingOverrides?.length) {
+	private getEncodingOverride(resource: URI | undefined): string | undefined {
+		if (resource && this.encodingOverrides?.length) {
 			for (const override of this.encodingOverrides) {
 
 				// check if the resource is child of encoding override path
