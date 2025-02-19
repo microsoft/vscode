@@ -179,7 +179,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 									resolve();
 								}
 							}));
-							ds.add(disposableTimeout(resolve, 5000)); // 5s timeout to ensure we resolve
+							ds.add(disposableTimeout(resolve, 500)); // 500ms timeout to ensure we resolve
 						});
 
 						ds.dispose();
