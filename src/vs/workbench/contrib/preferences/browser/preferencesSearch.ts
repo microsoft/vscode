@@ -207,8 +207,6 @@ export class SettingMatches {
 		if (this.useNewKeyMatchingSearch) {
 			if (keyMatchingWords.size === queryWords.size) {
 				this.matchType |= SettingMatchType.AllWordsKeyMatch;
-				// Penalize longer setting names.
-				this.keyMatchScore = 1 / setting.key.length;
 			}
 		} else {
 			// Fall back to the old algorithm.
@@ -222,7 +220,7 @@ export class SettingMatches {
 			// Reduce the query and the key to get rid of punctuation and spaces.
 			const queryNoPunctuation = searchString.replace(/[^a-zA-Z0-9]/g, '');
 			const keyNoPunctuation = setting.key.replace(/[^a-zA-Z0-9]/g, '');
-			// Does a contiguous search, and does a non-contiguous search if that fails.
+			// Do a contiguous search, and do a non-contiguous search if that fails.
 			const keyIdMatches = matchesContiguousSubString(queryNoPunctuation, keyNoPunctuation);
 			if (keyIdMatches?.length) {
 				keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
