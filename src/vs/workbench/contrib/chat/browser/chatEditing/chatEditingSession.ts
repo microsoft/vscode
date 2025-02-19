@@ -274,8 +274,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _triggerSaveParticipantsOnAccept() {
-		const im = this._register(new DisposableMap<ChatEditingModifiedDocumentEntry>());
-		const attachToEntry = (entry: ChatEditingModifiedDocumentEntry) => {
+		const im = this._register(new DisposableMap<IModifiedFileEntry>());
+		const attachToEntry = (entry: IModifiedFileEntry) => {
 			return autorunDelta(entry.state, ({ lastValue, newValue }) => {
 				if (newValue === WorkingSetEntryState.Accepted && lastValue === WorkingSetEntryState.Modified) {
 					// Don't save a file if there's still pending changes. If there's not (e.g.
@@ -648,16 +648,19 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	async accept(...uris: URI[]): Promise<void> {
 		this._assertNotDisposed();
 
-		if (uris.length === 0) {
-			await Promise.all(this._entriesObs.get().map(entry => entry.accept(undefined)));
-		}
+		await asyncTransaction(async tx => {
 
-		for (const uri of uris) {
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				await entry.accept(undefined);
+			if (uris.length === 0) {
+				await Promise.all(this._entriesObs.get().map(entry => entry.accept(tx)));
 			}
-		}
+
+			for (const uri of uris) {
+				const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
+				if (entry) {
+					await entry.accept(tx);
+				}
+			}
+		});
 
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
@@ -665,16 +668,18 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	async reject(...uris: URI[]): Promise<void> {
 		this._assertNotDisposed();
 
-		if (uris.length === 0) {
-			await Promise.all(this._entriesObs.get().map(entry => entry.reject(undefined)));
-		}
-
-		for (const uri of uris) {
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				await entry.reject(undefined);
+		await asyncTransaction(async tx => {
+			if (uris.length === 0) {
+				await Promise.all(this._entriesObs.get().map(entry => entry.reject(tx)));
 			}
-		}
+
+			for (const uri of uris) {
+				const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
+				if (entry) {
+					await entry.reject(tx);
+				}
+			}
+		});
 
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
