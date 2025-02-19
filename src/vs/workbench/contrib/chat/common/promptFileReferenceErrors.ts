@@ -84,10 +84,29 @@ export class FileOpenFailed extends FailedToResolveContentsStream {
 		super(
 			uri,
 			originalError,
-			`Failed to open file '${uri.toString()}': ${originalError}.`,
+			`Failed to open file '${uri.fsPath}': ${originalError}.`,
 		);
 	}
 }
+
+// /**
+//  * TODO: @legomushroom
+//  */
+// export class FolderReference extends FailedToResolveContentsStream {
+// 	public override errorType = 'FolderReferenceError';
+
+// 	constructor(
+// 		uri: URI,
+// 		originalError: unknown,
+// 	) {
+// 		super(
+// 			uri,
+// 			originalError,
+// 			`Entity at '${uri.fsPath}' is a folder.`,
+// 		);
+// 	}
+// }
+
 
 /**
  * Error that reflects the case when attempt resolve nested file
