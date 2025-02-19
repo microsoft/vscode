@@ -43,7 +43,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 		}
 
 		const workingSetEntries = currentEditingSession.entries.get();
-		if (workingSetEntries.length > 0) {
+		if (workingSetEntries.length > 0 || widget.attachmentModel.fileAttachments.length === 0) {
 			// Do this only for the initial working set state
 			return;
 		}
@@ -60,6 +60,9 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 				}
 
 				const existingFiles = new ResourceSet(widget.attachmentModel.fileAttachments);
+				if (!existingFiles.size) {
+					return;
+				}
 
 				// Pick up to 2 related files
 				const newSuggestions = new ResourceMap<{ description: string; group: string }>();
