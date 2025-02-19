@@ -50,6 +50,35 @@ export class TerminalIconPicker extends Disposable {
 		});
 	}
 
+	// async pickIcons(): Promise<ThemeIcon | undefined> {
+	// 	const dimension = new Dimension(486, 260);
+	// 	return new Promise<ThemeIcon | undefined>(resolve => {
+	// 		this._register(this._iconSelectBox.onDidSelect(e => {
+	// 			resolve(e);
+	// 			this._iconSelectBox.dispose();
+	// 		}));
+	// 		this._iconSelectBox.clearInput();
+	// 		const hoverWidget = this._hoverService.showHover({      ********
+	// 			content: this._iconSelectBox.domNode,
+	// 			target: getActiveDocument().body,
+	// 			position: {
+	// 				hoverPosition: HoverPosition.BELOW,
+	// 			},
+	// 			persistence: {
+	// 				sticky: true,
+	// 			},
+	// 			appearance: {
+	// 				showPointer: true
+	// 			}
+	// 		}, true);
+	// 		if (hoverWidget) {
+	// 			this._register(hoverWidget);
+	// 		}   													********
+	// 		this._iconSelectBox.layout(dimension);
+	// 		this._iconSelectBox.focus();
+	// 	});
+	// }
+
 	async pickIcons(): Promise<ThemeIcon | undefined> {
 		const dimension = new Dimension(486, 260);
 		return new Promise<ThemeIcon | undefined>(resolve => {
@@ -58,9 +87,13 @@ export class TerminalIconPicker extends Disposable {
 				this._iconSelectBox.dispose();
 			}));
 			this._iconSelectBox.clearInput();
+
+			// Get the appropriate target element for positioning
+			const targetElement = document.querySelector('.command-center') || document.activeElement;
+
 			const hoverWidget = this._hoverService.showHover({
 				content: this._iconSelectBox.domNode,
-				target: getActiveDocument().body,
+				target: getActiveDocument().body as HTMLElement,
 				position: {
 					hoverPosition: HoverPosition.BELOW,
 				},
@@ -71,11 +104,16 @@ export class TerminalIconPicker extends Disposable {
 					showPointer: true
 				}
 			}, true);
-			if (hoverWidget) {
+
+			// Ensure hoverWidget is defined before registering it
+			if (hoverWidget !== undefined && hoverWidget !== null) {
 				this._register(hoverWidget);
 			}
+
+
 			this._iconSelectBox.layout(dimension);
 			this._iconSelectBox.focus();
 		});
 	}
+
 }
