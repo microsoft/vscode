@@ -256,7 +256,7 @@ export async function getCompletionItemsFromSpecs(
 					if (existingItem) {
 						score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 2 : 0) : 0;
 						score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 1 : 0) : 0;
-						if (score > 0) {
+						if (score >= 0) {
 							items.splice(items.indexOf(existingItem), 1);
 							items.push(createCompletionItem(
 								terminalContext.cursorPosition,
