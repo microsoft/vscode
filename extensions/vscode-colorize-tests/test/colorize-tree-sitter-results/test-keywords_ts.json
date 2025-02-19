@@ -57,7 +57,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -71,7 +71,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr keyword.operator.new",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": "RegExp",
-		"t": "variable entity.name.function",
+		"t": "new.expr variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -141,7 +141,7 @@
 	},
 	{
 		"c": "'",
-		"t": "string",
+		"t": "new.expr string",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "'",
-		"t": "string",
+		"t": "new.expr string",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

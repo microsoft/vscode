@@ -773,7 +773,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 					break;
 				}
-			} else {
+			} else if (part.kind !== 'undoStop') {
 				partsToRender.push(part);
 			}
 		}

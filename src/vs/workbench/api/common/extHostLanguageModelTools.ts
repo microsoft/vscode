@@ -156,6 +156,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 			pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
 			tooltip: result.tooltip ? typeConvert.MarkdownString.fromStrict(result.tooltip) : undefined,
+			presentation: result.presentation
 		};
 	}
 

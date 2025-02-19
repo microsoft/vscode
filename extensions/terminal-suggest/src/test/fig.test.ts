@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { testPaths, type ISuiteSpec } from './helpers';
-
+const expectedCompletions = [{ label: 'foo', description: 'Foo' }];
 export const figGenericTestSuites: ISuiteSpec[] = [
 	{
 		name: 'Fig name and description only',
@@ -17,10 +17,10 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		availableCommands: 'foo',
 		testSpecs: [
 			// Typing a path
-			{ input: '|', expectedCompletions: ['foo'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'f|', expectedCompletions: ['foo'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'fo|', expectedCompletions: ['foo'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-			{ input: 'foo|', expectedCompletions: ['foo'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: '|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'f|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'fo|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+			{ input: 'foo|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 			// Basic arguments (fallback)
 			{ input: 'foo |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } }

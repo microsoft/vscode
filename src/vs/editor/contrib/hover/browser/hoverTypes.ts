@@ -149,12 +149,13 @@ export interface IRenderedHoverParts<T extends IHoverPart> extends IDisposable {
  */
 export class RenderedHoverParts<T extends IHoverPart> implements IRenderedHoverParts<T> {
 
-	constructor(public readonly renderedHoverParts: IRenderedHoverPart<T>[]) { }
+	constructor(public readonly renderedHoverParts: IRenderedHoverPart<T>[], private readonly disposables?: IDisposable) { }
 
 	dispose() {
 		for (const part of this.renderedHoverParts) {
 			part.dispose();
 		}
+		this.disposables?.dispose();
 	}
 }
 

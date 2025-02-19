@@ -72,6 +72,7 @@ export interface IPreparedToolInvocation {
 	pastTenseMessage?: string | IMarkdownString;
 	tooltip?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
+	presentation?: 'hidden' | undefined;
 }
 
 export interface IToolImpl {
