@@ -119,7 +119,6 @@ async function createCommandDescriptionsCache(): Promise<void> {
 
 	const commands: Map<string, string[]> = new Map();
 	if (output) {
-		console.log('!');
 		const lines = output.split('\n');
 		let currentCommand: string | undefined;
 		let currentCommandStart = 0;
