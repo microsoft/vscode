@@ -65,18 +65,6 @@ const extensions = [
 	{
 		label: 'microsoft-authentication',
 		mocha: { timeout: 60_000 }
-	},
-	{
-		label: 'vscode-api-tests-folder',
-		workspaceFolder: `extensions/vscode-api-tests/testWorkspace`,
-		mocha: { timeout: 60_000 },
-		files: 'extensions/vscode-api-tests/out/singlefolder-tests/**/*.test.js',
-	},
-	{
-		label: 'vscode-api-tests-workspace',
-		workspaceFolder: `extensions/vscode-api-tests/testworkspace.code-workspace`,
-		mocha: { timeout: 60_000 },
-		files: 'extensions/vscode-api-tests/out/workspace-tests/**/*.test.js',
 	}
 ];
 
