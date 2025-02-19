@@ -1477,8 +1477,8 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$unregisterEditSessionIdentityProvider(handle: number): void;
 	$registerCanonicalUriProvider(handle: number, scheme: string): void;
 	$unregisterCanonicalUriProvider(handle: number): void;
-	$decode(resource: UriComponents | undefined, content: VSBuffer): Promise<string>;
-	$encode(resource: UriComponents | undefined, content: string): Promise<VSBuffer>;
+	$decode(content: VSBuffer, resource: UriComponents | undefined, options?: { encoding?: string }): Promise<string>;
+	$encode(content: string, resource: UriComponents | undefined, options?: { encoding?: string }): Promise<VSBuffer>;
 }
 
 export interface IFileChangeDto {

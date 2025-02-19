@@ -942,12 +942,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- encodings ---
 
-	decode(uri: UriComponents | undefined, content: Uint8Array): Promise<string> {
-		return this._proxy.$decode(uri, VSBuffer.wrap(content));
+	decode(content: Uint8Array, uri: UriComponents | undefined, options?: { encoding: string }): Promise<string> {
+		return this._proxy.$decode(VSBuffer.wrap(content), uri, options);
 	}
 
-	async encode(uri: UriComponents | undefined, content: string): Promise<Uint8Array> {
-		const buff = await this._proxy.$encode(uri, content);
+	async encode(content: string, uri: UriComponents | undefined, options?: { encoding: string }): Promise<Uint8Array> {
+		const buff = await this._proxy.$encode(content, uri, options);
 		return buff.buffer;
 	}
 }

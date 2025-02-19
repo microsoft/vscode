@@ -31,30 +31,34 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
-		 * Decodes the content from a `Uint8Array` to a `string` using
-		 * the same encoding logic that is used when opening text documents.
+		 * Decodes the content from a `Uint8Array` to a `string`.
 		 *
-		 * This method will respect the user configured file encoding,
-		 * whether encodings are guessed and BOMs (byte order marks).
+		 * If no encoding is provided, will try to pick an encoding based
+		 * on user settings and the content of the buffer (for example
+		 * byte order marks).
 		 *
+		 * @throws This method will throw an error when the content is binary.
+		 *
+		 * @param content The content to decode as a `Uint8Array`.
 		 * @param uri The URI that represents the file. This information
 		 * is used to figure out the encoding related configuration for the file.
-		 * @param content The content to decode as a `Uint8Array`.
+		 * @param options Allows to explicitly pick the encoding to use.
 		 * @returns A thenable that resolves to the decoded `string`.
 		 */
-		export function decode(uri: Uri | undefined, content: Uint8Array): Thenable<string>;
+		export function decode(content: Uint8Array, uri: Uri | undefined, options?: { readonly encoding: string }): Thenable<string>;
 
 		/**
-		 * Encodes the content of a string to a `Uint8Array` using
-		 * the same encoding logic that is used when saving text documents.
+		 * Encodes the content of a `string` to a `Uint8Array`.
 		 *
-		 * This method will respect the user configured file encoding.
+		 * If no encoding is provided, will try to pick an encoding based
+		 * on user settings.
 		 *
-		 *@param uri The URI that represents the file. This information
-		 * is used to figure out the encoding related configuration for the file.
 		 * @param content The content to decode as a `string`.
+		 * @param uri The URI that represents the file. This information
+		 * is used to figure out the encoding related configuration for the file.
+		 * @param options Allows to explicitly pick the encoding to use.
 		 * @returns A thenable that resolves to the encoded `Uint8Array`.
 		 */
-		export function encode(uri: Uri | undefined, content: string): Thenable<Uint8Array>;
+		export function encode(content: string, uri: Uri | undefined, options?: { readonly encoding: string }): Thenable<Uint8Array>;
 	}
 }

@@ -1228,13 +1228,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'canonicalUriProvider');
 				return extHostWorkspace.provideCanonicalUri(uri, options, token);
 			},
-			decode(uri: vscode.Uri | undefined, content: Uint8Array) {
+			decode(content: Uint8Array, uri: vscode.Uri | undefined, options?: { encoding: string }) {
 				checkProposedApiEnabled(extension, 'textDocumentEncoding');
-				return extHostWorkspace.decode(uri, content);
+				return extHostWorkspace.decode(content, uri, options);
 			},
-			encode(uri: vscode.Uri | undefined, content: string) {
+			encode(content: string, uri: vscode.Uri | undefined, options?: { encoding: string }) {
 				checkProposedApiEnabled(extension, 'textDocumentEncoding');
-				return extHostWorkspace.encode(uri, content);
+				return extHostWorkspace.encode(content, uri, options);
 			}
 		};
 
