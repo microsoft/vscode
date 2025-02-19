@@ -135,6 +135,11 @@ export interface IChatReferences {
 	kind: 'references';
 }
 
+export interface IChatWorkingProgress {
+	kind: 'working';
+	isPaused: boolean;
+}
+
 /**
  * Content type for citations used during rendering, not in the model
  */
@@ -146,7 +151,7 @@ export interface IChatCodeCitations {
 /**
  * Type for content parts rendered by IChatListRenderer
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress;
 
 export interface IChatLiveUpdateData {
 	totalTime: number;

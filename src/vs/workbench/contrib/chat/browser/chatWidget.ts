@@ -596,7 +596,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							`_${element.shouldBeRemovedOnSend ? `${element.shouldBeRemovedOnSend.afterUndoStop || '1'}` : '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
-							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
+							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '') +
+							(isResponseVM(element) && element.model.isPaused.get() ? '_paused' : '');
 					},
 				}
 			});
@@ -921,6 +922,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	togglePaused() {
 		this.viewModel?.model.toggleLastRequestPaused();
+		this.onDidChangeItems();
 	}
 
 	setModel(model: IChatModel, viewState: IChatViewState): void {
