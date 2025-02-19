@@ -40,8 +40,21 @@ declare module 'vscode' {
 		 * @param uri The URI that represents the file. This information
 		 * is used to figure out the encoding related configuration for the file.
 		 * @param content The content to decode as a `Uint8Array`.
-		 * @returns A Thenable that resolves to the decoded string.
+		 * @returns A thenable that resolves to the decoded `string`.
 		 */
 		decode(uri: Uri, content: Uint8Array): Thenable<string>;
+
+		/**
+		 * Encodes the content of a string to a `Uint8Array` using
+		 * the same encoding logic that is used when saving text documents.
+		 *
+		 * This method will respect the user configured file encoding.
+		 *
+		 *@param uri The URI that represents the file. This information
+		 * is used to figure out the encoding related configuration for the file.
+		 * @param content The content to decode as a `string`.
+		 * @returns A thenable that resolves to the encoded `Uint8Array`.
+		 */
+		encode(uri: Uri, content: string): Thenable<Uint8Array>;
 	}
 }

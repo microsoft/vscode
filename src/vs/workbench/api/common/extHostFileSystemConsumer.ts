@@ -157,6 +157,10 @@ export class ExtHostConsumerFileSystem {
 			},
 			decode(uri: vscode.Uri, content: Uint8Array): Promise<string> {
 				return that._proxy.$decode(uri, VSBuffer.wrap(content));
+			},
+			async encode(uri: vscode.Uri, content: string): Promise<Uint8Array> {
+				const buff = await that._proxy.$encode(uri, content);
+				return buff.buffer;
 			}
 		});
 	}

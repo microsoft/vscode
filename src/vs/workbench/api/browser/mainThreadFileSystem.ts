@@ -159,6 +159,10 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		return consumeStream(stream, chunks => chunks.join());
 	}
 
+	async $encode(resource: UriComponents, content: string): Promise<VSBuffer> {
+		return this._textFileService.getEncodedReadable(URI.revive(resource), content);
+	}
+
 	private static _handleError(err: any): never {
 		if (err instanceof FileOperationError) {
 			switch (err.fileOperationResult) {

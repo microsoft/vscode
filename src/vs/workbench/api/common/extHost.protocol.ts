@@ -1499,6 +1499,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$delete(resource: UriComponents, opts: files.IFileDeleteOptions): Promise<void>;
 
 	$decode(resource: UriComponents, content: VSBuffer): Promise<string>;
+	$encode(resource: UriComponents, content: string): Promise<VSBuffer>;
 
 	$ensureActivation(scheme: string): Promise<void>;
 }
