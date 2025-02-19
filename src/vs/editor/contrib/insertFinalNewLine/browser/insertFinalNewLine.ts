@@ -32,13 +32,6 @@ export class InsertFinalNewLineAction extends EditorAction {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
 		editor.pushUndoStop();
-
-		if (args.reason === 'auto-save') {
-			// See https://github.com/editorconfig/editorconfig-vscode/issues/330
-			// It is very convenient for the editor config extension to invoke this action.
-			// So, if we get a reason:'auto-save' passed in, let's set cursor back to initial position after inserting final new line.
-			editor.setSelection(selection);
-		}
 	}
 }
 
