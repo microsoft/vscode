@@ -155,10 +155,9 @@ export interface IShellEnvDetectionCapability {
 	readonly onDidChangeEnv: Event<TerminalShellIntegrationEnvironment>;
 	get env(): TerminalShellIntegrationEnvironment;
 	setEnvironment(envs: { [key: string]: string | undefined } | undefined, isTrusted: boolean): void;
-	startEnvironmentSingleVar(isTrusted: boolean): void;
+	startEnvironmentSingleVar(clear: boolean, isTrusted: boolean): void;
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
 	deleteEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
-	clearEnvironmentVars(isTrusted: boolean): void;
 	endEnvironmentSingleVar(isTrusted: boolean): void;
 	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void;
 }

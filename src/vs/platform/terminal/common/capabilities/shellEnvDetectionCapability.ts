@@ -39,7 +39,11 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
 	}
 
-	startEnvironmentSingleVar(isTrusted: boolean): void {
+	startEnvironmentSingleVar(clear: boolean, isTrusted: boolean): void {
+		if (clear) {
+			this._env.clear();
+			this._pendingEnv?.clear();
+		}
 		this._pendingEnv = new Map();
 	}
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
@@ -61,12 +65,6 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 			this._pendingEnv?.delete(key);
 			this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
 		}
-		return;
-	}
-
-	clearEnvironmentVars(isTrusted: boolean): void {
-		this._pendingEnv?.clear();
-		this._env.clear();
 		return;
 	}
 

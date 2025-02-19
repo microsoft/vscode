@@ -305,7 +305,7 @@ __trackMissingEnvVars() {
 
 __vsc_update_env() {
 	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
-		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
+		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
 
 		if [ "$use_associative_array" = 1 ]; then
 			if [ ${#vsc_aa_env[@]} -eq 0 ]; then

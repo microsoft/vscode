@@ -227,13 +227,6 @@ const enum VSCodeOscPt {
 	SetMark = 'SetMark',
 
 	/**
-	 * Clears any remaining environment variables in the cached environment
-	 *
-	 * Format: `OSC 633 ; EnvClear ; <Nonce>`
-	 */
-	EnvClear = 'EnvClear',
-
-	/**
 	 * Sends the shell's complete environment in JSON format.
 	 *
 	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce>`
@@ -257,9 +250,9 @@ const enum VSCodeOscPt {
 
 	/**
 	 * The start of the collecting user's environment variables individually.
-	 * Clears any environment residuals in previous sessions.
+	 * Clears any environment residuals in previous sessions if `<Clear>` is set to `1`.
 	 *
-	 * Format: `OSC 633 ; EnvSingleStart ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleStart [; <Clear>] ; <Nonce>`
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -477,10 +470,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
 				return true;
 			}
-			case VSCodeOscPt.EnvClear: {
-				this._createOrGetShellEnvDetection().clearEnvironmentVars(args[0] === this._nonce);
-				return true;
-			}
 			case VSCodeOscPt.EnvJson: {
 				const arg0 = args[0];
 				const arg1 = args[1];
@@ -495,7 +484,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.EnvSingleStart: {
-				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === this._nonce);
+				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === '1', args[1] === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.EnvSingleDelete: {
