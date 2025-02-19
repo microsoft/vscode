@@ -1180,6 +1180,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
 	padding: 0 2px 0 0;
+	height: 1em;
+	line-height: 1em !important;
+	align-self: center;
+
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.predefined-file-icon::before {
