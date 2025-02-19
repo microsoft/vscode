@@ -22,7 +22,6 @@ import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -77,7 +76,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	private _refCounter: number = 1;
 
-	readonly originalURI: URI;
+	readonly abstract originalURI: URI;
 
 	constructor(
 		readonly modifiedURI: URI,
@@ -90,8 +89,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this.originalURI = ChatEditingTextModelContentProvider.getFileURI(_telemetryInfo.sessionId, this.entryId, modifiedURI.path);
 
 		if (kind === ChatEditKind.Created) {
 			this.createdInRequestId = this._telemetryInfo.requestId;
