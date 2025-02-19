@@ -10,7 +10,6 @@
 	overflow: hidden;
 	z-index: -10;
 	white-space: pre-wrap;
-	text-wrap: nowrap;
 }
 
 .monaco-editor .native-edit-context-textarea {

@@ -1944,7 +1944,7 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
 		const editContextSupported = typeof (globalThis as any).EditContext === 'function';
-		return editContextSupported && env.accessibilitySupport !== AccessibilitySupport.Enabled && options.get(EditorOption.experimentalEditContextEnabled);
+		return editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
 	}
 }
 
