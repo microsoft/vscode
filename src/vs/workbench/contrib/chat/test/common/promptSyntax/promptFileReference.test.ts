@@ -23,10 +23,10 @@ import { waitRandom, randomBoolean } from '../../../../../../base/test/common/te
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { NotPromptFile, RecursiveReference, OpenFailed } from '../../../common/promptFileReferenceErrors.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
 
 /**
  * Represents a file reference with an expected
@@ -285,7 +285,7 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder'),
 					createTestFileReference('.', 1, 1),
-					new NotPromptFile(
+					new FolderReference(
 						URI.joinPath(rootUri, './folder1/some-other-folder'),
 						'This folder is not a prompt file!',
 					),
@@ -321,7 +321,7 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './some-other-folder/folder1'),
 					createTestFileReference('../../folder1', 5, 48),
-					new NotPromptFile(
+					new FolderReference(
 						URI.joinPath(rootUri, './folder1'),
 						'Uggh ohh!',
 					),

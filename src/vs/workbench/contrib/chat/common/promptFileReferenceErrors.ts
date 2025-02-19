@@ -168,3 +168,23 @@ export class NotPromptFile extends ResolveError {
 		);
 	}
 }
+
+/**
+ * Error for the case when a resource URI points to a folder.
+ */
+export class FolderReference extends NotPromptFile {
+	public override errorType = 'FolderReferenceError';
+
+	constructor(
+		uri: URI,
+		message: string = '',
+	) {
+
+		const suffix = message ? `: ${message}` : '';
+
+		super(
+			uri,
+			`Entity at '${uri.path}' is a folder${suffix}`,
+		);
+	}
+}
