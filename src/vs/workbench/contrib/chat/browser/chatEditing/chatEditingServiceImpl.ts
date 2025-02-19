@@ -78,10 +78,12 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	) {
 		super();
 		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this.editingSessionsObs)));
-		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver)));
-		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider)));
-		this._register(textModelService.registerTextModelContentProvider(chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider)));
+		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this.editingSessionsObs)));
 
+		// TODO@jrieken
+		// some ugly casting so that this service can pass itself as argument instad as service dependeny
+		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider as any, this)));
+		this._register(textModelService.registerTextModelContentProvider(chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider as any, this)));
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared') {
@@ -478,8 +480,8 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	constructor(
+		private readonly _editingSessionsObs: IObservable<readonly IChatEditingSession[]>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService
 	) { }
 
 	canHandleUri(uri: URI): boolean {
@@ -489,7 +491,7 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 
 		const thisSession = derived(this, r => {
-			return this._chatEditingService.editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
+			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
 		});
 
 		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession);

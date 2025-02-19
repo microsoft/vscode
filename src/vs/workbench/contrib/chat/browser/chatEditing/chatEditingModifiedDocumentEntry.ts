@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue, IObservable, ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -35,6 +37,7 @@ import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRe
 import { SaveReason, IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IModifiedFileEntry, ChatEditKind, WorkingSetEntryState, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
@@ -66,12 +69,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	});
 
+	readonly initialContent: string;
 
 	private readonly docSnapshot: ITextModel;
-	readonly initialContent: string;
 	private readonly doc: ITextModel;
-	private readonly docFileEditorModel: IResolvedTextFileEditorModel;
-	private _allEditsAreFromUs: boolean = true;
+	readonly docFileEditorModel: IResolvedTextFileEditorModel;
 
 	get originalModel(): ITextModel {
 		return this.docSnapshot;
@@ -84,6 +86,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
+	private _allEditsAreFromUs: boolean = true;
 	private _diffOperation: Promise<any> | undefined;
 	private _diffOperationIds: number = 0;
 
@@ -154,8 +157,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
 
-
-
 		this._register(toDisposable(() => {
 			this._clearCurrentEditLineDecoration();
 		}));
@@ -203,7 +204,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._updateDiffInfoSeq();
 	}
 
-	resetToInitialValue() {
+	resetToInitialContent() {
 		this._setDocValue(this.initialContent);
 	}
 
@@ -271,7 +272,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
+	acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
+
+		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
+		assert(isEqual(resource, this.modifiedURI), ' INVALID args, can only edit THIS document');
 
 		// push stack element for the first edit
 		if (this._isFirstEditAfterStartOrSnapshot) {
