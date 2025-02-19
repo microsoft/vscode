@@ -23,7 +23,7 @@ import { ObservableDisposable } from '../../../../../../base/common/observableDi
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
+import { OpenFailed, NotPromptFile, RecursiveReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
 
 /**
  * Well-known localized error messages.
@@ -38,7 +38,7 @@ const errorMessages = {
 /**
  * Error conditions that may happen during the file reference resolution.
  */
-export type TErrorCondition = FileOpenFailed | RecursiveReference | NonPromptSnippetFile;
+export type TErrorCondition = OpenFailed | RecursiveReference | NotPromptFile;
 
 /**
  * Base prompt parser class that provides a common interface for all
@@ -376,7 +376,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			.filter((reference) => {
 				const { errorCondition } = reference;
 
-				return !errorCondition || (errorCondition instanceof NonPromptSnippetFile);
+				return !errorCondition || (errorCondition instanceof NotPromptFile);
 			});
 	}
 
@@ -404,7 +404,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			.filter((childReference) => {
 				const { errorCondition } = childReference;
 
-				return errorCondition && !(errorCondition instanceof NonPromptSnippetFile);
+				return errorCondition && !(errorCondition instanceof NotPromptFile);
 			})
 			// map to error condition objects
 			.map((childReference): ParseError => {
@@ -471,7 +471,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * @returns Error message.
 	 */
 	protected getErrorMessage<TError extends ParseError>(error: TError): string {
-		if (error instanceof FileOpenFailed) {
+		if (error instanceof OpenFailed) {
 			return `${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
 		}
 
@@ -591,7 +591,7 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 	 */
 	protected override getErrorMessage(error: ParseError): string {
 		// if failed to open a file, return approprivate message and the file path
-		if (error instanceof FileOpenFailed) {
+		if (error instanceof OpenFailed) {
 			return `${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
 		}
 
