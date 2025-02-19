@@ -4026,7 +4026,7 @@ const daemonServices: Fig.Suggestion[] = [
 
 const completionSpec: Fig.Spec = {
 	name: "git",
-	description: "The stupid content tracker",
+	description: "Distributed version control system",
 	generateSpec: async (_, executeShellCommand) => {
 		const { stdout } = await executeShellCommand({
 			command: "git",

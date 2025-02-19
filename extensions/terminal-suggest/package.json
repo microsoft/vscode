@@ -20,7 +20,8 @@
   ],
   "scripts": {
     "compile": "npx gulp compile-extension:terminal-suggest",
-    "watch": "npx gulp watch-extension:terminal-suggest"
+    "watch": "npx gulp watch-extension:terminal-suggest",
+    "pull-zshbuiltins": "ts-node ./scripts/pullZshBuiltins.ts"
   },
   "main": "./out/terminalSuggestMain",
   "activationEvents": [

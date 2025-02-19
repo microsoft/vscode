@@ -831,7 +831,7 @@ export class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}), clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, context?.placeholder);
+		}), clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', context?.placeholder);
 	}
 
 	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, instantiationService: IInstantiationService, query: string = '', placeholder?: string) {

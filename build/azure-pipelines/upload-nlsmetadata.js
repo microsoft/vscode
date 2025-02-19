@@ -109,8 +109,8 @@ function main() {
             .pipe(azure.upload({
             account: process.env.AZURE_STORAGE_ACCOUNT,
             credential,
-            container: 'nlsmetadata',
-            prefix: commit + '/',
+            container: '$web',
+            prefix: `nlsmetadata/${commit}/`,
             contentSettings: {
                 contentEncoding: 'gzip',
                 cacheControl: 'max-age=31536000, public'

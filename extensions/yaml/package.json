@@ -95,7 +95,7 @@
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced",
         "diffEditor.ignoreTrimWhitespace": false,
-        "editor.defaultColorDecorators": false
+        "editor.defaultColorDecorators": "never"
       },
       "[dockercompose]": {
         "editor.insertSpaces": true,
