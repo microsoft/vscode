@@ -3217,7 +3217,13 @@ export interface IEditorMinimapOptions {
 	showMarkSectionHeaders?: boolean;
 	/**
 	 * When specified, is used to create a custom section header parser regexp.
-	 * It must contain a match group that detects the header
+	 * Must contain a match group named 'label' (written as (?<label>.+)) that encapsulates the section header.
+	 * Optionally can include another match group named 'separator'.
+	 * To match multi-line headers like:
+	 *   // ==========
+	 *   // My Section
+	 *   // ==========
+	 * Use a pattern like: ^={3,}\n^\/\/ *(?<label>[^\n]*?)\n^={3,}$
 	 */
 	markSectionHeaderRegex?: string;
 	/**
@@ -3320,7 +3326,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 				'editor.minimap.markSectionHeaderRegex': {
 					type: 'string',
 					default: defaults.markSectionHeaderRegex,
-					description: nls.localize('minimap.markSectionHeaderRegex', "Defines the regular expression used to find section headers in comments. It must contain a named match group `label` (written as `(?<label>.+)`) that encapsulates the section header, otherwise it will not work. Optionally you can include another match group named `separator`, if this match group captures anything then the separation line will be rendered. And keep in mind that the expression takes the whole line so it is advised to use `$`, and don't include the language's comment sign (say `//` for TypeScript, `#` for Python) if you intend for it to work in all languages.")
+					description: nls.localize('minimap.markSectionHeaderRegex', "Defines the regular expression used to find section headers in comments. The regex must contain a named match group `label` (written as `(?<label>.+)`) that encapsulates the section header, otherwise it will not work. Optionally you can include another match group named `separator`. Use \\n in the pattern to match multi-line headers."),
 				},
 				'editor.minimap.sectionHeaderFontSize': {
 					type: 'number',
@@ -3342,9 +3348,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 		}
 		const input = _input as IEditorMinimapOptions;
 
-		// validating the markSectionHeaderRegex's regexps
-		// we test if the children are string and can be compiled as
-		// regular expressions.
+		// Validate mark section header regex
 		let markSectionHeaderRegex = this.defaultValue.markSectionHeaderRegex;
 		const inputRegex = _input.markSectionHeaderRegex;
 		if (typeof inputRegex === 'string') {
