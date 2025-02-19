@@ -240,7 +240,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(e);
-		if (isPotentialKeyboardShortcut) {
+		const isCtrlKey = this._isCtrlKey(e);
+		if (isPotentialKeyboardShortcut || isCtrlKey) {
 			return;
 		}
 		if (this._contentWidget.isFocused && e.keyCode === KeyCode.Tab) {
@@ -261,6 +262,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 				|| resolvedKeyboardEvent.commandId === DECREASE_HOVER_VERBOSITY_ACTION_ID)
 			&& this._contentWidget.isVisible;
 		return moreChordsAreNeeded || isHoverAction;
+	}
+
+	private _isCtrlKey(e: IKeyboardEvent): boolean {
+		return e.keyCode === KeyCode.Ctrl;
 	}
 
 	public hideContentHover(): void {
