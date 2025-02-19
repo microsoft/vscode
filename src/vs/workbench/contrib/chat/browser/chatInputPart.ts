@@ -1333,30 +1333,32 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (metadata.state !== WorkingSetEntryState.Suggested) {
 				continue;
 			}
-			const addBtn = this._chatEditsActionsDisposables.add(new Button(anchor, {
+			const uriLabel = this._chatEditsActionsDisposables.add(new Button(anchor, {
 				supportIcons: true,
 				secondary: true,
 				hoverDelegate
 			}));
-			addBtn.label = this.labelService.getUriBasenameLabel(uri);
-			addBtn.element.classList.add('monaco-icon-label', ...getIconClasses(this.modelService, this.languageService, uri, FileKind.FILE));
-			addBtn.element.title = localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), metadata.description ?? '');
+			uriLabel.label = this.labelService.getUriBasenameLabel(uri);
+			uriLabel.element.classList.add('monaco-icon-label', ...getIconClasses(this.modelService, this.languageService, uri, FileKind.FILE));
+			uriLabel.element.title = localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), metadata.description ?? '');
 
-			this._chatEditsActionsDisposables.add(addBtn.onDidClick(() => {
+			this._chatEditsActionsDisposables.add(uriLabel.onDidClick(() => {
 				group.remove(); // REMOVE asap
 				this._attachmentModel.addFile(uri);
+				chatEditingSession.remove(WorkingSetEntryRemovalReason.User, uri);
 			}));
 
-			const rmBtn = this._chatEditsActionsDisposables.add(new Button(anchor, {
+			const addButton = this._chatEditsActionsDisposables.add(new Button(anchor, {
 				supportIcons: false,
 				secondary: true,
 				hoverDelegate,
-				ariaLabel: localize('chatEditingSession.removeSuggestion', 'Remove suggestion {0}', this.labelService.getUriLabel(uri, { relative: true })),
+				ariaLabel: localize('chatEditingSession.addSuggestion', 'Add suggestion {0}', this.labelService.getUriLabel(uri, { relative: true })),
 			}));
-			rmBtn.icon = Codicon.close;
-			rmBtn.setTitle(localize('chatEditingSession.removeSuggested', 'Remove suggestion'));
-			this._chatEditsActionsDisposables.add(rmBtn.onDidClick(() => {
+			addButton.icon = Codicon.add;
+			addButton.setTitle(localize('chatEditingSession.addSuggested', 'Add suggestion'));
+			this._chatEditsActionsDisposables.add(addButton.onDidClick(() => {
 				group.remove(); // REMOVE asap
+				this._attachmentModel.addFile(uri);
 				chatEditingSession.remove(WorkingSetEntryRemovalReason.User, uri);
 			}));
 
@@ -1365,9 +1367,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			const group = document.createElement('span');
 			group.classList.add('monaco-button-dropdown', 'sidebyside-button', 'show-file-icons');
-			group.appendChild(addBtn.element);
+			group.appendChild(uriLabel.element);
 			group.appendChild(sep);
-			group.appendChild(rmBtn.element);
+			group.appendChild(addButton.element);
 			dom.append(anchor, group);
 
 			this._chatEditsActionsDisposables.add(toDisposable(() => {
