@@ -63,11 +63,6 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		// onDidChangeTerminalShellIntegration via env
 		const envChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.ShellEnvDetection, e => e.onDidChangeEnv));
 		this._store.add(envChangeEvent.event(e => {
-			// Is there cleaner way to do this in typescript?
-			if (e.data.value) {
-				const isMap = e.data.value instanceof Map;
-				console.log(isMap);
-			}
 			if (e.data.value && typeof e.data.value === 'object') {
 				const envValue = e.data.value as { [key: string]: string | undefined };
 
