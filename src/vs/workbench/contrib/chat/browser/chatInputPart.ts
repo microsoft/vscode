@@ -911,9 +911,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		button.element.classList.add('chat-attached-context-attachment', 'chat-add-files');
 		button.label = localize('chatAddFiles', '{0} Add Files...', '$(attach)');
-		button.setTitle(localize('attachFiles.label', 'Attach files to your request'));
+		const commandId = 'workbench.action.chat.editing.attachFiles';
+		const kb = this.keybindingService.lookupKeybinding(commandId)?.getLabel();
+		const title = localize('attachFiles.label', 'Attach files to your request{0}', kb ? ` (${kb})` : '');
+		button.setTitle(title);
 		store.add(button.onDidClick(() => {
-			this.commandService.executeCommand('workbench.action.chat.editing.attachFiles', { widget: chatWidget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') });
+			this.commandService.executeCommand(commandId, { widget: chatWidget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') });
 		}));
 		dom.append(container, button.element);
 	}

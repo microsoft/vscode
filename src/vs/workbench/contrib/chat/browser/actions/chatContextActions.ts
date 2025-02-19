@@ -445,7 +445,7 @@ export class AttachContextAction extends Action2 {
 		category: CHAT_CATEGORY,
 		precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))),
 		keybinding: {
-			when: ChatContextKeys.inChatInput,
+			when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatInput),
 			primary: KeyMod.CtrlCmd | KeyCode.Slash,
 			weight: KeybindingWeight.EditorContrib
 		},
@@ -921,7 +921,12 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 			title: localize2('workbench.action.chat.editing.attachFiles.label', "Add Files to Copilot Edits"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+			keybinding: {
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 
