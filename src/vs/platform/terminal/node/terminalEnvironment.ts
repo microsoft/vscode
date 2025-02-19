@@ -87,7 +87,6 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
-
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		if (isWindows) {
 			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631;
