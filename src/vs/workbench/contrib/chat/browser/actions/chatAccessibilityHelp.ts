@@ -77,7 +77,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chatEditing.overview', 'The chat editing view is used to apply edits across files.'));
 		content.push(localize('chatEditing.format', 'It is comprised of an input box and a file working set (Shift+Tab).'));
 		content.push(localize('chatEditing.expectation', 'When a request is made, a progress indicator will play while the edits are being applied.'));
-		content.push(localize('chatEditing.review', 'Once the edits are applied, a sound, will play indicating the document is open and ready for review. It can be configured with accessibility.signals.chatEditModifiedFile.'));
+		content.push(localize('chatEditing.review', 'Once the edits are applied, a sound will play to indicate the document has been opened and is ready for review. The sound can be disabled with accessibility.signals.chatEditModifiedFile.'));
 		content.push(localize('chatEditing.sections', 'Navigate between edits in the editor with navigate previous{0} and next{1}', '<keybinding:chatEditor.action.navigatePrevious>', '<keybinding:chatEditor.action.navigateNext>'));
 		content.push(localize('chatEditing.acceptHunk', 'In the editor, Accept{0}, Reject{1}, or Toggle the Diff{2} for the current Change.', '<keybinding:chatEditor.action.acceptHunk>', '<keybinding:chatEditor.action.undoHunk>', '<keybinding:chatEditor.action.diffHunk>'));
 		content.push(localize('chatEditing.helpfulCommands', 'When in the edits view, some helpful commands include:'));
