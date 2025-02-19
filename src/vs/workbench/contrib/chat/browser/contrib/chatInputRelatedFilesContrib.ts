@@ -72,6 +72,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 							continue;
 						}
 						newSuggestions.set(file.uri, { group: group.group, description: file.description });
+						existingFiles.add(file.uri);
 					}
 				}
 
