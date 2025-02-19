@@ -104,6 +104,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (!commandsInPath?.completionResources) {
 				return;
 			}
+			// Order is important here, add shell globals first so they are prioritized over path commands
 			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
