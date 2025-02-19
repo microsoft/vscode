@@ -13,7 +13,6 @@ import { ActionRunner, IAction, IActionRunner } from '../../../../../../base/com
 import { $ } from '../../../../../../base/browser/dom.js';
 import { IChatEditingService, IModifiedFileEntry } from '../../../../chat/common/chatEditingService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { Range } from '../../../../../../editor/common/core/range.js';
 import { autorun, autorunWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
@@ -67,7 +66,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 		nextEntry: IModifiedFileEntry,
 		previousEntry: IModifiedFileEntry,
 		deletedCellDecorator: INotebookDeletedCellDecorator,
-		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorService _editorService: IEditorService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		super();
@@ -106,7 +105,6 @@ export class NotebookChatActionsOverlay extends Disposable {
 			},
 			menuOptions: { renderShortTitle: true },
 			actionViewItemProvider: (action, options) => {
-				const that = this;
 
 				if (action.id === navigationBearingFakeActionId) {
 					return new class extends ActionViewItem {
@@ -137,15 +135,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 								if (entry === nextEntry) {
 									return;
 								}
-								const change = nextEntry.diffInfo.get().changes.at(0);
-								return that._editorService.openEditor({
-									resource: nextEntry.modifiedURI,
-									options: {
-										selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
-										revealIfOpened: false,
-										revealIfVisible: false,
-									}
-								}, ACTIVE_GROUP);
+
 							}));
 
 							this._reveal.value = store;
@@ -319,12 +309,10 @@ class NextPreviousChangeActionRunner extends ActionRunner {
 			return;
 		}
 		// For now just go to next/previous file.
-		const change = this.next.diffInfo.get().changes.at(0);
 		this.focusedDiff.set(undefined, undefined);
 		await this.editorService.openEditor({
 			resource: this.next.modifiedURI,
 			options: {
-				selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
 				revealIfOpened: false,
 				revealIfVisible: false,
 			}
