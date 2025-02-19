@@ -1070,10 +1070,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
-	gap: 4px;
+	gap: 2px;
 	overflow: hidden;
 	font-size: 11px;
-	padding: 0 4px 0 2px;
+	padding: 0 4px;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	height: 18px;
@@ -1178,9 +1178,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0.8;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label {
+	gap: 3px;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
-	padding: 0 2px 0 0;
-	height: 1em;
+	height: 90%;
+	width: auto;
+	padding: 0;
 	line-height: 1em !important;
 	align-self: center;
 
