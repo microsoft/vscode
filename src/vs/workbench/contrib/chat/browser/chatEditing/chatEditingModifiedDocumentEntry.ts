@@ -41,7 +41,7 @@ import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IModifiedFileEntry, ChatEditKind, WorkingSetEntryState, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
+import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry, pendingRewriteMinimap, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -325,7 +325,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		});
 	}
 
-	async acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+	private async _acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
 		if (!this._diffInfo.get().changes.includes(change)) {
 			// diffInfo should have model version ids and check them (instead of the caller doing that)
 			return false;
@@ -343,7 +343,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return true;
 	}
 
-	async rejectHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+	private async _rejectHunk(change: DetailedLineRangeMapping): Promise<boolean> {
 		if (!this._diffInfo.get().changes.includes(change)) {
 			return false;
 		}
@@ -457,6 +457,17 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	protected _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
-		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, codeEditor, this, this._diffInfo);
+
+		const diffInfo = this._diffInfo.map(value => {
+			return {
+				...value,
+				originalModel: this.originalModel,
+				modifiedModel: this.modifiedModel,
+				keep: changes => this._acceptHunk(changes),
+				undo: changes => this._rejectHunk(changes)
+			} satisfies IDocumentDiff2;
+		});
+
+		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, codeEditor, this, diffInfo);
 	}
 }
