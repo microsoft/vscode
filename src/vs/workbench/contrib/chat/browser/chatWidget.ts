@@ -827,7 +827,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			{
 				renderFollowups: options?.renderFollowups ?? true,
 				renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
-			menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
+				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
 				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
 				renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit'
 			},
@@ -1097,22 +1097,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			let attachedContext = this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
-			let workingSet: URI[] | undefined;
 			if (this.viewOptions.enableWorkingSet !== undefined) {
 				const currentEditingSession = this._editingSession;
 
 				const unconfirmedSuggestions = new ResourceSet();
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
-				const editingSessionAttachedContext: IChatRequestVariableEntry[] = [];
+				const editingSessionAttachedContext: IChatRequestVariableEntry[] = attachedContext;
 				// Pick up everything that the user sees is part of the working set.
-				// This should never exceed the maximum file entries limit above.
 				for (const { uri, isMarkedReadonly } of this.inputPart.chatEditWorkingSetFiles) {
 					// Skip over any suggested files that haven't been confirmed yet in the working set
 					if (currentEditingSession.get()?.workingSet.get(uri)?.state === WorkingSetEntryState.Suggested) {
 						unconfirmedSuggestions.add(uri);
 					} else {
 						uniqueWorkingSetEntries.add(uri);
-						editingSessionAttachedContext.push(this.attachmentModel.asVariableEntry(uri, undefined, isMarkedReadonly));
+						editingSessionAttachedContext.unshift(this.attachmentModel.asVariableEntry(uri, undefined, isMarkedReadonly));
 					}
 				}
 
@@ -1150,7 +1148,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						}
 					}
 				}
-				workingSet = [...uniqueWorkingSetEntries.values()];
 				attachedContext = editingSessionAttachedContext;
 
 				type ChatEditingWorkingSetClassification = {
@@ -1175,7 +1172,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
 				attachedContext,
-				workingSet,
+				workingSet: [], // TODO@joyceerhl remove this
 				noCommandDetection: options?.noCommandDetection,
 				hasInstructionAttachments: this.inputPart.hasInstructionAttachments,
 			});
