@@ -16,7 +16,6 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
-import { coalesce } from '../../../../base/common/arrays.js';
 import { Promises } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -318,10 +317,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	public get attemptedWorkingSetEntriesCount() {
 		return this._attemptedWorkingSetEntriesCount;
-	}
-	private _combinedChatEditWorkingSetEntries: IWorkingSetEntry[] = [];
-	public get chatEditWorkingSetFiles() {
-		return this._combinedChatEditWorkingSetEntries;
 	}
 
 	private readonly getInputState: () => IChatInputState;
@@ -1205,7 +1200,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
-			this._combinedChatEditWorkingSetEntries = [];
 			return;
 		}
 
@@ -1323,7 +1317,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		list.layout(height);
 		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, entries);
-		this._combinedChatEditWorkingSetEntries = coalesce(entries.map((e) => e.kind === 'reference' && URI.isUri(e.reference) ? ({ uri: e.reference, isMarkedReadonly: e.isMarkedReadonly }) : undefined));
 	}
 
 	async renderChatRelatedFiles(chatEditingSession: IChatEditingSession, anchor: HTMLElement) {

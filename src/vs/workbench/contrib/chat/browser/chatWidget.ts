@@ -1104,13 +1104,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 				const editingSessionAttachedContext: IChatRequestVariableEntry[] = attachedContext;
 				// Pick up everything that the user sees is part of the working set.
-				for (const { uri, isMarkedReadonly } of this.inputPart.chatEditWorkingSetFiles) {
+				for (const [uri, state] of currentEditingSession.get()?.workingSet || []) {
 					// Skip over any suggested files that haven't been confirmed yet in the working set
-					if (currentEditingSession.get()?.workingSet.get(uri)?.state === WorkingSetEntryState.Suggested) {
+					if (state.state === WorkingSetEntryState.Suggested) {
 						unconfirmedSuggestions.add(uri);
 					} else {
 						uniqueWorkingSetEntries.add(uri);
-						editingSessionAttachedContext.unshift(this.attachmentModel.asVariableEntry(uri, undefined, isMarkedReadonly));
+						editingSessionAttachedContext.unshift(this.attachmentModel.asVariableEntry(uri, undefined, state.isMarkedReadonly));
 					}
 				}
 
@@ -1160,7 +1160,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					originalSize: number;
 					actualSize: number;
 				};
-				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: this.inputPart.attemptedWorkingSetEntriesCount, actualSize: uniqueWorkingSetEntries.size });
+				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: uniqueWorkingSetEntries.size, actualSize: uniqueWorkingSetEntries.size });
 				currentEditingSession.get()?.remove(WorkingSetEntryRemovalReason.User, ...unconfirmedSuggestions);
 			}
 
