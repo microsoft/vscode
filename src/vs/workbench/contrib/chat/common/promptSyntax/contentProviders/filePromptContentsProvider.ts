@@ -11,7 +11,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { FileOpenFailed, NonPromptSnippetFile } from '../../promptFileReferenceErrors.js';
+import { FileOpenFailed, NonPromptSnippetFile, ParseError } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
 /**
@@ -64,8 +64,20 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 		// get the binary stream of the file contents
 		let fileStream;
 		try {
+			// ensure that the referenced URI points to a file before
+			// trying to get a stream for its contents
+			const info = await this.fileService.resolve(this.uri);
+			assert(
+				info.isFile,
+				new NonPromptSnippetFile(this.uri),
+			);
+
 			fileStream = await this.fileService.readFileStream(this.uri);
 		} catch (error) {
+			if (error instanceof ParseError) {
+				throw error;
+			}
+
 			throw new FileOpenFailed(this.uri, error);
 		}
 
