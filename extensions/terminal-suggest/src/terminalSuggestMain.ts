@@ -280,11 +280,11 @@ export async function getCompletionItemsFromSpecs(
 function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICompletionResource): vscode.TerminalCompletionItem | undefined {
 	let score = typeof command.label === 'object' ? (command.label.detail !== undefined ? 1 : 0) : 0;
 	score += typeof command.label === 'object' ? (command.label.description !== undefined ? 2 : 0) : 0;
-	score += command.documentation ? typeof command.documentation === 'string' ? 1 : 2 : 0;
+	score += command.documentation ? typeof command.documentation === 'string' ? 2 : 3 : 0;
 	if (score > 0) {
 		score -= typeof existingItem.label === 'object' ? (existingItem.label.detail !== undefined ? 1 : 0) : 0;
 		score -= typeof existingItem.label === 'object' ? (existingItem.label.description !== undefined ? 2 : 0) : 0;
-		score -= existingItem.documentation ? typeof existingItem.documentation === 'string' ? 1 : 2 : 0;
+		score -= existingItem.documentation ? typeof existingItem.documentation === 'string' ? 2 : 3 : 0;
 		if (score >= 0) {
 			return { ...command, replacementIndex: existingItem.replacementIndex, replacementLength: existingItem.replacementLength };
 		}
