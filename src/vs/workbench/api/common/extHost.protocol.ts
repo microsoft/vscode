@@ -1477,6 +1477,8 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$unregisterEditSessionIdentityProvider(handle: number): void;
 	$registerCanonicalUriProvider(handle: number, scheme: string): void;
 	$unregisterCanonicalUriProvider(handle: number): void;
+	$decode(resource: UriComponents | undefined, content: VSBuffer): Promise<string>;
+	$encode(resource: UriComponents | undefined, content: string): Promise<VSBuffer>;
 }
 
 export interface IFileChangeDto {
@@ -1497,9 +1499,6 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$copy(resource: UriComponents, target: UriComponents, opts: files.IFileOverwriteOptions): Promise<void>;
 	$mkdir(resource: UriComponents): Promise<void>;
 	$delete(resource: UriComponents, opts: files.IFileDeleteOptions): Promise<void>;
-
-	$decode(resource: UriComponents, content: VSBuffer): Promise<string>;
-	$encode(resource: UriComponents, content: string): Promise<VSBuffer>;
 
 	$ensureActivation(scheme: string): Promise<void>;
 }

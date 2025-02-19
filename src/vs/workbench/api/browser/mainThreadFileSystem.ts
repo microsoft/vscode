@@ -9,10 +9,8 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IFileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, IFileOverwriteOptions, IFileDeleteOptions, IFileOpenOptions, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFileStatWithPartialMetadata, IFileStat } from '../../../platform/files/common/files.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostFileSystemShape, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol.js';
-import { bufferToStream, readableToBuffer, VSBuffer } from '../../../base/common/buffer.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { ITextFileService } from '../../services/textfile/common/textfiles.js';
-import { consumeStream } from '../../../base/common/stream.js';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -23,8 +21,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService private readonly _fileService: IFileService,
-		@ITextFileService private readonly _textFileService: ITextFileService
+		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 
@@ -151,17 +148,6 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		} catch (err) {
 			return MainThreadFileSystem._handleError(err);
 		}
-	}
-
-	async $decode(resource: UriComponents, content: VSBuffer): Promise<string> {
-		const stream = await this._textFileService.getDecodedStream(URI.revive(resource), bufferToStream(content));
-
-		return consumeStream(stream, chunks => chunks.join());
-	}
-
-	async $encode(resource: UriComponents, content: string): Promise<VSBuffer> {
-		const res = await this._textFileService.getEncodedReadable(URI.revive(resource), content);
-		return res instanceof VSBuffer ? res : readableToBuffer(res);
 	}
 
 	private static _handleError(err: any): never {

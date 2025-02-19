@@ -28,7 +28,7 @@ declare module 'vscode' {
 		readonly encoding: string;
 	}
 
-	export interface FileSystem {
+	export namespace workspace {
 
 		/**
 		 * Decodes the content from a `Uint8Array` to a `string` using
@@ -42,7 +42,7 @@ declare module 'vscode' {
 		 * @param content The content to decode as a `Uint8Array`.
 		 * @returns A thenable that resolves to the decoded `string`.
 		 */
-		decode(uri: Uri, content: Uint8Array): Thenable<string>;
+		export function decode(uri: Uri | undefined, content: Uint8Array): Thenable<string>;
 
 		/**
 		 * Encodes the content of a string to a `Uint8Array` using
@@ -55,6 +55,6 @@ declare module 'vscode' {
 		 * @param content The content to decode as a `string`.
 		 * @returns A thenable that resolves to the encoded `Uint8Array`.
 		 */
-		encode(uri: Uri, content: string): Thenable<Uint8Array>;
+		export function encode(uri: Uri | undefined, content: string): Thenable<Uint8Array>;
 	}
 }
