@@ -9,8 +9,6 @@ import type { IPromptInputModel, ISerializedPromptInputModel } from './commandDe
 import { ICurrentPartialCommand } from './commandDetection/terminalCommand.js';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from '../terminal.js';
 import { ReplayEntry } from '../terminalProcess.js';
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalShellIntegrationEnvironment } from 'vscode';
 
 interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
@@ -163,6 +161,32 @@ export interface IShellEnvDetectionCapability {
 	clearEnvironmentVars(isTrusted: boolean): void;
 	endEnvironmentSingleVar(isTrusted: boolean): void;
 	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void;
+}
+
+export interface TerminalShellIntegrationEnvironment {
+	/**
+	 * The dictionary of environment variables.
+	 */
+	value: { [key: string]: string | undefined } | undefined;
+
+	/**
+	 * Whether the environment came from a trusted source and is therefore safe to use its
+	 * values in a manner that could lead to execution of arbitrary code. If this value is
+	 * `false`, {@link value} should either not be used for something that could lead to arbitrary
+	 * code execution, or the user should be warned beforehand.
+	 *
+	 * This is `true` only when the environment was reported explicitly and it used a nonce for
+	 * verification.
+	 */
+	isTrusted: boolean;
+}
+
+export interface TerminalShellIntegration {
+	/**
+	 * The environment of the shell process. This is undefined if the shell integration script
+	 * does not send the environment.
+	 */
+	readonly env: TerminalShellIntegrationEnvironment;
 }
 
 export const enum CommandInvalidationReason {
