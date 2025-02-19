@@ -2947,12 +2947,25 @@ export namespace TerminalQuickFix {
 		return converter.toInternal(quickFix, disposables);
 	}
 }
+export namespace TerminalCompletionItemDto {
+	export function from(item: vscode.TerminalCompletionItem): extHostProtocol.ITerminalCompletionItemDto {
+		return {
+			...item,
+			documentation: MarkdownString.fromStrict(item.documentation),
+		};
+	}
+}
 
 export namespace TerminalCompletionList {
-	export function from(completionList: vscode.TerminalCompletionList): extHostProtocol.TerminalCompletionListDto {
+	export function from(completions: vscode.TerminalCompletionList | vscode.TerminalCompletionItem[]): extHostProtocol.TerminalCompletionListDto {
+		if (Array.isArray(completions)) {
+			return {
+				items: completions.map(i => TerminalCompletionItemDto.from(i)),
+			};
+		}
 		return {
-			...completionList,
-			resourceRequestConfig: completionList.resourceRequestConfig ? TerminalResourceRequestConfig.from(completionList.resourceRequestConfig) : undefined,
+			items: completions.items.map(i => TerminalCompletionItemDto.from(i)),
+			resourceRequestConfig: completions.resourceRequestConfig ? TerminalResourceRequestConfig.from(completions.resourceRequestConfig) : undefined,
 		};
 	}
 }
