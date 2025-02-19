@@ -141,16 +141,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -211,16 +211,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -281,16 +281,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -337,7 +337,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -351,7 +351,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -365,16 +365,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -407,7 +407,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -421,16 +421,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -477,16 +477,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -505,7 +505,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -883,16 +883,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -953,16 +953,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1023,16 +1023,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1093,16 +1093,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1163,16 +1163,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1233,16 +1233,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1303,16 +1303,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1373,16 +1373,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -1471,7 +1471,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1485,7 +1485,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2367,7 +2367,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2381,7 +2381,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2451,7 +2451,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2465,7 +2465,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2535,7 +2535,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2549,7 +2549,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2633,7 +2633,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2647,7 +2647,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2661,7 +2661,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2675,16 +2675,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -2703,7 +2703,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2843,7 +2843,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2857,7 +2857,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2997,7 +2997,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3067,7 +3067,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3081,7 +3081,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3095,16 +3095,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -3235,7 +3235,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3249,7 +3249,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3263,7 +3263,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3277,16 +3277,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -3305,7 +3305,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3417,7 +3417,7 @@
 	},
 	{
 		"c": "[",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3473,7 +3473,7 @@
 	},
 	{
 		"c": "]",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3487,7 +3487,7 @@
 	},
 	{
 		"c": "[",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3543,7 +3543,7 @@
 	},
 	{
 		"c": "]",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3613,7 +3613,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3641,7 +3641,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3725,7 +3725,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3753,7 +3753,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3795,7 +3795,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3837,7 +3837,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3851,7 +3851,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3865,7 +3865,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3949,7 +3949,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3963,7 +3963,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4047,7 +4047,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4117,7 +4117,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4131,7 +4131,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4145,16 +4145,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -4173,7 +4173,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4285,7 +4285,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4313,7 +4313,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4383,7 +4383,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr keyword.operator.new",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -4397,7 +4397,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "variable entity.name.function",
+		"t": "new.expr variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4411,7 +4411,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4425,7 +4425,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4439,7 +4439,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4453,7 +4453,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4467,7 +4467,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4481,7 +4481,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4495,7 +4495,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4509,7 +4509,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4523,7 +4523,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4537,7 +4537,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4551,7 +4551,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4565,7 +4565,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4579,7 +4579,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4621,7 +4621,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4733,7 +4733,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4859,7 +4859,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4915,7 +4915,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5097,7 +5097,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5111,7 +5111,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5125,16 +5125,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -5153,7 +5153,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5265,7 +5265,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5447,7 +5447,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5489,7 +5489,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5671,7 +5671,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5713,7 +5713,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5825,7 +5825,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5881,7 +5881,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5937,7 +5937,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6105,7 +6105,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6119,7 +6119,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6315,7 +6315,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6329,7 +6329,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6343,16 +6343,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -6385,7 +6385,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6399,16 +6399,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -6427,7 +6427,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6469,7 +6469,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6749,7 +6749,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6861,7 +6861,7 @@
 	},
 	{
 		"c": "[",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6889,7 +6889,7 @@
 	},
 	{
 		"c": "]",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6903,7 +6903,7 @@
 	},
 	{
 		"c": "[",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -6931,7 +6931,7 @@
 	},
 	{
 		"c": "]",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7029,7 +7029,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7043,7 +7043,7 @@
 	},
 	{
 		"c": "callback",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7057,7 +7057,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7127,7 +7127,7 @@
 	},
 	{
 		"c": "[",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7141,7 +7141,7 @@
 	},
 	{
 		"c": "]",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7183,7 +7183,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7379,7 +7379,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7449,7 +7449,7 @@
 	},
 	{
 		"c": "[",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7463,7 +7463,7 @@
 	},
 	{
 		"c": "]",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7505,7 +7505,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7701,7 +7701,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7771,7 +7771,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7799,7 +7799,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7813,7 +7813,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr keyword.operator.new",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -7827,7 +7827,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "variable entity.name.function",
+		"t": "new.expr variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7841,7 +7841,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7855,7 +7855,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7869,7 +7869,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7883,7 +7883,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7897,7 +7897,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7911,7 +7911,7 @@
 	},
 	{
 		"c": "false",
-		"t": "constant.language.boolean.false",
+		"t": "new.expr constant.language.boolean.false",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -7925,7 +7925,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7939,7 +7939,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7953,7 +7953,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8037,7 +8037,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8065,7 +8065,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8191,7 +8191,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8205,7 +8205,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8219,16 +8219,16 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "punctuation.delimiter",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -8247,7 +8247,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8289,7 +8289,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8373,7 +8373,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8765,7 +8765,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9101,7 +9101,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9255,7 +9255,7 @@
 	},
 	{
 		"c": "?",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9311,7 +9311,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9451,7 +9451,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9787,7 +9787,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9899,7 +9899,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr keyword.operator.new",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -9913,7 +9913,7 @@
 	},
 	{
 		"c": "Conway",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9927,7 +9927,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9941,7 +9941,7 @@
 	},
 	{
 		"c": "GameOfLife",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9955,7 +9955,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9969,7 +9969,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
