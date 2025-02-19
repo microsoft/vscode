@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { createURI } from '../testUtils/createUri.js';
-import { mockObject, mockService } from '../testUtils/mock.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../../base/common/platform.js';
@@ -16,6 +15,7 @@ import { FileService } from '../../../../../../../platform/files/common/fileServ
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { mockObject, mockService } from '../../../../../../../platform/prompts/test/common/utils/mock.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
