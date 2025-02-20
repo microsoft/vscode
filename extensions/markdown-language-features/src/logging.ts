@@ -8,14 +8,14 @@ import { Disposable } from './util/dispose';
 
 
 export interface ILogger {
-	verbose(message: string, ...args: any[]): void;
+	trace(title: string, message: string, data?: any): void;
 }
 
 export class VsCodeOutputLogger extends Disposable implements ILogger {
 	private _outputChannelValue?: vscode.LogOutputChannel;
 
 	private get _outputChannel() {
-		this._outputChannelValue ??= vscode.window.createOutputChannel('TypeScript', { log: true });
+		this._outputChannelValue ??= vscode.window.createOutputChannel('Markdown', { log: true });
 		return this._outputChannelValue;
 	}
 
@@ -23,9 +23,7 @@ export class VsCodeOutputLogger extends Disposable implements ILogger {
 		super();
 	}
 
-	public verbose(message: string, ...args: any[]): void {
-		if (this._outputChannel.logLevel === vscode.LogLevel.Trace) {
-			this._outputChannel.trace(message, ...args);
-		}
+	public trace(title: string, message: string, data?: any): void {
+		this._outputChannel.trace(`${title} ${message}`, ...(data ? [JSON.stringify(data, null, 4)] : []));
 	}
 }
