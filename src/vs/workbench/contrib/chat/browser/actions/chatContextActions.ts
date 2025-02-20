@@ -470,7 +470,7 @@ export class AttachContextAction extends Action2 {
 		},
 		menu: [
 			{
-				when: AttachContextAction._cdt,
+				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 2
