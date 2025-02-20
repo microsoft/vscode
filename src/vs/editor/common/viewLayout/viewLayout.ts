@@ -374,8 +374,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	// ----
 	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): boolean {
-		// We call the changeWhitespace method
-		// If there was a change, then call onHeightMaybeChanged
 		const hadAChange = this._linesLayout.changeWhitespace(callback);
 		if (hadAChange) {
 			this.onHeightMaybeChanged();
@@ -384,8 +382,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	public changeSpecialLineHeights(callback: (accessor: ISpecialLineHeightChangeAccessor) => void): boolean {
-		// We call the changeWhitespace method
-		// If there was a change, then call onHeightMaybeChanged
 		const hadAChange = this._linesLayout.changeSpecialLineHeights(callback);
 		if (hadAChange) {
 			this.onHeightMaybeChanged();

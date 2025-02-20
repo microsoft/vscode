@@ -86,8 +86,11 @@ export class LineHeightManager {
 		if (searchIndex >= 0) {
 			return this._orderedSpecialLines[searchIndex].prefixSum + this._orderedSpecialLines[searchIndex].maximumSpecialHeight;
 		}
+		if (searchIndex === -1) {
+			return this._defaultLineHeight;
+		}
 		const previousSpecialLine = this._orderedSpecialLines[-(searchIndex + 1) - 1];
-		return previousSpecialLine.prefixSum + this._defaultLineHeight * (lineNumber - previousSpecialLine.lineNumber);
+		return previousSpecialLine.prefixSum + this._orderedSpecialLines[searchIndex].maximumSpecialHeight + this._defaultLineHeight * (lineNumber - previousSpecialLine.lineNumber);
 	}
 
 	private _binarySearchOverSpecialLinesArray(lineNumber: number): number {
