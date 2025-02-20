@@ -119,7 +119,7 @@ const showNoFoldersDialog = async (
 	const docsQuickPick: WithUriValue<IQuickPickItem> = {
 		type: 'item',
 		label: localize(
-			'commands.prompts.create.ask-folder.no-folders-found.learn-more',
+			'commands.prompts.create.ask-folder.empty.docs-label',
 			'Learn how to configure reusable prompts',
 		),
 		description: DOCUMENTATION_URL,
@@ -131,7 +131,7 @@ const showNoFoldersDialog = async (
 		[docsQuickPick],
 		{
 			placeHolder: localize(
-				'commands.prompts.create.ask-folder.no-folders-found.placeholder',
+				'commands.prompts.create.ask-folder.empty.placeholder',
 				'No prompt source folders found.',
 			),
 			canPickMany: false,
