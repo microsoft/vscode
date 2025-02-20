@@ -1311,7 +1311,7 @@ suite('vscode API - workspace', () => {
 		return deleteFile(file);
 	}
 
-	test('text document encodings', async () => {
+	test('encoding: text document encodings', async () => {
 		const uri1 = await createRandomFile();
 		const uri2 = await createRandomFile(new Uint8Array([0xEF, 0xBB, 0xBF]) /* UTF-8 with BOM */);
 		const uri3 = await createRandomFile(new Uint8Array([0xFF, 0xFE]) /* UTF-16 LE BOM */);
@@ -1333,7 +1333,66 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(doc5.encoding, 'utf8');
 	});
 
-	test('fs.decode', async function () {
+	test('encoding: openTextDocument', async () => {
+		const uri1 = await createRandomFile();
+
+		let doc1 = await vscode.workspace.openTextDocument(uri1, { encoding: 'cp1252' });
+		assert.strictEqual(doc1.encoding, 'cp1252');
+
+		let listener: vscode.Disposable | undefined;
+		const documentChangePromise = new Promise<void>(resolve => {
+			listener = vscode.workspace.onDidChangeTextDocument(e => {
+				if (e.document.uri.toString() === uri1.toString()) {
+					resolve();
+				}
+			});
+		});
+
+		doc1 = await vscode.workspace.openTextDocument(uri1, { encoding: 'utf16le' });
+		assert.strictEqual(doc1.encoding, 'utf16le');
+		await documentChangePromise;
+
+		const doc2 = await vscode.workspace.openTextDocument({ encoding: 'utf16be' });
+		assert.strictEqual(doc2.encoding, 'utf16be');
+
+		const doc3 = await vscode.workspace.openTextDocument({ content: 'Hello World', encoding: 'utf16le' });
+		assert.strictEqual(doc3.encoding, 'utf16le');
+
+		listener?.dispose();
+	});
+
+	test('encoding: openTextDocument - throws for dirty documents', async () => {
+		const uri1 = await createRandomFile();
+
+		const doc1 = await vscode.workspace.openTextDocument(uri1, { encoding: 'cp1252' });
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.insert(doc1.uri, new vscode.Position(0, 0), 'Hello World');
+		await vscode.workspace.applyEdit(edit);
+		assert.strictEqual(doc1.isDirty, true);
+
+		let err;
+		try {
+			await vscode.workspace.decode(new Uint8Array([0, 0, 0, 0]), doc1.uri);
+		} catch (e) {
+			err = e;
+		}
+		assert.ok(err);
+	});
+
+	test('encoding: openTextDocument - multiple requests with different encoding work', async () => {
+		const uri1 = await createRandomFile();
+
+		const doc1P = vscode.workspace.openTextDocument(uri1);
+		const doc2P = vscode.workspace.openTextDocument(uri1, { encoding: 'cp1252' });
+
+		const [doc1, doc2] = await Promise.all([doc1P, doc2P]);
+
+		assert.strictEqual(doc1.encoding, 'cp1252');
+		assert.strictEqual(doc2.encoding, 'cp1252');
+	});
+
+	test('encoding: decode', async function () {
 		const uri = root.with({ path: posix.join(root.path, 'file.txt') });
 
 		// without setting
@@ -1375,7 +1434,7 @@ suite('vscode API - workspace', () => {
 		assert.ok(err);
 	});
 
-	test('fs.encode', async function () {
+	test('encoding: encode', async function () {
 		const uri = root.with({ path: posix.join(root.path, 'file.txt') });
 
 		// without setting
