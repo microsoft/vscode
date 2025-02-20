@@ -87,7 +87,7 @@ import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWi
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleAgentModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
-import { InstructionAttachmentsWidget } from './attachments/instructionsAttachment/instructionAttachments.js';
+import { InstructionAttachmentsWidget } from './attachments/instructionsAttachment/instructionAttachmentsWidget.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { toChatVariable } from './chatAttachmentModel/chatInstructionAttachmentsModel.js';
