@@ -427,6 +427,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		background-color: var(--vscode-textPreformat-background);
 		padding: 1px 3px;
 		border-radius: 4px;
+		white-space: pre-wrap;
 	}
 }
 
@@ -690,6 +691,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
+	gap: 4px;
 }
 
 .chat-related-files .monaco-button-dropdown .monaco-text-button {
@@ -1178,6 +1180,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-wrap: wrap;
 	cursor: default;
+	gap: 4px;
 }
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {

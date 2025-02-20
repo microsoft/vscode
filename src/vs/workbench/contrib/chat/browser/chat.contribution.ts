@@ -165,6 +165,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: true
 		},
+		'chat.renderRelatedFiles': {
+			type: 'boolean',
+			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
+			default: false
+		},
 		[PromptsConfig.CONFIG_KEY]: {
 			type: 'object',
 			title: nls.localize(

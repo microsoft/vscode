@@ -6,13 +6,13 @@
 import { LANGUAGE_SELECTOR } from '../constants.js';
 import { IPromptsService } from '../service/types.js';
 import { assert } from '../../../../../../base/common/assert.js';
-import { FolderReference, NotPromptFile } from '../../promptFileReferenceErrors.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { FolderReference, NotPromptFile } from '../../promptFileReferenceErrors.js';
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
 import { IWorkbenchContributionsRegistry, Extensions } from '../../../../../common/contributions.js';
