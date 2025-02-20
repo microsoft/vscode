@@ -36,12 +36,12 @@ const GLOBAL_COMMAND_ID = `${BASE_COMMAND_ID}.global`;
 /**
  * Title of the 'create local prompt' command.
  */
-const LOCAL_COMMAND_TITLE = localize('commands.prompts.create.title.local', "Create prompt");
+const LOCAL_COMMAND_TITLE = localize('commands.prompts.create.title.local', "Create Prompt");
 
 /**
  * Title of the 'create global prompt' command.
  */
-const GLOBAL_COMMAND_TITLE = localize('commands.prompts.create.title.global', "Create prompt (global)");
+const GLOBAL_COMMAND_TITLE = localize('commands.prompts.create.title.global', "Create Global Prompt");
 
 /**
  * The command implementation.
