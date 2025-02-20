@@ -158,6 +158,7 @@
 
 	.inlineCompletions-char-insert {
 		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+		cursor: pointer;
 	}
 
 	.inlineCompletions-char-delete {
@@ -238,8 +239,14 @@
 		&.syntax-highlighted {
 			opacity: 1 !important;
 		}
-		background: var(--vscode-inlineEdit-modifiedChangedTextBackground) !important;
 		font-style: normal !important;
+	}
+
+	.inline-edit.modified-background.ghost-text,
+	.inline-edit.modified-background.ghost-text-decoration,
+	.inline-edit.modified-background.ghost-text-decoration-preview,
+	.inline-edit.modified-background.suggest-preview-text .ghost-text{
+		background: var(--vscode-inlineEdit-modifiedChangedTextBackground) !important;
 		display: inline-block !important;
 	}
 }

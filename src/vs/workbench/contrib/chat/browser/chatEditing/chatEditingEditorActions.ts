@@ -231,7 +231,9 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 				keybinding: {
 					when: EditorContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace
+					primary: _accept
+						? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
+						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace
 				},
 				menu: {
 					id: MenuId.ChatEditingEditorHunk,

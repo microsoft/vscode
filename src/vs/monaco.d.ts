@@ -4377,6 +4377,17 @@ declare namespace monaco.editor {
 		 */
 		showMarkSectionHeaders?: boolean;
 		/**
+		 * When specified, is used to create a custom section header parser regexp.
+		 * Must contain a match group named 'label' (written as (?<label>.+)) that encapsulates the section header.
+		 * Optionally can include another match group named 'separator'.
+		 * To match multi-line headers like:
+		 *   // ==========
+		 *   // My Section
+		 *   // ==========
+		 * Use a pattern like: ^={3,}\n^\/\/ *(?<label>[^\n]*?)\n^={3,}$
+		 */
+		markSectionHeaderRegex?: string;
+		/**
 		 * Font size of section headers. Defaults to 9.
 		 */
 		sectionHeaderFontSize?: number;

@@ -33,7 +33,6 @@ import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
-import { EditsAttachmentModel } from '../chatAttachmentModel.js';
 
 export interface IEditingSessionActionContext {
 	widget?: IChatWidget;
@@ -129,7 +128,7 @@ registerAction2(class AddFileToWorkingSet extends WorkingSetAction {
 			icon: Codicon.plus,
 			menu: [{
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested)),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested),
 				order: 0,
 				group: 'navigation'
 			}],
@@ -391,8 +390,8 @@ export class ChatEditingRemoveAllFilesAction extends EditingSessionAction {
 		editingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove all file attachments
-		const fileAttachments = chatWidget.attachmentModel ? [...(chatWidget.attachmentModel as EditsAttachmentModel).excludedFileAttachments, ...(chatWidget.attachmentModel as EditsAttachmentModel).fileAttachments] : [];
-		const attachmentIdsToRemove = fileAttachments.map(attachment => (attachment.value as URI).toString());
+		const fileAttachments = chatWidget.attachmentModel ? chatWidget.attachmentModel.fileAttachments : [];
+		const attachmentIdsToRemove = fileAttachments.map(attachment => attachment.toString());
 		chatWidget.attachmentModel.delete(...attachmentIdsToRemove);
 	}
 }
@@ -584,12 +583,11 @@ registerAction2(class RemoveAction extends Action2 {
 
 registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 
-	static readonly id = 'chat.openFileSnapshot';
+	static readonly id = 'chat.openFileUpdatedBySnapshot';
 	constructor() {
 		super({
 			id: OpenWorkingSetHistoryAction.id,
-			title: localize('chat.openSnapshot.label', "Open File Snapshot"),
-			precondition: ContextKeyExpr.notIn(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
+			title: localize('chat.openFileUpdatedBySnapshot.label', "Open File"),
 			menu: [{
 				id: MenuId.ChatEditingCodeBlockContext,
 				group: 'navigation',
@@ -599,7 +597,33 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const context: { sessionId: string; requestId: string; uri: URI } | undefined = args[0];
+		const context: { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined = args[0];
+		if (!context?.sessionId) {
+			return;
+		}
+
+		const editorService = accessor.get(IEditorService);
+		await editorService.openEditor({ resource: context.uri });
+	}
+});
+
+registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
+
+	static readonly id = 'chat.openFileSnapshot';
+	constructor() {
+		super({
+			id: OpenWorkingSetHistoryAction.id,
+			title: localize('chat.openSnapshot.label', "Open File Snapshot"),
+			menu: [{
+				id: MenuId.ChatEditingCodeBlockContext,
+				group: 'navigation',
+				order: 1,
+			},]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const context: { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined = args[0];
 		if (!context?.sessionId) {
 			return;
 		}
@@ -612,19 +636,12 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		if (!chatModel) {
 			return;
 		}
-		const requests = chatModel.getRequests();
-		const snapshotRequestIndex = requests.findIndex((v, i) => i > 0 && requests[i - 1]?.id === context.requestId);
-		if (snapshotRequestIndex < 1) {
-			return;
-		}
-		const snapshotRequestId = requests[snapshotRequestIndex]?.id;
-		if (snapshotRequestId) {
-			const snapshot = chatEditingService.getEditingSession(chatModel.sessionId)?.getSnapshotUri(snapshotRequestId, context.uri);
-			if (snapshot) {
-				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
-				if (isCodeEditor(editor)) {
-					editor.updateOptions({ readOnly: true });
-				}
+
+		const snapshot = chatEditingService.getEditingSession(chatModel.sessionId)?.getSnapshotUri(context.requestId, context.uri, context.stopId);
+		if (snapshot) {
+			const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot)', basename(context.uri)), options: { transient: true, activation: EditorActivation.ACTIVATE } });
+			if (isCodeEditor(editor)) {
+				editor.updateOptions({ readOnly: true });
 			}
 		}
 	}

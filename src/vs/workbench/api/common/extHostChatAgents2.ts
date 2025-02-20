@@ -32,6 +32,7 @@ import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActions.js';
 import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
+import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 
 class ChatAgentResponseStream {
 
@@ -218,7 +219,7 @@ class ChatAgentResponseStream {
 					throwIfDone(this.textEdit);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const part = new extHostTypes.ChatResponseTextEditPart(target, Array.isArray(edits) ? edits : []);
+					const part = new extHostTypes.ChatResponseTextEditPart(target, edits);
 					part.isDone = edits === true ? true : undefined;
 					const dto = typeConvert.ChatResponseTextEditPart.from(part);
 					_report(dto);
@@ -228,7 +229,7 @@ class ChatAgentResponseStream {
 					throwIfDone(this.notebookEdit);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const part = new extHostTypes.ChatResponseNotebookEditPart(target, Array.isArray(edits) ? edits : []);
+					const part = new extHostTypes.ChatResponseNotebookEditPart(target, edits);
 					const dto = typeConvert.ChatResponseNotebookEditPart.from(part);
 					_report(dto);
 					return this;
@@ -324,7 +325,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		private readonly _logService: ILogService,
 		private readonly _commands: ExtHostCommands,
 		private readonly _documents: ExtHostDocuments,
-		private readonly _languageModels: ExtHostLanguageModels
+		private readonly _languageModels: ExtHostLanguageModels,
+		private readonly _diagnostics: ExtHostDiagnostics,
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -402,7 +404,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
-		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, isProposedApiEnabled(detector.extension, 'chatReadonlyPromptReference'));
+		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, isProposedApiEnabled(detector.extension, 'chatReadonlyPromptReference'), this.getDiagnosticsWhenEnabled(detector.extension));
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -486,7 +488,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
 			const model = await this.getModelForRequest(request, agent.extension);
-			const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, isProposedApiEnabled(agent.extension, 'chatReadonlyPromptReference'));
+			const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, isProposedApiEnabled(agent.extension, 'chatReadonlyPromptReference'), this.getDiagnosticsWhenEnabled(agent.extension));
 			inFlightRequest = { requestId: requestDto.requestId, extRequest };
 			this._inFlightRequests.add(inFlightRequest);
 
@@ -538,6 +540,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 	}
 
+	private getDiagnosticsWhenEnabled(extension: Readonly<IRelaxedExtensionDescription>) {
+		if (!isProposedApiEnabled(extension, 'chatReferenceDiagnostic')) {
+			return [];
+		}
+		return this._diagnostics.getDiagnostics();
+	}
+
 	private async prepareHistoryTurns(extension: Readonly<IRelaxedExtensionDescription>, agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
 		const res: (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] = [];
 
@@ -551,7 +560,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			const hasReadonlyProposal = isProposedApiEnabled(extension, 'chatReadonlyPromptReference');
 			const varsWithoutTools = h.request.variables.variables
 				.filter(v => !v.isTool)
-				.map(v => typeConvert.ChatPromptReference.to(v, hasReadonlyProposal));
+				.map(v => typeConvert.ChatPromptReference.to(v, hasReadonlyProposal, this.getDiagnosticsWhenEnabled(extension)));
 			const toolReferences = h.request.variables.variables
 				.filter(v => v.isTool)
 				.map(typeConvert.ChatLanguageModelToolReference.to);

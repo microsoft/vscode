@@ -162,6 +162,7 @@ export interface IChatListItemRendererOptions {
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean;
+	readonly progressMessageAtBottomOfResponse?: boolean;
 }
 
 export interface IChatWidgetViewOptions {
@@ -189,7 +190,6 @@ export interface IChatWidgetViewOptions {
 	};
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
-	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
 }
 

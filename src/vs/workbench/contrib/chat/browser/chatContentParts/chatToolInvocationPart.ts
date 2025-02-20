@@ -37,6 +37,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		super();
 
 		this.domNode = dom.$('.chat-tool-invocation-part');
+		if (toolInvocation.presentation === 'hidden') {
+			return;
+		}
 
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
 		// If this turns out to be a typical pattern, we could come up with a more reusable pattern, like telling the list to rerender an element

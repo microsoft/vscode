@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.98.0",
-  "distro": "b37092a45bb95e5098cefcf6809fa6973cfd2538",
+  "distro": "18d6e62cad16da70804e341893ae344d5cdcc6ee",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -103,7 +103,7 @@
     "native-is-elevated": "0.7.0",
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
-    "node-pty": "^1.1.0-beta22",
+    "node-pty": "1.1.0-beta30",
     "open": "^8.4.2",
     "tas-client-umd": "0.2.0",
     "v8-inspect-profiler": "^0.1.1",
@@ -180,7 +180,7 @@
     "gulp-svgmin": "^4.1.0",
     "gulp-untar": "^0.0.7",
     "husky": "^0.13.1",
-    "innosetup": "6.0.5",
+    "innosetup": "^6.4.1",
     "istanbul-lib-coverage": "^3.2.0",
     "istanbul-lib-instrument": "^6.0.1",
     "istanbul-lib-report": "^3.0.0",

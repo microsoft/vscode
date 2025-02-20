@@ -15,7 +15,6 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
@@ -31,7 +30,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService, IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatMarkdownContent, IChatUndoStop } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
@@ -295,6 +294,8 @@ class CollapsedCodeBlock extends Disposable {
 		return this._uri;
 	}
 
+	private _currentDiff: IEditSessionEntryDiff | undefined;
+
 	private readonly _progressStore = this._store.add(new DisposableStore());
 
 	constructor(
@@ -314,7 +315,13 @@ class CollapsedCodeBlock extends Disposable {
 		this.element = $('.chat-codeblock-pill-widget');
 		this.element.classList.add('show-file-icons');
 		this._register(dom.addDisposableListener(this.element, 'click', async () => {
-			if (this.uri) {
+			if (this._currentDiff) {
+				this.editorService.openEditor({
+					original: { resource: this._currentDiff.originalURI },
+					modified: { resource: this._currentDiff.modifiedURI },
+					options: { transient: true },
+				});
+			} else if (this.uri) {
 				this.editorService.openEditor({ resource: this.uri });
 			}
 		}));
@@ -326,7 +333,7 @@ class CollapsedCodeBlock extends Disposable {
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => event,
 				getActions: () => {
-					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, { arg: { sessionId, requestId, uri: this.uri } });
+					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, { arg: { sessionId, requestId, uri: this.uri, stopId: inUndoStop } });
 					return getFlatContextMenuActions(menu);
 				},
 			});
@@ -366,23 +373,22 @@ class CollapsedCodeBlock extends Disposable {
 		this.element.title = this.labelService.getUriLabel(uri, { relative: false });
 
 
-		const renderDiff = (changes: IDocumentDiff | undefined) => {
+		const renderDiff = (changes: IEditSessionEntryDiff | undefined) => {
 			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
 			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
 			if (changes && !changes?.identical && !changes?.quitEarly) {
-				let removedLines = 0;
-				let addedLines = 0;
-				for (const change of changes.changes) {
-					removedLines += change.original.endLineNumberExclusive - change.original.startLineNumber;
-					addedLines += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
-				}
-				labelAdded.textContent = `+${addedLines}`;
-				labelRemoved.textContent = `-${removedLines}`;
-				const insertionsFragment = addedLines === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", addedLines);
-				const deletionsFragment = removedLines === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", removedLines);
+				this._currentDiff = changes;
+				labelAdded.textContent = `+${changes.added}`;
+				labelRemoved.textContent = `-${changes.removed}`;
+				const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);
+				const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
 				this.element.ariaLabel = this.element.title = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
 			}
 		};
+
+		const diffBetweenStops = modifiedEntry && editSession
+			? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
+			: undefined;
 
 		// Show a percentage progress that is driven by the rewrite
 
@@ -400,10 +406,8 @@ class CollapsedCodeBlock extends Disposable {
 				labelDetail.textContent = '';
 			}
 
-			if (!isStreaming && isComplete && modifiedEntry) {
-				const betweenStopDiff = editSession?.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop);
-				const changes = (betweenStopDiff || modifiedEntry.diffInfo).read(r);
-				renderDiff(changes);
+			if (!isStreaming && isComplete && diffBetweenStops) {
+				renderDiff(diffBetweenStops.read(r));
 			}
 		}));
 	}
