@@ -16,6 +16,7 @@ import type { ICompletionResource } from '../types';
 import { osIsWindows } from '../helpers/os';
 import { removeAnyFileExtension } from '../helpers/file';
 import type { EnvironmentVariable } from './api-bindings/types';
+import { asArray } from '../terminalSuggestMain';
 
 export interface IFigSpecSuggestionsResult {
 	filesRequested: boolean;
@@ -64,7 +65,7 @@ export async function getFigSuggestions(
 					result.items.push(createCompletionItem(
 						terminalContext.cursorPosition,
 						prefix,
-						{ label: { label: specLabel, description } },
+						{ label: { label: specLabel, description }, kind: vscode.TerminalCompletionItemKind.Flag },
 						description,
 						availableCommand.detail)
 					);
@@ -139,7 +140,7 @@ async function getFigSpecSuggestions(
 		filesRequested,
 		foldersRequested,
 		hasCurrentArg: !!parsedArguments.currentArg,
-		items: items,
+		items,
 	};
 }
 
@@ -234,6 +235,10 @@ export async function collectCompletionItemResult(
 		}
 		const flagsToExclude = kind === vscode.TerminalCompletionItemKind.Flag ? parsedArguments?.passedOptions.map(option => option.name).flat() : undefined;
 		if (Array.isArray(specArgs)) {
+			let itemKind = kind;
+			if (parsedArguments?.currentArg?.suggestions?.length === specArgs.length) {
+				itemKind = vscode.TerminalCompletionItemKind.OptionValue;
+			}
 			for (const item of specArgs) {
 				const suggestionLabels = getFigSuggestionLabel(item);
 				if (!suggestionLabels?.length) {
@@ -250,7 +255,7 @@ export async function collectCompletionItemResult(
 							{ label },
 							undefined,
 							typeof item === 'string' ? item : item.description,
-							kind
+							itemKind
 						)
 					);
 				}
@@ -260,6 +265,10 @@ export async function collectCompletionItemResult(
 				if (flagsToExclude?.includes(label)) {
 					continue;
 				}
+				let itemKind = kind;
+				if (typeof item === 'object' && 'args' in item && (asArray(item.args ?? [])).length > 0) {
+					itemKind = vscode.TerminalCompletionItemKind.Option;
+				}
 				items.push(
 					createCompletionItem(
 						terminalContext.cursorPosition,
@@ -267,7 +276,7 @@ export async function collectCompletionItemResult(
 						{ label },
 						undefined,
 						typeof item === 'string' ? item : item.description,
-						kind
+						itemKind,
 					)
 				);
 			}

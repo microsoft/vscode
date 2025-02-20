@@ -91,11 +91,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _kindToIconMap = new Map<number, ThemeIcon>([
 		[TerminalCompletionItemKind.File, Codicon.file],
 		[TerminalCompletionItemKind.Folder, Codicon.folder],
-		[TerminalCompletionItemKind.Flag, Codicon.symbolProperty],
 		[TerminalCompletionItemKind.Method, Codicon.symbolMethod],
-		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable],
 		[TerminalCompletionItemKind.Alias, Codicon.replace],
+		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable],
+		[TerminalCompletionItemKind.Option, Codicon.symbolEnum],
+		[TerminalCompletionItemKind.OptionValue, Codicon.symbolEnumMember],
+		[TerminalCompletionItemKind.Flag, Codicon.symbolProperty],
 		[TerminalCompletionItemKind.InlineSuggestion, Codicon.star],
+		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, Codicon.star],
 	]);
 
 	private readonly _inlineCompletion: ITerminalCompletion = {
