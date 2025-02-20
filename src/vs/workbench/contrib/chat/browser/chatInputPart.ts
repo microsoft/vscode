@@ -1207,7 +1207,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
 		await this.renderAttachedContext(chatWidget);
-		if (chatEditingSession) {
+		if (chatEditingSession && this.configurationService.getValue('chat.renderRelatedFiles')) {
 			this.renderChatRelatedFiles(chatEditingSession, this.relatedFilesContainer);
 		}
 
