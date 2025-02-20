@@ -39,7 +39,6 @@ import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 
-
 export interface IDocumentDiff2 extends IDocumentDiff {
 
 	originalModel: ITextModel;
