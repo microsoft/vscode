@@ -138,12 +138,10 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 					name: 'bar',
 					generators: [
 						{
-							script: () => ['echo "a\nb\nc\nd\n"'],
-							postProcess: (out) => out.split('\n').map(item => {
-								return {
-									name: `echo "a\nb\nc\nd\n"`.split('\n').join('')
-								};
-							})
+							script: () => ['echo abcd'],
+							postProcess: (out) => out.split('').map(item => {
+								return { name: item };
+							}).filter(i => !!i)
 						}
 					]
 				}
@@ -151,10 +149,10 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		],
 		availableCommands: 'foo',
 		testSpecs: [
-			{ input: 'foo |', expectedCompletions: ['echo "abcd"'] },
-			{ input: 'foo a|', expectedCompletions: ['echo "abcd"'] },
-			{ input: 'foo b|', expectedCompletions: ['echo "abcd"'] },
-			{ input: 'foo c|', expectedCompletions: ['echo "abcd"'] },
+			{ input: 'foo |', expectedCompletions: ['e', 'c', 'h', 'o', ' ', 'a', 'b', 'c', 'd'] },
+			{ input: 'foo a|', expectedCompletions: ['e', 'c', 'h', 'o', ' ', 'a', 'b', 'c', 'd'] },
+			{ input: 'foo b|', expectedCompletions: ['e', 'c', 'h', 'o', ' ', 'a', 'b', 'c', 'd'] },
+			{ input: 'foo c|', expectedCompletions: ['e', 'c', 'h', 'o', ' ', 'a', 'b', 'c', 'd'] },
 		]
 	},
 	{
@@ -169,7 +167,7 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 						{
 							custom: async (tokens: string[], executeCommand: Fig.ExecuteCommandFunction, generatorContext: Fig.GeneratorContext) => {
 								if (tokens.length) {
-									return [{ name: 'a' }, { name: 'c' }];
+									return tokens.map(token => ({ name: token }));
 								}
 								executeCommand({ command: 'echo', args: ['a\tb\nc\td'] });
 							}
@@ -180,10 +178,10 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		],
 		availableCommands: 'foo',
 		testSpecs: [
-			{ input: 'foo |', expectedCompletions: ['a', 'c'] },
-			{ input: 'foo a|', expectedCompletions: ['a', 'c'] },
-			{ input: 'foo b|', expectedCompletions: ['a', 'c'] },
-			{ input: 'foo c|', expectedCompletions: ['a', 'c'] },
+			{ input: 'foo |', expectedCompletions: ['foo'] },
+			{ input: 'foo a|', expectedCompletions: ['a', 'foo'] },
+			{ input: 'foo b|', expectedCompletions: ['b', 'foo'] },
+			{ input: 'foo c|', expectedCompletions: ['c', 'foo'] },
 		]
 	}
 ];

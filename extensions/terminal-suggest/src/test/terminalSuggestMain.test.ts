@@ -120,15 +120,15 @@ suite('Terminal Suggest', () => {
 
 
 class MockFigExecuteExternals implements IFigExecuteExternals {
-	public async executeCommand(input: Fig.ExecuteCommandInput, timeout?: number): Promise<Fig.ExecuteCommandOutput> {
-		return this.executeCommandTimeout(input, 0);
+	public async executeCommand(input: Fig.ExecuteCommandInput): Promise<Fig.ExecuteCommandOutput> {
+		return this.executeCommandTimeout(input);
 	}
-	async executeCommandTimeout(input: Fig.ExecuteCommandInput, timeout: number): Promise<Fig.ExecuteCommandOutput> {
+	async executeCommandTimeout(input: Fig.ExecuteCommandInput): Promise<Fig.ExecuteCommandOutput> {
 		const command = [input.command, ...input.args].join(' ');
 		try {
 			return {
 				status: 0,
-				stdout: input.command.split('\n').join(' '),
+				stdout: input.command,
 				stderr: '',
 			};
 		} catch (err) {
