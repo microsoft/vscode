@@ -169,7 +169,7 @@ async function createCommandDescriptionsCache(): Promise<void> {
 		}
 		const formattedArgs = lines.slice(0, argsEnd - 1).join('\n');
 		const args = (await execAsync(`pandoc --from markdown --to plain <<< "${formattedArgs}"`)).stdout.trim();
-		const description = lines.slice(argsEnd).join('\n').trim();
+		const description = lines.slice(argsEnd).map(e => formatLineAsMarkdown(e)).join('\n').trim();
 		if (shortDescription) {
 			cachedCommandDescriptions.set(command, {
 				shortDescription,
@@ -187,6 +187,14 @@ async function createCommandDescriptionsCache(): Promise<void> {
 	zshBuiltinsCommandDescriptionsCache = cachedCommandDescriptions;
 }
 
+function formatLineAsMarkdown(text: string): string {
+	// Detect any inline code blocks which use the form `code' (backtick, single quote) and convert
+	// them to standard markdown `code` (backtick, backtick). This doesn't attempt to remove
+	// formatting inside the code blocks. We probably need to use the original .troff format to do
+	// this
+	const formattedText = text.replace(/\\`([^']+)\\'/g, '`$1`');
+	return formattedText;
+}
 
 const main = async () => {
 	try {
