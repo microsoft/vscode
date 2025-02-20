@@ -240,6 +240,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _getEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
+		uri = CellUri.parse(uri)?.notebook ?? uri;
 		return this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
 	}
 
@@ -248,6 +249,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	public readEntry(uri: URI, reader: IReader | undefined): IModifiedFileEntry | undefined {
+		uri = CellUri.parse(uri)?.notebook ?? uri;
 		return this._entriesObs.read(reader).find(e => isEqual(e.modifiedURI, uri));
 	}
 
