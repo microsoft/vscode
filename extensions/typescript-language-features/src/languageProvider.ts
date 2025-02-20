@@ -19,12 +19,27 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import TypingsStatus from './ui/typingsStatus';
 import { Disposable } from './utils/dispose';
 import { isWeb, isWebAndHasSharedArrayBuffers, supportsReadableByteStreams } from './utils/platform';
+import { typeScriptDocumentSymbolProvider } from './languageFeatures/documentSymbol';
 
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
 
 export default class LanguageProvider extends Disposable {
+
+	// TEST CODE
+
+	private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
+	private readonly _interfaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 100 });
+	private readonly _functionLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70 });
+	private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30 });
+
+	// PROD CODE
+
+	// private readonly _classLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 22 });
+	// private readonly _interfaceLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 22 });
+	// private readonly _functionLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 20 });
+	// private readonly _methodLineHeightDecorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 20 });
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -39,7 +54,81 @@ export default class LanguageProvider extends Disposable {
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
 
-		client.onReady(() => this.registerProviders());
+		client.onReady(async () => {
+			await this.registerProviders();
+			vscode.window.onDidChangeVisibleTextEditors(e => {
+				e.forEach(async editor => {
+					this._registerDecorationsForEditor(editor);
+				});
+			});
+			vscode.window.visibleTextEditors.forEach(async editor => {
+				this._registerDecorationsForEditor(editor);
+			});
+			vscode.workspace.onDidChangeTextDocument(_ => {
+				const activeTextEditor = vscode.window.activeTextEditor;
+				if (!activeTextEditor) {
+					return;
+				}
+				this._registerDecorationsForEditor(activeTextEditor);
+			});
+		});
+	}
+
+	private async _registerDecorationsForEditor(editor: vscode.TextEditor): Promise<void> {
+
+		if (!typeScriptDocumentSymbolProvider) {
+			return;
+		}
+
+		const document = editor.document;
+		const token = new vscode.CancellationTokenSource().token;
+		const result = await typeScriptDocumentSymbolProvider.provideDocumentSymbols(document, token);
+		if (result === undefined) {
+			return;
+		}
+
+		const classRanges: vscode.Range[] = [];
+		this._getRanges(editor, result, vscode.SymbolKind.Class, classRanges);
+
+		const interfaceRanges: vscode.Range[] = [];
+		this._getRanges(editor, result, vscode.SymbolKind.Interface, interfaceRanges);
+
+		const functionRanges: vscode.Range[] = [];
+		this._getRanges(editor, result, vscode.SymbolKind.Function, functionRanges);
+
+		const methodRanges: vscode.Range[] = [];
+		this._getRanges(editor, result, vscode.SymbolKind.Method, methodRanges);
+
+		editor.setDecorations(this._classLineHeightDecorationType, classRanges);
+		editor.setDecorations(this._interfaceLineHeightDecorationType, interfaceRanges);
+		editor.setDecorations(this._functionLineHeightDecorationType, functionRanges);
+		editor.setDecorations(this._methodLineHeightDecorationType, methodRanges);
+
+
+		/* TEST CODE
+		editor.setDecorations(this._classFontSizeDecorationType1, classRangesFonts1);
+		editor.setDecorations(this._interfaceFontSizeDecorationType1, interfaceRangesFonts1);
+		editor.setDecorations(this._functionFontSizeDecorationType1, functionRangesFonts1);
+		editor.setDecorations(this._methodFontSizeDecorationType1, methodRangesFonts1);
+		editor.setDecorations(this._classFontSizeDecorationType2, classRangesFonts2);
+		editor.setDecorations(this._interfaceFontSizeDecorationType2, interfaceRangesFonts2);
+		editor.setDecorations(this._functionFontSizeDecorationType2, functionRangesFonts2);
+		editor.setDecorations(this._methodFontSizeDecorationType2, methodRangesFonts2);
+		editor.setDecorations(this._classFontSizeDecorationTypeInjectedText, classRangesFonts2);
+		editor.setDecorations(this._interfaceFontSizeDecorationTypeInjectedText, interfaceRangesFonts2);
+		editor.setDecorations(this._functionFontSizeDecorationTypeInjectedText, functionRangesFonts2);
+		editor.setDecorations(this._methodFontSizeDecorationTypeInjectedText, methodRangesFonts2);
+		*/
+	}
+
+	private _getRanges(activeTextEditor: vscode.TextEditor, symbols: vscode.DocumentSymbol[], kind: vscode.SymbolKind, rangesForLineHeight: vscode.Range[]) {
+		for (const symbol of symbols) {
+			if (symbol.kind === kind) {
+				const line = symbol.range.start.line;
+				rangesForLineHeight.push(new vscode.Range(line, 0, line, 0));
+			}
+			this._getRanges(activeTextEditor, symbol.children, kind, rangesForLineHeight);
+		}
 	}
 
 	private get documentSelector(): DocumentSelector {
