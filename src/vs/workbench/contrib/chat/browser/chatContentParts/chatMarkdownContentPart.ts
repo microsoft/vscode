@@ -130,7 +130,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					const info: IChatCodeBlockInfo = new class {
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
 						readonly codeBlockIndex = globalIndex;
-						readonly element = element;
+						readonly elementId = element.id;
 						readonly isStreaming = !rendererOptions.renderCodeBlockPills;
 						codemapperUri = undefined; // will be set async
 						public get uri() {
@@ -165,7 +165,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					const info: IChatCodeBlockInfo = new class {
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
 						readonly codeBlockIndex = globalIndex;
-						readonly element = element;
+						readonly elementId = element.id;
 						readonly isStreaming = !isCodeBlockComplete;
 						readonly codemapperUri = codemapperUri;
 						public get uri() {
