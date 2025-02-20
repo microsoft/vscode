@@ -22,6 +22,7 @@ import { gitTestSuiteSpec } from './completions/upstream/git.test';
 import { osIsWindows } from '../helpers/os';
 import codeCompletionSpec from '../completions/code';
 import { figGenericTestSuites } from './fig.test';
+import { mockExecuteCommandTimeout } from '../fig/execute';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -101,7 +102,9 @@ suite('Terminal Suggest', () => {
 						getTokenType(terminalContext, undefined),
 						testPaths.cwd,
 						{},
-						'testName'
+						'testName',
+						undefined,
+						mockExecuteCommandTimeout
 					);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
@@ -114,3 +117,5 @@ suite('Terminal Suggest', () => {
 		});
 	}
 });
+
+

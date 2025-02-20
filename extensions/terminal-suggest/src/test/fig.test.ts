@@ -127,5 +127,63 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 			{ input: 'foo --bar b|', expectedCompletions: ['a', 'b', 'c'] },
 			{ input: 'foo --bar c|', expectedCompletions: ['a', 'b', 'c'] },
 		]
+	},
+	{
+		name: 'Fig script generator',
+		completionSpecs: [
+			{
+				name: 'foo',
+				description: 'Foo',
+				args: {
+					name: 'bar',
+					generators: [
+						{
+							script: () => ['echo "abcd"'],
+							postProcess: (out) => out.split('\n').map(item => {
+								const [name, description] = item.split('\t');
+								return { name, description };
+							})
+						}
+					]
+				}
+			}
+		],
+		availableCommands: 'foo',
+		testSpecs: [
+			{ input: 'foo |', expectedCompletions: ['echo "abcd"'] },
+			{ input: 'foo a|', expectedCompletions: ['echo "abcd"'] },
+			{ input: 'foo b|', expectedCompletions: ['echo "abcd"'] },
+			{ input: 'foo c|', expectedCompletions: ['echo "abcd"'] },
+		]
+	},
+	{
+		name: 'Fig custom generator',
+		completionSpecs: [
+			{
+				name: 'foo',
+				description: 'Foo',
+				args: {
+					name: 'bar',
+					generators: [
+						{
+							custom: async (tokens: string[], executeCommand: Fig.ExecuteCommandFunction, generatorContext: Fig.GeneratorContext) => {
+								if (tokens.length) {
+									return [{ name: 'a', description: 'b' }, { name: 'c', description: 'd' }];
+								}
+								executeCommand({ command: 'echo', args: ['a\tb\nc\td'] });
+							}
+						}
+					]
+				}
+			}
+		],
+		availableCommands: 'foo',
+		testSpecs: [
+			{ input: 'foo |', expectedCompletions: ['a', 'c'] },
+			{ input: 'foo a|', expectedCompletions: ['a', 'c'] },
+			{ input: 'foo b|', expectedCompletions: ['a', 'c'] },
+			{ input: 'foo c|', expectedCompletions: ['a', 'c'] },
+		]
 	}
 ];
+

@@ -36,7 +36,16 @@ const getGeneratorContext = (state: AutocompleteState): GeneratorContext => {
 export const createGeneratorState = (
 	// setNamed: NamedSetState<AutocompleteState>,
 	state: AutocompleteState,
-): { triggerGenerators: ((result: ArgumentParserResult) => GeneratorState[]) } => {
+	executeCommandTimeout?: (
+		input: Fig.ExecuteCommandInput,
+		timeout?: number
+	) => Promise<Fig.ExecuteCommandOutput>,
+): {
+	triggerGenerators: ((result: ArgumentParserResult, executeCommandTimeout?: (
+		input: Fig.ExecuteCommandInput,
+		timeout?: number
+	) => Promise<Fig.ExecuteCommandOutput>) => GeneratorState[]);
+} => {
 	// function updateGenerator(
 	// 	generatorState: GeneratorState,
 	// 	getUpdate: () => Partial<GeneratorState>,
@@ -76,8 +85,10 @@ export const createGeneratorState = (
 	// 	}
 	// 	return generatorState;
 	// }
-
-	const triggerGenerator = (currentState: GeneratorState) => {
+	const triggerGenerator = (currentState: GeneratorState, executeCommandTimeout?: (
+		input: Fig.ExecuteCommandInput,
+		timeout?: number
+	) => Promise<Fig.ExecuteCommandOutput>) => {
 		console.info('Triggering generator', { currentState });
 		const { generator, context } = currentState;
 		let request: Promise<Fig.Suggestion[] | undefined>;
@@ -91,7 +102,8 @@ export const createGeneratorState = (
 			request = getScriptSuggestions(
 				generator,
 				context,
-				// getSetting<number>(SETTINGS.SCRIPT_TIMEOUT, 5000),
+				undefined, // getSetting<number>(SETTINGS.SCRIPT_TIMEOUT, 5000),
+				executeCommandTimeout
 			);
 		}
 		else {
@@ -118,6 +130,10 @@ export const createGeneratorState = (
 
 	const triggerGenerators = (
 		parserResult: ArgumentParserResult,
+		executeCommandTimeout?: (
+			input: Fig.ExecuteCommandInput,
+			timeout?: number
+		) => Promise<Fig.ExecuteCommandOutput>,
 	): GeneratorState[] => {
 		const {
 			parserResult: { currentArg: previousArg, searchTerm: previousSearchTerm },
@@ -182,7 +198,7 @@ export const createGeneratorState = (
 			const result = previousGeneratorState?.result || [];
 			const generatorState = { generator, context, result, loading: true };
 
-			const getTriggeredState = () => triggerGenerator(generatorState);
+			const getTriggeredState = () => triggerGenerator(generatorState, executeCommandTimeout);
 			if (currentArg?.debounce) {
 				sleep(
 					typeof currentArg.debounce === 'number' && currentArg.debounce > 0

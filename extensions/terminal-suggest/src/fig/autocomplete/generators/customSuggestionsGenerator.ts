@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { executeCommand } from '../../api-binding-wrappers/executeCommandWrappers';
+
+import { executeCommand } from '../../execute';
 import {
 	runCachedGenerator,
 	GeneratorContext,

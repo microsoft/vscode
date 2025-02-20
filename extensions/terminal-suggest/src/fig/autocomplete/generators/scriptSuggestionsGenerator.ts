@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { executeCommandTimeout } from '../../api-binding-wrappers/executeCommand';
+
+import { executeCommandTimeout } from '../../execute';
 import {
 	GeneratorContext,
 	haveContextForGenerator,
@@ -14,6 +15,10 @@ export async function getScriptSuggestions(
 	generator: Fig.Generator,
 	context: GeneratorContext,
 	defaultTimeout: number = 5000,
+	executeCommandTimeoutCustom?: (
+		input: Fig.ExecuteCommandInput,
+		timeout?: number
+	) => Promise<Fig.ExecuteCommandOutput>
 ): Promise<Fig.Suggestion[] | undefined> {
 	const { script, postProcess, splitOn } = generator;
 	if (!script) {
@@ -62,10 +67,15 @@ export async function getScriptSuggestions(
 		const { stdout } = await runCachedGenerator(
 			generator,
 			context,
-			() => executeCommandTimeout(executeCommandInput, timeout),
+			() => {
+				if (executeCommandTimeoutCustom) {
+					return executeCommandTimeoutCustom(executeCommandInput, 0);
+				}
+				return executeCommandTimeout(executeCommandInput, timeout);
+			},
 			generator.cache?.cacheKey ?? JSON.stringify(executeCommandInput),
 		);
-
+		//
 		let result: Array<Fig.Suggestion | string | null> | undefined = [];
 
 		// If we have a splitOn function

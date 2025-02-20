@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { osIsWindows } from '../../helpers/os';
-import { spawnHelper2 } from '../../shell/common';
-import { withTimeout } from '../shared/utils';
+import { osIsWindows } from '../helpers/os';
+import { spawnHelper2 } from '../shell/common';
+import { withTimeout } from './shared/utils';
 
 export const cleanOutput = (output: string) =>
 	output
@@ -48,6 +48,28 @@ export const executeCommandTimeout = async (
 			status: result.exitCode,
 			stdout: cleanStdout,
 			stderr: cleanStderr,
+		};
+	} catch (err) {
+		console.error(`Error running shell command '${command}'`, { err });
+		throw err;
+	}
+};
+
+
+export const executeCommand: Fig.ExecuteCommandFunction = (args) =>
+	executeCommandTimeout(args);
+
+
+export const mockExecuteCommandTimeout = async (
+	input: Fig.ExecuteCommandInput,
+	timeout = 0,
+): Promise<Fig.ExecuteCommandOutput> => {
+	const command = [input.command, ...input.args].join(' ');
+	try {
+		return {
+			status: 0,
+			stdout: input.command.split('\n').join(' '),
+			stderr: '',
 		};
 	} catch (err) {
 		console.error(`Error running shell command '${command}'`, { err });
