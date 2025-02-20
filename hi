@@ -1,0 +1,43 @@
+import requests
+import pandas as pd
+import numpy as np
+import re
+
+def decode_secret_message(doc_url):
+    # Fetch the content from the Google Doc URL
+    response = requests.get(doc_url)
+    if response.status_code != 200:
+        print("Failed to retrieve document")
+        return
+
+    # Extract lines of text from the document
+    lines = response.text.split("\n")
+
+    # Dictionary to store character positions
+    char_map = {}
+
+    # Parse the document for character positions
+    for line in lines:
+        match = re.match(r'(\d+),(\d+)\s+([A-Z█])', line.strip())
+        if match:
+            x, y, char = int(match.group(1)), int(match.group(2)), match.group(3)
+            char_map[(x, y)] = char
+
+    # Determine grid size
+    max_x = max(pos[0] for pos in char_map.keys())
+    max_y = max(pos[1] for pos in char_map.keys())
+
+    # Create an empty grid filled with spaces
+    grid = [[" " for _ in range(max_x + 1)] for _ in range(max_y + 1)]
+
+    # Fill in the characters
+    for (x, y), char in char_map.items():
+        grid[y][x] = char  # y first since it's the row index
+
+    # Print the grid to display the secret message
+    for row in grid:
+        print("".join(row))
+
+# Example usage
+doc_url = "https://docs.google.com/document/d/e/2PACX-1vQGUck9HIFCyezsrBSnmENk5ieJuYwpt7YHYEzeNJkIb9OSDdx-ov2nRNReKQyey-cwJOoEKUhLmN9z/pub"
+decode_secret_message(doc_url)
