@@ -58,8 +58,11 @@ declare module 'vscode' {
 			 * for decoding the underlying buffer to text. If omitted, the encoding
 			 * will be guessed based on the file content and/or the editor settings.
 			 *
-			 * *Note* that opening a text document with a different encoding that is
-			 * already opened has the potential of changing the text contents of
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding.
+			 *
+			 * *Note* that opening a text document that was already opened with a
+			 * different encoding has the potential of changing the text contents of
 			 * the text document.
 			 */
 			encoding?: string;
@@ -79,8 +82,11 @@ declare module 'vscode' {
 			 * for decoding the underlying buffer to text. If omitted, the encoding
 			 * will be guessed based on the file content and/or the editor settings.
 			 *
-			 * *Note* that opening a text document with a different encoding that is
-			 * already opened has the potential of changing the text contents of
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding.
+			 *
+			 * *Note* that opening a text document that was already opened with a
+			 * different encoding has the potential of changing the text contents of
 			 * the text document.
 			 */
 			encoding?: string;
@@ -121,7 +127,8 @@ declare module 'vscode' {
 		 * @param content The content to decode as a `Uint8Array`.
 		 * @param uri The URI that represents the file. This information
 		 * is used to figure out the encoding related configuration for the file.
-		 * @param options Allows to explicitly pick the encoding to use.
+		 * @param options Allows to explicitly pick the encoding to use. See {@link TextDocument.encoding}
+		 * for more information about valid values for encoding.
 		 * @returns A thenable that resolves to the decoded `string`.
 		 */
 		export function decode(content: Uint8Array, uri: Uri | undefined, options?: { encoding: string }): Thenable<string>;
@@ -135,7 +142,8 @@ declare module 'vscode' {
 		 * @param content The content to decode as a `string`.
 		 * @param uri The URI that represents the file. This information
 		 * is used to figure out the encoding related configuration for the file.
-		 * @param options Allows to explicitly pick the encoding to use.
+		 * @param options Allows to explicitly pick the encoding to use. See {@link TextDocument.encoding}
+		 * for more information about valid values for encoding.
 		 * @returns A thenable that resolves to the encoded `Uint8Array`.
 		 */
 		export function encode(content: string, uri: Uri | undefined, options?: { encoding: string }): Thenable<Uint8Array>;
