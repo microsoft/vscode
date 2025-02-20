@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getActiveDocument } from '../../../../base/browser/dom.js';
+import { Dimension } from '../../../../base/browser/dom.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { codiconsLibrary } from '../../../../base/common/codiconsLibrary.js';
 import { Lazy } from '../../../../base/common/lazy.js';
@@ -58,11 +58,13 @@ export class TerminalIconPicker extends Disposable {
 				this._iconSelectBox.dispose();
 			}));
 			this._iconSelectBox.clearInput();
+
+			// Adjust hover positioning logic
 			const hoverWidget = this._hoverService.showHover({
 				content: this._iconSelectBox.domNode,
-				target: getActiveDocument().body,
+				target: this._iconSelectBox.domNode, // Use the icon picker itself as the target
 				position: {
-					hoverPosition: HoverPosition.BELOW,
+					hoverPosition: HoverPosition.BELOW, // Ensure correct placement
 				},
 				persistence: {
 					sticky: true,
@@ -71,9 +73,12 @@ export class TerminalIconPicker extends Disposable {
 					showPointer: true
 				}
 			}, true);
+
 			if (hoverWidget) {
 				this._register(hoverWidget);
 			}
+
+			// Ensure proper layout and focus
 			this._iconSelectBox.layout(dimension);
 			this._iconSelectBox.focus();
 		});
