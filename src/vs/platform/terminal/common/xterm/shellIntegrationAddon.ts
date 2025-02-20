@@ -233,7 +233,8 @@ const enum VSCodeOscPt {
 	 *
 	 * - `Environment` - A stringified JSON object containing the shell's complete environment. The
 	 *    variables and values use the same encoding rules as the {@link CommandLine} sequence.
-	 * - `Nonce` - An _mandatory_ nonce to ensure the sequence is not malicious.
+	 * - `Nonce` - An _mandatory_ nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -242,7 +243,10 @@ const enum VSCodeOscPt {
 	/**
 	 * Delete a single environment variable from cached environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
