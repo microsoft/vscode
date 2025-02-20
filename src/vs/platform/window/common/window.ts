@@ -429,3 +429,8 @@ export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 
 export const DEFAULT_WINDOW_SIZE = { width: 1200, height: 800 } as const;
 export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;
+
+export interface IUnresponsiveWindowSettings {
+	readonly sampleInterval: number;
+	readonly samplePeriod: number;
+}

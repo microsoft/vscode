@@ -420,6 +420,10 @@ export class Delayer<T> implements IDisposable {
 		}
 	}
 
+	set delay(value: number) {
+		this.defaultDelay = value;
+	}
+
 	private cancelTimeout(): void {
 		this.deferred?.dispose();
 		this.deferred = null;
