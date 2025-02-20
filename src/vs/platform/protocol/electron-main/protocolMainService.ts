@@ -104,14 +104,34 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 			}
 		}
 
+		// In OSS, evict resources from the memory cache in the renderer process
+		// Refs https://github.com/microsoft/vscode/issues/148541#issuecomment-2670891511
+		let CacheControlheaders: Record<string, string> | undefined;
+		if (!this.environmentService.isBuilt) {
+			CacheControlheaders = {
+				'Cache-Control': 'no-cache, no-store',
+			};
+		}
+
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
-			return callback({ path, headers });
+			return callback({
+				path,
+				headers: {
+					...headers,
+					...CacheControlheaders
+				}
+			});
 		}
 
 		// then check by validExtensions
 		if (this.validExtensions.has(extname(path).toLowerCase())) {
-			return callback({ path });
+			return callback({
+				path,
+				headers: {
+					...CacheControlheaders
+				}
+			});
 		}
 
 		// finally block to load the resource
