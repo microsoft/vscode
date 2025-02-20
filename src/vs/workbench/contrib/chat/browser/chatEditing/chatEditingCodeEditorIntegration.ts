@@ -672,6 +672,7 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 	private _position: IOverlayWidgetPosition | undefined;
 	private _lastStartLineNumber: number | undefined;
 
+
 	constructor(
 		private readonly _diffInfo: IDocumentDiff2,
 		private readonly _change: DetailedLineRangeMapping,
