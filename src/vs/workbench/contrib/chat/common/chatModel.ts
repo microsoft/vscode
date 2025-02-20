@@ -534,42 +534,24 @@ export class Response extends AbstractResponse implements IDisposable {
 			// merge edits for the same file no matter when they come in
 			const notebookUri = CellUri.parse(progress.uri)?.notebook;
 			const uri = notebookUri ?? progress.uri;
-			const groupKind = progress.kind === 'textEdit' && !notebookUri ? 'textEditGroup' : 'notebookEditGroup';
 			let found = false;
+			const groupKind = progress.kind === 'textEdit' && !notebookUri ? 'textEditGroup' : 'notebookEditGroup';
+			const edits: any = groupKind === 'textEditGroup' ? progress.edits : progress.edits.map(edit => TextEdit.isTextEdit(edit) ? { uri: progress.uri, edit } : edit);
 			for (let i = 0; !found && i < this._responseParts.length; i++) {
 				const candidate = this._responseParts[i];
 				if (candidate.kind === groupKind && !candidate.done && isEqual(candidate.uri, uri)) {
-					if (candidate.kind === 'textEditGroup') {
-						candidate.edits.push(progress.edits as any);
-					} else if (candidate.kind === 'notebookEditGroup') {
-						progress.edits.forEach(edit => {
-							if (TextEdit.isTextEdit(edit)) {
-								candidate.edits.push({ uri: progress.uri, edit });
-							} else {
-								candidate.edits.push(edit);
-							}
-						});
-					}
+					candidate.edits.push(edits);
 					candidate.done = progress.done;
 					found = true;
 				}
 			}
 			if (!found) {
-				if (groupKind === 'textEditGroup') {
-					this._responseParts.push({
-						kind: groupKind,
-						uri,
-						edits: [progress.edits as any],
-						done: progress.done
-					});
-				} else {
-					this._responseParts.push({
-						kind: groupKind,
-						uri,
-						edits: progress.edits.map(edit => TextEdit.isTextEdit(edit) ? { uri: progress.uri, edit } : edit),
-						done: progress.done
-					});
-				}
+				this._responseParts.push({
+					kind: groupKind,
+					uri,
+					edits,
+					done: progress.done
+				});
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'progressTask') {
