@@ -25,7 +25,7 @@ const USE_COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyE;
 /**
  * Command ID for the "Use Prompt" command.
  */
-const USE_PROMPT_COMMAND_ID = 'use-prompt';
+const USE_PROMPT_COMMAND_ID = 'workbench.command.prompts.use';
 
 /**
  * Implementation of the "Use Prompt" command. The command works in the following way.
@@ -74,7 +74,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 appendToCommandPalette(
 	{
 		id: USE_PROMPT_COMMAND_ID,
-		title: localize('commands.prompts.use-prompt', "Use Prompt"),
+		title: localize('commands.prompts.use.title', "Use Prompt"),
 		category: CHAT_CATEGORY,
 	},
 );
