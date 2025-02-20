@@ -574,6 +574,13 @@ export class TestMenuService implements IMenuService {
 	resetHiddenStates(): void {
 		// nothing
 	}
+	getHiddenState(id: MenuId, commandId: string): boolean {
+		return false;
+	}
+
+	setHiddenState(id: MenuId, commandId: string, value: boolean): void {
+		// nothing
+	}
 }
 
 export class TestFileDialogService implements IFileDialogService {
