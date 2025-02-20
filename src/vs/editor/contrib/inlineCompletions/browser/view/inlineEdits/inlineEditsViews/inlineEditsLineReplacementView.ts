@@ -100,6 +100,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
 		const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
+		const verticalScrollbarWidth = this._editor.layoutInfoVerticalScrollbarWidth.read(reader);
 		const scrollLeft = this._editor.scrollLeft.read(reader);
 		const scrollTop = this._editor.scrollTop.read(reader);
 		const editorLeftOffset = contentLeft - scrollLeft;
@@ -140,7 +141,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			lowerBackground,
 			lowerText,
 			padding: PADDING,
-			minContentWidthRequired: maxLineWidth + PADDING * 2,
+			minContentWidthRequired: prefixLeftOffset + maxLineWidth + PADDING * 2 + verticalScrollbarWidth,
 		};
 	});
 

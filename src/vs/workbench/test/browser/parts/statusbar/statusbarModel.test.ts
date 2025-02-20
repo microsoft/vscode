@@ -232,5 +232,37 @@ suite('Workbench status bar model', () => {
 		assert.strictEqual(model.getEntries(StatusbarAlignment.RIGHT).length, 3);
 	});
 
+	test('entry with reference to other entry respects secondary sorting (existent)', () => {
+		const container = document.createElement('div');
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
+
+		model.add({ id: 'ref', alignment: StatusbarAlignment.LEFT, name: 'ref', priority: { primary: 0, secondary: 0 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'entry2', alignment: StatusbarAlignment.RIGHT, name: '2', priority: { primary: { id: 'ref', alignment: StatusbarAlignment.RIGHT }, secondary: 2 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'entry1', alignment: StatusbarAlignment.RIGHT, name: '1', priority: { primary: { id: 'ref', alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'entry3', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { id: 'ref', alignment: StatusbarAlignment.RIGHT }, secondary: 3 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+
+		const entries = model.entries;
+		assert.strictEqual(entries.length, 4);
+		assert.strictEqual(entries[0].id, 'ref');
+		assert.strictEqual(entries[1].id, 'entry3');
+		assert.strictEqual(entries[2].id, 'entry2');
+		assert.strictEqual(entries[3].id, 'entry1');
+	});
+
+	test('entry with reference to other entry respects secondary sorting (nonexistent)', () => {
+		const container = document.createElement('div');
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
+
+		model.add({ id: 'entry2', alignment: StatusbarAlignment.RIGHT, name: '2', priority: { primary: { id: 'ref', alignment: StatusbarAlignment.RIGHT }, secondary: 2 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'entry1', alignment: StatusbarAlignment.RIGHT, name: '1', priority: { primary: { id: 'ref', alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: 'entry3', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { id: 'ref', alignment: StatusbarAlignment.RIGHT }, secondary: 3 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+
+		const entries = model.entries;
+		assert.strictEqual(entries.length, 3);
+		assert.strictEqual(entries[0].id, 'entry3');
+		assert.strictEqual(entries[1].id, 'entry2');
+		assert.strictEqual(entries[2].id, 'entry1');
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

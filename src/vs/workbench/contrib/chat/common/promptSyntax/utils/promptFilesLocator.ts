@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptFilesConfig } from '../config.js';
-import { PROMPT_FILE_EXTENSION } from '../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { dirname, extUri } from '../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
+import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -71,7 +71,7 @@ export class PromptFilesLocator {
 	 */
 	public getConfigBasedSourceFolders(): readonly URI[] {
 		const paths = new ResourceSet();
-		const sourceFolders = PromptFilesConfig.promptSourceFolders(this.configService);
+		const sourceFolders = PromptsConfig.promptSourceFolders(this.configService);
 
 		// otherwise for each folder provided in the configuration, create
 		// a URI per each folder in the current workspace
@@ -154,13 +154,13 @@ export class PromptFilesLocator {
 			}
 
 			for (const child of stat.children) {
-				const { name, resource, isDirectory } = child;
+				const { resource, isDirectory } = child;
 
 				if (isDirectory) {
 					continue;
 				}
 
-				if (!name.endsWith(PROMPT_FILE_EXTENSION)) {
+				if (!isPromptFile(resource)) {
 					continue;
 				}
 

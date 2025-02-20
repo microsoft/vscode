@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptContentsProvider } from './types.js';
-import { PROMPT_FILE_EXTENSION } from '../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FailedToResolveContentsStream, ParseError } from '../../promptFileReferenceErrors.js';
 import { cancelPreviousCalls } from '../../../../../../base/common/decorators/cancelPreviousCalls.js';
@@ -145,6 +145,6 @@ export abstract class PromptContentsProviderBase<
 	 * Check if the current URI points to a prompt snippet.
 	 */
 	public isPromptSnippet(): boolean {
-		return this.uri.path.endsWith(PROMPT_FILE_EXTENSION);
+		return isPromptFile(this.uri);
 	}
 }

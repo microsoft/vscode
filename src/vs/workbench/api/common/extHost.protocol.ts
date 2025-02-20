@@ -23,6 +23,7 @@ import { IChange } from '../../../editor/common/diff/legacyLinesDiffComputer.js'
 import * as editorCommon from '../../../editor/common/editorCommon.js';
 import { StandardTokenType } from '../../../editor/common/encodedTokenAttributes.js';
 import * as languages from '../../../editor/common/languages.js';
+import { CompletionItemLabel } from '../../../editor/common/languages.js';
 import { CharacterPair, CommentRule, EnterAction } from '../../../editor/common/languages/languageConfiguration.js';
 import { EndOfLineSequence } from '../../../editor/common/model.js';
 import { IModelChangedEvent } from '../../../editor/common/model/mirrorTextModel.js';
@@ -84,7 +85,7 @@ import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../servic
 import * as search from '../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
-import { TerminalCompletionItem, TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
+import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
@@ -237,8 +238,8 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 }
 
 export interface MainThreadDocumentsShape extends IDisposable {
-	$tryCreateDocument(options?: { language?: string; content?: string }): Promise<UriComponents>;
-	$tryOpenDocument(uri: UriComponents): Promise<UriComponents>;
+	$tryCreateDocument(options?: { language?: string; content?: string; encoding?: string }): Promise<UriComponents>;
+	$tryOpenDocument(uri: UriComponents, options?: { encoding?: string }): Promise<UriComponents>;
 	$trySaveDocument(uri: UriComponents): Promise<boolean>;
 }
 
@@ -2428,11 +2429,22 @@ export interface ITerminalCompletionContextDto {
 	allowFallbackCompletions: boolean;
 }
 
+export interface ITerminalCompletionItemDto {
+	label: string | CompletionItemLabel;
+	detail?: string;
+	documentation?: string | IMarkdownString;
+	icon?: ThemeIcon | undefined;
+	isFile?: boolean | undefined;
+	isDirectory?: boolean | undefined;
+	isKeyword?: boolean | undefined;
+	replacementIndex: number;
+	replacementLength: number;
+}
 
 export interface ITerminalCompletionProvider {
 	id: string;
 	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<TerminalCompletionItem[] | TerminalCompletionListDto<TerminalCompletionItem> | undefined>;
+	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<TerminalCompletionListDto<ITerminalCompletionItemDto> | undefined>;
 	triggerCharacters?: string[];
 	isBuiltin?: boolean;
 }
@@ -2440,7 +2452,7 @@ export interface ITerminalCompletionProvider {
  * Represents a collection of {@link CompletionItem completion items} to be presented
  * in the editor.
  */
-export class TerminalCompletionListDto<T extends TerminalCompletionItem = TerminalCompletionItem> {
+export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = ITerminalCompletionItemDto> {
 
 	/**
 	 * Resources should be shown in the completions list
@@ -2498,7 +2510,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
-	$provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto, token: CancellationToken): Promise<TerminalCompletionItem[] | TerminalCompletionListDto | undefined>;
+	$provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto, token: CancellationToken): Promise<TerminalCompletionListDto | undefined>;
 }
 
 export interface ExtHostTerminalShellIntegrationShape {

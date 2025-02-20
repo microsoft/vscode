@@ -70,14 +70,14 @@ export class GutterIndicatorMenuContent {
 			})),
 			option(createOptionArgs({ id: 'reject', title: localize('reject', "Reject"), icon: Codicon.close, commandId: hideInlineCompletionId })),
 			separator(),
+			this._host.extensionCommands?.map(c => c && c.length > 0 ? [
+				...c.map((c, idx) => option(createOptionArgs({ id: c.id + '_' + idx, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments }))),
+				separator()
+			] : []),
 			this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
 				option(createOptionArgs({ id: 'showExpanded', title: localize('showExpanded', "Show Expanded"), icon: Codicon.expandAll, commandId: toggleShowCollapsedId })) :
 				option(createOptionArgs({ id: 'showCollapsed', title: localize('showCollapsed', "Show Collapsed"), icon: Codicon.collapseAll, commandId: toggleShowCollapsedId }))
 			),
-			this._host.extensionCommands?.map(c => c && c.length > 0 ? [
-				...c.map(c => option(createOptionArgs({ id: c.id, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments }))),
-				separator()
-			] : []),
 			option(createOptionArgs({ id: 'settings', title: localize('settings', "Settings"), icon: Codicon.gear, commandId: 'workbench.action.openSettings', commandArgs: ['@tag:nextEditSuggestions'] })),
 			this._host.action.map(action => action ? [
 				separator(),
@@ -86,7 +86,7 @@ export class GutterIndicatorMenuContent {
 						id: action.id,
 						label: action.title,
 						enabled: true,
-						run: () => this._commandService.executeCommand(action.id),
+						run: () => this._commandService.executeCommand(action.id, ...(action.arguments ?? [])),
 						class: undefined,
 						tooltip: action.tooltip ?? action.title
 					}],
