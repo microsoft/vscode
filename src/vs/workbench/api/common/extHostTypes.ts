@@ -4716,6 +4716,10 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	}
 }
 
+export class ChatReferenceDiagnostic implements vscode.ChatReferenceDiagnostic {
+	constructor(public readonly diagnostics: [vscode.Uri, vscode.Diagnostic[]][]) { }
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
