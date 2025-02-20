@@ -251,10 +251,11 @@ export class WorkbenchToolBar extends ToolBar {
 						}
 						primaryActions.push(action.hideActions.hide);
 
-					} else if (action instanceof ToggleMenuAction) {
+					} else if (action instanceof ToggleMenuAction && primary.length > 0 && this._resetMenu) {
+						// Only offered if caller provided a reset menu (to persist state on) and at least one primary button remains (from which to access Show 'More Actions...')
 						primaryActions.push(toAction({
 							id: 'label',
-							label: localize('hide.moreActions', 'Hide \'{0}\'', action.label),
+							label: localize('hideToggleMenu', 'Hide \'{0}\'', action.label),
 							run: () => {
 								this.isToggleMenuHidden = true;
 								if (this._resetMenu) {
@@ -297,7 +298,7 @@ export class WorkbenchToolBar extends ToolBar {
 					if (this.isToggleMenuHidden) {
 						actions.push(toAction({
 							id: 'showToggleMenu',
-							label: localize('showToggleMenu', "Show 'More Actions...'"),
+							label: localize('showToggleMenu', 'Show \'{0}\'', this.toggleMenuAction.label),
 							run: () => {
 								this.isToggleMenuHidden = false;
 								if (this._resetMenu) {
