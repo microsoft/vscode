@@ -122,7 +122,9 @@ export class LocalSearchProvider implements ISearchProvider {
 				null;
 		};
 
-		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
+		const filterMatches = preferencesModel
+			.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher)
+			.filter(match => match.matchType !== SettingMatchType.None);
 		const exactMatch = filterMatches.find(m => m.score === LocalSearchProvider.EXACT_MATCH_SCORE);
 		if (exactMatch) {
 			return Promise.resolve({
@@ -207,6 +209,10 @@ export class SettingMatches {
 		if (this.useNewKeyMatchingSearch) {
 			if (keyMatchingWords.size === queryWords.size) {
 				this.matchType |= SettingMatchType.AllWordsKeyMatch;
+			} else if (keyMatchingWords.size >= 2) {
+				// At least two words matched.
+				this.matchType |= SettingMatchType.KeyMatch;
+				this.keyMatchScore = keyMatchingWords.size;
 			}
 		} else {
 			// Fall back to the old algorithm.
