@@ -15,6 +15,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ViewContainerLocationToString, ViewContainerLocation, IViewDescriptorService } from '../../../common/views.js';
+import { PearAIChatExtensionId, PearAISearchExtensionId, PearAIMemoryExtensionId, PearAIRooExtensionId, PearAIView, PEARAI_VIEWS} from '../../../services/views/pearai/pearaiViewsShared.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -27,6 +28,31 @@ const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize(
 const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
 const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localize('togglePanelOffIcon', 'Icon to toggle the panel off when it is on.'));
 const panelOffIcon = registerIcon('panel-layout-icon-off', Codicon.layoutPanelOff, localize('togglePanelOnIcon', 'Icon to toggle the panel on when it is off.'));
+
+export class SwitchToPearAIIntegrationAction extends Action2 {
+  static readonly ID = 'workbench.action.switchToPearAIIntegrationIconBar';
+
+  constructor() {
+    super({
+      id: SwitchToPearAIIntegrationAction.ID,
+    title: localize2('switchToPearAIView', "Switch to PearAI Integration"),
+    category: Categories.View,
+    f1: true
+    });
+  }
+
+  override async run(accessor: ServicesAccessor, args?: { view: PearAIView }): Promise<void> {
+    const view = args?.view || 'chat'; // default to chat if no view specified
+    const viewsService = accessor.get(IViewsService);
+    const layoutService = accessor.get(IWorkbenchLayoutService);
+
+    if (!layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+    layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+    }
+
+    await viewsService.openView(PEARAI_VIEWS[view], true);
+  }
+}
 
 export class TogglePanelAction extends Action2 {
 
@@ -391,10 +417,6 @@ class MoveViewsBetweenPanelsAction extends Action2 {
 // Move Pear AI extension to PearAI Side Bar (Auxiliary Bar) (we want PearAI Side Bar to be default loaction for extension)
 class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
     static readonly ID = 'workbench.action.movePearExtensionToAuxBar';
-	readonly PearAIChatExtensionId;
-	readonly PearAISearchExtensionId;
-	readonly PearAIMemoryExtensionId;
-	readonly PearAIRooExtensionId;
 
     constructor() {
         super(ViewContainerLocation.Sidebar, ViewContainerLocation.AuxiliaryBar, {
@@ -403,10 +425,6 @@ class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
             category: Categories.View,
             f1: true
         });
-        this.PearAIChatExtensionId = 'workbench.view.extension.pearaiChat';
-		this.PearAISearchExtensionId = 'workbench.view.extension.pearaiSearch';
-		this.PearAIMemoryExtensionId = 'workbench.view.extension.pearaiMemory';
-		this.PearAIRooExtensionId = 'workbench.view.extension.pearai-roo-cline';
     }
 
     override run(accessor: ServicesAccessor): void {
@@ -414,34 +432,34 @@ class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
         const layoutService = accessor.get(IWorkbenchLayoutService);
         const viewsService = accessor.get(IViewsService);
 
-        const chatViewContainer = viewDescriptorService.getViewContainerById(this.PearAIChatExtensionId);
-		const searchViewContainer = viewDescriptorService.getViewContainerById(this.PearAISearchExtensionId);
-		const memoryViewContainer = viewDescriptorService.getViewContainerById(this.PearAIMemoryExtensionId);
-		const agentViewContainer = viewDescriptorService.getViewContainerById(this.PearAIRooExtensionId);
+        const chatViewContainer = viewDescriptorService.getViewContainerById(PearAIChatExtensionId);
+        const searchViewContainer = viewDescriptorService.getViewContainerById(PearAISearchExtensionId);
+        const memoryViewContainer = viewDescriptorService.getViewContainerById(PearAIMemoryExtensionId);
+        const agentViewContainer = viewDescriptorService.getViewContainerById(PearAIRooExtensionId);
 
-		const destination = ViewContainerLocation.AuxiliaryBar;
+        const destination = ViewContainerLocation.AuxiliaryBar;
 
         if (chatViewContainer) {
             viewDescriptorService.moveViewContainerToLocation(chatViewContainer, destination, undefined, this.desc.id);
             layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
             viewsService.openViewContainer(chatViewContainer.id, true);
         }
-		if (searchViewContainer) {
-            viewDescriptorService.moveViewContainerToLocation(searchViewContainer, destination, undefined, this.desc.id);
-            layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-            // viewsService.openViewContainer(searchViewContainer.id, true);
+        if (searchViewContainer) {
+                viewDescriptorService.moveViewContainerToLocation(searchViewContainer, destination, undefined, this.desc.id);
+                layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+                // viewsService.openViewContainer(searchViewContainer.id, true);
+            }
+        if (memoryViewContainer) {
+                viewDescriptorService.moveViewContainerToLocation(memoryViewContainer, destination, undefined, this.desc.id);
+                layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+                // viewsService.openViewContainer(memoryViewContainer.id, true);
+            }
+        if (agentViewContainer) {
+                viewDescriptorService.moveViewContainerToLocation(agentViewContainer, destination, undefined, this.desc.id);
+                layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+                // viewsService.openViewContainer(agentViewContainer.id, true);
+            }
         }
-		if (memoryViewContainer) {
-            viewDescriptorService.moveViewContainerToLocation(memoryViewContainer, destination, undefined, this.desc.id);
-            layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-            // viewsService.openViewContainer(memoryViewContainer.id, true);
-        }
-		if (agentViewContainer) {
-            viewDescriptorService.moveViewContainerToLocation(agentViewContainer, destination, undefined, this.desc.id);
-            layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-            // viewsService.openViewContainer(agentViewContainer.id, true);
-        }
-    }
 }
 
 registerAction2(MovePearExtensionToAuxBarAction);

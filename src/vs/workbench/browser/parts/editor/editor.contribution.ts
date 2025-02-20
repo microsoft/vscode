@@ -73,6 +73,7 @@ import { DynamicEditorConfigurations } from './editorConfiguration.js';
 import { ConfigureEditorAction, ConfigureEditorTabsAction, EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction, ZenHideEditorTabsAction, ZenShowMultipleEditorTabsAction, ZenShowSingleEditorTabAction } from '../../actions/layoutActions.js';
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { SwitchToPearAIIntegrationAction } from '../panel/panelActions.js';
 
 //#region Editor Registrations
 
@@ -308,6 +309,9 @@ registerAction2(MoveEditorGroupToNewWindowAction);
 registerAction2(CopyEditorGroupToNewWindowAction);
 registerAction2(RestoreEditorsToMainWindowAction);
 registerAction2(NewEmptyEditorWindowAction);
+
+// PearAI IconBar
+registerAction2(SwitchToPearAIIntegrationAction);
 
 const quickAccessNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
