@@ -73,6 +73,7 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 			}
 		}
 		content.push(AccessibilityHelpNLS.activeEditorState);
+		content.push(AccessibilityHelpNLS.toolbar);
 
 		const chatEditInfo = getChatEditInfo(this._keybindingService, this._contextKeyService, this._editor);
 		if (chatEditInfo) {

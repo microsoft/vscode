@@ -17,9 +17,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { Location, SymbolKinds } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
-import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { DefinitionAction } from '../../../../editor/contrib/gotoSymbol/browser/goToCommands.js';
 import * as nls from '../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -36,6 +34,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
@@ -74,12 +73,11 @@ export class InlineAnchorWidget extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageService languageService: ILanguageService,
 		@IMenuService menuService: IMenuService,
 		@IModelService modelService: IModelService,
-		@ITextModelService textModelService: ITextModelService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super();
 
@@ -133,7 +131,15 @@ export class InlineAnchorWidget extends Disposable {
 				label;
 
 			const fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-			iconClasses = getIconClasses(modelService, languageService, location.uri, fileKind);
+			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
+
+			iconClasses = recomputeIconClasses();
+
+			this._register(themeService.onDidFileIconThemeChange(() => {
+				iconEl.classList.remove(...iconClasses);
+				iconClasses = recomputeIconClasses();
+				iconEl.classList.add(...iconClasses);
+			}));
 
 			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
 			fileService.stat(location.uri)

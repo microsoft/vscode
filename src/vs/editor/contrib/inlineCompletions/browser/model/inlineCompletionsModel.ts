@@ -128,7 +128,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (!!this?._selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
 			const { column, lines } = ghostText.parts[0];
 
-			const firstLine = lines[0];
+			const firstLine = lines[0].line;
 
 			const indentationEndColumn = this.textModel.getLineIndentColumn(ghostText.lineNumber);
 			const inIndentation = column <= indentationEndColumn;
@@ -795,8 +795,9 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	}
 
-	private _jumpedTo = observableValue(this, false);
-	private _inAcceptFlow = observableValue(this, false);
+	private readonly _jumpedTo = observableValue(this, false);
+	private readonly _inAcceptFlow = observableValue(this, false);
+	public readonly inAcceptFlow: IObservable<boolean> = this._inAcceptFlow;
 
 	public jump(): void {
 		const s = this.inlineEditState.get();

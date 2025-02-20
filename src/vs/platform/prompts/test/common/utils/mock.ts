@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertOneOf } from '../../../../../../../base/common/types.js';
+import { assertOneOf } from '../../../../../base/common/types.js';
 
 /**
  * Mocks an `TObject` with the provided `overrides`.
