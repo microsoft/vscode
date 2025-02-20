@@ -65,10 +65,9 @@ export const askToSelectPrompt = async (
 		'Prompt files list must not be empty.',
 	);
 
-	const fileOptions = promptFiles.map((promptFile) => {
-		return createPickItem(promptFile, labelService);
+	const fileOptions = promptFiles.map(({ uri }) => {
+		return createPickItem(uri, labelService);
 	});
-
 
 	// if a resource is provided, create an `activeItem` for it to pre-select
 	// it in the UI, and sort the list so the active item appears at the top
@@ -77,6 +76,15 @@ export const askToSelectPrompt = async (
 		activeItem = fileOptions.find((file) => {
 			return extUri.isEqual(file.value, resource);
 		});
+
+		// if no item for the `resource` was found, it means that the resource is not
+		// in the list of prompt files, so add a new item for it; this ensures that
+		// the currently active prompt file is always available in the selection dialog,
+		// even if it is not included in the prompts list otherwise(from location setting)
+		if (!activeItem) {
+			activeItem = createPickItem(resource, labelService);
+			fileOptions.push(activeItem);
+		}
 
 		fileOptions.sort((file1, file2) => {
 			if (extUri.isEqual(file1.value, resource)) {
@@ -147,7 +155,7 @@ export const askToSelectPrompt = async (
  * Creates a quick pick item for a prompt.
  */
 const createPickItem = (
-	{ uri }: IPromptPath,
+	uri: URI,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
 	const fileWithoutExtension = getCleanPromptName(uri);
