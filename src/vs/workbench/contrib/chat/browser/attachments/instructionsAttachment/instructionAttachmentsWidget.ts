@@ -8,7 +8,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { InstructionsAttachmentWidget } from './instructionsAttachment.js';
+import { InstructionsAttachmentWidget } from './instructionsAttachmentWidget.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatInstructionAttachmentsModel } from '../../chatAttachmentModel/chatInstructionAttachmentsModel.js';
