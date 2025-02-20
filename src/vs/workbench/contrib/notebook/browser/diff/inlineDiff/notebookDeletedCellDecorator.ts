@@ -51,7 +51,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 	public apply(diffInfo: CellDiffInfo[], original: NotebookTextModel): void {
 		this.clear();
 
-		let currentIndex = 0;
+		let currentIndex = -1;
 		const deletedCellsToRender: { cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]; index: number } = { cells: [], index: 0 };
 		diffInfo.forEach(diff => {
 			if (diff.type === 'delete') {
