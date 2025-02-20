@@ -10,6 +10,7 @@ import { GeneratorState, GeneratorContext } from '../generators/helpers';
 import { sleep } from '../../shared/utils';
 import type { ArgumentParserResult } from '../../autocomplete-parser/parseArguments';
 import { getCustomSuggestions } from '../generators/customSuggestionsGenerator';
+import { IFigExecuteExternals } from '../../execute';
 
 export const shellContextSelector = ({
 	figState,
@@ -36,7 +37,10 @@ const getGeneratorContext = (state: AutocompleteState): GeneratorContext => {
 export const createGeneratorState = (
 	// setNamed: NamedSetState<AutocompleteState>,
 	state: AutocompleteState,
-): { triggerGenerators: ((result: ArgumentParserResult) => GeneratorState[]) } => {
+	executeExternals?: IFigExecuteExternals
+): {
+	triggerGenerators: (result: ArgumentParserResult, executeExternals: IFigExecuteExternals) => GeneratorState[];
+} => {
 	// function updateGenerator(
 	// 	generatorState: GeneratorState,
 	// 	getUpdate: () => Partial<GeneratorState>,
@@ -76,8 +80,7 @@ export const createGeneratorState = (
 	// 	}
 	// 	return generatorState;
 	// }
-
-	const triggerGenerator = (currentState: GeneratorState) => {
+	const triggerGenerator = (currentState: GeneratorState, executeExternals: IFigExecuteExternals) => {
 		console.info('Triggering generator', { currentState });
 		const { generator, context } = currentState;
 		let request: Promise<Fig.Suggestion[] | undefined>;
@@ -91,11 +94,12 @@ export const createGeneratorState = (
 			request = getScriptSuggestions(
 				generator,
 				context,
-				// getSetting<number>(SETTINGS.SCRIPT_TIMEOUT, 5000),
+				undefined, // getSetting<number>(SETTINGS.SCRIPT_TIMEOUT, 5000),
+				executeExternals
 			);
 		}
 		else {
-			request = getCustomSuggestions(generator, context);
+			request = getCustomSuggestions(generator, context, executeExternals);
 			// filepaths/folders templates are now a sugar for two custom generators, we need to filter
 			// the suggestion created by those two custom generators
 			// if (generator.filterTemplateSuggestions) {
@@ -118,6 +122,7 @@ export const createGeneratorState = (
 
 	const triggerGenerators = (
 		parserResult: ArgumentParserResult,
+		executeExternals: IFigExecuteExternals,
 	): GeneratorState[] => {
 		const {
 			parserResult: { currentArg: previousArg, searchTerm: previousSearchTerm },
@@ -182,7 +187,7 @@ export const createGeneratorState = (
 			const result = previousGeneratorState?.result || [];
 			const generatorState = { generator, context, result, loading: true };
 
-			const getTriggeredState = () => triggerGenerator(generatorState);
+			const getTriggeredState = () => triggerGenerator(generatorState, executeExternals);
 			if (currentArg?.debounce) {
 				sleep(
 					typeof currentArg.debounce === 'number' && currentArg.debounce > 0

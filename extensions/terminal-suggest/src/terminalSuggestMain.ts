@@ -22,6 +22,7 @@ import { getTokenType, TokenType } from './tokens';
 import type { ICompletionResource } from './types';
 import { createCompletionItem } from './helpers/completionItem';
 import { getFigSuggestions } from './fig/figInterface';
+import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
 
 // TODO: remove once API is finalized
 export const enum TerminalShellType {
@@ -206,7 +207,8 @@ export async function getCompletionItemsFromSpecs(
 	shellIntegrationCwd: vscode.Uri | undefined,
 	env: Record<string, string>,
 	name: string,
-	token?: vscode.CancellationToken
+	token?: vscode.CancellationToken,
+	executeExternals?: IFigExecuteExternals,
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; cwd?: vscode.Uri }> {
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
@@ -223,7 +225,7 @@ export async function getCompletionItemsFromSpecs(
 		}
 	}
 
-	const result = await getFigSuggestions(specs, terminalContext, availableCommands, prefix, tokenType, shellIntegrationCwd, env, name, precedingText, token);
+	const result = await getFigSuggestions(specs, terminalContext, availableCommands, prefix, tokenType, shellIntegrationCwd, env, name, precedingText, executeExternals ?? { executeCommand, executeCommandTimeout }, token);
 	if (result) {
 		hasCurrentArg ||= result.hasCurrentArg;
 		filesRequested ||= result.filesRequested;
