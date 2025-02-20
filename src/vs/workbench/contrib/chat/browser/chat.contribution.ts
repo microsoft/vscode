@@ -95,6 +95,7 @@ import { ChatEditingEditorContextKeys } from './chatEditing/chatEditingEditorCon
 import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
 import { PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
 import { DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
+import { registerChatToolActions } from './actions/chatToolActions.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -438,6 +439,7 @@ registerNewChatActions();
 registerChatContextActions();
 registerChatDeveloperActions();
 registerChatEditorActions();
+registerChatToolActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
 
