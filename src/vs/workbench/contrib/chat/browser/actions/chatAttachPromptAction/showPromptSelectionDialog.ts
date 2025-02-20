@@ -82,14 +82,21 @@ const createPickItem = (
  * Creates a placeholder text to show in the prompt selection dialog.
  */
 const createPlaceholderText = (widget?: IChatWidget): string => {
-	let text = localize('selectPromptPlaceholder', 'Select a prompt to use');
+	let text = localize(
+		'commands.prompts.use.select-dialog.placeholder',
+		'Select a prompt to use',
+	);
 
 	// if no widget reference is provided, add the note about
 	// the `alt`/`option` key modifier users can use
 	if (!widget) {
 		const key = (isWindows || isLinux) ? 'alt' : 'option';
 
-		text += ' ' + localize('selectPromptPlaceholder.holdAltOption', '(hold `{0}` to use in Edits)', key);
+		text += ' ' + localize(
+			'commands.prompts.use.select-dialog.alt-modifier-note',
+			'(hold `{0}` to use in Edits)',
+			key,
+		);
 	}
 
 	return text;
@@ -122,7 +129,10 @@ export const showSelectPromptDialog = async (
 	if (files.length === 0) {
 		const docsQuickPick: WithUriValue<IQuickPickItem> = {
 			type: 'item',
-			label: localize('noPromptFilesFoundTooltipLabel', 'Learn how to create reusable prompts'),
+			label: localize(
+				'commands.prompts.use.select-dialog.empty.docs-label',
+				'Learn how to create reusable prompts',
+			),
 			description: DOCUMENTATION_URL,
 			tooltip: DOCUMENTATION_URL,
 			value: URI.parse(DOCUMENTATION_URL),
@@ -131,7 +141,10 @@ export const showSelectPromptDialog = async (
 		const result = await quickInputService.pick(
 			[docsQuickPick],
 			{
-				placeHolder: localize('noPromptFilesFoundLabel', 'No prompts found.'),
+				placeHolder: localize(
+					'commands.prompts.use.select-dialog.empty.placeholder',
+					'No prompts found.',
+				),
 				canPickMany: false,
 			});
 
