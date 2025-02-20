@@ -33,10 +33,10 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
+import { IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -314,7 +314,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 						entry = { seen: 0, streaming: codeBlockUrisSeen[codeBlockIndex]!.streaming! };
 						codeBlockUrisSeen[codeBlockIndex]!.streaming = undefined;
 					} else {
-						entry = { seen: 0, streaming: session.startStreamingEdits(part.uri, responseModel, undoStop) };
+						entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, responseModel, undoStop) };
 					}
 
 					editsSeen[i] = entry;
@@ -326,7 +326,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
-						entry.streaming.pushNotebook(newEdits as ICellEditOperation[]);
+						newEdits.forEach(edit => {
+							if (TextEdit.isTextEdit(edit)) {
+								// Not possible, as Notebooks would have a different type.
+								return;
+							} else if (isCellTextEditOperation(edit)) {
+								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit]);
+							} else {
+								entry.streaming.pushNotebook([edit]);
+							}
+						});
 					} else if (part.kind === 'textEditGroup') {
 						entry.streaming.pushText(newEdits as TextEdit[]);
 					}
