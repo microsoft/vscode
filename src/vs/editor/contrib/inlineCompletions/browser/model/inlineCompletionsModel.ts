@@ -757,7 +757,7 @@ export class InlineCompletionsModel extends Disposable {
 					completion.source.inlineCompletions,
 					completion.sourceInlineCompletion,
 					acceptedLength,
-					{ kind, acceptedLength: acceptedLength, addedLength, versionBeforeAccept }
+					{ kind, acceptedLength: acceptedLength, addedLength, versionBeforeAccept, replacedRange: Range.fromPositions(ghostTextPos) }
 				);
 			}
 		} finally {
