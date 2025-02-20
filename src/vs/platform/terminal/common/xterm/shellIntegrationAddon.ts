@@ -251,9 +251,11 @@ const enum VSCodeOscPt {
 	/**
 	 * The start of the collecting user's environment variables individually.
 	 *
-	 * Format: `OSC 633 ; EnvSingleStart [; <Clear>] ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleStart ; <Clear> [; <Nonce>]`
 	 *
 	 * - `Clear` - An _mandatory_ flag indicating any cached environment variables will be cleared.
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -262,7 +264,10 @@ const enum VSCodeOscPt {
 	/**
 	 * Sets an entry of single environment variable to transactional pending map of environment variables.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -272,7 +277,10 @@ const enum VSCodeOscPt {
 	 * The end of the collecting user's environment variables individually.
 	 * Clears any pending environment variables and fires an event that contains user's environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEnd ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleEnd [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */

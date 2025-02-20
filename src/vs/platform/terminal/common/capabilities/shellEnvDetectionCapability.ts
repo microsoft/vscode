@@ -8,84 +8,96 @@ import { IShellEnvDetectionCapability, TerminalCapability, TerminalShellIntegrat
 import { Emitter } from '../../../../base/common/event.js';
 import { equals } from '../../../../base/common/objects.js';
 
+export interface IShellEnv {
+	value: Map<string, string>;
+	isTrusted: boolean;
+}
+
 export class ShellEnvDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
 	readonly type = TerminalCapability.ShellEnvDetection;
 
-	private _pendingEnv: Map<string, string> | undefined;
-	private _env: Map<string, string> = new Map();
-	private _isTrusted: boolean = false;
-	get env(): { value: { [key: string]: string }; isTrusted: boolean } {
-		return { value: Object.fromEntries(this._env), isTrusted: this._isTrusted };
+	private _pendingEnv: IShellEnv | undefined;
+	private _env: IShellEnv = { value: new Map(), isTrusted: true };
+
+	get env(): TerminalShellIntegrationEnvironment {
+		return this._createStateObject();
 	}
 
 	private readonly _onDidChangeEnv = this._register(new Emitter<TerminalShellIntegrationEnvironment>());
 	readonly onDidChangeEnv = this._onDidChangeEnv.event;
 
 	setEnvironment(env: { [key: string]: string | undefined }, isTrusted: boolean): void {
-		if (equals(this._env, env)) {
+		if (equals(this.env.value, env)) {
 			return;
 		}
 
-		this._env.clear();
+		this._env.value.clear();
 		for (const [key, value] of Object.entries(env)) {
 			if (value !== undefined) {
-				this._env.set(key, value);
+				this._env.value.set(key, value);
 			}
 		}
+		this._env.isTrusted = isTrusted;
 
-		// Convert to event and fire event
-		this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
+		this._fireEnvChange();
 	}
 
 	startEnvironmentSingleVar(clear: boolean, isTrusted: boolean): void {
 		if (clear) {
-			this._env.clear();
-			this._pendingEnv?.clear();
+			this._pendingEnv = {
+				value: new Map(),
+				isTrusted
+			};
+		} else {
+			this._pendingEnv = {
+				value: new Map(this._env.value),
+				isTrusted: this._env.isTrusted && isTrusted
+			};
 		}
-		this._pendingEnv = new Map();
+
 	}
+
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
+		if (!this._pendingEnv) {
+			return;
+		}
 		if (key !== undefined && value !== undefined) {
-			this._pendingEnv?.set(key, value);
+			this._pendingEnv.value.set(key, value);
+			this._pendingEnv.isTrusted &&= isTrusted;
 		}
 	}
+
 	endEnvironmentSingleVar(isTrusted: boolean): void {
 		if (!this._pendingEnv) {
 			return;
 		}
-		this.applyEnvironmentDiff(this._pendingEnv, isTrusted);
+		this._pendingEnv.isTrusted &&= isTrusted;
+		const envDiffers = !equals(this._env, this._pendingEnv);
+		if (envDiffers) {
+			this._env = this._pendingEnv;
+			this._fireEnvChange();
+		}
 		this._pendingEnv = undefined;
 	}
 
 	deleteEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void {
-		if (key !== undefined && value !== undefined) {
-			this._env.delete(key);
-			this._pendingEnv?.delete(key);
-			this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
-		}
-		return;
-	}
-
-	// Make sure to update this.env to the latest, fire event if there is a diff
-	applyEnvironmentDiff(env: Map<string, string>, isTrusted: boolean): void {
-
-		let envDiffers: boolean = false;
-
-		for (const [key, value] of env.entries()) {
-			if (this._env.has(key) && this._env.get(key) === value) {
-				// Do nothing
-			} else if (this._env.has(key) && value !== this._env.get(key)) {
-				this._env.set(key, value);
-				envDiffers = true;
-			} else if (!this._env.has(key)) {
-				this._env.set(key, value);
-				envDiffers = true;
-			}
-		}
-
-		if (envDiffers) {
-			this._onDidChangeEnv.fire({ value: Object.fromEntries(this._env), isTrusted: isTrusted });
+		if (!this._pendingEnv) {
 			return;
 		}
+		if (key !== undefined && value !== undefined) {
+			this._pendingEnv.value.delete(key);
+			this._pendingEnv.isTrusted &&= isTrusted;
+		}
+	}
+
+	private _fireEnvChange(): void {
+		this._onDidChangeEnv.fire(this._createStateObject());
+	}
+
+	private _createStateObject(): TerminalShellIntegrationEnvironment {
+		return {
+			value: Object.fromEntries(this._env.value),
+			isTrusted: this._env.isTrusted
+		};
 	}
 }
