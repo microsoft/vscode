@@ -24,6 +24,6 @@ export class VsCodeOutputLogger extends Disposable implements ILogger {
 	}
 
 	public trace(title: string, message: string, data?: any): void {
-		this._outputChannel.trace(`${title} ${message}`, ...(data ? [JSON.stringify(data, null, 4)] : []));
+		this._outputChannel.trace(`${title}: ${message}`, ...(data ? [JSON.stringify(data, null, 4)] : []));
 	}
 }
