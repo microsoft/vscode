@@ -77,6 +77,7 @@ declare module 'vscode' {
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
 
 		/**
+		 * Is called when an inline completion item was rejected.
 		 * @param completionItem The completion item that was rejected.
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
