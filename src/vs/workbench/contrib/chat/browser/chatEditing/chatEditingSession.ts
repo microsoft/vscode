@@ -708,10 +708,17 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		let didComplete = false;
 
 		return {
-			pushText: edits => {
+			pushText: (edits) => {
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
 						await this._acceptEdits(resource, edits, false, responseModel);
+					}
+				});
+			},
+			pushNotebookCellText: (cell, edits) => {
+				sequencer.queue(async () => {
+					if (!this.isDisposed) {
+						await this._acceptEdits(cell, edits, false, responseModel);
 					}
 				});
 			},
