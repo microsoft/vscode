@@ -157,9 +157,7 @@ export interface IWhitespaceChangeAccessor {
 }
 
 export interface ISpecialLineHeightChangeAccessor {
-
-	insertSpecialLineHeight(decoration: string, lineNumber: number, lineHeight: number): void;
-	changeSpecialLineHeight(decoration: string, lineNumber: number, lineHeight: number): void;
+	insertOrChangeSpecialLineHeight(decoration: string, lineNumber: number, lineHeight: number): void;
 	removeSpecialLineHeight(decoration: string): void;
 }
 

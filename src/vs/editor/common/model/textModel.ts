@@ -1437,17 +1437,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean): void | model.IValidEditOperation[] {
 
-		// probably should get rid of the changes in this method, because this should be handled in the linesLayout
 		const oldLineCount = this._buffer.getLineCount();
-		const linesWithSpecialHeightsAffectedByEdits: { startLine: number; endLine: number }[] = [];
-		for (const operation of rawOperations) {
-			const editStartOffset = this.getOffsetAt(operation.range.getStartPosition());
-			const editEndOffset = this.getOffsetAt(new Position(oldLineCount, this.getLineMaxColumn(oldLineCount)));
-			linesWithSpecialHeightsAffectedByEdits.push(...this._decorationsTree.getLinesWithSpecialHeightsInInterval(this, editStartOffset, editEndOffset, 0).map(range => ({
-				startLine: range.startLineNumber,
-				endLine: range.endLineNumber
-			})));
-		}
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
 		const newLineCount = this._buffer.getLineCount();
 
@@ -1465,7 +1455,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			}
 
 			const rawContentChanges: ModelRawChange[] = [];
-			const linesWithSpecialHeightsAfterEdits: { startLine: number; endLine: number }[] = [...linesWithSpecialHeightsAffectedByEdits];
 
 			this._increaseVersionId();
 
@@ -1495,17 +1484,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					0
 				);
 
-				const numberOfLinesWithSpecialHeights = linesWithSpecialHeightsAfterEdits.length;
-				for (let i = 0; i < numberOfLinesWithSpecialHeights; i++) {
-					const specialLines = linesWithSpecialHeightsAfterEdits[i];
-					// Only when the change range end is before or equal the range of the special line height, can the special line height remain the same after the edit
-					if (change.range.endLineNumber <= specialLines.startLine) {
-						linesWithSpecialHeightsAfterEdits.splice(i, 1, {
-							startLine: specialLines.startLine + changeLineCountDelta,
-							endLine: specialLines.endLine + changeLineCountDelta
-						});
-					}
-				}
 
 				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
 				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
@@ -1577,19 +1555,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					isFlush: false
 				}
 			);
-
-			const specialLineHeightChanges: ModelLineHeightChanged[] = [];
-			linesWithSpecialHeightsAffectedByEdits.forEach(range => {
-				for (let lineNumber = range.startLine; lineNumber <= range.endLine; lineNumber++) {
-					specialLineHeightChanges.push(new ModelLineHeightChanged(0, lineNumber, this._getLineHeightForLine(lineNumber)));
-				}
-			});
-			linesWithSpecialHeightsAfterEdits.forEach(range => {
-				for (let lineNumber = range.startLine; lineNumber <= range.endLine; lineNumber++) {
-					specialLineHeightChanges.push(new ModelLineHeightChanged(0, lineNumber, this._getLineHeightForLine(lineNumber)));
-				}
-			});
-			this._onDidChangeSpecialLineHeight.fire(new ModelLineHeightChangedEvent(specialLineHeightChanges));
 		}
 
 		return (result.reverseEdits === null ? undefined : result.reverseEdits);
@@ -1615,7 +1580,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	//#region Decorations
 
-	private handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines: Set<number> | null, specialLineHeights: Set<{ ownerId: number; lineNumber: number }> | null): void {
+	private handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines: Set<number> | null, specialLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null): void {
 		// This is called before the decoration changed event is fired.
 
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
@@ -1625,7 +1590,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (specialLineHeights && specialLineHeights.size > 0) {
 			const affectedLinesByLineHeightChange = Array.from(specialLineHeights);
-			const lineHeightChangeEvent = affectedLinesByLineHeightChange.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.lineNumber, this._getLineHeightForLine(specialLineHeightChange.lineNumber)));
+			const lineHeightChangeEvent = affectedLinesByLineHeightChange.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, this._getLineHeightForLine(specialLineHeightChange.lineNumber)));
 			this._onDidChangeSpecialLineHeight.fire(new ModelLineHeightChangedEvent(lineHeightChangeEvent));
 		}
 	}
@@ -1853,7 +1818,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (node.options.lineHeight !== null) {
 			const oldRange = this.getDecorationRange(decorationId);
 			for (let lineNumber = oldRange!.startLineNumber; lineNumber <= oldRange!.endLineNumber; lineNumber++) {
-				this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
+				this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, lineNumber);
 			}
 		}
 
@@ -1874,7 +1839,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		if (node.options.lineHeight !== null) {
 			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-				this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
+				this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, lineNumber);
 			}
 		}
 	}
@@ -1902,7 +1867,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (node.options.lineHeight !== null || options.lineHeight !== null) {
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
 			for (let lineNumber = nodeRange.startLineNumber; lineNumber <= nodeRange.endLineNumber; lineNumber++) {
-				this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
+				this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, lineNumber);
 			}
 		}
 
@@ -1935,8 +1900,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 				if (oldDecorationIndex < oldDecorationsLen) {
 					// (1) get ourselves an old node
+					let decorationId: string;
 					do {
-						node = this._decorations[oldDecorationsIds[oldDecorationIndex++]];
+						decorationId = oldDecorationsIds[oldDecorationIndex++];
+						node = this._decorations[decorationId];
 					} while (!node && oldDecorationIndex < oldDecorationsLen);
 
 					// (2) remove the node from the tree (if it exists)
@@ -1952,7 +1919,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						if (node.options.lineHeight !== null) {
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
 							for (let lineNumber = nodeRange.startLineNumber; lineNumber <= nodeRange.endLineNumber; lineNumber++) {
-								this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
+								this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, lineNumber);
 							}
 						}
 						this._decorationsTree.delete(node);
@@ -1991,7 +1958,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					}
 					if (node.options.lineHeight !== null) {
 						for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-							this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, lineNumber);
+							this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, node.id, lineNumber);
 						}
 					}
 					if (!suppressEvents) {
@@ -2492,11 +2459,11 @@ class DidChangeDecorationsEmitter extends Disposable {
 	private _affectsMinimap: boolean;
 	private _affectsOverviewRuler: boolean;
 	private _affectedInjectedTextLines: Set<number> | null = null;
-	private _specialLineHeights: Set<{ ownerId: number; lineNumber: number }> | null = null;
+	private _specialLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null = null;
 	private _affectsGlyphMargin: boolean;
 	private _affectsLineNumber: boolean;
 
-	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null, specialLineHeights: Set<{ ownerId: number; lineNumber: number }> | null) => void) {
+	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null, specialLineHeights: Set<{ ownerId: number; decorationId: string; lineNumber: number }> | null) => void) {
 		super();
 		this._deferredCnt = 0;
 		this._shouldFireDeferred = false;
@@ -2535,11 +2502,11 @@ class DidChangeDecorationsEmitter extends Disposable {
 		this._affectedInjectedTextLines.add(lineNumber);
 	}
 
-	public recordLineAffectedByLineHeightChange(ownerId: number, lineNumber: number): void {
+	public recordLineAffectedByLineHeightChange(ownerId: number, decorationId: string, lineNumber: number): void {
 		if (!this._specialLineHeights) {
 			this._specialLineHeights = new Set();
 		}
-		this._specialLineHeights.add({ ownerId, lineNumber });
+		this._specialLineHeights.add({ ownerId, decorationId, lineNumber });
 	}
 
 	public checkAffectedAndFire(options: ModelDecorationOptions): void {

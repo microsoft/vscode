@@ -172,13 +172,9 @@ export class LinesLayout {
 		let hadAChange = false;
 		try {
 			const accessor: ISpecialLineHeightChangeAccessor = {
-				insertSpecialLineHeight: (decorationId: string, lineNumber: number, lineHeight: number): void => {
+				insertOrChangeSpecialLineHeight: (decorationId: string, lineNumber: number, lineHeight: number): void => {
 					hadAChange = true;
-					this._specialLineHeightsManager.insertSpecialLineHeight(decorationId, lineNumber, lineHeight);
-				},
-				changeSpecialLineHeight: (decorationId: string, lineNumber: number, lineHeight: number): void => {
-					hadAChange = true;
-					this._specialLineHeightsManager.changeSpecialLineHeightUsingDecoration(decorationId, lineHeight);
+					this._specialLineHeightsManager.insertOrChangeSpecialLineHeightUsingDecoration(decorationId, lineNumber, lineHeight);
 				},
 				removeSpecialLineHeight: (decorationId: string): void => {
 					hadAChange = true;

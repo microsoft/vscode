@@ -1697,7 +1697,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const changes: ModelLineHeightChanged[] = [];
 			e.changes.forEach((change) => {
 				if (change.ownerId === this._id || change.ownerId === 0) {
-					changes.push(new ModelLineHeightChanged(change.ownerId, change.lineNumber, change.lineHeight));
+					changes.push(new ModelLineHeightChanged(change.ownerId, change.decorationId, change.lineNumber, change.lineHeight));
 				}
 			});
 			this._onDidChangeSpecialLineHeight.fire(new ModelLineHeightChangedEvent(changes));

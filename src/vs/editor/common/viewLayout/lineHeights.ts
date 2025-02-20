@@ -56,17 +56,18 @@ export class LineHeightManager {
 		this._hasPending = true;
 	}
 
-	public changeSpecialLineHeightUsingDecoration(decorationId: string, lineHeight: number): void {
+	public insertOrChangeSpecialLineHeightUsingDecoration(decorationId: string, lineNumber: number, lineHeight: number): void {
 		const specialLine = this._decorationIDToSpecialLine.get(decorationId);
 		if (!specialLine) {
-			return;
+			return this._insertSpecialLineHeight(decorationId, lineNumber, lineHeight);
 		}
+		specialLine.lineNumber = lineNumber;
 		specialLine.specialHeight = lineHeight;
 		this._invalidIndex = Math.min(this._invalidIndex, specialLine.index);
 		this._hasPending = true;
 	}
 
-	public insertSpecialLineHeight(decorationId: string, lineNumber: number, specialHeight: number): void {
+	private _insertSpecialLineHeight(decorationId: string, lineNumber: number, specialHeight: number): void {
 		const specialLine = new SpecialLine(decorationId, -1, lineNumber, specialHeight, 0);
 		this._pendingSpecialLinesToInsert.push(specialLine);
 		this._hasPending = true;
@@ -154,7 +155,6 @@ export class LineHeightManager {
 
 	public commit(): void {
 
-		// Insert the pending special lines
 		for (const pendingChange of this._pendingSpecialLinesToInsert) {
 			const searchIndex = this._binarySearchOverSpecialLinesArray(pendingChange.lineNumber);
 			this._orderedSpecialLines.splice(searchIndex, 0, pendingChange);
@@ -164,7 +164,6 @@ export class LineHeightManager {
 
 		const newDecorationIDToSpecialLineMap = new Map<string, SpecialLine>(this._decorationIDToSpecialLine);
 		const newOrderedSpecialLines: SpecialLine[] = [];
-
 		let numberOfDeletions = 0;
 		for (let i = this._invalidIndex; i <= this._orderedSpecialLines.length; i++) {
 			const specialLine = this._orderedSpecialLines[i];
@@ -197,7 +196,6 @@ export class LineHeightManager {
 			newOrderedSpecialLines.push(specialLine);
 			newDecorationIDToSpecialLineMap.set(specialLine.decorationId, specialLine);
 		}
-
 		this._orderedSpecialLines = newOrderedSpecialLines;
 		this._decorationIDToSpecialLine = newDecorationIDToSpecialLineMap;
 	}
