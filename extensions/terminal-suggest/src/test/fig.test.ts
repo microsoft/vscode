@@ -138,10 +138,11 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 					name: 'bar',
 					generators: [
 						{
-							script: () => ['echo "abcd"'],
+							script: () => ['echo "a\nb\nc\nd\n"'],
 							postProcess: (out) => out.split('\n').map(item => {
-								const [name, description] = item.split('\t');
-								return { name, description };
+								return {
+									name: `echo "a\nb\nc\nd\n"`.split('\n').join('')
+								};
 							})
 						}
 					]
@@ -168,7 +169,7 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 						{
 							custom: async (tokens: string[], executeCommand: Fig.ExecuteCommandFunction, generatorContext: Fig.GeneratorContext) => {
 								if (tokens.length) {
-									return [{ name: 'a', description: 'b' }, { name: 'c', description: 'd' }];
+									return [{ name: 'a' }, { name: 'c' }];
 								}
 								executeCommand({ command: 'echo', args: ['a\tb\nc\td'] });
 							}
