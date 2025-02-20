@@ -8,9 +8,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { BasePromptParser } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
@@ -133,7 +133,7 @@ const getActivePromptUri = (
 	}
 
 	const { uri } = activeEditor.getModel();
-	if (BasePromptParser.isPromptSnippet(uri)) {
+	if (isPromptFile(uri)) {
 		return uri;
 	}
 

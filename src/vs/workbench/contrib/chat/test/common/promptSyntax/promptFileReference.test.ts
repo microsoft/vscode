@@ -25,8 +25,8 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NonPromptSnippetFile, RecursiveReference, FileOpenFailed } from '../../../common/promptFileReferenceErrors.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
 
 /**
  * Represents a file reference with an expected
@@ -147,6 +147,8 @@ class TestPromptFileReference extends Disposable {
 /**
  * Create expected file reference for testing purposes.
  *
+ * Note! This utility also use for `markdown links` at the moment.
+ *
  * @param filePath The expected path of the file reference (without the `#file:` prefix).
  * @param lineNumber The expected line number of the file reference.
  * @param startColumnNumber The expected start column number of the file reference.
@@ -187,7 +189,7 @@ suite('PromptFileReference (Unix)', function () {
 		instantiationService.stub(IConfigurationService, nullConfigService);
 	});
 
-	test('resolves nested file references', async function () {
+	test('• resolves nested file references', async function () {
 		if (isWindows) {
 			this.skip();
 		}
@@ -216,14 +218,14 @@ suite('PromptFileReference (Unix)', function () {
 						children: [
 							{
 								name: 'file3.prompt.md',
-								contents: `\n\n\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content`,
+								contents: `\n[](./some-other-folder/non-existing-folder)\n\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content`,
 							},
 							{
 								name: 'some-other-folder',
 								children: [
 									{
 										name: 'file4.prompt.md',
-										contents: 'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference\n\n\nand some\n non-prompt #file:./some-non-prompt-file.md',
+										contents: 'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference\n\n\nand some\n non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
 									},
 									{
 										name: 'file.txt',
@@ -234,7 +236,7 @@ suite('PromptFileReference (Unix)', function () {
 										children: [
 											{
 												name: 'another-file.prompt.md',
-												contents: 'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
+												contents: `[](${rootFolder}/folder1/some-other-folder)\nanother-file.prompt.md contents\t [#file:file.txt](../file.txt)`,
 											},
 											{
 												name: 'one_more_file_just_in_case.prompt.md',
@@ -263,15 +265,35 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1'),
 					createTestFileReference(
+						`./some-other-folder/non-existing-folder`,
+						2,
+						1,
+					),
+					new OpenFailed(
+						URI.joinPath(rootUri, './folder1/some-other-folder/non-existing-folder'),
+						'Reference to non-existing file cannot be opened.',
+					),
+				),
+				new ExpectedReference(
+					URI.joinPath(rootUri, './folder1'),
+					createTestFileReference(
 						`/${rootFolderName}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md`,
 						3,
 						26,
 					),
 				),
 				new ExpectedReference(
+					URI.joinPath(rootUri, './folder1/some-other-folder'),
+					createTestFileReference('.', 1, 1),
+					new FolderReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder'),
+						'This folder is not a prompt file!',
+					),
+				),
+				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder/yetAnotherFolder🤭'),
-					createTestFileReference('../file.txt', 1, 35),
-					new NonPromptSnippetFile(
+					createTestFileReference('../file.txt', 2, 35),
+					new NotPromptFile(
 						URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
 						'Ughh oh, that is not a prompt file!',
 					),
@@ -283,7 +305,7 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder'),
 					createTestFileReference('./some-non-existing/file.prompt.md', 1, 30),
-					new FileOpenFailed(
+					new OpenFailed(
 						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
 						'Failed to open non-existring prompt snippets file',
 					),
@@ -291,9 +313,17 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder'),
 					createTestFileReference('./some-non-prompt-file.md', 5, 13),
-					new FileOpenFailed(
+					new OpenFailed(
 						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
 						'Oh no!',
+					),
+				),
+				new ExpectedReference(
+					URI.joinPath(rootUri, './some-other-folder/folder1'),
+					createTestFileReference('../../folder1', 5, 48),
+					new FolderReference(
+						URI.joinPath(rootUri, './folder1'),
+						'Uggh ohh!',
 					),
 				),
 			]
@@ -302,7 +332,7 @@ suite('PromptFileReference (Unix)', function () {
 		await test.run();
 	});
 
-	test('does not fall into infinite reference recursion', async function () {
+	test('• does not fall into infinite reference recursion', async function () {
 		if (isWindows) {
 			this.skip();
 		}
@@ -409,7 +439,7 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder'),
 					createTestFileReference('../some-non-existing/file.prompt.md', 1, 30),
-					new FileOpenFailed(
+					new OpenFailed(
 						URI.joinPath(rootUri, './folder1/some-non-existing/file.prompt.md'),
 						'Uggh ohh!',
 					),
@@ -442,7 +472,7 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					rootUri,
 					createTestFileReference('./file1.md', 6, 2),
-					new NonPromptSnippetFile(
+					new NotPromptFile(
 						URI.joinPath(rootUri, './file1.md'),
 						'Uggh oh!',
 					),

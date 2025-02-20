@@ -468,6 +468,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			} satisfies IDocumentDiff2;
 		});
 
-		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, codeEditor, this, diffInfo);
+		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo);
 	}
 }

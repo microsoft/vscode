@@ -547,15 +547,17 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	private _openContextMenu() {
+		const actionRunner = new TerminalContextActionRunner();
 		this._contextMenuService.showContextMenu({
-			actionRunner: new TerminalContextActionRunner(),
+			actionRunner,
 			getAnchor: () => this.element!,
 			getActions: () => this._actions,
 			// The context is always the active instance in the terminal view
 			getActionsContext: () => {
 				const instance = this._terminalGroupService.activeInstance;
 				return instance ? [new InstanceContext(instance)] : [];
-			}
+			},
+			onHide: () => actionRunner.dispose()
 		});
 	}
 }
