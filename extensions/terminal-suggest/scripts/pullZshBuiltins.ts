@@ -118,6 +118,7 @@ async function createCommandDescriptionsCache(): Promise<void> {
 	}
 
 	const commands: Map<string, string[]> = new Map();
+	const commandRegex = /^\*\*(?<command>[a-z\.:]+)\*\*(?:\s\*.+\*)?(?:\s\\\[.+\\\])?$/;
 	if (output) {
 		const lines = output.split('\n');
 		let currentCommand: string | undefined;
@@ -126,7 +127,7 @@ async function createCommandDescriptionsCache(): Promise<void> {
 		let i = 0;
 		for (; i < lines.length; i++) {
 			if (!currentCommand || seenOutput) {
-				const match = lines[i].match(/^\*\*(?<command>[a-z]+)\*\*(?:\s\*.+\*)?$/);
+				const match = lines[i].match(commandRegex);
 				if (match?.groups?.command) {
 					if (currentCommand) {
 						commands.set(currentCommand, lines.slice(currentCommandStart, i));
@@ -141,7 +142,7 @@ async function createCommandDescriptionsCache(): Promise<void> {
 			}
 			// There may be several examples of usage
 			if (!seenOutput) {
-				seenOutput = lines[i].length > 0 && !lines[i].match(/^\*\*(?<command>[a-z]+)\*\*(?:\s\*.+\*)?$/);
+				seenOutput = lines[i].length > 0 && !lines[i].match(commandRegex);
 			}
 		}
 		if (currentCommand) {
@@ -160,7 +161,7 @@ async function createCommandDescriptionsCache(): Promise<void> {
 		try {
 			while (true) {
 				const line = lines[++argsEnd];
-				if (line.trim().length > 0 && !line.match(/^\*\*(?<command>[a-z]+)\*\*(?:\s\*.+\*)?$/)) {
+				if (line.trim().length > 0 && !line.match(commandRegex)) {
 					break;
 				}
 			}
