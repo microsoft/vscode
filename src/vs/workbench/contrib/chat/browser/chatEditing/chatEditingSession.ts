@@ -239,7 +239,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}));
 	}
 
-	private _getEntry(uri: URI): ChatEditingModifiedDocumentEntry | undefined {
+	private _getEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
 		const notebookUri = CellUri.parse(uri)?.notebook;
 		return this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri) || isEqual(e.modifiedURI, notebookUri));
 	}
