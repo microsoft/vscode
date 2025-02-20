@@ -566,7 +566,8 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				if (position !== undefined) {
 					let oldBracket = endOffsetsAndScopes[position].bracket;
 					// Check that the previous token ends at the same point that the current token starts
-					if ((position > 0) && (endOffsetsAndScopes[position - 1].endOffset !== startOffset)) {
+					const prevEndOffset = position > 0 ? endOffsetsAndScopes[position - 1].endOffset : 0;
+					if (prevEndOffset !== startOffset) {
 						let preInsertBracket: number[] | undefined = undefined;
 						if (oldBracket && oldBracket.length > 0) {
 							preInsertBracket = [];
