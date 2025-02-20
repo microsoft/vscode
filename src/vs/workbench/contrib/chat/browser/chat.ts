@@ -136,7 +136,7 @@ export interface IChatAccessibilityService {
 export interface IChatCodeBlockInfo {
 	readonly ownerMarkdownPartId: string;
 	readonly codeBlockIndex: number;
-	readonly element: ChatTreeItem;
+	readonly elementId: string;
 	readonly uri: URI | undefined;
 	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
@@ -190,7 +190,6 @@ export interface IChatWidgetViewOptions {
 	};
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
-	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
 }
 

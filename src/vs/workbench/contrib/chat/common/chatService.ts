@@ -438,7 +438,6 @@ export interface IChatSendRequestOptions {
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
-	workingSet?: URI[];
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;

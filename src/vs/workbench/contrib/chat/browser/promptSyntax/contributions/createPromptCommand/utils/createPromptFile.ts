@@ -9,8 +9,7 @@ import { VSBuffer } from '../../../../../../../../base/common/buffer.js';
 import { dirname } from '../../../../../../../../base/common/resources.js';
 import { FolderExists, InvalidPromptName, PromptExists } from '../errors.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../common/promptSyntax/constants.js';
-import { BasePromptParser } from '../../../../../common/promptSyntax/parsers/basePromptParser.js';
+import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
 
 /**
  * Options for the {@link createPromptFile} utility.
@@ -40,7 +39,7 @@ interface ICreatePromptFileOptions {
  * the provided file content.
  *
  * @throws in the following cases:
- *  - if the prompt filename does not end with {@link PROMPT_FILE_EXTENSION}
+ *  - if the `fileName` does not end with {@link PROMPT_FILE_EXTENSION}
  *  - if a folder or file with the same already name exists in the destination folder
  */
 export const createPromptFile = async (
@@ -51,7 +50,7 @@ export const createPromptFile = async (
 	const promptUri = URI.joinPath(folder, fileName);
 
 	assert(
-		BasePromptParser.isPromptSnippet(promptUri),
+		isPromptFile(promptUri),
 		new InvalidPromptName(fileName),
 	);
 

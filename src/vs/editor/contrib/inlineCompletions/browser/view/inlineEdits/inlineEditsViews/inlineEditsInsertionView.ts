@@ -53,7 +53,12 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		const eol = textModel.getEOL();
 		const startsWithEol = state.text.startsWith(eol);
 		const originalRange = new LineRange(state.lineNumber, state.lineNumber + (startsWithEol ? 0 : 1));
-		const modifiedLines = state.text.split(eol).splice(startsWithEol ? 0 : 1);
+		let modifiedLines = state.text.split(eol);
+		if (startsWithEol) {
+			modifiedLines = modifiedLines.splice(1);
+		} else {
+			modifiedLines[0] = textModel.getLineContent(state.lineNumber) + modifiedLines[0];
+		}
 
 		return getPrefixTrim([], originalRange, modifiedLines, this._editor);
 	});

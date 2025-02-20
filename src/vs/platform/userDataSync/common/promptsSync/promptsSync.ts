@@ -7,6 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { deepClone } from '../../../../base/common/objects.js';
+import { isPromptFile } from '../../../prompts/common/constants.js';
 import { IStorageService } from '../../../storage/common/storage.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
@@ -516,7 +517,7 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		for (const entry of stat.children || []) {
 			const resource = entry.resource;
 
-			if (!resource.path.endsWith('.prompt.md')) {
+			if (!isPromptFile(resource)) {
 				continue;
 			}
 
