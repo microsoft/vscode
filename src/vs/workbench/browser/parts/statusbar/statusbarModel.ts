@@ -332,7 +332,9 @@ export class StatusbarViewModel extends Disposable {
 
 				// Fill relative entries to LEFT
 				if (relativeEntries) {
-					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.LEFT));
+					sortedEntries.push(...relativeEntries
+						.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.LEFT)
+						.sort((entryA, entryB) => entryB.priority.secondary - entryA.priority.secondary));
 				}
 
 				// Fill referenced entry
@@ -340,7 +342,9 @@ export class StatusbarViewModel extends Disposable {
 
 				// Fill relative entries to RIGHT
 				if (relativeEntries) {
-					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.RIGHT));
+					sortedEntries.push(...relativeEntries
+						.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.RIGHT)
+						.sort((entryA, entryB) => entryB.priority.secondary - entryA.priority.secondary));
 				}
 
 				// Delete from map to mark as handled
@@ -350,7 +354,7 @@ export class StatusbarViewModel extends Disposable {
 			// Finally, just append all entries that reference another entry
 			// that does not exist to the end of the list
 			for (const [, entries] of mapEntryWithRelativePriority) {
-				sortedEntries.push(...entries.values());
+				sortedEntries.push(...Array.from(entries.values()).sort((entryA, entryB) => entryB.priority.secondary - entryA.priority.secondary));
 			}
 		}
 
