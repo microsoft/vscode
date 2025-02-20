@@ -15,7 +15,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -28,6 +27,7 @@ import { setTimeout0 } from '../../../../base/common/platform.js';
 import { findLikelyRelevantLines } from '../../../../editor/common/model/textModelTokens.js';
 import { TreeSitterCodeEditors } from './treeSitterCodeEditors.js';
 import { Position } from '../../../../editor/common/core/position.js';
+import { IWorkbenchThemeChangeEvent, IWorkbenchThemeService } from '../../themes/common/workbenchThemeService.js';
 
 type TreeSitterQueries = string;
 
@@ -45,10 +45,10 @@ interface EndOffsetToken {
 interface EndOffsetAndScopes {
 	endOffset: number;
 	scopes: string[];
-	bracket?: boolean;
+	bracket?: number[];
 }
 
-const BRACKETS = /[\{\}\[\]\<\>\(\)]/;
+const BRACKETS = /[\{\}\[\]\<\>\(\)]/g;
 
 export class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTokenizationFeature {
 	public _serviceBrand: undefined;
@@ -123,7 +123,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		private readonly _languageId: string,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
-		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@ITreeSitterTokenizationStoreService private readonly _tokenizationStoreService: ITreeSitterTokenizationStoreService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -138,7 +138,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				this._parseAndTokenizeViewPort(viewport.model, viewport.ranges);
 			}
 		});
-		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
+		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, (e) => this._updateTheme(e)));
 		let hasDoneFullTokenization = false;
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
 			if (e.textModel.getLanguageId() !== this._languageId) {
@@ -438,8 +438,29 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._query;
 	}
 
-	private reset() {
+	private _updateTheme(e: IWorkbenchThemeChangeEvent | undefined) {
 		this._colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
+		for (const editor of this._codeEditors.editors) {
+			const model = editor.getModel();
+			if (model) {
+				const modelRange = model.getFullModelRange();
+				this._tokenizationStoreService.markForRefresh(model, modelRange);
+				this._parseAndTokenizeViewPort(model, editor.getVisibleRangesPlusViewportAboveBelow());
+
+				if (e?.target !== 'preview') {
+					this._handleTreeUpdate({
+						ranges: [{
+							newRange: modelRange,
+							newRangeStartOffset: 0,
+							newRangeEndOffset: model.getValueLength(),
+							oldRangeLength: model.getValueLength()
+						}],
+						textModel: model,
+						versionId: model.getVersionId()
+					});
+				}
+			}
+		}
 	}
 
 	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): QueryCapture[] {
@@ -558,56 +579,76 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				continue;
 			}
 
-			const hasBracket = () => {
-				return !!capture.text?.match(BRACKETS) && capture.name.includes('punctuation');
+			const brackets = (): number[] | undefined => {
+				return (capture.name.includes('punctuation') && capture.text) ? Array.from(capture.text.matchAll(BRACKETS)).map(match => startOffset + match.index) : undefined;
 			};
 
-			const addCurrentTokenToArray = () => {
-				endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: hasBracket() };
+			const addCurrentTokenToArray = (position?: number) => {
+				if (position !== undefined) {
+					let oldBracket = endOffsetsAndScopes[position].bracket;
+					// Check that the previous token ends at the same point that the current token starts
+					const prevEndOffset = position > 0 ? endOffsetsAndScopes[position - 1].endOffset : 0;
+					if (prevEndOffset !== startOffset) {
+						let preInsertBracket: number[] | undefined = undefined;
+						if (oldBracket && oldBracket.length > 0) {
+							preInsertBracket = [];
+							const postInsertBracket: number[] = [];
+							for (let i = 0; i < oldBracket.length; i++) {
+								const bracket = oldBracket[i];
+								if (bracket < startOffset) {
+									preInsertBracket.push(bracket);
+								} else if (bracket > endOffset) {
+									postInsertBracket.push(bracket);
+								}
+							}
+							if (preInsertBracket.length === 0) {
+								preInsertBracket = undefined;
+							}
+							if (postInsertBracket.length === 0) {
+								oldBracket = undefined;
+							} else {
+								oldBracket = postInsertBracket;
+							}
+						}
+						// We need to add some of the position token to cover the space
+						endOffsetsAndScopes.splice(position, 0, { endOffset: startOffset, scopes: [...endOffsetsAndScopes[position].scopes], bracket: preInsertBracket });
+						position++;
+						increaseSizeOfTokensByOneToken();
+						tokenIndex++;
+					}
+
+					endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [capture.name], bracket: brackets() });
+					endOffsetsAndScopes[tokenIndex].bracket = oldBracket;
+				} else {
+					endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: brackets() };
+				}
 				tokenIndex++;
 			};
 
 			if (previousEndOffset >= endOffset) {
 				// walk back through the tokens until we find the one that contains the current token
 				let withinTokenIndex = tokenIndex - 1;
-				let originalPreviousTokenEndOffset;
+				let previousTokenEndOffset = endOffsetsAndScopes[withinTokenIndex].endOffset;
 
-				let previousTokenStartOffset;
-				let previousPreviousTokenEndOffset;
+				let previousTokenStartOffset = ((withinTokenIndex >= 2) ? endOffsetsAndScopes[withinTokenIndex - 1].endOffset : 0);
 				do {
-					originalPreviousTokenEndOffset = endOffsetsAndScopes[withinTokenIndex].endOffset;
-					previousTokenStartOffset = ((withinTokenIndex >= 2) ? endOffsetsAndScopes[withinTokenIndex - 1].endOffset : 0);
-					previousPreviousTokenEndOffset = (withinTokenIndex >= 2) ? endOffsetsAndScopes[withinTokenIndex - 1].endOffset : 0;
 
 					// Check that the current token doesn't just replace the last token
-					if ((previousTokenStartOffset + currentTokenLength) === originalPreviousTokenEndOffset) {
+					if ((previousTokenStartOffset + currentTokenLength) === previousTokenEndOffset) {
 						if (previousTokenStartOffset === startOffset) {
 							// Current token and previous token span the exact same characters, replace the last scope
 							endOffsetsAndScopes[withinTokenIndex].scopes[endOffsetsAndScopes[withinTokenIndex].scopes.length - 1] = capture.name;
+							endOffsetsAndScopes[withinTokenIndex].bracket = brackets();
 						}
-					} else if (previousPreviousTokenEndOffset <= startOffset) {
-						let originalPreviousTokenScopes;
+					} else if (previousTokenStartOffset <= startOffset) {
 						// The current token is within the previous token. Adjust the end of the previous token
-						if (previousPreviousTokenEndOffset !== startOffset) {
-							endOffsetsAndScopes[withinTokenIndex] = { endOffset: startOffset, scopes: endOffsetsAndScopes[withinTokenIndex].scopes, bracket: hasBracket() };
-							addCurrentTokenToArray();
-							originalPreviousTokenScopes = [...endOffsetsAndScopes[withinTokenIndex].scopes];
-						} else {
-							originalPreviousTokenScopes = [...endOffsetsAndScopes[withinTokenIndex].scopes];
-							endOffsetsAndScopes[withinTokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: hasBracket() };
-						}
-
-						// Add the rest of the previous token after the current token
-						if (originalPreviousTokenEndOffset !== endOffset) {
-							increaseSizeOfTokensByOneToken();
-							endOffsetsAndScopes[tokenIndex] = { endOffset: originalPreviousTokenEndOffset, scopes: originalPreviousTokenScopes, bracket: endOffsetsAndScopes[withinTokenIndex].bracket };
-							tokenIndex++;
-						} else {
-							endOffsetsAndScopes[withinTokenIndex].scopes.unshift(...originalPreviousTokenScopes);
-						}
+						addCurrentTokenToArray(withinTokenIndex);
+						break;
 					}
 					withinTokenIndex--;
-				} while (previousTokenStartOffset > startOffset);
+					previousTokenStartOffset = ((withinTokenIndex >= 2) ? endOffsetsAndScopes[withinTokenIndex - 1].endOffset : 0);
+					previousTokenEndOffset = endOffsetsAndScopes[withinTokenIndex].endOffset;
+				} while (previousTokenEndOffset > startOffset);
 			} else {
 				// Just add the token to the array
 				addCurrentTokenToArray();
@@ -640,10 +681,10 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		if (!emptyTokens) {
 			return undefined;
 		}
-		const endOffsetsAndScopes: { endOffset: number; scopes: string[]; metadata?: number; bracket?: boolean }[] = emptyTokens.endOffsets;
+		const endOffsetsAndScopes: { endOffset: number; scopes: string[]; metadata?: number; bracket?: number[] }[] = emptyTokens.endOffsets;
 		for (let i = 0; i < endOffsetsAndScopes.length; i++) {
 			const token = endOffsetsAndScopes[i];
-			token.metadata = findMetadata(this._colorThemeData, token.scopes, encodedLanguageId, !!token.bracket);
+			token.metadata = findMetadata(this._colorThemeData, token.scopes, encodedLanguageId, !!token.bracket && (token.bracket.length > 0));
 		}
 
 		const metadataTime = stopwatch.elapsed();

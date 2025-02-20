@@ -186,6 +186,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						progressMessageAtBottomOfResponse: this.chatOptions.location === ChatAgentLocation.EditingSession,
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
 					enableWorkingSet: this.chatOptions.location === ChatAgentLocation.EditingSession ? 'explicit' : undefined
 				},
 				{

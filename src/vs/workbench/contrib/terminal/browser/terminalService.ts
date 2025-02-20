@@ -977,7 +977,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 		await this._resolveCwd(shellLaunchConfig, splitActiveTerminal, options);
 
 		// Launch the contributed profile
-		if (contributedProfile) {
+		// If it's a custom pty implementation, we did not await the profiles ready, so
+		// we cannot launch the contributed profile and doing so would cause an error
+		if (!shellLaunchConfig.customPtyImplementation && contributedProfile) {
 			const resolvedLocation = await this.resolveLocation(options?.location);
 			let location: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
 			if (splitActiveTerminal) {
