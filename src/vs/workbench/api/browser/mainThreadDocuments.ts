@@ -12,7 +12,7 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { IFileService, FileOperation } from '../../../platform/files/common/files.js';
 import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from '../common/extHost.protocol.js';
-import { EncodingMode, ITextFileEditorModel, ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { EncodingMode, ITextFileEditorModel, ITextFileService, TextFileResolveReason } from '../../services/textfile/common/textfiles.js';
 import { IUntitledTextEditorModel } from '../../services/untitled/common/untitledTextEditorModel.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { toLocalResource, extUri, IExtUri } from '../../../base/common/resources.js';
@@ -261,9 +261,9 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	private async _handleAsResourceInput(uri: URI, options?: { encoding?: string }): Promise<URI> {
 		if (options?.encoding) {
-			const model = await this._textFileService.files.resolve(uri, { encoding: options.encoding });
+			const model = await this._textFileService.files.resolve(uri, { encoding: options.encoding, reason: TextFileResolveReason.REFERENCE });
 			if (model.isDirty()) {
-				throw new ErrorNoTelemetry(`Cannot re-open a dirty text document with different encoding.`);
+				throw new ErrorNoTelemetry(`Cannot re-open a dirty text document with different encoding. Save it first.`);
 			}
 			await model.setEncoding(options.encoding, EncodingMode.Decode);
 		}
