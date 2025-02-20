@@ -190,6 +190,7 @@ export interface IChatWidgetViewOptions {
 	};
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
+	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
 }
 
