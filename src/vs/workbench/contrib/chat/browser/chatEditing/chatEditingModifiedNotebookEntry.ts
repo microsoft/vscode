@@ -45,6 +45,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return instantiationService.invokeFunction(async accessor => {
 			const notebookService = accessor.get(INotebookService);
 			const resolver = accessor.get(INotebookEditorModelResolverService);
+			const configurationServie = accessor.get(IConfigurationService);
 			const resourceRef: IReference<IResolvedNotebookEditorModel> = await resolver.resolve(uri);
 			const notebook = resourceRef.object.notebook;
 			const originalUri = ChatEditingNotebookFileSystemProvider.getSnapshotFileURI(telemetryInfo.requestId, notebook.uri.path);
@@ -61,7 +62,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			if (initialContent) {
 				restoreSnapshot(originalRef.object.notebook, initialContent);
 			}
-			initialContent = initialContent || createSnapshot(originalRef.object.notebook, options.serializer.options, accessor.get(IConfigurationService));
+			initialContent = initialContent || createSnapshot(originalRef.object.notebook, options.serializer.options, configurationServie);
 			return instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
 		});
 	}
