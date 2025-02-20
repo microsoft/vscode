@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CHAT_CATEGORY } from './chatActions.js';
-import { localize2 } from '../../../../../nls.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ISelectPromptOptions, showSelectPromptDialog } from './chatAttachPromptAction/showPromptSelectionDialog.js';
+import { CHAT_CATEGORY } from '../chatActions.js';
+import { localize2 } from '../../../../../../nls.js';
+import { showHowToCreateLink } from './dialogs/showHowToCreate.js';
+import { Action2 } from '../../../../../../platform/actions/common/actions.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
+import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
  * Action ID for the `Attach Prompt` action.
@@ -48,17 +48,23 @@ export class AttachPromptAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const openerService = accessor.get(IOpenerService);
 		const promptsService = accessor.get(IPromptsService);
-		const initService = accessor.get(IInstantiationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		await showSelectPromptDialog({
-			...options,
-			initService,
-			labelService,
-			viewsService,
-			openerService,
-			promptsService,
-			quickInputService,
-		});
+		// find all prompt files in the user workspace
+		const promptFiles = await promptsService.listPromptFiles();
+
+		// if no prompt files found, show instructions on how to create one
+		if (promptFiles.length === 0) {
+			return await showHowToCreateLink(openerService, quickInputService);
+		}
+
+		await askToSelectPrompt(
+			{
+				...options,
+				promptFiles,
+				labelService,
+				viewsService,
+				quickInputService,
+			});
 	}
 }
