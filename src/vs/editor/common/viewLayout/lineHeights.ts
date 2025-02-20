@@ -239,6 +239,11 @@ export class LineHeightManager {
 		const newOrderedSpecialLines: SpecialLine[] = [];
 
 		let numberOfDeletions = 0;
+		for (let i = 0; i < this._invalidIndex; i++) {
+			const specialLine = this._orderedSpecialLines[i];
+			newOrderedSpecialLines.push(specialLine);
+		}
+
 		for (let i = this._invalidIndex; i < this._orderedSpecialLines.length; i++) {
 			console.log('i : ', i);
 			const specialLine = this._orderedSpecialLines[i];
