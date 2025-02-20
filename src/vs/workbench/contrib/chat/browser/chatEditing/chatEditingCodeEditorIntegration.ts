@@ -21,9 +21,8 @@ import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
-import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
-import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../editor/common/viewModel.js';
 import { localize } from '../../../../../nls.js';
@@ -36,17 +35,9 @@ import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../scm/common/quickDiff.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IDocumentDiff2, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 
-export interface IDocumentDiff2 extends IDocumentDiff {
-
-	originalModel: ITextModel;
-	modifiedModel: ITextModel;
-
-	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
-	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
-}
 
 export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEditorIntegration {
 
@@ -672,10 +663,9 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 	private _position: IOverlayWidgetPosition | undefined;
 	private _lastStartLineNumber: number | undefined;
 
-
 	constructor(
-		private readonly _diffInfo: IDocumentDiff2,
-		private readonly _change: DetailedLineRangeMapping,
+		public readonly diffInfo: IDocumentDiff2,
+		public readonly change: DetailedLineRangeMapping,
 		private readonly _versionId: number,
 		private readonly _editor: ICodeEditor,
 		private readonly _lineDelta: number,
@@ -751,14 +741,14 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		if (this._versionId !== this._editor.getModel()?.getVersionId()) {
 			return false;
 		}
-		return await this._diffInfo.undo(this._change);
+		return await this.diffInfo.undo(this.change);
 	}
 
 	async accept(): Promise<boolean> {
 		if (this._versionId !== this._editor.getModel()?.getVersionId()) {
 			return false;
 		}
-		return this._diffInfo.keep(this._change);
+		return this.diffInfo.keep(this.change);
 	}
 }
 

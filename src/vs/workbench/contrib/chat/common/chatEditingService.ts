@@ -9,7 +9,10 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -166,10 +169,21 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
+export interface IDocumentDiff2 extends IDocumentDiff {
+
+	originalModel: ITextModel;
+	modifiedModel: ITextModel;
+
+	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
+	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
+}
+
 /**
  * Represents a part of a change
  */
 export interface IModifiedFileEntryChangeHunk {
+	diffInfo: IDocumentDiff2;
+	change: DetailedLineRangeMapping;
 	accept(): Promise<boolean>;
 	reject(): Promise<boolean>;
 }
