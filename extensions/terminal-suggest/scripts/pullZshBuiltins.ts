@@ -24,7 +24,11 @@ const shortDescriptions: Map<string, string> = new Map([
 	['break', 'Exit from a loop'],
 	['builtin', 'Executes a builtin'],
 	['bye', 'Exit the shell'],
+	['cap', 'Manipulating POSIX capability sets'],
+	['cd', 'Change the current directory'],
 	['chdir', 'Change the current directory'],
+	['clone', 'Clone shell onto another terminal'],
+	['command', 'Execute a command'],
 	['comparguments', 'Complete arguments'],
 	['compcall', 'Complete call'],
 	['compctl', 'Complete control'],
@@ -42,6 +46,8 @@ const shortDescriptions: Map<string, string> = new Map([
 	['disown', 'Remove job from job table'],
 	['echo', 'Write on standard output'],
 	['echotc', 'Echo terminal capabilities'],
+	['echoti', 'Echo terminal info'],
+	['emulate', 'Emulate a shell'],
 	['enable', 'Enable shell features'],
 	['eval', 'Execute arguments in shell'],
 	['exec', 'Replace shell with command'],
@@ -53,6 +59,7 @@ const shortDescriptions: Map<string, string> = new Map([
 	['float', 'Floating point arithmetic'],
 	['functions', 'List functions'],
 	['getcap', 'Get capabilities'],
+	['getln', 'Get line from buffer'],
 	['getopts', 'Parse positional parameters'],
 	['hash', 'Remember command locations'],
 	['history', 'Command history'],
@@ -71,13 +78,18 @@ const shortDescriptions: Map<string, string> = new Map([
 	['pushln', 'Push arguments onto the buffer'],
 	['pwd', 'Print working directory'],
 	['r', 'Re-execute command'],
+	['read', 'Read a line from input'],
 	['readonly', 'Mark variables as read-only'],
 	['rehash', 'Recompute command hash table'],
+	['return', 'Return from a function'],
 	['sched', 'Schedule commands'],
+	['set', 'Set shell options'],
 	['setcap', 'Set capabilities'],
+	['setopt', 'Set shell options'],
 	['shift', 'Shift positional parameters'],
 	['source', 'Source a file'],
 	['stat', 'Display file status'],
+	['suspend', 'Suspend the shell'],
 	['test', 'Evaluate a conditional expression'],
 	['times', 'Display shell times'],
 	['trap', 'Set signal handlers'],
@@ -94,20 +106,32 @@ const shortDescriptions: Map<string, string> = new Map([
 	['unset', 'Unset values and attributes of variables'],
 	['unsetopt', 'Unset shell options'],
 	['vared', 'Edit shell variables'],
+	['wait', 'Wait for a process'],
 	['whence', 'Locate a command'],
 	['where', 'Locate a command'],
 	['which', 'Locate a command'],
 	['zcompile', 'Compile functions'],
 	['zformat', 'Format strings'],
 	['zftp', 'Zsh FTP client'],
+	['zle', 'Zsh line editor'],
+	['zmodload', 'Load a module'],
 	['zparseopts', 'Parse options'],
 	['zprof', 'Zsh profiler'],
+	['zpty', 'Zsh pseudo terminal'],
+	['zregexparse', 'Parse regex'],
 	['zsocket', 'Zsh socket interface'],
-	['zstyle', 'Define styles']
+	['zstyle', 'Define styles'],
+	['ztcp', 'Manipulate TCP sockets'],
 ]);
 
 const execAsync = promisify(exec);
-let zshBuiltinsCommandDescriptionsCache = new Map<string, { description: string; args: string | undefined }>();
+
+interface ICommandDetails {
+	description: string;
+	args: string | undefined;
+	shortDescription?: string;
+}
+let zshBuiltinsCommandDescriptionsCache = new Map<string, ICommandDetails>();
 async function createCommandDescriptionsCache(): Promise<void> {
 	const cachedCommandDescriptions: Map<string, { shortDescription?: string; description: string; args: string | undefined }> = new Map();
 	let output = '';
@@ -201,6 +225,17 @@ const main = async () => {
 	try {
 		await createCommandDescriptionsCache();
 		console.log('created command descriptions cache with ', zshBuiltinsCommandDescriptionsCache.size, 'entries');
+
+		const missingShortDescription: string[] = [];
+		for (const [command, entry] of zshBuiltinsCommandDescriptionsCache.entries()) {
+			if (entry.shortDescription === undefined) {
+				missingShortDescription.push(command);
+			}
+		}
+		if (missingShortDescription.length > 0) {
+			console.log('\x1b[31mmissing short description for commands:\n' + missingShortDescription.join('\n') + '\x1b[0m');
+		}
+
 		// Save the cache to a JSON file
 		const cacheFilePath = path.join(__dirname, '../src/shell/zshBuiltinsCache.json');
 		const cacheObject = Object.fromEntries(zshBuiltinsCommandDescriptionsCache);
