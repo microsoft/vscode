@@ -169,21 +169,10 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
-export interface IDocumentDiff2 extends IDocumentDiff {
-
-	originalModel: ITextModel;
-	modifiedModel: ITextModel;
-
-	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
-	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
-}
-
 /**
  * Represents a part of a change
  */
 export interface IModifiedFileEntryChangeHunk {
-	diffInfo: IDocumentDiff2;
-	change: DetailedLineRangeMapping;
 	accept(): Promise<boolean>;
 	reject(): Promise<boolean>;
 }

@@ -240,18 +240,17 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _getEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
-		const notebookUri = CellUri.parse(uri)?.notebook;
-		return this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri) || isEqual(e.modifiedURI, notebookUri));
+		uri = CellUri.parse(uri)?.notebook ?? uri;
+		return this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
 	}
 
 	public getEntry(uri: URI): IModifiedFileEntry | undefined {
-		const notebookUri = CellUri.parse(uri)?.notebook;
-		return this._getEntry(uri) || (notebookUri && this._getEntry(notebookUri));
+		return this._getEntry(uri);
 	}
 
 	public readEntry(uri: URI, reader: IReader | undefined): IModifiedFileEntry | undefined {
-		const notebookUri = CellUri.parse(uri)?.notebook;
-		return this._entriesObs.read(reader).find(e => isEqual(e.modifiedURI, uri) || isEqual(e.modifiedURI, notebookUri));
+		uri = CellUri.parse(uri)?.notebook ?? uri;
+		return this._entriesObs.read(reader).find(e => isEqual(e.modifiedURI, uri));
 	}
 
 	public storeState(): Promise<void> {
