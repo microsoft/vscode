@@ -3,49 +3,103 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from '../../../../../base/common/assert.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, streamToBuffer, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { ITransaction, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ITransaction, IObservable, observableValue, autorun, transaction } from '../../../../../base/common/observable.js';
+import { ObservableDisposable } from '../../../../../base/common/observableDisposable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane } from '../../../../../editor/common/model.js';
+import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
+import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
+import { OffsetEdits } from '../../../../../editor/common/model/textModelOffsetEdit.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IEditorPane } from '../../../../common/editor.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { ChatEditingNotebookFileSystemProvider } from '../../../notebook/browser/contrib/chatEdit/chatEditingNotebookFileSystemProvider.js';
+import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
+import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { ICellEditOperation, IResolvedNotebookEditorModel, NotebookData, NotebookSetting, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICellEditOperation, IResolvedNotebookEditorModel, NotebookData, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditKind, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
+import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
+import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry, pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
+import { ChatEditingNotebookEditorIntegration, ICellDiffInfo } from './chatEditingNotebookEditorIntegration.js';
 import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+
+
+
 
 export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifiedFileEntry {
 
 	private readonly modifiedModel: NotebookTextModel;
 	private readonly originalModel: NotebookTextModel;
 	override originalURI: URI;
+	/**
+	 * JSON stringified version of the original notebook.
+	 */
 	override initialContent: string;
-
+	/**
+	 * Whether we're in the process of applying edits.
+	 */
+	private _isEditFromUs: boolean = false;
+	/**
+	 * Whether all edits are from us, e.g. is possible a user has made edits, then this will be false.
+	 */
+	private _allEditsAreFromUs: boolean = true;
 	private readonly _changesCount = observableValue<number>(this, 0);
 	override changesCount: IObservable<number> = this._changesCount;
+
+	private readonly cellEntryMap = new WeakMap<NotebookCellTextModel, ChatEditingNotebookCellEntry>();
+	private readonly _entries = observableValue<ChatEditingNotebookCellEntry[]>('cellEntries', []);
+	private modifiedToOriginalCellMap = new ResourceMap<NotebookCellTextModel>();
+	private readonly _cellDiffInfo = observableValue<ICellDiffInfo[]>('diffInfo', []);
+	private readonly _maxModifiedLineNumbers = observableValue<number[]>('changedMaxLineNumber', []);
+
+	get cellDiffInfo(): IObservable<ICellDiffInfo[]> {
+		return this._cellDiffInfo;
+	}
+
+	/**
+	 * List of Cell URIs that are edited,
+	 * Will be cleared once all edits have been accepted.
+	 * I.e. this will only contain URIS will acceptAgentEdits are being called before `isLastEdit` is sent.
+	 */
+	private readonly editedCells = new ResourceSet();
 
 	public static async create(uri: URI, _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void }, telemetryInfo: IModifiedEntryTelemetryInfo, chatKind: ChatEditKind, initialContent: string | undefined, instantiationService: IInstantiationService): Promise<AbstractChatEditingModifiedFileEntry> {
 		return instantiationService.invokeFunction(async accessor => {
 			const notebookService = accessor.get(INotebookService);
 			const resolver = accessor.get(INotebookEditorModelResolverService);
 			const configurationServie = accessor.get(IConfigurationService);
+			const textModelService = accessor.get(ITextModelService);
 			const resourceRef: IReference<IResolvedNotebookEditorModel> = await resolver.resolve(uri);
 			const notebook = resourceRef.object.notebook;
 			const originalUri = ChatEditingNotebookFileSystemProvider.getSnapshotFileURI(telemetryInfo.requestId, notebook.uri.path);
@@ -63,14 +117,26 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				restoreSnapshot(originalRef.object.notebook, initialContent);
 			}
 			initialContent = initialContent || createSnapshot(originalRef.object.notebook, options.serializer.options, configurationServie);
-			return instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
+			const modifiedCells = new ResourceMap<IReference<IResolvedTextEditorModel>>();
+			const originalCells = new ResourceMap<IReference<IResolvedTextEditorModel>>();
+			await Promise.all([
+				resourceRef.object.notebook.cells.map(async cell => {
+					modifiedCells.set(cell.uri, await textModelService.createModelReference(cell.uri));
+				}),
+				originalRef.object.notebook.cells.map(async cell => {
+					originalCells.set(cell.uri, await textModelService.createModelReference(cell.uri));
+				})
+			]);
+			return instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, modifiedCells, originalCells, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
 		});
 	}
 
 
 	constructor(
-		modifiedResourceRef: IReference<IResolvedNotebookEditorModel>,
+		private readonly modifiedResourceRef: IReference<IResolvedNotebookEditorModel>,
 		originalResourceRef: IReference<IResolvedNotebookEditorModel>,
+		private readonly modifiedCellModels: ResourceMap<IReference<IResolvedTextEditorModel>>,
+		private readonly originalCellModels: ResourceMap<IReference<IResolvedTextEditorModel>>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		private readonly transientOptions: TransientOptions | undefined,
 		telemetryInfo: IModifiedEntryTelemetryInfo,
@@ -80,8 +146,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@IChatService chatService: IChatService,
 		@IFileService fileService: IFileService,
-		@IInstantiationService instantiationService: IInstantiationService
-
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, instantiationService);
 		this._register(modifiedResourceRef);
@@ -90,6 +155,34 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.originalModel = originalResourceRef.object.notebook;
 		this.originalURI = this.originalModel.uri;
 		this.initialContent = initialContent;
+		this._register(this.modifiedModel.onDidChangeContent(this.mirrorNotebookEdits, this));
+		this._cellDiffInfo.set(this.modifiedModel.cells.map((cell, i) => ({ modifiedCellIndex: i, originalCellIndex: i, diff: nullDocumentDiff, type: 'unchanged' })), undefined);
+		this._maxModifiedLineNumbers.set(this.modifiedModel.cells.map(() => 0), undefined);
+		this.modifiedModel.cells.forEach((cell, index) => {
+			this.modifiedToOriginalCellMap.set(cell.uri, this.originalModel.cells[index]);
+			this.getOrCreateModifiedTextFileEntryForCell(cell);
+		});
+	}
+
+	mirrorNotebookEdits(e: NotebookTextModelChangedEvent) {
+		if (this._isEditFromUs) {
+			// TODO@DonJayamanne Apply this same edit to the original notebook.
+			return;
+		}
+
+		// TODO@DonJayamanne We need a way to undo this operation.
+		this._allEditsAreFromUs = this._allEditsAreFromUs || e.rawEvents.length > 0;
+
+		const didResetToOriginalContent = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService) === this.initialContent;
+		const currentState = this._stateObs.get();
+		switch (currentState) {
+			case WorkingSetEntryState.Modified:
+				if (didResetToOriginalContent) {
+					this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+					break;
+				}
+		}
+
 	}
 
 	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
@@ -105,18 +198,18 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	protected override async _doReject(tx: ITransaction | undefined): Promise<void> {
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
-			// await this.docFileEditorModel.revert({ soft: true });
+			await this.modifiedResourceRef.object.revert({ soft: true });
 			await this._fileService.del(this.modifiedURI);
 			this._onDidDelete.fire();
 		} else {
 			const outputSizeLimit = this.configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
 			const snapshot = this.originalModel.createSnapshot({ context: SnapshotContext.Backup, outputSizeLimit, transientOptions: this.transientOptions });
 			this.modifiedModel.restoreSnapshot(snapshot, this.transientOptions);
-			// if (this._allEditsAreFromUs) {
-			// 	// 	// save the file after discarding so that the dirty indicator goes away
-			// 	// 	// and so that an intermediate saved state gets reverted
-			// 	// 	await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
-			// }
+			if (this._allEditsAreFromUs && this._entries.get().every(entry => entry.allEditsAreFromUs)) {
+				// save the file after discarding so that the dirty indicator goes away
+				// and so that an intermediate saved state gets reverted
+				await this.modifiedResourceRef.object.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
+			}
 			await this._collapse(tx);
 		}
 
@@ -126,18 +219,147 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	protected override _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
-		throw new Error('Method not implemented.');
+		const notebookEditor = getNotebookEditorFromEditorPane(editor);
+		assertType(notebookEditor);
+		return this._instantiationService.createInstance(ChatEditingNotebookEditorIntegration, this, notebookEditor, this.modifiedModel, this._cellDiffInfo);
 	}
 
-	override async acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
-
+	override acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
 		const isCellUri = resource.scheme === Schemas.vscodeNotebookCell;
-		assert(isCellUri || isEqual(resource, this.modifiedURI));
-		assertType(edits.every(edit => !TextEdit.isTextEdit(edit) || isCellUri));
+		const cell = isCellUri && this.modifiedModel.cells.find(cell => isEqual(cell.uri, resource));
+		const cellEntry = cell ? this.cellEntryMap.get(cell) : undefined;
+		edits.forEach(edit => {
+			if (TextEdit.isTextEdit(edit)) {
+				this.editedCells.add(resource);
+				cellEntry?.acceptAgentEdits([edit], isLastEdits, responseModel);
+			} else {
+				this.acceptNotebookEdit(edit);
+			}
+		});
 
-		// needs to handle notebook and textual cell edits
+		transaction((tx) => {
+			if (!isLastEdits) {
+				this._stateObs.set(WorkingSetEntryState.Modified, tx);
+				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
+				this._rewriteRatioObs.set(Math.min(1, this.calculateRewriteRadio()), tx);
 
-		throw new Error('Method not implemented.');
+			} else {
+				// For all cells that were edited, send the `isLastEdits` flag.
+				this.editedCells.forEach(uri => {
+					const cell = this.modifiedModel.cells.find(cell => isEqual(cell.uri, uri));
+					const cellEntry = cell && this.cellEntryMap.get(cell);
+					cellEntry?.acceptAgentEdits([], true, responseModel);
+				});
+				this.editedCells.clear();
+				this._resetEditsState(tx);
+				// this._updateDiffInfoSeq();
+				this._rewriteRatioObs.set(1, tx);
+				// this._editDecorationClear.schedule();
+			}
+		});
+	}
+
+	acceptNotebookEdit(edit: ICellEditOperation): void {
+		// make the actual edit
+		this._applyEdits(() => this.modifiedModel.applyEdits([edit], true, undefined, () => undefined, undefined, true));
+		if (edit.editType !== CellEditType.Replace) {
+			return;
+		}
+		if (edit.count === 0) {
+			const diff = this._cellDiffInfo.get().slice();
+			// All existing indexes are shifted by number of cells added.
+			diff.forEach(d => {
+				if (d.type !== 'delete' && d.modifiedCellIndex >= edit.index) {
+					d.modifiedCellIndex += edit.cells.length;
+				}
+			});
+			const diffInsert = edit.cells.map((c, i) => {
+				const lines = c.source.split(/\r?\n/);
+				const originalRange = new Range(1, 0, 1, 0);
+				const modifiedRange = new Range(1, 0, lines.length, lines[lines.length - 1].length);
+				const innerChanges = new RangeMapping(originalRange, modifiedRange);
+				const changes = [new DetailedLineRangeMapping(new LineRange(1, 1), new LineRange(1, lines.length), [innerChanges])];
+				return {
+					type: 'insert' as const,
+					originalCellIndex: undefined,
+					modifiedCellIndex: edit.index + i,
+					diff: {
+						changes,
+						identical: false,
+						moves: [],
+						quitEarly: false
+					}
+				} satisfies ICellDiffInfo;
+			});
+			diff.splice(edit.index, 0, ...diffInsert);
+			this._cellDiffInfo.set(diff, undefined);
+		} else {
+			// All existing indexes are shifted by number of cells removed.
+			// And unchanged cells should be converted to deleted cells.
+			const diff = this._cellDiffInfo.get().slice().map(d => {
+				if (d.type === 'unchanged' && d.modifiedCellIndex >= (edit.index + edit.count - 1)) {
+					const originalCell = this.originalModel.cells[d.originalCellIndex];
+					const lines = new Array(originalCell.textBuffer.getLineCount()).fill(0).map((_, i) => originalCell.textBuffer.getLineContent(i + 1));
+					const originalRange = new Range(1, 0, lines.length, lines[lines.length - 1].length);
+					const modifiedRange = new Range(1, 0, 1, 0);
+					const innerChanges = new RangeMapping(modifiedRange, originalRange);
+					const changes = [new DetailedLineRangeMapping(new LineRange(1, lines.length), new LineRange(1, 1), [innerChanges])];
+
+					// This will be deleted.
+					return {
+						type: 'delete' as const,
+						modifiedCellIndex: undefined,
+						originalCellIndex: d.originalCellIndex,
+						diff: {
+							changes,
+							identical: false,
+							moves: [],
+							quitEarly: false
+						}
+					} satisfies ICellDiffInfo;
+				}
+				if (d.type !== 'delete' && d.modifiedCellIndex >= (edit.index + edit.count)) {
+					d.modifiedCellIndex -= edit.count;
+					return d;
+				}
+				return d;
+			});
+			this._cellDiffInfo.set(diff, undefined);
+		}
+	}
+	private _applyEdits(operation: () => void) {
+		// make the actual edit
+		this._isEditFromUs = true;
+		try {
+			operation();
+		} finally {
+			this._isEditFromUs = false;
+		}
+	}
+
+	calculateRewriteRadio() {
+		const cellChanges = this._cellDiffInfo.get();
+		const totalNumberOfUpdatedLines = cellChanges.reduce((totalUpdatedLines, value) => {
+			const getUpadtedLineCount = () => {
+				if (value.type === 'unchanged') {
+					return 0;
+				}
+				if (value.type === 'delete') {
+					return this.originalModel.cells[value.originalCellIndex].textModel?.getLineCount() ?? 0;
+				}
+				if (value.type === 'insert') {
+					return this.modifiedModel.cells[value.modifiedCellIndex].textModel?.getLineCount() ?? 0;
+				}
+				return value.diff.changes.reduce((maxLineNumber, change) => {
+					return Math.max(maxLineNumber, change.modified.endLineNumberExclusive);
+				}, 0);
+			};
+
+			return totalUpdatedLines + getUpadtedLineCount();
+		}, 0);
+
+		const totalNumberOfLines = this.modifiedModel.cells.reduce((totalLines, cell) => totalLines + (cell.textModel?.getLineCount() ?? 0), 0);
+		return Math.min(1, totalNumberOfUpdatedLines / totalNumberOfLines);
 	}
 
 	override createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
@@ -168,12 +390,62 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		restoreSnapshot(this.modifiedModel, snapshot.current);
 		// this._edit = snapshot.originalToCurrentEdit;
 		// this._updateDiffInfoSeq();
-		restoreSnapshot(this.modifiedModel, snapshot.current);
 
 	}
 
 	override resetToInitialContent(): void {
 		restoreSnapshot(this.modifiedModel, this.initialContent);
+	}
+
+	getOrCreateModifiedTextFileEntryForCell(cell: NotebookCellTextModel): ChatEditingNotebookCellEntry | undefined {
+		let cellEntry = this.cellEntryMap.get(cell);
+		if (cellEntry) {
+			return cellEntry;
+		}
+		const index = this.modifiedModel.cells.indexOf(cell);
+		const originalCell = this.modifiedToOriginalCellMap.get(cell.uri);
+		if (!originalCell || index === -1) {
+			// Not possible.
+			return;
+		}
+		const modifiedCellModel = this.modifiedCellModels.get(cell.uri);
+		const originalCellModel = this.originalCellModels.get(originalCell.uri);
+		if (!modifiedCellModel || !originalCellModel) {
+			return;
+		}
+		const originalText = originalCellModel.object.textEditorModel.getValue();
+		cellEntry = this._register(this._instantiationService.createInstance(ChatEditingNotebookCellEntry, cell, modifiedCellModel, originalCellModel, originalText, this._telemetryInfo));
+		this.cellEntryMap.set(cell, cellEntry);
+
+		this._register(autorun(r => {
+			const cellDiff = cellEntry.diffInfo.read(r);
+			const diffs = this.cellDiffInfo.get().slice();
+			const entry = diffs.find(entry => entry.modifiedCellIndex === index);
+			if (!entry) {
+				// Not possible.
+				return;
+			}
+			entry.diff = cellDiff;
+			entry.diff = cellDiff.identical ? nullDocumentDiff : cellDiff;
+			if (entry.type === 'unchanged' || entry.type === 'modified') {
+				entry.type = cellDiff.identical ? 'unchanged' : 'modified';
+			}
+			const maxModifiedLineNumber = cellEntry.maxModifiedLineNumber.read(r);
+			const changeCount = diffs.reduce((count, diff) => count + diff.diff.changes.length, 0);
+			const maxModifiedLineNumbers = this._maxModifiedLineNumbers.get().slice();
+			maxModifiedLineNumbers[index] = maxModifiedLineNumber;
+
+			transaction(tx => {
+				this._cellDiffInfo.set(diffs, tx);
+				this._changesCount.set(changeCount, tx);
+				this._maxModifiedLineNumbers.set(maxModifiedLineNumbers, tx);
+			});
+		}));
+
+		const entries = this.modifiedModel.cells.map(cell => this.cellEntryMap.get(cell)).filter(entry => !!entry);
+		this._entries.set(entries, undefined);
+
+		return cellEntry;
 	}
 }
 
@@ -215,4 +487,334 @@ function deserializeSnapshot(snapshot: string): { transientOptions: TransientOpt
 	});
 
 	return { transientOptions, data };
+}
+
+
+class ChatEditingNotebookCellEntry extends ObservableDisposable {
+	private static readonly _lastEditDecorationOptions = ModelDecorationOptions.register({
+		isWholeLine: true,
+		description: 'chat-last-edit',
+		className: 'chat-editing-last-edit-line',
+		marginClassName: 'chat-editing-last-edit',
+		overviewRuler: {
+			position: OverviewRulerLane.Full,
+			color: themeColorFromId(editorSelectionBackground)
+		},
+	});
+
+	private static readonly _pendingEditDecorationOptions = ModelDecorationOptions.register({
+		isWholeLine: true,
+		description: 'chat-pending-edit',
+		className: 'chat-editing-pending-edit',
+		minimap: {
+			position: MinimapPosition.Inline,
+			color: themeColorFromId(pendingRewriteMinimap)
+		}
+	});
+
+
+	private _isFirstEditAfterStartOrSnapshot: boolean = true;
+	public set isFirstEditAfterStartOrSnapshot(value: boolean) {
+		this._isFirstEditAfterStartOrSnapshot = value;
+	}
+	private _edit: OffsetEdit = OffsetEdit.empty;
+	private _isEditFromUs: boolean = false;
+	private _allEditsAreFromUs: boolean = true;
+	public get allEditsAreFromUs(): boolean {
+		return this._allEditsAreFromUs;
+	}
+	private _diffOperation: Promise<any> | undefined;
+	private _diffOperationIds: number = 0;
+
+	private readonly _diffInfo = observableValue<IDocumentDiff>(this, nullDocumentDiff);
+	public readonly changesCount: IObservable<number>;
+	public readonly diffInfo: IObservable<IDocumentDiff2>;
+	private readonly _maxModifiedLineNumber = observableValue<number>(this, 0);
+	readonly maxModifiedLineNumber = this._maxModifiedLineNumber;
+	private readonly originalModel: ITextModel;
+
+	private readonly modifiedModel: ITextModel;
+
+	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []); }, 500));
+	private _editDecorations: string[] = [];
+
+	private readonly _diffTrimWhitespace: IObservable<boolean>;
+	protected readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
+	readonly state: IObservable<WorkingSetEntryState> = this._stateObs;
+	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
+	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined> = this._isCurrentlyBeingModifiedByObs;
+
+	constructor(
+		public readonly cell: NotebookCellTextModel,
+		modifiedModel: IReference<IResolvedTextEditorModel>,
+		originalModel: IReference<IResolvedTextEditorModel>,
+		private readonly initialContent: string,
+		private readonly _telemetryInfo: IModifiedEntryTelemetryInfo,
+		@IConfigurationService configService: IConfigurationService,
+		@IChatService private readonly _chatService: IChatService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
+
+	) {
+		super();
+		this._register(modifiedModel);
+		this._register(originalModel);
+		this.modifiedModel = modifiedModel.object.textEditorModel;
+		this.originalModel = originalModel.object.textEditorModel;
+		this.diffInfo = this._diffInfo.map(value => {
+			return {
+				...value,
+				originalModel: this.originalModel,
+				modifiedModel: this.modifiedModel,
+				keep: changes => this._acceptHunk(changes),
+				undo: changes => this._rejectHunk(changes)
+			} satisfies IDocumentDiff2;
+		});
+		this.changesCount = this._diffInfo.map(diff => diff.changes.length);
+		this._register(this.modifiedModel.onDidChangeContent(e => {
+			if (this.disposed) {
+				return;
+			}
+			this._mirrorEdits(e);
+
+		}));
+		this._register(toDisposable(() => {
+			this._clearCurrentEditLineDecoration();
+		}));
+
+		this._diffTrimWhitespace = observableConfigValue('diffEditor.ignoreTrimWhitespace', true, configService);
+		this._register(autorun(r => {
+			this._diffTrimWhitespace.read(r);
+			this._updateDiffInfoSeq();
+		}));
+	}
+
+	private _clearCurrentEditLineDecoration() {
+		this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []);
+	}
+
+
+	private _mirrorEdits(event: IModelContentChangedEvent) {
+		const edit = OffsetEdits.fromContentChanges(event.changes);
+
+		if (this._isEditFromUs) {
+			const e_sum = this._edit;
+			const e_ai = edit;
+			this._edit = e_sum.compose(e_ai);
+
+		} else {
+
+			//           e_ai
+			//   d0 ---------------> s0
+			//   |                   |
+			//   |                   |
+			//   | e_user_r          | e_user
+			//   |                   |
+			//   |                   |
+			//   v       e_ai_r      v
+			///  d1 ---------------> s1
+			//
+			// d0 - document snapshot
+			// s0 - document
+			// e_ai - ai edits
+			// e_user - user edits
+			//
+			const e_ai = this._edit;
+			const e_user = edit;
+
+			const e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()), true);
+
+			if (e_user_r === undefined) {
+				// user edits overlaps/conflicts with AI edits
+				this._edit = e_ai.compose(e_user);
+			} else {
+				const edits = OffsetEdits.asEditOperations(e_user_r, this.originalModel);
+				this.originalModel.applyEdits(edits);
+				this._edit = e_ai.tryRebase(e_user_r);
+			}
+
+			this._allEditsAreFromUs = false;
+			this._updateDiffInfoSeq();
+
+			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
+			const currentState = this._stateObs.get();
+			switch (currentState) {
+				case WorkingSetEntryState.Modified:
+					if (didResetToOriginalContent) {
+						this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+						break;
+					}
+			}
+		}
+	}
+
+	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
+
+		// push stack element for the first edit
+		if (this._isFirstEditAfterStartOrSnapshot) {
+			this._isFirstEditAfterStartOrSnapshot = false;
+			const request = this._chatService.getSession(this._telemetryInfo.sessionId)?.getRequests().at(-1);
+			const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
+			this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.modifiedModel, null));
+		}
+
+		const ops = textEdits.map(TextEdit.asEditOperation);
+		const undoEdits = this._applyEdits(ops);
+
+		const maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
+
+		const newDecorations: IModelDeltaDecoration[] = [
+			// decorate pending edit (region)
+			{
+				options: ChatEditingNotebookCellEntry._pendingEditDecorationOptions,
+				range: new Range(maxLineNumber + 1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)
+			}
+		];
+
+		if (maxLineNumber > 0) {
+			// decorate last edit
+			newDecorations.push({
+				options: ChatEditingNotebookCellEntry._lastEditDecorationOptions,
+				range: new Range(maxLineNumber, 1, maxLineNumber, Number.MAX_SAFE_INTEGER)
+			});
+		}
+
+		this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, newDecorations);
+
+
+		transaction((tx) => {
+			if (!isLastEdits) {
+				this._stateObs.set(WorkingSetEntryState.Modified, tx);
+				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
+				this._maxModifiedLineNumber.set(maxLineNumber, tx);
+
+			} else {
+				this._resetEditsState(tx);
+				this._updateDiffInfoSeq();
+				this._maxModifiedLineNumber.set(0, tx);
+				this._editDecorationClear.schedule();
+			}
+		});
+	}
+
+	scheduleEditDecorations() {
+		this._editDecorationClear.schedule();
+	}
+
+	protected _resetEditsState(tx: ITransaction): void {
+		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
+		this._maxModifiedLineNumber.set(0, tx);
+	}
+
+	private async _acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+		if (!this._diffInfo.get().changes.includes(change)) {
+			// diffInfo should have model version ids and check them (instead of the caller doing that)
+			return false;
+		}
+		const edits: ISingleEditOperation[] = [];
+		for (const edit of change.innerChanges ?? []) {
+			const newText = this.modifiedModel.getValueInRange(edit.modifiedRange);
+			edits.push(EditOperation.replace(edit.originalRange, newText));
+		}
+		this.originalModel.pushEditOperations(null, edits, _ => null);
+		await this._updateDiffInfoSeq();
+		if (this._diffInfo.get().identical) {
+			this._stateObs.set(WorkingSetEntryState.Accepted, undefined);
+		}
+		return true;
+	}
+
+	private async _rejectHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+		if (!this._diffInfo.get().changes.includes(change)) {
+			return false;
+		}
+		const edits: ISingleEditOperation[] = [];
+		for (const edit of change.innerChanges ?? []) {
+			const newText = this.originalModel.getValueInRange(edit.originalRange);
+			edits.push(EditOperation.replace(edit.modifiedRange, newText));
+		}
+		this.modifiedModel.pushEditOperations(null, edits, _ => null);
+		await this._updateDiffInfoSeq();
+		if (this._diffInfo.get().identical) {
+			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+		}
+		return true;
+	}
+
+	private _applyEdits(edits: ISingleEditOperation[]) {
+		// make the actual edit
+		this._isEditFromUs = true;
+		try {
+			let result: ISingleEditOperation[] = [];
+			this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
+				result = undoEdits;
+				return null;
+			});
+			return result;
+		} finally {
+			this._isEditFromUs = false;
+		}
+	}
+
+	private async _updateDiffInfoSeq() {
+		const myDiffOperationId = ++this._diffOperationIds;
+		await Promise.resolve(this._diffOperation);
+		if (this._diffOperationIds === myDiffOperationId) {
+			const thisDiffOperation = this._updateDiffInfo();
+			this._diffOperation = thisDiffOperation;
+			await thisDiffOperation;
+		}
+	}
+
+	private async _updateDiffInfo(): Promise<void> {
+
+		if (this.originalModel.isDisposed() || this.modifiedModel.isDisposed()) {
+			return;
+		}
+
+		const docVersionNow = this.modifiedModel.getVersionId();
+		const snapshotVersionNow = this.originalModel.getVersionId();
+
+		const ignoreTrimWhitespace = this._diffTrimWhitespace.get();
+
+		const diff = await this._editorWorkerService.computeDiff(
+			this.originalModel.uri,
+			this.modifiedModel.uri,
+			{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
+			'advanced'
+		);
+
+		if (this.originalModel.isDisposed() || this.modifiedModel.isDisposed()) {
+			return;
+		}
+
+		// only update the diff if the documents didn't change in the meantime
+		if (this.modifiedModel.getVersionId() === docVersionNow && this.originalModel.getVersionId() === snapshotVersionNow) {
+			const diff2 = diff ?? nullDocumentDiff;
+			this._diffInfo.set(diff2, undefined);
+			this._edit = OffsetEdits.fromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
+		}
+	}
+
+	async _doAccept(tx: ITransaction | undefined): Promise<void> {
+		this.originalModel.setValue(this.modifiedModel.createSnapshot());
+		this._diffInfo.set(nullDocumentDiff, tx);
+		this._edit = OffsetEdit.empty;
+	}
+
+	async _doReject(tx: ITransaction | undefined): Promise<void> {
+		this._setDocValue(this.originalModel.getValue());
+	}
+
+	private _setDocValue(value: string): void {
+		if (this.modifiedModel.getValue() !== value) {
+
+			this.modifiedModel.pushStackElement();
+			const edit = EditOperation.replace(this.modifiedModel.getFullModelRange(), value);
+
+			this._applyEdits([edit]);
+			this._updateDiffInfoSeq();
+			this.modifiedModel.pushStackElement();
+		}
+	}
 }

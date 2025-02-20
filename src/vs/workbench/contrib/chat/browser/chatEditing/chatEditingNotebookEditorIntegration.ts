@@ -1,0 +1,242 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { debouncedObservable } from '../../../../../base/common/observableInternal/utils.js';
+import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
+import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
+import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
+import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
+import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
+
+/**
+ * All entries will contain a IDocumentDiff
+ * Even when there are no changes, diff will contain the number of lines in the document.
+ * This way we can always calculate the total number of lines in the document.
+ */
+export type ICellDiffInfo = {
+	originalCellIndex: number;
+	modifiedCellIndex: number;
+	type: 'unchanged';
+	diff: IDocumentDiff; // Null diff Change (property to be consistent with others, also we have a list of all line numbers)
+} | {
+	originalCellIndex: number;
+	modifiedCellIndex: number;
+	type: 'modified';
+	diff: IDocumentDiff2; // List of the changes.
+} |
+{
+	modifiedCellIndex: undefined;
+	originalCellIndex: number;
+	type: 'delete';
+	diff: IDocumentDiff; // List of all the lines deleted.
+} |
+{
+	modifiedCellIndex: number;
+	originalCellIndex: undefined;
+	type: 'insert';
+	diff: IDocumentDiff; // List of all the new lines.
+};
+
+
+export class ChatEditingNotebookEditorIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
+	private readonly _currentIndex = observableValue(this, -1);
+	readonly currentIndex: IObservable<number> = this._currentIndex;
+
+	// TODO@DonJayamanne For now we're going to ignore being able to focus on a deleted cell.
+	private readonly _currentCell = observableValue<NotebookCellTextModel | undefined>(this, undefined);
+	readonly currentCell: IObservable<NotebookCellTextModel | undefined> = this._currentCell;
+
+	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
+
+	constructor(
+		_entry: IModifiedFileEntry,
+		private readonly notebookEditor: INotebookEditor,
+		private readonly notebookModel: NotebookTextModel,
+		private readonly cellChanges: IObservable<ICellDiffInfo[]>,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+
+		const onDidChangeVisibleRanges = debouncedObservable(observableFromEvent(notebookEditor.onDidChangeVisibleRanges, () => notebookEditor.visibleRanges), 50);
+
+		// INIT current index when: enabled, not streaming anymore, once per request, and when having changes
+		let lastModifyingRequestId: string | undefined;
+		this._store.add(autorun(r => {
+
+			if (!_entry.isCurrentlyBeingModifiedBy.read(r)
+				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
+				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && c.type !== 'delete')
+			) {
+				lastModifyingRequestId = _entry.lastModifyingRequestId;
+				const firstModifiedCell = cellChanges.read(r).
+					filter(c => c.type !== 'unchanged' && c.type !== 'delete').
+					reduce((prev, curr) => curr.modifiedCellIndex < prev ? curr.modifiedCellIndex : prev, Number.MAX_SAFE_INTEGER);
+				if (typeof firstModifiedCell !== 'number' || firstModifiedCell === Number.MAX_SAFE_INTEGER) {
+					return;
+				}
+				const activeCell = notebookEditor.getActiveCell();
+				const index = activeCell ? notebookModel.cells.findIndex(c => c.handle === activeCell.handle) : firstModifiedCell;
+				this._currentCell.set(notebookModel.cells[index], undefined);
+			}
+		}));
+
+		this._register(autorun(r => {
+			const changes = cellChanges.read(r).filter(c => c.type === 'modified');
+			onDidChangeVisibleRanges.read(r);
+			if (!changes.length) {
+				this.cellEditorIntegrations.forEach(v => v.integration.dispose());
+				this.cellEditorIntegrations.clear();
+				return;
+			}
+
+			const validCells = new Set<NotebookCellTextModel>();
+			changes.forEach((diff) => {
+				const cell = notebookModel.cells[diff.modifiedCellIndex];
+				const editor = notebookEditor.codeEditors.find(([vm,]) => vm.handle === notebookModel.cells[diff.modifiedCellIndex].handle)?.[1];
+				if (!editor || !cell) {
+					return;
+				}
+
+				if (this.cellEditorIntegrations.has(cell)) {
+					this.cellEditorIntegrations.get(cell)!.diff.set(diff.diff, undefined);
+				} else {
+					const diff2 = observableValue(`diff${cell.handle}`, diff.diff);
+					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2);
+					this.cellEditorIntegrations.set(cell, { integration, diff: diff2 });
+					this._register(integration);
+					this._register(editor.onDidDispose(() => {
+						this.cellEditorIntegrations.get(cell)!.integration.dispose();
+						this.cellEditorIntegrations.delete(cell);
+					}));
+					this._register(editor.onDidChangeModel(() => {
+						if (editor.getModel() !== cell.textModel) {
+							this.cellEditorIntegrations.get(cell)!.integration.dispose();
+							this.cellEditorIntegrations.delete(cell);
+						}
+					}));
+				}
+			});
+
+			// Dispose old integrations as the editors are no longer valid.
+			this.cellEditorIntegrations.forEach((v, cell) => {
+				if (!validCells.has(cell)) {
+					v.integration.dispose();
+					this.cellEditorIntegrations.delete(cell);
+				}
+			});
+		}));
+	}
+
+	getCurrentCell() {
+		const activeCell = this.notebookModel.cells.find(c => c.handle === this.notebookEditor.getActiveCell()?.handle) || this._currentCell.get();
+		if (!activeCell) {
+			return undefined;
+		}
+		const index = this.notebookModel.cells.findIndex(c => c.handle === activeCell.handle);
+		const integration = this.cellEditorIntegrations.get(activeCell)?.integration;
+		return integration ? { integration, index: index, handle: activeCell.handle, cell: activeCell } : undefined;
+	}
+
+	getNextCell(nextOrPrevious: boolean) {
+		const current = this.getCurrentCell();
+		if (!current) {
+			// const changes = this.cellChanges.get().filter(c => c.type === 'modified' || c.type !== 'delete');
+			// if (!changes.length) {
+			// 	return undefined;
+			// }
+			// return this.getIntegrationForCell(changes[0].modifiedCellIndex);
+			return;
+		}
+		const changes = this.cellChanges.get().filter(c => c.type === 'modified' || c.type !== 'delete');
+		const nextIndex = changes.reduce((prev, curr) => {
+			if (nextOrPrevious) {
+				if (typeof curr.modifiedCellIndex !== 'number' || curr.modifiedCellIndex <= current.index) {
+					return prev;
+				}
+				return Math.min(prev, curr.modifiedCellIndex);
+			} else {
+				if (typeof curr.modifiedCellIndex !== 'number' || curr.modifiedCellIndex >= current.index) {
+					return prev;
+				}
+				return Math.max(prev, curr.modifiedCellIndex);
+			}
+		}, nextOrPrevious ? -1 : Number.MAX_SAFE_INTEGER);
+		if (nextIndex === -1 || nextIndex === Number.MAX_SAFE_INTEGER) {
+			return undefined;
+		}
+		return this.getCell(nextIndex);
+	}
+
+	getCell(modifiedCellIndex: number) {
+		const cell = this.notebookModel.cells[modifiedCellIndex];
+		const integration = this.cellEditorIntegrations.get(cell)?.integration;
+		return integration ? { integration, index: modifiedCellIndex, handle: cell.handle, cell } : undefined;
+	}
+
+	reveal(firstOrLast: boolean): void {
+		const changes = this.cellChanges.get().filter(c => c.type === 'modified' || c.type !== 'delete');
+		if (!changes.length) {
+			return undefined;
+		}
+		const index = firstOrLast ?
+			changes.reduce((prev, curr) => prev.modifiedCellIndex < curr.modifiedCellIndex ? prev : curr).modifiedCellIndex :
+			changes.reduce((prev, curr) => prev.modifiedCellIndex > curr.modifiedCellIndex ? prev : curr).modifiedCellIndex;
+		const info = this.getCell(index);
+		if (info) {
+			this._currentCell.set(info.cell, undefined);
+			info.integration.reveal(firstOrLast);
+		}
+	}
+	next(wrap: boolean): boolean {
+		const info = this.getCurrentCell();
+		if (info) {
+			if (info.integration.next(wrap)) {
+				return true;
+			} else {
+				const info = this.getNextCell(true);
+				if (info) {
+					this._currentCell.set(info.cell, undefined);
+					info.integration.reveal(true);
+					return true;
+				}
+				return false;
+			}
+		}
+		return false;
+	}
+	previous(wrap: boolean): boolean {
+		const info = this.getCurrentCell();
+		if (info) {
+			if (info.integration.previous(wrap)) {
+				return true;
+			} else {
+				const info = this.getNextCell(false);
+				if (info) {
+					this._currentCell.set(info.cell, undefined);
+					info.integration.reveal(false);
+					return true;
+				}
+				return false;
+			}
+		}
+		return false;
+	}
+	enableAccessibleDiffView(): void {
+		this.getCurrentCell()?.integration.enableAccessibleDiffView();
+	}
+	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
+		this.getCurrentCell()?.integration.acceptNearestChange(change);
+	}
+	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
+		this.getCurrentCell()?.integration.rejectNearestChange(change);
+	}
+	toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+		return this.getCurrentCell()?.integration.toggleDiff(change) ?? Promise.resolve();
+	}
+}
