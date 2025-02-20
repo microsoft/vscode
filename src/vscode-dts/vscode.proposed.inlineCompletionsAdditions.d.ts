@@ -76,6 +76,12 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
 
+		/**
+		 * @param completionItem The completion item that was rejected.
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
+
 		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
 
 		readonly debounceDelayMs?: number;
