@@ -501,8 +501,9 @@ class SendToNewChatAction extends Action2 {
 	}
 }
 
+export const CancelChatActionId = 'workbench.action.chat.cancel';
 export class CancelAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.cancel';
+	static readonly ID = CancelChatActionId;
 	constructor() {
 		super({
 			id: CancelAction.ID,

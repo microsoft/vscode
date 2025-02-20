@@ -12,9 +12,12 @@ import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownR
 import { localize } from '../../../../../nls.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { IToolResult } from '../../common/languageModelToolsService.js';
+import { CancelChatActionId } from '../actions/chatExecuteActions.js';
+import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem } from '../chat.js';
 import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -47,6 +50,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		const partStore = this._register(new DisposableStore());
 		const render = () => {
 			dom.clearNode(this.domNode);
+			partStore.clear();
 
 			const subPart = partStore.add(instantiationService.createInstance(ChatToolInvocationSubPart, toolInvocation, context, renderer, listPool));
 			this.domNode.appendChild(subPart.domNode);
@@ -84,6 +88,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		listPool: CollapsibleListPool,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -106,11 +111,28 @@ class ChatToolInvocationSubPart extends Disposable {
 		}
 		const title = toolInvocation.confirmationMessages.title;
 		const message = toolInvocation.confirmationMessages.message;
+		const continueLabel = localize('continue', "Continue");
+		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
+		const cancelLabel = localize('cancel', "Cancel");
+		const cancelKeybinding = this.keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
+		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 		const confirmWidget = this._register(instantiationService.createInstance(
 			ChatConfirmationWidget,
 			title,
 			message,
-			[{ label: localize('continue', "Continue"), data: true }, { label: localize('cancel', "Cancel"), data: false, isSecondary: true }]
+			[
+				{
+					label: continueLabel,
+					data: true,
+					tooltip: continueTooltip
+				},
+				{
+					label: cancelLabel,
+					data: false,
+					isSecondary: true,
+					tooltip: cancelTooltip
+				}]
 		));
 		this._register(confirmWidget.onDidClick(button => {
 			toolInvocation.confirmed.complete(button.data);
