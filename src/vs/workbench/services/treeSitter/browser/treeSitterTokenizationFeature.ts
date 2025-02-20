@@ -15,7 +15,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -28,6 +27,7 @@ import { setTimeout0 } from '../../../../base/common/platform.js';
 import { findLikelyRelevantLines } from '../../../../editor/common/model/textModelTokens.js';
 import { TreeSitterCodeEditors } from './treeSitterCodeEditors.js';
 import { Position } from '../../../../editor/common/core/position.js';
+import { IWorkbenchThemeChangeEvent, IWorkbenchThemeService } from '../../themes/common/workbenchThemeService.js';
 
 type TreeSitterQueries = string;
 
@@ -123,7 +123,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		private readonly _languageId: string,
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
-		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@ITreeSitterTokenizationStoreService private readonly _tokenizationStoreService: ITreeSitterTokenizationStoreService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -138,7 +138,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				this._parseAndTokenizeViewPort(viewport.model, viewport.ranges);
 			}
 		});
-		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
+		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, (e) => this._updateTheme(e)));
 		let hasDoneFullTokenization = false;
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
 			if (e.textModel.getLanguageId() !== this._languageId) {
@@ -438,8 +438,29 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		return this._query;
 	}
 
-	private reset() {
+	private _updateTheme(e: IWorkbenchThemeChangeEvent | undefined) {
 		this._colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
+		for (const editor of this._codeEditors.editors) {
+			const model = editor.getModel();
+			if (model) {
+				const modelRange = model.getFullModelRange();
+				this._tokenizationStoreService.markForRefresh(model, modelRange);
+				this._parseAndTokenizeViewPort(model, editor.getVisibleRangesPlusViewportAboveBelow());
+
+				if (e?.target !== 'preview') {
+					this._handleTreeUpdate({
+						ranges: [{
+							newRange: modelRange,
+							newRangeStartOffset: 0,
+							newRangeEndOffset: model.getValueLength(),
+							oldRangeLength: model.getValueLength()
+						}],
+						textModel: model,
+						versionId: model.getVersionId()
+					});
+				}
+			}
+		}
 	}
 
 	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): QueryCapture[] {
