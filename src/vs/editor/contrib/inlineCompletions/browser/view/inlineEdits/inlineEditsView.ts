@@ -221,7 +221,9 @@ export class InlineEditsView extends Disposable {
 			|| this._wordReplacementViews.read(reader).some(v => v.isHovered.read(reader))
 			|| this._deletion.isHovered.read(reader)
 			|| this._inlineDiffView.isHovered.read(reader)
-			|| this._lineReplacementView.isHovered.read(reader);
+			|| this._lineReplacementView.isHovered.read(reader)
+			|| this._insertion.isHovered.read(reader);
+
 	});
 
 	private readonly _gutterIndicatorOffset = derived<number>(this, reader => {

@@ -9,7 +9,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
+import { Rect } from '../../../../../../browser/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
@@ -91,6 +91,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		},
 		observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
 		true,
+		true
 	));
 
 	constructor(
@@ -106,6 +107,10 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 	) {
 		super();
 
+		this._register(this._ghostTextView.onDidClick(() => {
+			this._host.accept();
+		}));
+
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._nonOverflowView.element,
 			position: constObservable(null),
@@ -113,7 +118,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			minContentWidthInPx: derived(reader => {
 				const info = this._overlayLayout.read(reader);
 				if (info === null) { return 0; }
-				return info.code1.x - info.codeStart1.x;
+				return info.minContentWidthRequired;
 			}),
 		}));
 	}
@@ -196,11 +201,12 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
+		const verticalScrollbarWidth = this._editorObs.layoutInfoVerticalScrollbarWidth.read(reader);
 
-		const left = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
-		const prefixTrim = this._maxPrefixTrim.read(reader);
-		const codeLeft = editorLayout.contentLeft + (prefixTrim?.prefixLeftOffset ?? 0 /* fix due to observable bug? */);
-		if (left <= codeLeft) {
+		const right = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
+		const prefixLeftOffset = this._maxPrefixTrim.read(reader).prefixLeftOffset ?? 0 /* fix due to observable bug? */;
+		const left = editorLayout.contentLeft + prefixLeftOffset;
+		if (right <= left) {
 			return null;
 		}
 
@@ -211,18 +217,13 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		const top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop + topTrim;
 		const bottom = top + height;
 
-		const code1 = new Point(left, top);
-		const codeStart1 = new Point(codeLeft, top);
-		const code2 = new Point(left, bottom);
-		const codeStart2 = new Point(codeLeft, bottom);
+		const PADDING = 3;
+		const overlay = new Rect(left, top, right, bottom).withMargin(PADDING);
 
 		return {
-			code1,
-			codeStart1,
-			code2,
-			codeStart2,
+			overlay,
 			horizontalScrollOffset,
-			padding: 3,
+			minContentWidthRequired: prefixLeftOffset + overlay.width + verticalScrollbarWidth,
 			borderRadius: 4,
 		};
 	}).recomputeInitiallyAndOnChange(this._store);
@@ -238,11 +239,11 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 		const rectangleOverlay = createRectangle(
 			{
-				topLeft: layoutInfo.codeStart1,
-				width: layoutInfo.code1.x - layoutInfo.codeStart1.x + 1,
-				height: layoutInfo.code2.y - layoutInfo.code1.y + 1,
+				topLeft: layoutInfo.overlay.getLeftTop(),
+				width: layoutInfo.overlay.width + 1,
+				height: layoutInfo.overlay.height + 1,
 			},
-			layoutInfo.padding,
+			0,
 			layoutInfo.borderRadius,
 			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
 		);
@@ -276,5 +277,5 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		[this._foregroundSvg],
 	]).keepUpdated(this._store);
 
-	readonly isHovered = constObservable(false);
+	readonly isHovered = this._ghostTextView.isHovered;
 }
