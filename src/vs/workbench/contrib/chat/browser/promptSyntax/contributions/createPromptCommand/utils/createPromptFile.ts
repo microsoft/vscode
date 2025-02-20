@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { FolderExists, InvalidPromptName } from '../errors.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../../base/common/buffer.js';
 import { dirname } from '../../../../../../../../base/common/resources.js';
-import { FolderExists, InvalidPromptName, PromptExists } from '../errors.js';
 import { IFileService } from '../../../../../../../../platform/files/common/files.js';
 import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
+import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
 
 /**
  * Options for the {@link createPromptFile} utility.
@@ -32,6 +33,7 @@ interface ICreatePromptFileOptions {
 	readonly content: string;
 
 	fileService: IFileService;
+	commandService: ICommandService;
 }
 
 /**
@@ -45,7 +47,7 @@ interface ICreatePromptFileOptions {
 export const createPromptFile = async (
 	options: ICreatePromptFileOptions,
 ): Promise<URI> => {
-	const { fileName, folder, content, fileService } = options;
+	const { fileName, folder, content, fileService, commandService } = options;
 
 	const promptUri = URI.joinPath(folder, fileName);
 
@@ -58,10 +60,16 @@ export const createPromptFile = async (
 	if (await fileService.exists(promptUri)) {
 		const promptInfo = await fileService.resolve(promptUri);
 
-		// throw appropriate error based on the type of the existing entity
-		throw (promptInfo.isDirectory)
-			? new FolderExists(promptUri.fsPath)
-			: new PromptExists(promptUri.fsPath);
+		// if existing entity is a folder, throw an error
+		assert(
+			!promptInfo.isDirectory,
+			new FolderExists(promptUri.fsPath),
+		);
+
+		// if prompt file already exists - open it
+		await commandService.executeCommand('vscode.open', promptUri);
+
+		return promptUri;
 	}
 
 	// ensure the parent folder of the prompt file exists
