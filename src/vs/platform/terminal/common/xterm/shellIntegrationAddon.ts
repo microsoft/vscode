@@ -250,9 +250,10 @@ const enum VSCodeOscPt {
 
 	/**
 	 * The start of the collecting user's environment variables individually.
-	 * Clears any environment residuals in previous sessions if `<Clear>` is set to `1`.
 	 *
 	 * Format: `OSC 633 ; EnvSingleStart [; <Clear>] ; <Nonce>`
+	 *
+	 * - `Clear` - An _mandatory_ flag indicating any cached environment variables will be cleared.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
