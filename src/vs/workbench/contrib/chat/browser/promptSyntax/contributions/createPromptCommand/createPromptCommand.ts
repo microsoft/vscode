@@ -11,6 +11,7 @@ import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js'
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
 import { appendToCommandPalette } from '../../../../../files/browser/fileActions.contribution.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
@@ -53,6 +54,7 @@ const command = async (
 	const fileService = accessor.get(IFileService);
 	const labelService = accessor.get(ILabelService);
 	const openerService = accessor.get(IOpenerService);
+	const commandService = accessor.get(ICommandService);
 	const promptsService = accessor.get(IPromptsService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const workspaceService = accessor.get(IWorkspaceContextService);
@@ -84,6 +86,7 @@ const command = async (
 		folder: selectedFolder,
 		content,
 		fileService,
+		commandService,
 	});
 
 	await openerService.open(promptUri);
@@ -99,7 +102,7 @@ const commandFactory = (type: 'local' | 'global') => {
 };
 
 /**
- * Register the "Create Local Prompt" command.
+ * Register the "Create Prompt" command.
  */
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LOCAL_COMMAND_ID,
@@ -117,7 +120,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 /**
- * Register the "Create Local Prompt" command in the command palette.
+ * Register the "Create Prompt" command in the command palette.
  */
 appendToCommandPalette(
 	{
