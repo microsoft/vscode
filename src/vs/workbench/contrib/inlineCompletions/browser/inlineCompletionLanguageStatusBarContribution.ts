@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { createHotClass } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorunWithStore, derived } from '../../../../base/common/observable.js';
@@ -45,19 +46,19 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 
 			const statusMap: Record<typeof status, { shortLabel: string; label: string; loading: boolean }> = {
 				loading: { shortLabel: '', label: 'Loading', loading: true, },
-				ghostText: { shortLabel: '$(lightbulb)', label: 'Inline Completion available', loading: false, },
-				inlineEdit: { shortLabel: '$(lightbulb-sparkle)', label: 'Inline Edit available', loading: false, },
-				noSuggestion: { shortLabel: '$(circle-slash)', label: 'No inline suggestion available', loading: false, },
+				ghostText: { shortLabel: '$(lightbulb)', label: '$(copilot) ' + localize('inlineCompletionAvailable', "Inline completion available"), loading: false, },
+				inlineEdit: { shortLabel: '$(lightbulb-sparkle)', label: '$(copilot) ' + localize('inlineEditAvailable', "Inline edit available"), loading: false, },
+				noSuggestion: { shortLabel: '$(circle-slash)', label: '$(copilot) ' + localize('noInlineSuggestionAvailable', "No inline suggestion available"), loading: false, },
 			};
 
 			store.add(this._languageStatusService.addStatus({
 				accessibilityInfo: undefined,
 				busy: statusMap[status].loading,
 				command: undefined,
-				detail: 'Inline Suggestions',
+				detail: localize('inlineSuggestions', "Inline Suggestions"),
 				id: 'inlineSuggestions',
 				label: { value: statusMap[status].label, shortValue: statusMap[status].shortLabel },
-				name: 'Inline Suggestions',
+				name: localize('inlineSuggestions', "Inline Suggestions"),
 				selector: { pattern: state.model.textModel.uri.fsPath },
 				severity: Severity.Info,
 				source: 'inlineSuggestions',
