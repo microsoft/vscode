@@ -129,7 +129,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		throw new Error('Method not implemented.');
 	}
 
-	override async acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	override acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
 
 		const isCellUri = resource.scheme === Schemas.vscodeNotebookCell;
 		assert(isCellUri || isEqual(resource, this.modifiedURI));
