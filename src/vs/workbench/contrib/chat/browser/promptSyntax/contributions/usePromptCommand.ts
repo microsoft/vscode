@@ -18,12 +18,12 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platfor
 import { IChatAttachPromptActionOptions, ATTACH_PROMPT_ACTION_ID } from '../../actions/chatAttachPromptAction/chatAttachPromptAction.js';
 
 /**
- * Command ID for the "Use Prompt" command.
+ * Command ID of the "Use Prompt" command.
  */
 const COMMAND_ID = 'workbench.command.prompts.use';
 
 /**
- * Keybinding for the "Use Prompt" command.
+ * Keybinding of the "Use Prompt" command.
  */
 const COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyE;
 
