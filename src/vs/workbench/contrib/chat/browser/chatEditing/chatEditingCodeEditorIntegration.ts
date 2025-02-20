@@ -48,15 +48,6 @@ export interface IDocumentDiff2 extends IDocumentDiff {
 	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
 }
 
-export interface IDocumentDiff2 extends IDocumentDiff {
-
-	originalModel: ITextModel;
-	modifiedModel: ITextModel;
-
-	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
-	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
-}
-
 export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEditorIntegration {
 
 	private static readonly _diffLineDecorationData = ModelDecorationOptions.register({ description: 'diff-line-decoration' });
