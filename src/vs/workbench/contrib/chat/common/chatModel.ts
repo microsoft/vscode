@@ -982,15 +982,20 @@ export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 've
 	customTitle: string | undefined;
 }
 
+export interface ISerializableChatData4 extends Omit<ISerializableChatData3, 'version'> {
+	version: 4;
+	isToolsAgentModeEnabled: boolean;
+}
+
 /**
  * Chat data that has been parsed and normalized to the current format.
  */
-export type ISerializableChatData = ISerializableChatData3;
+export type ISerializableChatData = ISerializableChatData4;
 
 /**
  * Chat data that has been loaded but not normalized, and could be any format
  */
-export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChatData2 | ISerializableChatData3;
+export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChatData2 | ISerializableChatData3 | ISerializableChatData4;
 
 /**
  * Normalize chat data from storage to the current format.
@@ -1001,18 +1006,28 @@ export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISe
 
 	if (!('version' in raw)) {
 		return {
-			version: 3,
+			version: 4,
 			...raw,
 			lastMessageDate: raw.creationDate,
 			customTitle: undefined,
+			isToolsAgentModeEnabled: false,
+		};
+	}
+
+	if (raw.version === 3) {
+		return {
+			...raw,
+			version: 4,
+			isToolsAgentModeEnabled: false,
 		};
 	}
 
 	if (raw.version === 2) {
 		return {
 			...raw,
-			version: 3,
-			customTitle: raw.computedTitle
+			version: 4,
+			customTitle: raw.computedTitle,
+			isToolsAgentModeEnabled: false,
 		};
 	}
 
@@ -1256,6 +1271,10 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get initialLocation() {
 		return this._initialLocation;
+	}
+
+	get toolsAgentModeEnabled() {
+		return this.chatAgentService.toolsAgentModeEnabled;
 	}
 
 	constructor(
@@ -1604,13 +1623,14 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toJSON(): ISerializableChatData {
 		return {
-			version: 3,
+			version: 4,
 			...this.toExport(),
 			sessionId: this.sessionId,
 			creationDate: this._creationDate,
 			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
-			customTitle: this._customTitle
+			customTitle: this._customTitle,
+			isToolsAgentModeEnabled: this.toolsAgentModeEnabled,
 		};
 	}
 

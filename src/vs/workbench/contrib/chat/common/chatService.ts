@@ -395,6 +395,7 @@ export interface IChatProviderInfo {
 export interface IChatTransferredSessionData {
 	sessionId: string;
 	inputValue: string;
+	location: ChatAgentLocation;
 }
 
 export interface IChatSendRequestResponseState {

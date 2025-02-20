@@ -137,7 +137,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 
 		const inputValue = widget?.inputEditor.getValue() ?? '';
-		this._chatService.transferChatSession({ sessionId, inputValue }, URI.revive(toWorkspace));
+		const location = widget.location;
+		this._chatService.transferChatSession({ sessionId, inputValue, location }, URI.revive(toWorkspace));
 	}
 
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {

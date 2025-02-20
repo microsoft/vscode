@@ -165,7 +165,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (transferredChat) {
 			this.trace('constructor', `Transferred session ${transferredChat.sessionId}`);
 			this._persistedSessions[transferredChat.sessionId] = transferredChat;
-			this._transferredSessionData = { sessionId: transferredChat.sessionId, inputValue: transferredData.inputValue };
+			this._transferredSessionData = { sessionId: transferredChat.sessionId, inputValue: transferredData.inputValue, location: transferredChat.initialLocation ?? ChatAgentLocation.Panel };
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
@@ -395,6 +395,12 @@ export class ChatService extends Disposable implements IChatService {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
 		this._sessionModels.set(model.sessionId, model);
 		this.initializeSession(model, token);
+
+		if (someSessionHistory) {
+			if ('isToolsAgentModeEnabled' in someSessionHistory) {
+				this.chatAgentService.toggleToolsAgentMode(someSessionHistory.isToolsAgentModeEnabled);
+			}
+		}
 		return model;
 	}
 
