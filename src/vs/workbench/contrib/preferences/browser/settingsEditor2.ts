@@ -175,7 +175,7 @@ export class SettingsEditor2 extends EditorPane {
 	private settingsTree!: SettingsTree;
 	private settingRenderers!: SettingTreeRenderers;
 	private tocTreeModel!: TOCTreeModel;
-	private readonly settingsTreeModel = new MutableDisposable<SettingsTreeModel>();
+	private readonly settingsTreeModel = this._register(new MutableDisposable<SettingsTreeModel>());
 	private noResultsMessage!: HTMLElement;
 	private clearFilterLinkContainer!: HTMLElement;
 
@@ -193,7 +193,7 @@ export class SettingsEditor2 extends EditorPane {
 	private pendingSettingUpdate: { key: string; value: any; languageFilter: string | undefined } | null = null;
 
 	private readonly viewState: ISettingsEditorViewState;
-	private readonly _searchResultModel = new MutableDisposable<SearchResultModel>();
+	private readonly _searchResultModel = this._register(new MutableDisposable<SearchResultModel>());
 	private searchResultLabel: string | null = null;
 	private lastSyncedLabel: string | null = null;
 	private settingsOrderByTocIndex: Map<string, number> | null = null;
