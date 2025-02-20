@@ -104,9 +104,16 @@ export class LineHeightManager {
 			console.log('totalHeight', totalHeight);
 			return totalHeight;
 		}
-		const previousSpecialLine = this._orderedSpecialLines[-(searchIndex + 1) - 1];
+		const modifiedIndex = -(searchIndex + 1);
+		console.log('modifiedIndex', modifiedIndex);
+		if (modifiedIndex === 0) {
+			const totalHeight = this._orderedSpecialLines[modifiedIndex].maximumSpecialHeight;
+			console.log('totalHeight', totalHeight);
+			return totalHeight;
+		}
+		const previousSpecialLine = this._orderedSpecialLines[modifiedIndex - 1];
 		console.log('previousSpecialLine', previousSpecialLine);
-		const totalHeight = previousSpecialLine.prefixSum + this._orderedSpecialLines[searchIndex].maximumSpecialHeight + this._defaultLineHeight * (lineNumber - previousSpecialLine.lineNumber);
+		const totalHeight = previousSpecialLine.prefixSum + this._defaultLineHeight * (lineNumber - previousSpecialLine.lineNumber + 1);
 		console.log('totalHeight', totalHeight);
 		return totalHeight;
 	}
@@ -218,9 +225,10 @@ export class LineHeightManager {
 		for (const pendingChange of this._pendingSpecialLinesToInsert) {
 			console.log('pendingChange', pendingChange);
 			const searchIndex = this._binarySearchOverSpecialLinesArray(pendingChange.lineNumber);
-			console.log('searchIndex', searchIndex);
-			this._orderedSpecialLines.splice(searchIndex, 0, pendingChange);
-			this._invalidIndex = Math.min(this._invalidIndex, searchIndex);
+			const modifiedSearchInde = searchIndex >= 0 ? searchIndex : -(searchIndex + 1);
+			console.log('modifiedSearchInde', modifiedSearchInde);
+			this._orderedSpecialLines.splice(modifiedSearchInde, 0, pendingChange);
+			this._invalidIndex = Math.min(this._invalidIndex, modifiedSearchInde);
 			console.log('this._invalidIndex', this._invalidIndex);
 		}
 		this._pendingSpecialLinesToInsert = [];
@@ -229,7 +237,7 @@ export class LineHeightManager {
 		const newOrderedSpecialLines: SpecialLine[] = [];
 
 		let numberOfDeletions = 0;
-		for (let i = this._invalidIndex; i <= this._orderedSpecialLines.length; i++) {
+		for (let i = this._invalidIndex; i < this._orderedSpecialLines.length; i++) {
 			console.log('i : ', i);
 			const specialLine = this._orderedSpecialLines[i];
 			console.log('specialLine : ', JSON.stringify(specialLine));
