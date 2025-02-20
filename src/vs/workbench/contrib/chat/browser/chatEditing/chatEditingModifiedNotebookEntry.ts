@@ -41,7 +41,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	private readonly _changesCount = observableValue<number>(this, 0);
 	override changesCount: IObservable<number> = this._changesCount;
 
-	public static async create(uri: URI, chatKind: ChatEditKind, _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void }, telemetryInfo: IModifiedEntryTelemetryInfo, instantiationService: IInstantiationService): Promise<AbstractChatEditingModifiedFileEntry> {
+	public static async create(uri: URI, _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void }, telemetryInfo: IModifiedEntryTelemetryInfo, chatKind: ChatEditKind, initialContent: string | undefined, instantiationService: IInstantiationService): Promise<AbstractChatEditingModifiedFileEntry> {
 		return instantiationService.invokeFunction(async accessor => {
 			const notebookService = accessor.get(INotebookService);
 			const resolver = accessor.get(INotebookEditorModelResolverService);
@@ -58,7 +58,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 			const originalRef = await resolver.resolve(originalUri, notebook.viewType);
 			originalDisposables.add(originalRef);
-			const initialContent = createSnapshot(originalRef.object.notebook, options.serializer.options, accessor.get(IConfigurationService));
+			if (initialContent) {
+				restoreSnapshot(originalRef.object.notebook, initialContent);
+			}
+			initialContent = initialContent || createSnapshot(originalRef.object.notebook, options.serializer.options, accessor.get(IConfigurationService));
 			return instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
 		});
 	}
