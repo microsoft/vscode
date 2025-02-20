@@ -174,12 +174,12 @@ export class LinesLayout {
 			const accessor: ISpecialLineHeightChangeAccessor = {
 				insertOrChangeSpecialLineHeight: (decorationId: string, lineNumber: number, lineHeight: number): void => {
 					hadAChange = true;
-					// console.log('insertOrChangeSpecialLineHeight', decorationId, lineNumber, lineHeight);
+					console.log('insertOrChangeSpecialLineHeight', decorationId, lineNumber, lineHeight);
 					this._specialLineHeightsManager.insertOrChangeSpecialLineHeightUsingDecoration(decorationId, lineNumber, lineHeight);
 				},
 				removeSpecialLineHeight: (decorationId: string): void => {
 					hadAChange = true;
-					// console.log('removeSpecialLineHeight', decorationId);
+					console.log('removeSpecialLineHeight', decorationId);
 					this._specialLineHeightsManager.removeSpecialLineUsingDecoration(decorationId);
 				}
 			};
@@ -347,7 +347,7 @@ export class LinesLayout {
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
 	 */
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
-		// console.log('onLinesDeleted', fromLineNumber, toLineNumber);
+		console.log('onLinesDeleted', fromLineNumber, toLineNumber);
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
@@ -376,7 +376,7 @@ export class LinesLayout {
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 */
 	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
-		// console.log('onLinesInserted', fromLineNumber, toLineNumber);
+		console.log('onLinesInserted', fromLineNumber, toLineNumber);
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
@@ -442,7 +442,7 @@ export class LinesLayout {
 
 	private _linesHeight(_untilLineNumber?: number): number {
 		const untilLineNumber = _untilLineNumber ?? this._lineCount;
-		// console.log('_linesHeight', untilLineNumber);
+		console.log('_linesHeight', untilLineNumber);
 		return this._specialLineHeightsManager.totalHeightUntilLineNumber(untilLineNumber);
 	}
 
@@ -538,7 +538,7 @@ export class LinesLayout {
 	}
 
 	public getLineHeightForLineNumber(lineNumber: number): number {
-		// console.log('getLineHeightForLineNumber', lineNumber);
+		console.log('getLineHeightForLineNumber', lineNumber);
 		return this._specialLineHeightsManager.heightForLineNumber(lineNumber);
 	}
 
