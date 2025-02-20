@@ -79,7 +79,9 @@ export class LineHeightManager {
 	public heightForLineNumber(lineNumber: number): number {
 		this.commit();
 		console.log('heightForLineNumber', lineNumber);
+		console.log('this._orderedSpecialLines', this._orderedSpecialLines);
 		const searchIndex = this._binarySearchOverSpecialLinesArray(lineNumber);
+		console.log('searchIndex', searchIndex);
 		if (searchIndex >= 0) {
 			const specialHeight = this._orderedSpecialLines[searchIndex].maximumSpecialHeight;
 			console.log('specialHeight', specialHeight);
@@ -280,6 +282,7 @@ export class LineHeightManager {
 			newOrderedSpecialLines.push(specialLine);
 			newDecorationIDToSpecialLineMap.set(specialLine.decorationId, specialLine);
 		}
+		// TODO:Why is this always empty?
 		console.log('newOrderedSpecialLines : ', newOrderedSpecialLines);
 		console.log('newDecorationIDToSpecialLineMap : ', newDecorationIDToSpecialLineMap);
 
