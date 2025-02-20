@@ -3014,6 +3014,8 @@ export namespace PartialAcceptInfo {
 		return {
 			kind: PartialAcceptTriggerKind.to(info.kind),
 			acceptedLength: info.acceptedLength,
+			addedLength: info.addedLength,
+			versionBeforeAccept: info.versionBeforeAccept
 		};
 	}
 }

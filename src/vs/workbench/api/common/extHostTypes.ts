@@ -1856,6 +1856,8 @@ export class InlineSuggestionList implements vscode.InlineCompletionList {
 export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
 	acceptedLength: number;
+	addedLength: number;
+	versionBeforeAccept?: number;
 }
 
 export enum PartialAcceptTriggerKind {

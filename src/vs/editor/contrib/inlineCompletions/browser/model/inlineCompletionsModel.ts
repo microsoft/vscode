@@ -726,6 +726,8 @@ export class InlineCompletionsModel extends Disposable {
 
 		const positions = this._positions.get();
 		const cursorPosition = positions[0];
+		const originalTextLength = editor.getModel()!.getValue(EndOfLinePreference.LF).length;
+		const versionBeforeAccept = editor.getModel()!.getVersionId();
 
 		// Executing the edit might free the completion, so we have to hold a reference on it.
 		completion.source.addRef();
@@ -750,11 +752,12 @@ export class InlineCompletionsModel extends Disposable {
 				// This assumes that the inline completion and the model use the same EOL style.
 				const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
 				const acceptedLength = text.length;
+				const addedLength = editor.getModel()!.getValue(EndOfLinePreference.LF).length - originalTextLength;
 				completion.source.provider.handlePartialAccept(
 					completion.source.inlineCompletions,
 					completion.sourceInlineCompletion,
 					acceptedLength,
-					{ kind, acceptedLength: acceptedLength, }
+					{ kind, acceptedLength: acceptedLength, addedLength, versionBeforeAccept }
 				);
 			}
 		} finally {
