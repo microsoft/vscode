@@ -225,7 +225,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._autoAcceptCtrl.get()?.cancel();
 	}
 
-	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
+	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
 
 	async acceptStreamingEditsEnd(tx: ITransaction) {
 		this._resetEditsState(tx);
