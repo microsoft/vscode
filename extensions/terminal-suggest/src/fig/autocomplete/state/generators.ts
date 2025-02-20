@@ -10,6 +10,7 @@ import { GeneratorState, GeneratorContext } from '../generators/helpers';
 import { sleep } from '../../shared/utils';
 import type { ArgumentParserResult } from '../../autocomplete-parser/parseArguments';
 import { getCustomSuggestions } from '../generators/customSuggestionsGenerator';
+import { IFigExecuteExternals } from '../../execute';
 
 export const shellContextSelector = ({
 	figState,
@@ -36,15 +37,9 @@ const getGeneratorContext = (state: AutocompleteState): GeneratorContext => {
 export const createGeneratorState = (
 	// setNamed: NamedSetState<AutocompleteState>,
 	state: AutocompleteState,
-	executeCommandTimeout?: (
-		input: Fig.ExecuteCommandInput,
-		timeout?: number
-	) => Promise<Fig.ExecuteCommandOutput>,
+	executeExternals?: IFigExecuteExternals
 ): {
-	triggerGenerators: ((result: ArgumentParserResult, executeCommandTimeout?: (
-		input: Fig.ExecuteCommandInput,
-		timeout?: number
-	) => Promise<Fig.ExecuteCommandOutput>) => GeneratorState[]);
+	triggerGenerators: (result: ArgumentParserResult, executeExternals: IFigExecuteExternals) => GeneratorState[];
 } => {
 	// function updateGenerator(
 	// 	generatorState: GeneratorState,
@@ -85,10 +80,7 @@ export const createGeneratorState = (
 	// 	}
 	// 	return generatorState;
 	// }
-	const triggerGenerator = (currentState: GeneratorState, executeCommandTimeout?: (
-		input: Fig.ExecuteCommandInput,
-		timeout?: number
-	) => Promise<Fig.ExecuteCommandOutput>) => {
+	const triggerGenerator = (currentState: GeneratorState, executeExternals: IFigExecuteExternals) => {
 		console.info('Triggering generator', { currentState });
 		const { generator, context } = currentState;
 		let request: Promise<Fig.Suggestion[] | undefined>;
@@ -103,11 +95,11 @@ export const createGeneratorState = (
 				generator,
 				context,
 				undefined, // getSetting<number>(SETTINGS.SCRIPT_TIMEOUT, 5000),
-				executeCommandTimeout
+				executeExternals
 			);
 		}
 		else {
-			request = getCustomSuggestions(generator, context);
+			request = getCustomSuggestions(generator, context, executeExternals);
 			// filepaths/folders templates are now a sugar for two custom generators, we need to filter
 			// the suggestion created by those two custom generators
 			// if (generator.filterTemplateSuggestions) {
@@ -130,10 +122,7 @@ export const createGeneratorState = (
 
 	const triggerGenerators = (
 		parserResult: ArgumentParserResult,
-		executeCommandTimeout?: (
-			input: Fig.ExecuteCommandInput,
-			timeout?: number
-		) => Promise<Fig.ExecuteCommandOutput>,
+		executeExternals: IFigExecuteExternals,
 	): GeneratorState[] => {
 		const {
 			parserResult: { currentArg: previousArg, searchTerm: previousSearchTerm },
@@ -198,7 +187,7 @@ export const createGeneratorState = (
 			const result = previousGeneratorState?.result || [];
 			const generatorState = { generator, context, result, loading: true };
 
-			const getTriggeredState = () => triggerGenerator(generatorState, executeCommandTimeout);
+			const getTriggeredState = () => triggerGenerator(generatorState, executeExternals);
 			if (currentArg?.debounce) {
 				sleep(
 					typeof currentArg.debounce === 'number' && currentArg.debounce > 0

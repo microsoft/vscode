@@ -59,20 +59,10 @@ export const executeCommandTimeout = async (
 export const executeCommand: Fig.ExecuteCommandFunction = (args) =>
 	executeCommandTimeout(args);
 
-
-export const mockExecuteCommandTimeout = async (
-	input: Fig.ExecuteCommandInput,
-	timeout = 0,
-): Promise<Fig.ExecuteCommandOutput> => {
-	const command = [input.command, ...input.args].join(' ');
-	try {
-		return {
-			status: 0,
-			stdout: input.command.split('\n').join(' '),
-			stderr: '',
-		};
-	} catch (err) {
-		console.error(`Error running shell command '${command}'`, { err });
-		throw err;
-	}
-};
+export interface IFigExecuteExternals {
+	executeCommand: Fig.ExecuteCommandFunction;
+	executeCommandTimeout: (
+		input: Fig.ExecuteCommandInput,
+		timeout: number,
+	) => Promise<Fig.ExecuteCommandOutput>;
+}

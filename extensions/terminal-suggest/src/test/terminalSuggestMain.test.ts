@@ -22,7 +22,7 @@ import { gitTestSuiteSpec } from './completions/upstream/git.test';
 import { osIsWindows } from '../helpers/os';
 import codeCompletionSpec from '../completions/code';
 import { figGenericTestSuites } from './fig.test';
-import { mockExecuteCommandTimeout } from '../fig/execute';
+import { IFigExecuteExternals } from '../fig/execute';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -104,7 +104,7 @@ suite('Terminal Suggest', () => {
 						{},
 						'testName',
 						undefined,
-						mockExecuteCommandTimeout
+						new MockFigExecuteExternals()
 					);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
@@ -118,4 +118,23 @@ suite('Terminal Suggest', () => {
 	}
 });
 
+
+class MockFigExecuteExternals implements IFigExecuteExternals {
+	public async executeCommand(input: Fig.ExecuteCommandInput, timeout?: number): Promise<Fig.ExecuteCommandOutput> {
+		return this.executeCommandTimeout(input, 0);
+	}
+	async executeCommandTimeout(input: Fig.ExecuteCommandInput, timeout: number): Promise<Fig.ExecuteCommandOutput> {
+		const command = [input.command, ...input.args].join(' ');
+		try {
+			return {
+				status: 0,
+				stdout: input.command.split('\n').join(' '),
+				stderr: '',
+			};
+		} catch (err) {
+			console.error(`Error running shell command '${command}'`, { err });
+			throw err;
+		}
+	}
+}
 

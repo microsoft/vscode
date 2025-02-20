@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { executeCommand } from '../../execute';
+import { IFigExecuteExternals } from '../../execute';
 import {
 	runCachedGenerator,
 	GeneratorContext,
@@ -14,6 +14,7 @@ import {
 export async function getCustomSuggestions(
 	generator: Fig.Generator,
 	context: GeneratorContext,
+	executableExternals: IFigExecuteExternals
 ): Promise<Fig.Suggestion[] | undefined> {
 	if (!generator.custom) {
 		return [];
@@ -38,7 +39,7 @@ export async function getCustomSuggestions(
 			generator,
 			context,
 			() =>
-				generator.custom!(tokenArray, executeCommand, {
+				generator.custom!(tokenArray, executableExternals.executeCommand, {
 					currentWorkingDirectory,
 					currentProcess,
 					sshPrefix: '',
