@@ -442,6 +442,17 @@
             "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
           ]
         },
+        "markdown.trace.server": {
+          "type": "string",
+          "scope": "window",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "%markdown.trace.server.desc%"
+        },
         "markdown.server.log": {
           "type": "string",
           "scope": "window",
