@@ -394,7 +394,7 @@ class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
 	readonly PearAIChatExtensionId;
 	readonly PearAISearchExtensionId;
 	readonly PearAIMemoryExtensionId;
-	readonly PearAIROOExtensionId;
+	readonly PearAIRooExtensionId;
 
     constructor() {
         super(ViewContainerLocation.Sidebar, ViewContainerLocation.AuxiliaryBar, {
@@ -406,7 +406,7 @@ class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
         this.PearAIChatExtensionId = 'workbench.view.extension.pearaiChat';
 		this.PearAISearchExtensionId = 'workbench.view.extension.pearaiSearch';
 		this.PearAIMemoryExtensionId = 'workbench.view.extension.pearaiMemory';
-		this.PearAIROOExtensionId = 'workbench.view.extension.pearai-roo-cline';
+		this.PearAIRooExtensionId = 'workbench.view.extension.pearai-roo-cline';
     }
 
     override run(accessor: ServicesAccessor): void {
@@ -417,8 +417,8 @@ class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
         const chatViewContainer = viewDescriptorService.getViewContainerById(this.PearAIChatExtensionId);
 		const searchViewContainer = viewDescriptorService.getViewContainerById(this.PearAISearchExtensionId);
 		const memoryViewContainer = viewDescriptorService.getViewContainerById(this.PearAIMemoryExtensionId);
-		const creatorViewContainer = viewDescriptorService.getViewContainerById(this.PearAIROOExtensionId);
-		
+		const agentViewContainer = viewDescriptorService.getViewContainerById(this.PearAIRooExtensionId);
+
 		const destination = ViewContainerLocation.AuxiliaryBar;
 
         if (chatViewContainer) {
@@ -436,10 +436,10 @@ class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
             layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
             // viewsService.openViewContainer(memoryViewContainer.id, true);
         }
-		if (creatorViewContainer) {
-            viewDescriptorService.moveViewContainerToLocation(creatorViewContainer, destination, undefined, this.desc.id);
+		if (agentViewContainer) {
+            viewDescriptorService.moveViewContainerToLocation(agentViewContainer, destination, undefined, this.desc.id);
             layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-            // viewsService.openViewContainer(creatorViewContainer.id, true);
+            // viewsService.openViewContainer(agentViewContainer.id, true);
         }
     }
 }
