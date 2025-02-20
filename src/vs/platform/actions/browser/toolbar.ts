@@ -212,6 +212,12 @@ export class WorkbenchToolBar extends ToolBar {
 
 				const primaryActions = [];
 
+				// More Actions... submenu if dedicated button has been hidden
+				if (this.isToggleMenuHidden && (secondary.length + extraSecondary.length) > 0) {
+					primaryActions.push(new SubmenuAction(ToggleMenuAction.ID, this.toggleMenuAction.label, Separator.join(extraSecondary, secondary)));
+					primaryActions.push(new Separator());
+				}
+
 				// -- Configure Keybinding Action --
 				if (action instanceof MenuItemAction && action.menuKeybinding) {
 					primaryActions.push(action.menuKeybinding);
@@ -276,26 +282,12 @@ export class WorkbenchToolBar extends ToolBar {
 
 				const actions = Separator.join(primaryActions, toggleActions);
 
-				// add "Reset Menu" action
-				if (this._options?.resetMenu && !menuIds) {
-					menuIds = [this._options.resetMenu];
-				}
+				// Add option to show the More Actions button if it is hidden
 				let separatorAdded = false;
-				if (someAreHidden && menuIds) {
-					actions.push(new Separator());
-					separatorAdded = true;
-					actions.push(toAction({
-						id: 'resetThisMenu',
-						label: localize('resetThisMenu', "Reset Menu"),
-						run: () => this._menuService.resetHiddenStates(menuIds)
-					}));
-				}
-				if (secondary.length > 0 || extraSecondary.length > 0) {
-					if (!separatorAdded) {
+				if (secondary.length + extraSecondary.length > 0) {
+					if (this.isToggleMenuHidden) {
 						actions.push(new Separator());
 						separatorAdded = true;
-					}
-					if (this.isToggleMenuHidden) {
 						actions.push(toAction({
 							id: 'showToggleMenu',
 							label: localize('showToggleMenu', 'Show \'{0}\'', this.toggleMenuAction.label),
@@ -308,6 +300,22 @@ export class WorkbenchToolBar extends ToolBar {
 							}
 						}));
 					}
+				}
+
+				// add "Reset Menu" action
+				if (this._options?.resetMenu && !menuIds) {
+					menuIds = [this._options.resetMenu];
+				}
+				if (someAreHidden && menuIds) {
+					if (!separatorAdded) {
+						actions.push(new Separator());
+						separatorAdded = true;
+					}
+					actions.push(toAction({
+						id: 'resetThisMenu',
+						label: localize('resetThisMenu', "Reset Menu"),
+						run: () => this._menuService.resetHiddenStates(menuIds)
+					}));
 				}
 
 				if (actions.length === 0) {
