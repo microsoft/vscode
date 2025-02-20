@@ -292,10 +292,10 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		const actionsContainer = DOM.append(label.element, $('.actions'));
 
 		const actionBar = this._register(new ActionBar(actionsContainer, {
-			actionRunner: new TerminalContextActionRunner(),
+			actionRunner: this._register(new TerminalContextActionRunner()),
 			actionViewItemProvider: (action, options) =>
 				action instanceof MenuItemAction
-					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate })
+					? this._register(this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate }))
 					: undefined
 		}));
 
