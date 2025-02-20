@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatWidget } from '../../chat.js';
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { WithUriValue } from '../../../../../../base/common/types.js';
+import { IChatWidget, showChatView, showEditsView } from '../../chat.js';
 import { dirname, extUri } from '../../../../../../base/common/resources.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { IChatAttachPromptActionOptions } from '../chatAttachPromptAction.js';
 import { DOCUMENTATION_URL } from '../../../common/promptSyntax/constants.js';
 import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { assertDefined, WithUriValue } from '../../../../../../base/common/types.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
+import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/types.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
  * Options for the {@link showSelectPromptDialog} function.
@@ -38,26 +41,11 @@ export interface ISelectPromptOptions {
 	widget?: IChatWidget;
 
 	labelService: ILabelService;
+	viewsService: IViewsService;
 	openerService: IOpenerService;
 	promptsService: IPromptsService;
 	initService: IInstantiationService;
 	quickInputService: IQuickInputService;
-}
-
-/**
- * Result of user interaction with the prompt selection dialog.
- */
-interface IPromptSelectionResult {
-	/**
-	 * Selected prompt item in the dialog.
-	 */
-	selected: WithUriValue<IQuickPickItem>;
-
-	/**
-	 * Whether the `alt` (`option` on mac) key was pressed when
-	 * the prompt selection was made.
-	 */
-	altOption: boolean;
 }
 
 /**
@@ -75,13 +63,16 @@ const createPickItem = (
 		description: labelService.getUriLabel(dirname(uri), { relative: true }),
 		tooltip: uri.fsPath,
 		value: uri,
+		id: uri.toString(),
 	};
 };
 
 /**
  * Creates a placeholder text to show in the prompt selection dialog.
  */
-const createPlaceholderText = (widget?: IChatWidget): string => {
+const createPlaceholderText = (options: ISelectPromptOptions): string => {
+	const { widget } = options;
+
 	let text = localize(
 		'commands.prompts.use.select-dialog.placeholder',
 		'Select a prompt to use',
@@ -110,7 +101,7 @@ const createPlaceholderText = (widget?: IChatWidget): string => {
  */
 export const showSelectPromptDialog = async (
 	options: ISelectPromptOptions,
-): Promise<IPromptSelectionResult | null> => {
+): Promise<void> => {
 	const { resource, labelService, promptsService } = options;
 
 	// find all prompt instruction files in the user workspace
@@ -149,12 +140,12 @@ export const showSelectPromptDialog = async (
 			});
 
 		if (!result) {
-			return null;
+			return;
 		}
 
 		await openerService.open(result.value);
 
-		return null;
+		return;
 	}
 
 	// if a resource is provided, create an `activeItem` for it to pre-select
@@ -179,34 +170,85 @@ export const showSelectPromptDialog = async (
 	}
 
 	// otherwise show the prompt file selection dialog
-	const { widget } = options;
-	const pickOptions: IPickOptions<WithUriValue<IQuickPickItem>> = {
-		placeHolder: createPlaceholderText(widget),
-		activeItem,
-		canPickMany: false,
-		matchOnDescription: true,
-	};
+	const { viewsService } = options;
 
-	// keep track of whether the `alt` (`option` on mac) key is
-	// pressed when a prompt item is selected in the dialog
-	let altOption = false;
-	if (!widget) {
-		pickOptions.onKeyMods = (keyMods) => {
-			if (keyMods.alt) {
-				altOption = true;
+	const quickPick = quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
+	quickPick.activeItems = activeItem ? [activeItem] : [];
+	quickPick.placeholder = createPlaceholderText(options);
+	quickPick.canAcceptInBackground = true;
+	quickPick.matchOnDescription = true;
+	quickPick.items = files;
+
+	return await new Promise<void>(resolve => {
+		const disposables = new DisposableStore();
+
+		let lastActiveWidget = options.widget;
+		disposables.add({
+			dispose() {
+				quickPick.dispose();
+				resolve();
+
+				// if something was attached, focus on the target chat input
+				lastActiveWidget?.focusInput();
+			},
+		});
+
+		disposables.add(quickPick.onDidAccept(async (event) => {
+			lastActiveWidget = await revealChatWidget(
+				options,
+				quickPick.keyMods.alt,
+				viewsService,
+			);
+
+			for (const selectedItem of quickPick.selectedItems) {
+				lastActiveWidget
+					.attachmentModel
+					.promptInstructions
+					.add(selectedItem.value);
 			}
-		};
+
+			// if user submitted their selection, close the dialog
+			if (!event.inBackground) {
+				return disposables.dispose();
+			}
+		}));
+
+		disposables.add(quickPick.onDidHide(
+			disposables.dispose.bind(disposables),
+		));
+
+		quickPick.show();
+	});
+};
+
+/**
+ * Reveals a chat widget based on the provided {@link IChatAttachPromptActionOptions.widget widget}
+ * reference. If no widget reference is provided, the function will reveal a `chat panel` by default
+ * (either a last focused, or a new one), but if the {@link altOption} is set to `true`, a `chat edits`
+ * panel will be revealed instead (likewise either a last focused, or a new one).
+ */
+const revealChatWidget = async (
+	options: IChatAttachPromptActionOptions,
+	altOption: boolean,
+	viewsService: IViewsService,
+): Promise<IChatWidget> => {
+	const { widget } = options;
+
+	// if no widget reference is present, the command was triggered from outside of
+	// an active chat input, so we reveal a chat widget window based on the `alt`
+	// key modifier state when a prompt was selected from the picker UI dialog
+	if (!widget) {
+		const widget = (altOption)
+			? await showEditsView(viewsService)
+			: await showChatView(viewsService);
+
+		assertDefined(
+			widget,
+			'Revealed chat widget must be defined.',
+		);
+
+		return widget;
 	}
 
-	const maybeSelectedFile = await quickInputService.pick(files, pickOptions);
-
-	// if user cancels the dialog, return `null` instead
-	if (!maybeSelectedFile) {
-		return null;
-	}
-
-	return {
-		selected: maybeSelectedFile,
-		altOption,
-	};
+	return widget;
 };
