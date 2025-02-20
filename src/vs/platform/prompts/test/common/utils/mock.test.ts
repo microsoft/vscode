@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { mockObject } from './mock.js';
-import { typeCheck } from '../../../../../../../base/common/types.js';
-import { randomInt } from '../../../../../../../base/common/numbers.js';
-import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { typeCheck } from '../../../../../base/common/types.js';
+import { randomInt } from '../../../../../base/common/numbers.js';
+import { randomBoolean } from '../../../../../base/test/common/testUtils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('mock', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

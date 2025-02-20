@@ -7,12 +7,13 @@ import { IChatWidget } from '../../chat.js';
 import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { WithUriValue } from '../../../../../../base/common/types.js';
+import { dirname, extUri } from '../../../../../../base/common/resources.js';
+import { DOCUMENTATION_URL } from '../../../common/promptSyntax/constants.js';
 import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { IPromptPath, IPromptsService } from '../../../common/promptSyntax/service/types.js';
-import { DOCUMENTATION_URL, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
+import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 
@@ -66,8 +67,7 @@ const createPickItem = (
 	{ uri }: IPromptPath,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
-	const fileBasename = basename(uri);
-	const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
+	const fileWithoutExtension = getCleanPromptName(uri);
 
 	return {
 		type: 'item',

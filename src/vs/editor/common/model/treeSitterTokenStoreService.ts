@@ -14,7 +14,7 @@ export interface ITreeSitterTokenizationStoreService {
 	readonly _serviceBrand: undefined;
 	setTokens(model: ITextModel, tokens: TokenUpdate[], tokenQuality: TokenQuality): void;
 	getTokens(model: ITextModel, line: number): Uint32Array | undefined;
-	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[], tokenQuality: TokenQuality): void;
+	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength?: number; newTokens: TokenUpdate[] }[], tokenQuality: TokenQuality): void;
 	markForRefresh(model: ITextModel, range: Range): void;
 	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[];
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
@@ -116,7 +116,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		return result;
 	}
 
-	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength: number; newTokens: TokenUpdate[] }[], tokenQuality: TokenQuality): void {
+	updateTokens(model: ITextModel, version: number, updates: { oldRangeLength?: number; newTokens: TokenUpdate[] }[], tokenQuality: TokenQuality): void {
 		const existingTokens = this.tokens.get(model);
 		if (!existingTokens) {
 			return;
@@ -125,7 +125,14 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		existingTokens.accurateVersion = version;
 		for (const update of updates) {
 			const lastToken = update.newTokens.length > 0 ? update.newTokens[update.newTokens.length - 1] : undefined;
-			const oldRangeLength = ((existingTokens.guessVersion >= version) && lastToken) ? (lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive) : update.oldRangeLength;
+			let oldRangeLength: number;
+			if (lastToken && (existingTokens.guessVersion >= version)) {
+				oldRangeLength = lastToken.startOffsetInclusive + lastToken.length - update.newTokens[0].startOffsetInclusive;
+			} else if (update.oldRangeLength) {
+				oldRangeLength = update.oldRangeLength;
+			} else {
+				oldRangeLength = 0;
+			}
 			existingTokens.store.update(oldRangeLength, update.newTokens, tokenQuality);
 		}
 	}

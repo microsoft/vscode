@@ -5,7 +5,8 @@
 
 import { createHotClass } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorunWithStore } from '../../../../base/common/observable.js';
+import { autorunWithStore, derived } from '../../../../base/common/observable.js';
+import { debouncedObservable } from '../../../../base/common/observableInternal/utils.js';
 import Severity from '../../../../base/common/severity.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
@@ -16,19 +17,31 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 
 	public static Id = 'vs.editor.contrib.inlineCompletionLanguageStatusBarContribution';
 
+	private readonly _c = InlineCompletionsController.get(this._editor);
+
+	private readonly _state = derived(this, reader => {
+		const model = this._c?.model.read(reader);
+		if (!model) { return undefined; }
+
+		return {
+			model,
+			status: debouncedObservable(model.status, 300),
+		};
+	});
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 	) {
 		super();
 
-		const c = InlineCompletionsController.get(this._editor);
-
 		this._register(autorunWithStore((reader, store) => {
-			const model = c?.model.read(reader);
-			if (!model) { return; }
+			const state = this._state.read(reader);
+			if (!state) {
+				return;
+			}
 
-			const status = model.status.read(reader);
+			const status = state.status.read(reader);
 
 			const statusMap: Record<typeof status, { shortLabel: string; label: string; loading: boolean }> = {
 				loading: { shortLabel: '', label: 'Loading', loading: true, },
@@ -45,7 +58,7 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 				id: 'inlineSuggestions',
 				label: { value: statusMap[status].label, shortValue: statusMap[status].shortLabel },
 				name: 'Inline Suggestions',
-				selector: { pattern: model.textModel.uri.fsPath },
+				selector: { pattern: state.model.textModel.uri.fsPath },
 				severity: Severity.Info,
 				source: 'inlineSuggestions',
 			}));

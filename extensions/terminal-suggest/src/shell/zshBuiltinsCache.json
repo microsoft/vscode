@@ -9,6 +9,7 @@
     "args": ". file [ arg ... ]"
   },
   ":": {
+    "shortDescription": "No effect",
     "description": "This command does nothing, although normal argument expansions is performed which may have effects on shell parameters.  A zero exit status is returned.",
     "args": ": [ arg ... ]"
   },
@@ -50,42 +51,52 @@
     "args": "command [ -pvV ] simple command"
   },
   "comparguments": {
+    "shortDescription": "Complete arguments",
     "description": "See the section `The zsh/computil Module' in zshmodules(1).",
     "args": "comparguments undefined"
   },
   "compcall": {
+    "shortDescription": "Complete call",
     "description": "See the section `The zsh/compctl Module' in zshmodules(1).",
     "args": "compcall undefined"
   },
   "compctl": {
+    "shortDescription": "Complete control",
     "description": "See the section `The zsh/compctl Module' in zshmodules(1).",
     "args": "compctl undefined"
   },
   "compdescribe": {
+    "shortDescription": "Complete describe",
     "description": "See the section `The zsh/computil Module' in zshmodules(1).",
     "args": "compdescribe undefined"
   },
   "compfiles": {
+    "shortDescription": "Complete files",
     "description": "See the section `The zsh/computil Module' in zshmodules(1).",
     "args": "compfiles undefined"
   },
   "compgroups": {
+    "shortDescription": "Complete groups",
     "description": "See the section `The zsh/computil Module' in zshmodules(1).",
     "args": "compgroups undefined"
   },
   "compquote": {
+    "shortDescription": "Complete quote",
     "description": "See the section `The zsh/computil Module' in zshmodules(1).",
     "args": "compquote undefined"
   },
   "comptags": {
+    "shortDescription": "Complete tags",
     "description": "See the section `The zsh/computil Module' in zshmodules(1).",
     "args": "comptags undefined"
   },
   "comptry": {
+    "shortDescription": "Complete try",
     "description": "See the section `The zsh/computil Module' in zshmodules(1).",
     "args": "comptry undefined"
   },
   "compvalues": {
+    "shortDescription": "Complete values",
     "description": "See the section `The zsh/computil Module' in zshmodules(1).",
     "args": "compvalues undefined"
   },
@@ -149,14 +160,17 @@
     "args": "false [ arg ... ]"
   },
   "fc": {
+    "shortDescription": "Fix command",
     "description": "The fc command controls the interactive history mechanism.  Note that reading and writing of history options is only performed if the shell is interactive.  Usually this is detected automatically, but it can be forced by setting the interactive option when starting the shell. The first two forms of this command select a range of events from first to last from the history list.  The arguments first and last may be specified as a number or as a string.  A negative number is used as an offset to the current history event number.  A string specifies the most recent event beginning with the given string.  All substitutions old=new, if any, are then performed on the text of the events. The range of events selected by numbers can be narrowed further by the following flags. -I     restricts to only internal events (not from $HISTFILE) -L     restricts to only local events (not from other shells, see SHARE_HISTORY in zshoptions(1) -- note that $HISTFILE is considered local when read at startup) -m     takes the first argument as a pattern (which should be quoted) and only the history events matching this pattern are considered If first is not specified, it will be set to -1 (the most recent event), or to -16 if the -l flag is given.  If last is not specified, it will be set to first, or to -1 if the -l flag is given.  However, if the current event has added entries to the history with `print -s' or `fc -R', then the default last for -l includes all new history entries since the current event began. When the -l flag is given, the resulting events are listed on standard output.  Otherwise the editor program specified by -e ename is invoked on a file containing these history events.  If -e is not given, the value of the parameter FCEDIT is used; if that is not set the value of the parameter EDITOR is used; if that is not set a builtin default, usually `vi' is used.  If ename is `-', no editor is invoked.  When editing is complete, the edited command is executed. The flag `-s' is equivalent to `-e -'.  The flag -r reverses the order of the events and the flag -n suppresses event numbers when listing. Also when listing, -d     prints timestamps for each event -f     prints full time-date stamps in the US `MM/DD/YY hh:mm' format -E     prints full time-date stamps in the European `dd.mm.yyyy hh:mm' format -i     prints full time-date stamps in ISO8601 `yyyy-mm-dd hh:mm' format -t fmt prints time and date stamps in the given format; fmt is formatted with the strftime function with the zsh extensions described for the %D{string} prompt format in the section EXPANSION OF PROMPT SEQUENCES in zshmisc(1). The resulting formatted string must be no more than 256 characters or will not be printed -D     prints elapsed times; may be combined with one of the options above `fc -p' pushes the current history list onto a stack and switches to a new history list.  If the -a option is also specified, this history list will be automatically popped when the current function scope is exited, which is a much better solution than creating a trap function to call `fc -P' manually. If no arguments are specified, the history list is left empty, $HISTFILE is unset, and $HISTSIZE & $SAVEHIST are set to their default values.  If one argument is given, $HISTFILE is set to that filename, $HISTSIZE & $SAVEHIST are left unchanged, and the history file is read in (if it exists) to initialize the new list.  If a second argument is specified, $HISTSIZE & $SAVEHIST are instead set to the single specified numeric value.  Finally, if a third argument is specified, $SAVEHIST is set to a separate value from $HISTSIZE.  You are free to change these environment values for the new history list however you desire in order to manipulate the new history list. `fc -P' pops the history list back to an older list saved by `fc -p'.  The current list is saved to its $HISTFILE before it is destroyed (assuming that $HISTFILE and $SAVEHIST are set appropriately, of course).  The values of $HISTFILE, $HISTSIZE, and $SAVEHIST are restored to the values they had when `fc -p' was called.  Note that this restoration can conflict with making these variables \"local\", so your best bet is to avoid local declarations for these variables in functions that use `fc -p'. The one other guaranteed-safe combination is declaring these variables to be local at the top of your function and using the automatic option (-a) with `fc -p'.  Finally, note that it is legal to manually pop a push marked for automatic popping if you need to do so before the function exits. `fc -R' reads the history from the given file, `fc -W' writes the history out to the given file, and `fc -A' appends the history out to the given file.  If no filename is specified, the $HISTFILE is assumed.  If the -I option is added to -R, only those events that are not already contained within the internal history list are added.  If the -I option is added to -A or -W, only those events that are new since last incremental append/write to the history file are appended/written.  In any case, the created file will have no more than $SAVEHIST entries.",
     "args": "fc -ARWI [ filename ]"
   },
   "float": {
+    "shortDescription": "Floating point arithmetic",
     "description": "Equivalent to typeset -E, except that options irrelevant to floating point numbers are not permitted.",
     "args": "float [ {+|-}Hghlprtux ] [ {+|-}EFLRZ [ n ] ] [ name[=value] ... ]"
   },
   "functions": {
+    "shortDescription": "List functions",
     "description": "Equivalent to typeset -f, with the exception of the -c, -x, -M and -W options.  For functions -u and functions -U, see autoload, which provides additional options.  For functions -t and functions -T, see typeset -f. The -x option indicates that any functions output will have each leading tab for indentation, added by the shell to show syntactic structure, expanded to the given number num of spaces. num can also be 0 to suppress all indentation. The -W option turns on the option WARN_NESTED_VAR for the named function or functions only.  The option is turned off at the start of nested functions (apart from anonoymous functions) unless the called function also has the -W attribute. The -c option causes oldfn to be copied to newfn.  The copy is efficiently handled internally by reference counting.  If oldfn was marked for autoload it is first loaded and if this fails the copy fails.  Either function may subsequently be redefined without affecting the other.  A typical idiom is that oldfn is the name of a library shell function which is then redefined to call newfn, thereby installing a modified version of the function. The -M and +M flags Use of the -M option may not be combined with any of the options handled by typeset -f. functions -M mathfn defines mathfn as the name of a mathematical function recognised in all forms of arithmetical expressions; see the section `Arithmetic Evaluation' in zshmisc(1).  By default mathfn may take any number of comma-separated arguments. If min is given, it must have exactly min args; if min and max are both given, it must have at least min and at most max args. max may be -1 to indicate that there is no upper limit. By default the function is implemented by a shell function of the same name; if shellfn is specified it gives the name of the corresponding shell function while mathfn remains the name used in arithmetical expressions.  The name of the function in $0 is mathfn (not shellfn as would usually be the case), provided the option FUNCTION_ARGZERO is in effect.  The positional parameters in the shell function correspond to the arguments of the mathematical function call. The result of the last arithmetical expression evaluated inside the shell function gives the result of the mathematical function.  This is not limited to arithmetic substitutions of the form $((...)), but also includes arithmetical expressions evaluated in any other way, including by the let builtin, by ((...)) statements, and even by the return builtin and by array subscripts.  Therefore, care must be taken not to use syntactical constructs that perform arithmetic evaluation after evaluating what is to be the result of the function.  For example: # WRONG zmath_cube() { (( $1 * $1 * $1 )) return 0 } functions -M cube 1 1 zmath_cube print $(( cube(3) )) This will print `0' because of the return. Commenting the return out would lead to a different problem: the ((...)) statement would become the last statement in the function, so the return status ($?) of the function would be non-zero (indicating failure) whenever the arithmetic result of the function would happen to be zero (numerically): # WRONG zmath_cube() { (( $1 * $1 * $1 )) } functions -M cube 1 1 zmath_cube print $(( cube(0) )) Instead, the true builtin can be used: # RIGHT zmath_cube() { (( $1 * $1 * $1 )) true } functions -M cube 1 1 zmath_cube print $(( cube(3) )) If the additional option -s is given to functions -M, the argument to the function is a single string: anything between the opening and matching closing parenthesis is passed to the function as a single argument, even if it includes commas or white space.  The minimum and maximum argument specifiers must therefore be 1 if given.  An empty argument list is passed as a zero-length string.  Thus, the following string function takes a single argument, including the commas, and prints 11: stringfn() { (( $#1 )); true } functions -Ms stringfn print $(( stringfn(foo,bar,rod) )) functions -M with no arguments lists all such user-defined functions in the same form as a definition.  With the additional option -m and a list of arguments, all functions whose mathfn matches one of the pattern arguments are listed. function +M removes the list of mathematical functions; with the additional option -m the arguments are treated as patterns and all functions whose mathfn matches the pattern are removed. Note that the shell function implementing the behaviour is not removed (regardless of whether its name coincides with mathfn).",
     "args": "functions +M [ -m ] mathfn ..."
   },
@@ -165,66 +179,82 @@
     "args": "getln [ -AclneE ] name ..."
   },
   "getopts": {
+    "shortDescription": "Parse positional parameters",
     "description": "Checks the args for legal options.  If the args are omitted, use the positional parameters.  A valid option argument begins with a `+' or a `-'.  An argument not beginning with a `+' or a `-', or the argument `--', ends the options.  Note that a single `-' is not considered a valid option argument.  optstring contains the letters that getopts recognizes.  If a letter is followed by a `:', that option requires an argument.  The options can be separated from the argument by blanks. Each time it is invoked, getopts places the option letter it finds in the shell parameter name, prepended with a `+' when arg begins with a `+'.  The index of the next arg is stored in OPTIND.  The option argument, if any, is stored in OPTARG. The first option to be examined may be changed by explicitly assigning to OPTIND.  OPTIND has an initial value of 1, and is normally set to 1 upon entry to a shell function and restored upon exit.  (The POSIX_BUILTINS option disables this, and also changes the way the value is calculated to match other shells.) OPTARG is not reset and retains its value from the most recent call to getopts.  If either of OPTIND or OPTARG is explicitly unset, it remains unset, and the index or option argument is not stored.  The option itself is still stored in name in this case. A leading `:' in optstring causes getopts to store the letter of any invalid option in OPTARG, and to set name to `?' for an unknown option and to `:' when a required argument is missing. Otherwise, getopts sets name to `?' and prints an error message when an option is invalid.  The exit status is nonzero when there are no more options.",
     "args": "getopts optstring name [ arg ... ]"
   },
   "hash": {
+    "shortDescription": "Remember command locations",
     "description": "hash can be used to directly modify the contents of the command hash table, and the named directory hash table.  Normally one would modify these tables by modifying one's PATH (for the command hash table) or by creating appropriate shell parameters (for the named directory hash table).  The choice of hash table to work on is determined by the -d option; without the option the command hash table is used, and with the option the named directory hash table is used. A command name starting with a / is never hashed, whether by explicit use of the hash command or otherwise.  Such a command is always found by direct look up in the file system. Given no arguments, and neither the -r or -f options, the selected hash table will be listed in full. The -r option causes the selected hash table to be emptied.  It will be subsequently rebuilt in the normal fashion.  The -f option causes the selected hash table to be fully rebuilt immediately.  For the command hash table this hashes all the absolute directories in the PATH, and for the named directory hash table this adds all users' home directories.  These two options cannot be used with any arguments. The -m option causes the arguments to be taken as patterns (which should be quoted) and the elements of the hash table matching those patterns are printed.  This is the only way to display a limited selection of hash table elements. For each name with a corresponding value, put `name' in the selected hash table, associating it with the pathname `value'. In the command hash table, this means that whenever `name' is used as a command argument, the shell will try to execute the file given by `value'.  In the named directory hash table, this means that `value' may be referred to as `~name'. For each name with no corresponding value, attempt to add name to the hash table, checking what the appropriate value is in the normal manner for that hash table.  If an appropriate value can't be found, then the hash table will be unchanged. The -v option causes hash table entries to be listed as they are added by explicit specification.  If has no effect if used with -f. If the -L flag is present, then each hash table entry is printed in the form of a call to hash.",
     "args": "hash [ -Ldfmrv ] [ name[=value] ] ..."
   },
   "history": {
+    "shortDescription": "Command history",
     "description": "Same as fc -l.",
     "args": "history undefined"
   },
   "integer": {
+    "shortDescription": "Integer arithmetic",
     "description": "Equivalent to typeset -i, except that options irrelevant to integers are not permitted.",
     "args": "integer [ {+|-}Hghlprtux ] [ {+|-}LRZi [ n ] ] [ name[=value] ... ]"
   },
   "jobs": {
+    "shortDescription": "List active jobs",
     "description": "Lists information about each given job, or all jobs if job is omitted.  The -l flag lists process IDs, and the -p flag lists process groups.  If the -r flag is specified only running jobs will be listed and if the -s flag is given only stopped jobs are shown.  If the -d flag is given, the directory from which the job was started (which may not be the current directory of the job) will also be shown. The -Z option replaces the shell's argument and environment space with the given string, truncated if necessary to fit. This will normally be visible in ps (ps(1)) listings.  This feature is typically used by daemons, to indicate their state. Full job control is only available in the top-level interactive shell, not in commands run in the left hand side of pipelines or within the (...) construct.  However, a snapshot of the job state at that point is taken, so it is still possible to use the jobs builtin, or any parameter providing job information.  This gives information about the state of jobs at the point the subshell was created.  If background processes are created within the subshell, then instead information about those processes is provided. For example, sleep 10 &    # Job in background (             # Shell forks jobs          # Shows information about \"sleep 10 &\" sleep 5 &     # Process in background (no job control) jobs          # Shows information about \"sleep 5 &\" )",
     "args": "jobs -Z string"
   },
   "kill": {
+    "shortDescription": "Send a signal to a process",
     "description": "Sends either SIGTERM or the specified signal to the given jobs or processes.  Signals are given by number or by names, with or without the `SIG' prefix.  If the signal being sent is not `KILL' or `CONT', then the job will be sent a `CONT' signal if it is stopped.  The argument job can be the process ID of a job not in the job list.  In the second form, kill -l, if sig is not specified the signal names are listed.  Otherwise, for each sig that is a name, the corresponding signal number is listed.  For each sig that is a signal number or a number representing the exit status of a process which was terminated or stopped by a signal the name of the signal is printed. On some systems, alternative signal names are allowed for a few signals.  Typical examples are SIGCHLD and SIGCLD or SIGPOLL and SIGIO, assuming they correspond to the same signal number.  kill -l will only list the preferred form, however kill -l alt will show if the alternative form corresponds to a signal number. For example, under Linux kill -l IO and kill -l POLL both output 29, hence kill -IO and kill -POLL have the same effect. Many systems will allow process IDs to be negative to kill a process group or zero to kill the current process group.",
     "args": "kill -l [ sig ... ]"
   },
   "let": {
+    "shortDescription": "Evaluate arithmetic expression",
     "description": "Evaluate each arg as an arithmetic expression.  See the section `Arithmetic Evaluation' in zshmisc(1) for a description of arithmetic expressions.  The exit status is 0 if the value of the last expression is nonzero, 1 if it is zero, and 2 if an error occurred.",
     "args": "let arg ..."
   },
   "limit": {
+    "shortDescription": "Set or display resource limits",
     "description": "Set or display resource limits.  Unless the -s flag is given, the limit applies only the children of the shell.  If -s is given without other arguments, the resource limits of the current shell is set to the previously set resource limits of the children. If limit is not specified, print the current limit placed on resource, otherwise set the limit to the specified value.  If the -h flag is given, use hard limits instead of soft limits. If no resource is given, print all limits. When looping over multiple resources, the shell will abort immediately if it detects a badly formed argument.  However, if it fails to set a limit for some other reason it will continue trying to set the remaining limits. resource can be one of: addressspace Maximum amount of address space used. aiomemorylocked Maximum amount of memory locked in RAM for AIO operations. aiooperations Maximum number of AIO operations. cachedthreads Maximum number of cached threads. coredumpsize Maximum size of a core dump. cputime Maximum CPU seconds per process. datasize Maximum data size (including stack) for each process. descriptors Maximum value for a file descriptor. filesize Largest single file allowed. kqueues Maximum number of kqueues allocated. maxproc Maximum number of processes. maxpthreads Maximum number of threads per process. memorylocked Maximum amount of memory locked in RAM. memoryuse Maximum resident set size. msgqueue Maximum number of bytes in POSIX message queues. posixlocks Maximum number of POSIX locks per user. pseudoterminals Maximum number of pseudo-terminals. resident Maximum resident set size. sigpending Maximum number of pending signals. sockbufsize Maximum size of all socket buffers. stacksize Maximum stack size for each process. swapsize Maximum amount of swap used. vmemorysize Maximum amount of virtual memory. Which of these resource limits are available depends on the system.  resource can be abbreviated to any unambiguous prefix. It can also be an integer, which corresponds to the integer defined for the resource by the operating system. If argument corresponds to a number which is out of the range of the resources configured into the shell, the shell will try to read or write the limit anyway, and will report an error if this fails.  As the shell does not store such resources internally, an attempt to set the limit will fail unless the -s option is present. limit is a number, with an optional scaling factor, as follows: nh     hours nk     kilobytes (default) nm     megabytes or minutes ng     gigabytes [mm:]ss minutes and seconds The limit command is not made available by default when the shell starts in a mode emulating another shell.  It can be made available with the command `zmodload -F zsh/rlimits b:limit'.",
     "args": "limit [ -hs ] [ resource [ limit ] ] ..."
   },
   "local": {
+    "shortDescription": "Create a local variable",
     "description": "Same as typeset, except that the options -g, and -f are not permitted.  In this case the -x option does not force the use of -g, i.e. exported variables will be local to functions.",
     "args": "local [ {+|-}AHUahlprtux ] [ {+|-}EFLRZi [ n ] ] [ name[=value] ... ]"
   },
   "logout": {
+    "shortDescription": "Exit the shell",
     "description": "Same as exit, except that it only works in a login shell.",
     "args": "logout [ n ]"
   },
   "noglob": {
+    "shortDescription": "Disable filename expansion",
     "description": "See the section `Precommand Modifiers' in zshmisc(1).",
     "args": "noglob simple command"
   },
   "popd": {
+    "shortDescription": "Remove directory from stack",
     "description": "Remove an entry from the directory stack, and perform a cd to the new top directory.  With no argument, the current top entry is removed.  An argument of the form `+n' identifies a stack entry by counting from the left of the list shown by the dirs command, starting with zero.  An argument of the form -n counts from the right.  If the PUSHD_MINUS option is set, the meanings of `+' and `-' in this context are swapped. If the -q (quiet) option is specified, the hook function chpwd and the functions in the array $chpwd_functions are not called, and the new directory stack is not printed.  This is useful for calls to popd that do not change the environment seen by an interactive user.",
     "args": "popd [ -q ] [ {+|-}n ]"
   },
   "print": {
+    "shortDescription": "Print arguments",
     "description": "With the `-f' option the arguments are printed as described by printf.  With no flags or with the flag `-', the arguments are printed on the standard output as described by echo, with the following differences: the escape sequence `\\M-x' (or `\\Mx') metafies the character x (sets the highest bit), `\\C-x' (or `\\Cx') produces a control character (`\\C-@' and `\\C-?' give the characters NULL and delete), a character code in octal is represented by `\\NNN' (instead of `\\0NNN'), and `\\E' is a synonym for `\\e'.  Finally, if not in an escape sequence, `\\' escapes the following character and is not printed. -a     Print arguments with the column incrementing first.  Only useful with the -c and -C options. -b     Recognize all the escape sequences defined for the bindkey command, see the section `Zle Builtins' in zshzle(1). -c     Print the arguments in columns.  Unless -a is also given, arguments are printed with the row incrementing first. -C cols Print the arguments in cols columns.  Unless -a is also given, arguments are printed with the row incrementing first. -D     Treat the arguments as paths, replacing directory prefixes with ~ expressions corresponding to directory names, as appropriate. -i     If given together with -o or -O, sorting is performed case-independently. -l     Print the arguments separated by newlines instead of spaces.  Note: if the list of arguments is empty, print -l will still output one empty line. To print a possibly-empty list of arguments one per line, use print -C1, as in `print -rC1 -- \"$list[@]\"'. -m     Take the first argument as a pattern (should be quoted), and remove it from the argument list together with subsequent arguments that do not match this pattern. -n     Do not add a newline to the output. -N     Print the arguments separated and terminated by nulls. Again, print -rNC1 -- \"$list[@]\" is a canonical way to print an arbitrary list as null-delimited records. -o     Print the arguments sorted in ascending order. -O     Print the arguments sorted in descending order. -p     Print the arguments to the input of the coprocess. -P     Perform prompt expansion (see EXPANSION OF PROMPT SEQUENCES in zshmisc(1)).  In combination with `-f', prompt escape sequences are parsed only within interpolated arguments, not within the format string. -r     Ignore the escape conventions of echo. -R     Emulate the BSD echo command, which does not process escape sequences unless the -e flag is given.  The -n flag suppresses the trailing newline.  Only the -e and -n flags are recognized after -R; all other arguments and options are printed. -s     Place the results in the history list instead of on the standard output.  Each argument to the print command is treated as a single word in the history, regardless of its content. -S     Place the results in the history list instead of on the standard output.  In this case only a single argument is allowed; it will be split into words as if it were a full shell command line.  The effect is similar to reading the line from a history file with the HIST_LEX_WORDS option active. -u n   Print the arguments to file descriptor n. -v name Store the printed arguments as the value of the parameter name. -x tab-stop Expand leading tabs on each line of output in the printed string assuming a tab stop every tab-stop characters. This is appropriate for formatting code that may be indented with tabs.  Note that leading tabs of any argument to print, not just the first, are expanded, even if print is using spaces to separate arguments (the column count is maintained across arguments but may be incorrect on output owing to previous unexpanded tabs). The start of the output of each print command is assumed to be aligned with a tab stop.  Widths of multibyte characters are handled if the option MULTIBYTE is in effect.  This option is ignored if other formatting options are in effect, namely column alignment or printf style, or if output is to a special location such as shell history or the command line editor. -X tab-stop This is similar to -x, except that all tabs in the printed string are expanded.  This is appropriate if tabs in the arguments are being used to produce a table format. -z     Push the arguments onto the editing buffer stack, separated by spaces. If any of `-m', `-o' or `-O' are used in combination with `-f' and there are no arguments (after the removal process in the case of `-m') then nothing is printed.",
     "args": "print [ -abcDilmnNoOpPrsSz ] [ -u n ] [ -f format ] [ -C cols ]"
   },
   "printf": {
+    "shortDescription": "Format and print data",
     "description": "Print the arguments according to the format specification. Formatting rules are the same as used in C. The same escape sequences as for echo are recognised in the format. All C conversion specifications ending in one of csdiouxXeEfgGn are handled. In addition to this, `%b' can be used instead of `%s' to cause escape sequences in the argument to be recognised and `%q' can be used to quote the argument in such a way that allows it to be reused as shell input. With the numeric format specifiers, if the corresponding argument starts with a quote character, the numeric value of the following character is used as the number to print; otherwise the argument is evaluated as an arithmetic expression. See the section `Arithmetic Evaluation' in zshmisc(1) for a description of arithmetic expressions. With `%n', the corresponding argument is taken as an identifier which is created as an integer parameter. Normally, conversion specifications are applied to each argument in order but they can explicitly specify the nth argument is to be used by replacing `%' by `%n$' and `*' by `*n$'.  It is recommended that you do not mix references of this explicit style with the normal style and the handling of such mixed styles may be subject to future change. If arguments remain unused after formatting, the format string is reused until all arguments have been consumed. With the print builtin, this can be suppressed by using the -r option. If more arguments are required by the format than have been specified, the behaviour is as if zero or an empty string had been specified as the argument. The -v option causes the output to be stored as the value of the parameter name, instead of printed. If name is an array and the format string is reused when consuming arguments then one array element will be used for each use of the format string.",
     "args": "printf [ -v name ] format [ arg ... ]"
   },
   "pushd": {
+    "shortDescription": "Add directory to stack",
     "description": "Change the current directory, and push the old current directory onto the directory stack.  In the first form, change the current directory to arg.  If arg is not specified, change to the second directory on the stack (that is, exchange the top two entries), or change to $HOME if the PUSHD_TO_HOME option is set or if there is only one entry on the stack.  Otherwise, arg is interpreted as it would be by cd.  The meaning of old and new in the second form is also the same as for cd. The third form of pushd changes directory by rotating the directory list.  An argument of the form `+n' identifies a stack entry by counting from the left of the list shown by the dirs command, starting with zero.  An argument of the form `-n' counts from the right.  If the PUSHD_MINUS option is set, the meanings of `+' and `-' in this context are swapped. If the -q (quiet) option is specified, the hook function chpwd and the functions in the array $chpwd_functions are not called, and the new directory stack is not printed.  This is useful for calls to pushd that do not change the environment seen by an interactive user. If the option -q is not specified and the shell option PUSHD_SILENT is not set, the directory stack will be printed after a pushd is performed. The options -s, -L and -P have the same meanings as for the cd builtin.",
     "args": "pushd [ -qsLP ] {+|-}n"
   },
   "pushln": {
+    "shortDescription": "Push arguments onto the buffer",
     "description": "Equivalent to print -nz.",
     "args": "pushln [ arg ... ]"
   },
@@ -238,6 +268,7 @@
     "args": "read [ -rszpqAclneE ] [ -t [ num ] ] [ -k [ num ] ] [ -d delim ]"
   },
   "readonly": {
+    "shortDescription": "Mark variables as read-only",
     "description": "Same as typeset -r.  With the POSIX_BUILTINS option set, same as typeset -gr.",
     "args": "readonly undefined"
   },
@@ -254,10 +285,12 @@
     "args": "setopt [ {+|-}options | {+|-}o option_name ] [ -m ] [ name ... ]"
   },
   "shift": {
+    "shortDescription": "Shift positional parameters",
     "description": "The positional parameters ${n+1} ... are renamed to $1 ..., where n is an arithmetic expression that defaults to 1.  If any names are given then the arrays with these names are shifted instead of the positional parameters. If the option -p is given arguments are instead removed (popped) from the end rather than the start of the array.",
     "args": "shift [ -p ] [ n ] [ name ... ]"
   },
   "source": {
+    "shortDescription": "Source a file",
     "description": "Same as `.', except that the current directory is always searched and is always searched first, before directories in $path.",
     "args": "source file [ arg ... ]"
   },
@@ -270,10 +303,12 @@
     "args": "[ [ arg ... ] ]"
   },
   "times": {
+    "shortDescription": "Display shell times",
     "description": "for processes run from the shell.",
     "args": "times Print the accumulated user and system times for the shell and"
   },
   "trap": {
+    "shortDescription": "Set signal handlers",
     "description": "arg is a series of commands (usually quoted to protect it from immediate evaluation by the shell) to be read and executed when the shell receives any of the signals specified by one or more sig args.  Each sig can be given as a number, or as the name of a signal either with or without the string SIG in front (e.g. 1, HUP, and SIGHUP are all the same signal). If arg is `-', then the specified signals are reset to their defaults, or, if no sig args are present, all traps are reset. If arg is an empty string, then the specified signals are ignored by the shell (and by the commands it invokes). If arg is omitted but one or more sig args are provided (i.e. the first argument is a valid signal number or name), the effect is the same as if arg had been specified as `-'. The trap command with no arguments prints a list of commands associated with each signal. If sig is ZERR then arg will be executed after each command with a nonzero exit status.  ERR is an alias for ZERR on systems that have no SIGERR signal (this is the usual case). If sig is DEBUG then arg will be executed before each command if the option DEBUG_BEFORE_CMD is set (as it is by default), else after each command.  Here, a `command' is what is described as a `sublist' in the shell grammar, see the section SIMPLE COMMANDS & PIPELINES in zshmisc(1).  If DEBUG_BEFORE_CMD is set various additional features are available.  First, it is possible to skip the next command by setting the option ERR_EXIT; see the description of the ERR_EXIT option in zshoptions(1).  Also, the shell parameter ZSH_DEBUG_CMD is set to the string corresponding to the command to be executed following the trap.  Note that this string is reconstructed from the internal format and may not be formatted the same way as the original text.  The parameter is unset after the trap is executed. If sig is 0 or EXIT and the trap statement is executed inside the body of a function, then the command arg is executed after the function completes.  The value of $? at the start of execution is the exit status of the shell or the return status of the function exiting.  If sig is 0 or EXIT and the trap statement is not executed inside the body of a function, then the command arg is executed when the shell terminates; the trap runs before any zshexit hook functions. ZERR, DEBUG, and EXIT traps are not executed inside other traps. ZERR and DEBUG traps are kept within subshells, while other traps are reset. Note that traps defined with the trap builtin are slightly different from those defined as `TRAPNAL () { ... }', as the latter have their own function environment (line numbers, local variables, etc.) while the former use the environment of the command in which they were called.  For example, trap 'print $LINENO' DEBUG will print the line number of a command executed after it has run, while TRAPDEBUG() { print $LINENO; } will always print the number zero. Alternative signal names are allowed as described under kill above.  Defining a trap under either name causes any trap under an alternative name to be removed.  However, it is recommended that for consistency users stick exclusively to one name or another.",
     "args": "trap [ arg ] [ sig ... ]"
   },
@@ -283,10 +318,12 @@
     "args": "true [ arg ... ]"
   },
   "ttyctl": {
+    "shortDescription": "Control terminal attributes",
     "description": "The -f option freezes the tty (i.e. terminal or terminal emulator), and -u unfreezes it.  When the tty is frozen, no changes made to the tty settings by external programs will be honored by the shell, except for changes in the size of the screen; the shell will simply reset the settings to their previous values as soon as each command exits or is suspended. Thus, stty and similar programs have no effect when the tty is frozen.  Freezing the tty does not cause the current state to be remembered: instead, it causes future changes to the state to be blocked. Without options it reports whether the terminal is frozen or not. Note that, regardless of whether the tty is frozen or not, the shell needs to change the settings when the line editor starts, so unfreezing the tty does not guarantee settings made on the command line are preserved.  Strings of commands run between editing the command line will see a consistent tty state.  See also the shell variable STTY for a means of initialising the tty before running external commands and/or freezing the tty around a single command.",
     "args": "ttyctl [ -fu ]"
   },
   "type": {
+    "shortDescription": "Describe a command",
     "description": "Equivalent to whence -v.",
     "args": "type [ -wfpamsS ] name ..."
   },
@@ -296,10 +333,12 @@
     "args": "typeset -f [ {+|-}TUkmtuz ] [ + ] [ name ... ]"
   },
   "ulimit": {
+    "shortDescription": "Set or display resource limits",
     "description": "Set or display resource limits of the shell and the processes started by the shell.  The value of limit can be a number in the unit specified below or one of the values `unlimited', which removes the limit on the resource, or `hard', which uses the current value of the hard limit on the resource. By default, only soft limits are manipulated. If the -H flag is given use hard limits instead of soft limits.  If the -S flag is given together with the -H flag set both hard and soft limits. If no options are used, the file size limit (-f) is assumed. If limit is omitted the current value of the specified resources are printed.  When more than one resource value is printed, the limit name and unit is printed before each value. When looping over multiple resources, the shell will abort immediately if it detects a badly formed argument.  However, if it fails to set a limit for some other reason it will continue trying to set the remaining limits. Not all the following resources are supported on all systems. Running ulimit -a will show which are supported. -a     Lists all of the current resource limits. -b     Socket buffer size in bytes (N.B. not kilobytes) -c     512-byte blocks on the size of core dumps. -d     Kilobytes on the size of the data segment. -f     512-byte blocks on the size of files written. -i     The number of pending signals. -k     The number of kqueues allocated. -l     Kilobytes on the size of locked-in memory. -m     Kilobytes on the size of physical memory. -n     open file descriptors. -p     The number of pseudo-terminals. -q     Bytes in POSIX message queues. -r     Maximum real time priority.  On some systems where this is not available, such as NetBSD, this has the same effect as -T for compatibility with sh. -s     Kilobytes on the size of the stack. -T     The number of simultaneous threads available to the user. -t     CPU seconds to be used. -u     The number of processes available to the user. -v     Kilobytes on the size of virtual memory.  On some systems this refers to the limit called `address space'. -w     Kilobytes on the size of swapped out memory. -x     The number of locks on files. A resource may also be specified by integer in the form `-N resource', where resource corresponds to the integer defined for the resource by the operating system.  This may be used to set the limits for resources known to the shell which do not correspond to option letters.  Such limits will be shown by number in the output of `ulimit -a'. The number may alternatively be out of the range of limits compiled into the shell.  The shell will try to read or write the limit anyway, and will report an error if this fails.",
     "args": "ulimit [ -HSa ] [ { -bcdfiklmnpqrsTtvwx | -N resource } [ limit ] ... ]"
   },
   "umask": {
+    "shortDescription": "Set file creation mask",
     "description": "The umask is set to mask.  mask can be either an octal number or a symbolic value as described in the chmod(1) man page.  If mask is omitted, the current value is printed.  The -S option causes the mask to be printed as a symbolic value.  Otherwise, the mask is printed as an octal number.  Note that in the symbolic form the permissions you specify are those which are to be allowed (not denied) to the users specified.",
     "args": "umask [ -S ] [ mask ]"
   },
@@ -309,22 +348,27 @@
     "args": "unalias [ -ams ] name ..."
   },
   "unfunction": {
+    "shortDescription": "Remove function definition",
     "description": "Same as unhash -f.",
     "args": "unfunction undefined"
   },
   "unhash": {
+    "shortDescription": "Remove command from hash table",
     "description": "Remove the element named name from an internal hash table.  The default is remove elements from the command hash table.  The -a option causes unhash to remove regular or global aliases; note when removing a global aliases that the argument must be quoted to prevent it from being expanded before being passed to the command.  The -s option causes unhash to remove suffix aliases. The -f option causes unhash to remove shell functions.  The -d options causes unhash to remove named directories.  If the -m flag is given the arguments are taken as patterns (should be quoted) and all elements of the corresponding hash table with matching names will be removed.",
     "args": "unhash [ -adfms ] name ..."
   },
   "unlimit": {
+    "shortDescription": "Remove resource limits",
     "description": "The resource limit for each resource is set to the hard limit. If the -h flag is given and the shell has appropriate privileges, the hard resource limit for each resource is removed.  The resources of the shell process are only changed if the -s flag is given. The unlimit command is not made available by default when the shell starts in a mode emulating another shell.  It can be made available with the command `zmodload -F zsh/rlimits b:unlimit'.",
     "args": "unlimit [ -hs ] resource ..."
   },
   "unset": {
+    "shortDescription": "Unset values and attributes of variables",
     "description": "Each named parameter is unset.  Local parameters remain local even if unset; they appear unset within scope, but the previous value will still reappear when the scope ends. Individual elements of associative array parameters may be unset by using subscript syntax on name, which should be quoted (or the entire command prefixed with noglob) to protect the subscript from filename generation. If the -m flag is specified the arguments are taken as patterns (should be quoted) and all parameters with matching names are unset.  Note that this cannot be used when unsetting associative array elements, as the subscript will be treated as part of the pattern. The -v flag specifies that name refers to parameters. This is the default behaviour. unset -f is equivalent to unfunction.",
     "args": "unset [ -fmv ] name ..."
   },
   "unsetopt": {
+    "shortDescription": "Unset shell options",
     "description": "Unset the options for the shell.  All options specified either with flags or by name are unset.  If no arguments are supplied, the names of all options currently unset are printed.  If the -m flag is given the arguments are taken as patterns (which should be quoted to preserve them from being interpreted as glob patterns), and all options with names matching these patterns are unset.",
     "args": "unsetopt [ {+|-}options | {+|-}o option_name ] [ name ... ]"
   },
@@ -333,22 +377,27 @@
     "args": "wait [ job ... ]"
   },
   "whence": {
+    "shortDescription": "Locate a command",
     "description": "For each name, indicate how it would be interpreted if used as a command name. If name is not an alias, built-in command, external command, shell function, hashed command, or a reserved word, the exit status shall be non-zero, and -- if -v, -c, or -w was passed -- a message will be written to standard output.  (This is different from other shells that write that message to standard error.) whence is most useful when name is only the last path component of a command, i.e. does not include a `/'; in particular, pattern matching only succeeds if just the non-directory component of the command is passed. -v     Produce a more verbose report. -c     Print the results in a csh-like format.  This takes precedence over -v. -w     For each name, print `name: word' where word is one of alias, builtin, command, function, hashed, reserved or none, according as name corresponds to an alias, a built-in command, an external command, a shell function, a command defined with the hash builtin, a reserved word, or is not recognised.  This takes precedence over -v and -c. -f     Causes the contents of a shell function to be displayed, which would otherwise not happen unless the -c flag were used. -p     Do a path search for name even if it is an alias, reserved word, shell function or builtin. -a     Do a search for all occurrences of name throughout the command path.  Normally only the first occurrence is printed. -m     The arguments are taken as patterns (pattern characters should be quoted), and the information is displayed for each command matching one of these patterns. -s     If a pathname contains symlinks, print the symlink-free pathname as well. -S     As -s, but if the pathname had to be resolved by following multiple symlinks, the intermediate steps are printed, too.  The symlink resolved at each step might be anywhere in the path. -x num Expand tabs when outputting shell functions using the -c option.  This has the same effect as the -x option to the functions builtin.",
     "args": "whence [ -vcwfpamsS ] [ -x num ] name ..."
   },
   "where": {
+    "shortDescription": "Locate a command",
     "description": "Equivalent to whence -ca.",
     "args": "where [ -wpmsS ] [ -x num ] name ..."
   },
   "which": {
+    "shortDescription": "Locate a command",
     "description": "Equivalent to whence -c.",
     "args": "which [ -wpamsS ] [ -x num ] name ..."
   },
   "zcompile": {
+    "shortDescription": "Compile functions",
     "description": "This builtin command can be used to compile functions or scripts, storing the compiled form in a file, and to examine files containing the compiled form.  This allows faster autoloading of functions and sourcing of scripts by avoiding parsing of the text when the files are read. The first form (without the -c, -a or -t options) creates a compiled file.  If only the file argument is given, the output file has the name `file.zwc' and will be placed in the same directory as the file.  The shell will load the compiled file instead of the normal function file when the function is autoloaded; see the section `Autoloading Functions' in zshmisc(1) for a description of how autoloaded functions are searched.  The extension .zwc stands for `zsh word code'. If there is at least one name argument, all the named files are compiled into the output file given as the first argument.  If file does not end in .zwc, this extension is automatically appended.  Files containing multiple compiled functions are called `digest' files, and are intended to be used as elements of the FPATH/fpath special array. The second form, with the -c or -a options, writes the compiled definitions for all the named functions into file.  For -c, the names must be functions currently defined in the shell, not those marked for autoloading.  Undefined functions that are marked for autoloading may be written by using the -a option, in which case the fpath is searched and the contents of the definition files for those functions, if found, are compiled into file.  If both -c and -a are given, names of both defined functions and functions marked for autoloading may be given.  In either case, the functions in files written with the -c or -a option will be autoloaded as if the KSH_AUTOLOAD option were unset. The reason for handling loaded and not-yet-loaded functions with different options is that some definition files for autoloading define multiple functions, including the function with the same name as the file, and, at the end, call that function.  In such cases the output of `zcompile -c' does not include the additional functions defined in the file, and any other initialization code in the file is lost.  Using `zcompile -a' captures all this extra information. If the -m option is combined with -c or -a, the names are used as patterns and all functions whose names match one of these patterns will be written. If no name is given, the definitions of all functions currently defined or marked as autoloaded will be written. Note the second form cannot be used for compiling functions that include redirections as part of the definition rather than within the body of the function; for example fn1() { { ... } >~/logfile } can be compiled but fn1() { ... } >~/logfile cannot.  It is possible to use the first form of zcompile to compile autoloadable functions that include the full function definition instead of just the body of the function. The third form, with the -t option, examines an existing compiled file.  Without further arguments, the names of the original files compiled into it are listed.  The first line of output shows the version of the shell which compiled the file and how the file will be used (i.e. by reading it directly or by mapping it into memory).  With arguments, nothing is output and the return status is set to zero if definitions for all names were found in the compiled file, and non-zero if the definition for at least one name was not found. Other options: -U     Aliases are not expanded when compiling the named files. -R     When the compiled file is read, its contents are copied into the shell's memory, rather than memory-mapped (see -M).  This happens automatically on systems that do not support memory mapping. When compiling scripts instead of autoloadable functions, it is often desirable to use this option; otherwise the whole file, including the code to define functions which have already been defined, will remain mapped, consequently wasting memory. -M     The compiled file is mapped into the shell's memory when read. This is done in such a way that multiple instances of the shell running on the same host will share this mapped file.  If neither -R nor -M is given, the zcompile builtin decides what to do based on the size of the compiled file. -k -z     These options are used when the compiled file contains functions which are to be autoloaded. If -z is given, the function will be autoloaded as if the KSH_AUTOLOAD option is not set, even if it is set at the time the compiled file is read, while if the -k is given, the function will be loaded as if KSH_AUTOLOAD is set.  These options also take precedence over any -k or -z options specified to the autoload builtin. If neither of these options is given, the function will be loaded as determined by the setting of the KSH_AUTOLOAD option at the time the compiled file is read. These options may also appear as many times as necessary between the listed names to specify the loading style of all following functions, up to the next -k or -z. The created file always contains two versions of the compiled format, one for big-endian machines and one for small-endian machines.  The upshot of this is that the compiled file is machine independent and if it is read or mapped, only one half of the file is actually used (and mapped).",
     "args": "zcompile -t file [ name ... ]"
   },
   "zformat": {
+    "shortDescription": "Format strings",
     "description": "See the section `The zsh/zutil Module' in zshmodules(1).",
     "args": "zformat undefined"
   },
@@ -357,6 +406,7 @@
     "args": "zmodload -R modalias ..."
   },
   "zparseopts": {
+    "shortDescription": "Parse options",
     "description": "See the section `The zsh/zutil Module' in zshmodules(1).",
     "args": "zparseopts undefined"
   },
@@ -365,6 +415,7 @@
     "args": "zregexparse undefined"
   },
   "zsocket": {
+    "shortDescription": "Zsh socket interface",
     "description": "See the section `The zsh/net/socket Module' in zshmodules(1).",
     "args": "zsocket undefined"
   }

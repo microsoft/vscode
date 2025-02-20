@@ -904,7 +904,8 @@ export function findMetadata(colorThemeData: ColorThemeData, captureNames: strin
 		metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
 	}
 
-	switch (definitions.foreground?.settings.fontStyle) {
+	const fontStyle = definitions.foreground?.settings.fontStyle || definitions.bold?.settings.fontStyle;
+	switch (fontStyle) {
 		case 'italic':
 			metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
 			break;

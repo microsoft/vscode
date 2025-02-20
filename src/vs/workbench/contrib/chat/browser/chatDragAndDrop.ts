@@ -11,21 +11,23 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
+import { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractSymbolDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
+import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractMarkerDropData, extractSymbolDropData, IDraggedResourceEditorInput, MarkerTransferData } from '../../../../platform/dnd/browser/dnd.js';
 import { FileType, IFileService, IFileSystemProvider } from '../../../../platform/files/common/files.js';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { isUntitledResourceEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
-import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry } from '../common/chatModel.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
 import { resizeImage } from './imageUtils.js';
@@ -35,7 +37,8 @@ enum ChatDragAndDropType {
 	FILE_EXTERNAL,
 	FOLDER,
 	IMAGE,
-	SYMBOL
+	SYMBOL,
+	MARKER,
 }
 
 export class ChatDragAndDrop extends Themable {
@@ -169,6 +172,8 @@ export class ChatDragAndDrop extends Themable {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
 		} else if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
 			return ChatDragAndDropType.SYMBOL;
+		} else if (containsDragType(e, CodeDataTransfers.MARKERS)) {
+			return ChatDragAndDropType.MARKER;
 		} else if (containsDragType(e, DataTransfers.FILES)) {
 			return ChatDragAndDropType.FILE_EXTERNAL;
 		} else if (containsDragType(e, DataTransfers.INTERNAL_URI_LIST)) {
@@ -193,6 +198,7 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.FOLDER: return localize('folder', 'Folder');
 			case ChatDragAndDropType.IMAGE: return localize('image', 'Image');
 			case ChatDragAndDropType.SYMBOL: return localize('symbol', 'Symbol');
+			case ChatDragAndDropType.MARKER: return localize('problem', 'Problem');
 		}
 	}
 
@@ -222,6 +228,11 @@ export class ChatDragAndDrop extends Themable {
 	private async getAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		if (!this.isDragEventSupported(e)) {
 			return [];
+		}
+
+		const markerData = extractMarkerDropData(e);
+		if (markerData) {
+			return this.resolveMarkerAttachContext(markerData);
 		}
 
 		if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
@@ -300,6 +311,33 @@ export class ChatDragAndDrop extends Themable {
 				symbolKind: symbol.kind,
 				fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
 				name: symbol.name,
+			};
+		});
+	}
+
+	private resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[] {
+		return markers.map((marker): IDiagnosticVariableEntry => {
+			const filter: Mutable<IDiagnosticVariableEntryFilterData> = {};
+			if (!('severity' in marker)) {
+				filter.filterUri = URI.revive(marker.uri);
+				filter.filterSeverity = MarkerSeverity.Warning;
+			} else {
+				filter.filterUri = URI.revive(marker.resource);
+				filter.filterSeverity = marker.severity;
+				filter.filterRange = {
+					startLineNumber: marker.startLineNumber,
+					startColumn: marker.startColumn,
+					endLineNumber: marker.endLineNumber,
+					endColumn: marker.endColumn
+				};
+			}
+
+			return {
+				kind: 'diagnostic',
+				id: IDiagnosticVariableEntryFilterData.id(filter),
+				name: IDiagnosticVariableEntryFilterData.label(filter),
+				value: filter,
+				...filter,
 			};
 		});
 	}

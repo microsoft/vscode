@@ -64,6 +64,15 @@ export namespace MarkerSeverity {
 		return _displayStrings[a] || '';
 	}
 
+	const _displayStringsPlural: { [value: number]: string } = Object.create(null);
+	_displayStringsPlural[MarkerSeverity.Error] = localize('sev.errors', "Errors");
+	_displayStringsPlural[MarkerSeverity.Warning] = localize('sev.warnings', "Warnings");
+	_displayStringsPlural[MarkerSeverity.Info] = localize('sev.infos', "Infos");
+
+	export function toStringPlural(a: MarkerSeverity): string {
+		return _displayStringsPlural[a] || '';
+	}
+
 	export function fromSeverity(severity: Severity): MarkerSeverity {
 		switch (severity) {
 			case Severity.Error: return MarkerSeverity.Error;

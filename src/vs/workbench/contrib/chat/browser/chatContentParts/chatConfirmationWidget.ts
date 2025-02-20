@@ -16,6 +16,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 export interface IChatConfirmationButton {
 	label: string;
 	isSecondary?: boolean;
+	tooltip?: string;
 	data: any;
 }
 
@@ -63,7 +64,7 @@ export class ChatConfirmationWidget extends Disposable {
 		elements.message.appendChild(renderedMessage.element);
 
 		buttons.forEach(buttonData => {
-			const button = new Button(elements.buttonsContainer, { ...defaultButtonStyles, secondary: buttonData.isSecondary });
+			const button = this._register(new Button(elements.buttonsContainer, { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip }));
 			button.label = buttonData.label;
 			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
 		});

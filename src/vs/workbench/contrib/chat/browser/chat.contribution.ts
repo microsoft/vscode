@@ -40,7 +40,6 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { PromptFilesConfig } from '../common/promptSyntax/config.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
 import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -93,6 +92,10 @@ import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesCon
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ChatEditingEditorContextKeys } from './chatEditing/chatEditingEditorContextKeys.js';
+import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
+import { PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/constants.js';
+import { DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
+import { registerChatToolActions } from './actions/chatToolActions.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -162,14 +165,22 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: true
 		},
-		[PromptFilesConfig.CONFIG_KEY]: {
+		[PromptsConfig.CONFIG_KEY]: {
 			type: 'object',
-			title: PromptFilesConfig.CONFIG_TITLE,
-			markdownDescription: PromptFilesConfig.CONFIG_DESCRIPTION,
+			title: nls.localize(
+				'chat.promptFiles.config.title',
+				"Prompt Files",
+			),
+			markdownDescription: nls.localize(
+				'chat.promptFiles.config.description',
+				"Specify location(s) of reusable prompt files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
+				PROMPT_FILE_EXTENSION,
+				DOCUMENTATION_URL,
+			),
 			default: {
-				[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: false,
+				[PromptsConfig.DEFAULT_SOURCE_FOLDER]: false,
 			},
-			required: [PromptFilesConfig.DEFAULT_SOURCE_FOLDER],
+			required: [PromptsConfig.DEFAULT_SOURCE_FOLDER],
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
@@ -177,10 +188,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			examples: [
 				{
-					[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: true,
+					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
 				},
 				{
-					[PromptFilesConfig.DEFAULT_SOURCE_FOLDER]: true,
+					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
 					'/Users/vscode/repos/prompts': true,
 				},
 			],
@@ -428,6 +439,7 @@ registerNewChatActions();
 registerChatContextActions();
 registerChatDeveloperActions();
 registerChatEditorActions();
+registerChatToolActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
 

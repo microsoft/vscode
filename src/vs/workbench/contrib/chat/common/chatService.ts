@@ -21,7 +21,7 @@ import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ICh
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -204,6 +204,7 @@ export interface IChatConfirmation {
 }
 
 export interface IChatToolInvocation {
+	presentation: IPreparedToolInvocation['presentation'];
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -224,11 +225,12 @@ export interface IChatToolInvocation {
  * This is a IChatToolInvocation that has been serialized, like after window reload, so it is no longer an active tool invocation.
  */
 export interface IChatToolInvocationSerialized {
+	presentation: IPreparedToolInvocation['presentation'];
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
 	tooltip: string | IMarkdownString | undefined;
-	isConfirmed: boolean;
+	isConfirmed: boolean | undefined;
 	isComplete: boolean;
 	kind: 'toolInvocationSerialized';
 }
@@ -436,7 +438,6 @@ export interface IChatSendRequestOptions {
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
-	workingSet?: URI[];
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;

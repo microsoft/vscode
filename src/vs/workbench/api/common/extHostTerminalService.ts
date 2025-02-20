@@ -779,7 +779,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto): Promise<vscode.TerminalCompletionItem[] | TerminalCompletionListDto | undefined> {
+	public async $provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto): Promise<TerminalCompletionListDto | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested || !this.activeTerminal) {
 			return undefined;
@@ -794,11 +794,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (completions === null || completions === undefined) {
 			return undefined;
 		}
-		if (Array.isArray(completions)) {
-			return completions;
-		} else {
-			return TerminalCompletionList.from(completions);
-		}
+		return TerminalCompletionList.from(completions);
 	}
 
 	public $acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined): void {
