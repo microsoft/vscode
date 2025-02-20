@@ -2761,7 +2761,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, hasReadonlyProposal: boolean): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, hasReadonlyProposal: boolean, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.isTool);
 		const variableReferences = request.variables.variables.filter(v => !v.isTool);
 		return {
@@ -2770,7 +2770,7 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
-			references: variableReferences.map(v => ChatPromptReference.to(v, hasReadonlyProposal)),
+			references: variableReferences.map(v => ChatPromptReference.to(v, hasReadonlyProposal, diagnostics)),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
@@ -2814,19 +2814,48 @@ export namespace ChatLocation {
 }
 
 export namespace ChatPromptReference {
-	export function to(variable: IChatRequestVariableEntry, hasReadonlyProposal: boolean): vscode.ChatPromptReference {
-		const value = variable.value;
+	export function to(variable: IChatRequestVariableEntry, hasReadonlyProposal: boolean, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][]): vscode.ChatPromptReference {
+		let value: vscode.ChatPromptReference['value'] = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
+		}
+
+		if (isUriComponents(value)) {
+			value = URI.revive(value);
+		} else if (value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri)) {
+			value = Location.to(revive(value));
+		} else if (variable.isImage) {
+			value = new types.ChatReferenceBinaryData(
+				variable.mimeType ?? 'image/png',
+				() => Promise.resolve(new Uint8Array(Object.values(variable.value as number[]))),
+				variable.references && URI.isUri(variable.references[0].reference) ? variable.references[0].reference : undefined
+			);
+		} else if (variable.kind === 'diagnostic') {
+			const filterSeverity = variable.filterSeverity && DiagnosticSeverity.to(variable.filterSeverity);
+			const filterUri = variable.filterUri && URI.revive(variable.filterUri).toString();
+			value = new types.ChatReferenceDiagnostic(diagnostics.map(([uri, d]): [vscode.Uri, vscode.Diagnostic[]] => {
+				if (variable.filterUri && uri.toString() !== filterUri) {
+					return [uri, []];
+				}
+
+				return [uri, d.filter(d => {
+					if (filterSeverity && d.severity > filterSeverity) {
+						return false;
+					}
+					if (variable.filterRange && !editorRange.Range.areIntersectingOrTouching(variable.filterRange, Range.from(d.range))) {
+						return false;
+					}
+
+					return true;
+				})];
+			}).filter(([, d]) => d.length > 0));
 		}
 
 		return {
 			id: variable.id,
 			name: variable.name,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
-			value: isUriComponents(value) ? URI.revive(value) :
-				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
-					Location.to(revive(value)) : variable.isImage ? new types.ChatReferenceBinaryData(variable.mimeType ?? 'image/png', () => Promise.resolve(new Uint8Array(Object.values(value))), variable.references && URI.isUri(variable.references[0].reference) ? variable.references[0].reference : undefined) : value,
+			value,
 			modelDescription: variable.modelDescription,
 			isReadonly: hasReadonlyProposal ? variable.isMarkedReadonly : undefined,
 		};

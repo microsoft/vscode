@@ -49,14 +49,14 @@ import { SearchContext } from '../../../search/common/constants.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView, showEditsView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
-import { createFolderQuickPick } from '../contrib/chatDynamicVariables.js';
+import { createFolderQuickPick, createMarkersQuickPick } from '../contrib/chatDynamicVariables.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -75,7 +75,7 @@ export function registerChatContextActions() {
  */
 type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem |
 	IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
-	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IPromptInstructionsQuickPickItem | IFolderQuickPickItem;
+	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IPromptInstructionsQuickPickItem | IFolderQuickPickItem | IDiagnosticsQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -101,6 +101,12 @@ function isIFolderSearchResultQuickPickItem(obj: unknown): obj is IFolderResultQ
 	return (
 		typeof obj === 'object'
 		&& (obj as IFolderResultQuickPickItem).kind === 'folder-search-result');
+}
+
+function isIDiagnosticsQuickPickItemWithFilter(obj: unknown): obj is IDiagnosticsQuickPickItemWithFilter {
+	return (
+		typeof obj === 'object'
+		&& (obj as IDiagnosticsQuickPickItemWithFilter).kind === 'diagnostic-filter');
 }
 
 function isIQuickPickItemWithResource(obj: unknown): obj is IQuickPickItemWithResource {
@@ -207,6 +213,19 @@ interface ISearchResultsQuickPickItem extends IQuickPickItem {
 interface IScreenShotQuickPickItem extends IQuickPickItem {
 	kind: 'screenshot';
 	id: string;
+	icon?: ThemeIcon;
+}
+
+interface IDiagnosticsQuickPickItem extends IQuickPickItem {
+	kind: 'diagnostic';
+	id: string;
+	icon?: ThemeIcon;
+}
+
+interface IDiagnosticsQuickPickItemWithFilter extends IQuickPickItem {
+	kind: 'diagnostic-filter';
+	id: string;
+	filter: IDiagnosticVariableEntryFilterData;
 	icon?: ThemeIcon;
 }
 
@@ -499,6 +518,14 @@ export class AttachContextAction extends Action2 {
 					isFile: false,
 					isDirectory: true,
 				});
+			} else if (isIDiagnosticsQuickPickItemWithFilter(pick)) {
+				toAttach.push({
+					id: pick.id,
+					name: pick.label,
+					value: pick.filter,
+					kind: 'diagnostic',
+					...pick.filter,
+				});
 			} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
 				if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
 					// checks if the file is an image
@@ -750,6 +777,13 @@ export class AttachContextAction extends Action2 {
 			id: 'folder',
 		});
 
+		quickPickItems.push({
+			kind: 'diagnostic',
+			label: localize('chatContext.diagnstic', 'Problem...'),
+			iconClass: ThemeIcon.asClassName(Codicon.error),
+			id: 'diagnostic'
+		});
+
 		if (widget.location === ChatAgentLocation.Notebook) {
 			quickPickItems.push({
 				kind: 'command',
@@ -824,16 +858,33 @@ export class AttachContextAction extends Action2 {
 		}), clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', context?.placeholder);
 	}
 
+	private async _showDiagnosticsPick(instantiationService: IInstantiationService): Promise<IDiagnosticsQuickPickItemWithFilter | undefined> {
+		const filter = await instantiationService.invokeFunction(accessor => createMarkersQuickPick(accessor));
+		if (!filter) {
+			return undefined;
+		}
+
+		return {
+			kind: 'diagnostic-filter',
+			id: IDiagnosticVariableEntryFilterData.id(filter),
+			label: IDiagnosticVariableEntryFilterData.label(filter),
+			filter,
+		};
+	}
+
 	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, instantiationService: IInstantiationService, query: string = '', placeholder?: string) {
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
-			handleAccept: async (item: IChatContextQuickPickItem, isBackgroundAccept: boolean) => {
+			handleAccept: async (inputItem: IChatContextQuickPickItem, isBackgroundAccept: boolean) => {
+				let item: IChatContextQuickPickItem | undefined = inputItem;
 				if ('kind' in item && item.kind === 'folder') {
-					const folderItem = await this._showFolders(instantiationService);
-					if (!folderItem) {
-						this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', placeholder);
-						return;
-					}
-					item = folderItem;
+					item = await this._showFolders(instantiationService);
+				} else if ('kind' in item && item.kind === 'diagnostic') {
+					item = await this._showDiagnosticsPick(instantiationService);
+				}
+
+				if (!item) {
+					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', placeholder);
+					return;
 				}
 
 				if ('prefix' in item) {
