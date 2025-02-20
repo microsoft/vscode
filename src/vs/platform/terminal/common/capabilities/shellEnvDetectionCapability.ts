@@ -7,6 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IShellEnvDetectionCapability, TerminalCapability, TerminalShellIntegrationEnvironment } from './capabilities.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { equals } from '../../../../base/common/objects.js';
+import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
 
 export interface IShellEnv {
 	value: Map<string, string>;
@@ -72,7 +73,7 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 			return;
 		}
 		this._pendingEnv.isTrusted &&= isTrusted;
-		const envDiffers = !equals(this._env, this._pendingEnv);
+		const envDiffers = !mapsStrictEqualIgnoreOrder(this._env.value, this._pendingEnv.value);
 		if (envDiffers) {
 			this._env = this._pendingEnv;
 			this._fireEnvChange();
