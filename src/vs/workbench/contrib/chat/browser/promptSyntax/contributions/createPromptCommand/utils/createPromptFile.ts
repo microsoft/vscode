@@ -60,13 +60,13 @@ export const createPromptFile = async (
 	if (await fileService.exists(promptUri)) {
 		const promptInfo = await fileService.resolve(promptUri);
 
-		// if existing entity is a folder, throw an error
+		// if existing object is a folder, throw an error
 		assert(
 			!promptInfo.isDirectory,
 			new FolderExists(promptUri.fsPath),
 		);
 
-		// if prompt file already exists - open it
+		// prompt file already exists so open it
 		await commandService.executeCommand('vscode.open', promptUri);
 
 		return promptUri;
