@@ -549,7 +549,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				this._responseParts.push({
 					kind: groupKind,
 					uri,
-					edits,
+					edits: groupKind === 'textEditGroup' ? [edits] : edits,
 					done: progress.done
 				});
 			}
