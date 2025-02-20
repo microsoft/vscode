@@ -11,7 +11,12 @@
  * @returns A promise that resolves to the UInt8Array string of the resized image.
  */
 
-export async function resizeImage(data: Uint8Array): Promise<Uint8Array> {
+export async function resizeImage(data: Uint8Array | string): Promise<Uint8Array> {
+
+	if (typeof data === 'string') {
+		data = convertStringToUInt8Array(data);
+	}
+
 	const blob = new Blob([data]);
 	const img = new Image();
 	const url = URL.createObjectURL(blob);
@@ -65,4 +70,24 @@ export async function resizeImage(data: Uint8Array): Promise<Uint8Array> {
 			reject(error);
 		};
 	});
+}
+
+export function convertStringToUInt8Array(data: string): Uint8Array {
+	const base64Data = data.includes(',') ? data.split(',')[1] : data;
+	if (isValidBase64(base64Data)) {
+		return Uint8Array.from(atob(base64Data), char => char.charCodeAt(0));
+	}
+	return new TextEncoder().encode(data);
+}
+
+function isValidBase64(str: string): boolean {
+	// checks if the string is a valid base64 string that is NOT encoded
+	return /^[A-Za-z0-9+/]*={0,2}$/.test(str) && (() => {
+		try {
+			atob(str);
+			return true;
+		} catch {
+			return false;
+		}
+	})();
 }
