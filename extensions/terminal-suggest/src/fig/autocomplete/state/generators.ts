@@ -81,7 +81,6 @@ export const createGeneratorState = (
 	// 	return generatorState;
 	// }
 	const triggerGenerator = (currentState: GeneratorState, executeExternals: IFigExecuteExternals) => {
-		console.info('Triggering generator', { currentState });
 		const { generator, context } = currentState;
 		let request: Promise<Fig.Suggestion[] | undefined>;
 
