@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { debouncedObservable } from '../../../../../base/common/observableInternal/utils.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IResourceDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { NotebookDeletedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
+import { NotebookInsertedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookInsertedCellDecorator.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
@@ -63,6 +65,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		private readonly _entry: IModifiedFileEntry,
 		private readonly notebookEditor: INotebookEditor,
 		private readonly notebookModel: NotebookTextModel,
+		originalModel: NotebookTextModel,
 		private readonly cellChanges: IObservable<ICellDiffInfo[]>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -71,6 +74,8 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		super();
 
 		const onDidChangeVisibleRanges = debouncedObservable(observableFromEvent(notebookEditor.onDidChangeVisibleRanges, () => notebookEditor.visibleRanges), 50);
+		const notebookEdotirViewModelAttached = observableFromEvent(notebookEditor.onDidAttachViewModel, () => notebookEditor.getViewModel());
+
 
 		// INIT current index when: enabled, not streaming anymore, once per request, and when having changes
 		let lastModifyingRequestId: string | undefined;
@@ -97,8 +102,9 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			const changes = cellChanges.read(r).filter(c => c.type === 'modified');
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
-				this.cellEditorIntegrations.forEach(v => v.integration.dispose());
-				this.cellEditorIntegrations.clear();
+				this.cellEditorIntegrations.forEach(({ diff }) => {
+					diff.set({ ...diff.get(), ...nullDocumentDiff }, undefined);
+				});
 				return;
 			}
 
@@ -115,6 +121,13 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 				} else {
 					const diff2 = observableValue(`diff${cell.handle}`, diff.diff);
 					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2);
+					this._register(autorun((r) => {
+						const current = integration.currentIndex.read(r);
+						const indexOfChange = current >= 0 ? this.getIndexOfChange(cell, current) : -1;
+						if (indexOfChange >= 0) {
+							this._currentIndex.set(indexOfChange, undefined);
+						}
+					}));
 					this.cellEditorIntegrations.set(cell, { integration, diff: diff2 });
 					this._register(integration);
 					this._register(editor.onDidDispose(() => {
@@ -138,8 +151,44 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 				}
 			});
 		}));
+
+
+		const insertDeleteDecorators = derivedWithStore((r, store) => {
+			if (!notebookEdotirViewModelAttached.read(r)) {
+				return;
+			}
+
+			const insertedCellDecorator = store.add(this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor));
+			const deletedCellDecorator = store.add(this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor));
+
+			return {
+				insertedCellDecorator,
+				deletedCellDecorator
+			};
+		});
+
+		this._register(autorun(r => {
+			const changes = cellChanges.read(r);
+			const decorators = insertDeleteDecorators.read(r);
+			if (decorators) {
+				decorators.insertedCellDecorator.apply(changes);
+				decorators.deletedCellDecorator.apply(changes, originalModel);
+			}
+		}));
 	}
 
+	private getIndexOfChange(cell: NotebookCellTextModel, change: number): number {
+		if (this.getCurrentCell()?.cell !== cell) {
+			return -1;
+		}
+		const cellIndex = this.notebookModel.cells.findIndex(c => c.handle === cell.handle);
+		const indexOfCellChange = this.cellChanges.get().findIndex(c => c.modifiedCellIndex === cellIndex);
+		if (indexOfCellChange === -1) {
+			return -1;
+		}
+		// Count all changes upto this cell.
+		return countChanges(this.cellChanges.get().slice(0, indexOfCellChange)) + change;
+	}
 	getCurrentCell() {
 		const activeCell = this.notebookModel.cells.find(c => c.handle === this.notebookEditor.getActiveCell()?.handle) || this._currentCell.get();
 		if (!activeCell) {
@@ -150,6 +199,16 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		return integration ? { integration, index: index, handle: activeCell.handle, cell: activeCell } : undefined;
 	}
 
+	selectCell(cell: NotebookCellTextModel) {
+		const integration = this.cellEditorIntegrations.get(cell)?.integration;
+		if (integration) {
+			this._currentCell.set(cell, undefined);
+			const cellViewModel = this.notebookEditor.getViewModel()?.viewCells.find(c => c.handle === cell.handle);
+			if (cellViewModel) {
+				this.notebookEditor.focusNotebookCell(cellViewModel, 'editor');
+			}
+		}
+	}
 	getNextCell(nextOrPrevious: boolean) {
 		const current = this.getCurrentCell();
 		if (!current) {
@@ -173,7 +232,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 				}
 				return Math.max(prev, curr.modifiedCellIndex);
 			}
-		}, nextOrPrevious ? -1 : Number.MAX_SAFE_INTEGER);
+		}, nextOrPrevious ? Number.MAX_SAFE_INTEGER : -1);
 		if (nextIndex === -1 || nextIndex === Number.MAX_SAFE_INTEGER) {
 			return undefined;
 		}
@@ -196,43 +255,45 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			changes.reduce((prev, curr) => prev.modifiedCellIndex > curr.modifiedCellIndex ? prev : curr).modifiedCellIndex;
 		const info = this.getCell(index);
 		if (info) {
-			this._currentCell.set(info.cell, undefined);
+			this.selectCell(info.cell);
 			info.integration.reveal(firstOrLast);
 		}
 	}
+
 	next(wrap: boolean): boolean {
 		const info = this.getCurrentCell();
-		if (info) {
-			if (info.integration.next(wrap)) {
-				return true;
-			} else {
-				const info = this.getNextCell(true);
-				if (info) {
-					this._currentCell.set(info.cell, undefined);
-					info.integration.reveal(true);
-					return true;
-				}
-				return false;
-			}
+		if (!info) {
+			return false;
 		}
-		return false;
+		if (info.integration.next(wrap)) {
+			return true;
+		} else {
+			const info = this.getNextCell(true);
+			if (info) {
+				this.selectCell(info.cell);
+				this.selectCell(info.cell);
+				info.integration.reveal(true);
+				return true;
+			}
+			return false;
+		}
 	}
 	previous(wrap: boolean): boolean {
 		const info = this.getCurrentCell();
-		if (info) {
-			if (info.integration.previous(wrap)) {
-				return true;
-			} else {
-				const info = this.getNextCell(false);
-				if (info) {
-					this._currentCell.set(info.cell, undefined);
-					info.integration.reveal(false);
-					return true;
-				}
-				return false;
-			}
+		if (!info) {
+			return false;
 		}
-		return false;
+		if (info.integration.previous(wrap)) {
+			return true;
+		} else {
+			const info = this.getNextCell(false);
+			if (info) {
+				this.selectCell(info.cell);
+				info.integration.reveal(false);
+				return true;
+			}
+			return false;
+		}
 	}
 	enableAccessibleDiffView(): void {
 		this.getCurrentCell()?.integration.enableAccessibleDiffView();
@@ -245,7 +306,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		change.reject();
 		this.next(true);
 	}
-	async toggleDiff(change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
 		const diffInput = {
 			original: { resource: this._entry.originalURI, options: { selection: undefined } },
@@ -257,4 +318,20 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		await this._editorService.openEditor(diffInput);
 
 	}
+}
+
+export function countChanges(changes: ICellDiffInfo[]): number {
+	return changes.reduce((count, diff) => {
+		switch (diff.type) {
+			case 'delete':
+				return count + 1; // We want to see 1 deleted entry in the pill for navigation
+			case 'insert':
+				return count + 1; // We want to see 1 new entry in the pill for navigation
+			case 'modified':
+				return count + diff.diff.changes.length;
+			default:
+				return count;
+		}
+	}, 0);
+
 }
