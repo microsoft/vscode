@@ -211,7 +211,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels, extHostDiagnostics));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
@@ -1544,6 +1544,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResultFeedbackKind: extHostTypes.ChatResultFeedbackKind,
 			ChatVariableLevel: extHostTypes.ChatVariableLevel,
 			ChatCompletionItem: extHostTypes.ChatCompletionItem,
+			ChatReferenceDiagnostic: extHostTypes.ChatReferenceDiagnostic,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,

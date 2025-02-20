@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import * as glob from '../../../../../base/common/glob.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { basename, dirname, joinPath, relativePath } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
@@ -22,20 +26,19 @@ import { FileType, IFileService } from '../../../../../platform/files/common/fil
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { getExcludes, ISearchConfiguration, IFileQuery, QueryType, ISearchComplete, ISearchService } from '../../../../services/search/common/search.js';
+import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
 import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
+import { IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
 import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
-import * as glob from '../../../../../base/common/glob.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -645,3 +648,57 @@ export class AddDynamicVariableAction extends Action2 {
 	}
 }
 registerAction2(AddDynamicVariableAction);
+
+export async function createMarkersQuickPick(accessor: ServicesAccessor): Promise<IDiagnosticVariableEntryFilterData | undefined> {
+	const markers = accessor.get(IMarkerService).read();
+	if (!markers.length) {
+		return;
+	}
+
+	const uriIdentityService = accessor.get(IUriIdentityService);
+	const labelService = accessor.get(ILabelService);
+	markers.sort((a, b) => uriIdentityService.extUri.compare(a.resource, b.resource) || b.severity - a.severity);
+
+	const severities = new Set<MarkerSeverity>();
+	type MarkerPickItem = IQuickPickItem & { resource?: URI; entry: IDiagnosticVariableEntryFilterData };
+	const items: (MarkerPickItem | IQuickPickSeparator)[] = [];
+	for (const marker of markers) {
+		if (!uriIdentityService.extUri.isEqual(marker.resource, (items.at(-1) as MarkerPickItem)?.resource)) {
+			items.push({ type: 'separator', label: labelService.getUriLabel(marker.resource, { relative: true }) });
+		}
+
+		severities.add(marker.severity);
+		items.push({
+			type: 'item',
+			resource: marker.resource,
+			label: marker.message,
+			description: localize('markers.panel.at.ln.col.number', "[Ln {0}, Col {1}]", '' + marker.startLineNumber, '' + marker.startColumn),
+			entry: { filterUri: marker.resource, filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn } }
+		});
+	}
+
+	if (items.length === 2) { // single error in a URI
+		return (items[1] as MarkerPickItem).entry;
+	}
+
+	if (items.length > 2) {
+		if (severities.has(MarkerSeverity.Error)) {
+			items.unshift({ type: 'item', label: localize('markers.panel.allErrors', 'All Errors'), entry: { filterSeverity: MarkerSeverity.Error } });
+		}
+		if (severities.has(MarkerSeverity.Warning)) {
+			items.unshift({ type: 'item', label: localize('markers.panel.allWarnings', 'All Warnings'), entry: { filterSeverity: MarkerSeverity.Warning } });
+		}
+		if (severities.has(MarkerSeverity.Info)) {
+			items.unshift({ type: 'item', label: localize('markers.panel.allInfos', 'All Infos'), entry: { filterSeverity: MarkerSeverity.Info } });
+		}
+	}
+
+
+	const quickInputService = accessor.get(IQuickInputService);
+	const quickPick = quickInputService.createQuickPick({ useSeparators: true });
+	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
+	quickPick.items = items;
+
+	return quickInputService.pick(items, { canPickMany: false }).then(v => v?.entry);
+}
+
