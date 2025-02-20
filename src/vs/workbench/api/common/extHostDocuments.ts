@@ -85,31 +85,26 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 		let promise = this._documentLoader.get(uri.toString());
 		if (!promise) {
-			promise = this.doEnsureDocumentData(uri, options);
+			promise = this._proxy.$tryOpenDocument(uri, options).then(uriData => {
+				this._documentLoader.delete(uri.toString());
+				const canonicalUri = URI.revive(uriData);
+				return assertIsDefined(this._documentsAndEditors.getDocument(canonicalUri));
+			}, err => {
+				this._documentLoader.delete(uri.toString());
+				return Promise.reject(err);
+			});
+			this._documentLoader.set(uri.toString(), promise);
 		} else {
 			if (options?.encoding) {
 				promise = promise.then(data => {
 					if (data.document.encoding !== options.encoding) {
-						return this.doEnsureDocumentData(uri, options);
+						return this.ensureDocumentData(uri, options);
 					}
 					return data;
 				});
 			}
 		}
 
-		return promise;
-	}
-
-	private doEnsureDocumentData(uri: URI, options?: { encoding?: string }): Promise<ExtHostDocumentData> {
-		const promise = this._proxy.$tryOpenDocument(uri, options).then(uriData => {
-			this._documentLoader.delete(uri.toString());
-			const canonicalUri = URI.revive(uriData);
-			return assertIsDefined(this._documentsAndEditors.getDocument(canonicalUri));
-		}, err => {
-			this._documentLoader.delete(uri.toString());
-			return Promise.reject(err);
-		});
-		this._documentLoader.set(uri.toString(), promise);
 		return promise;
 	}
 
