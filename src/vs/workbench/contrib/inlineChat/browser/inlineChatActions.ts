@@ -386,8 +386,7 @@ export class CloseAction extends AbstractInline1ChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
-					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
-					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.Messages)
+					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
 				),
 			}]
 		});
