@@ -60,6 +60,9 @@ export class LineHeightManager {
 	public insertOrChangeSpecialLineHeightUsingDecoration(decorationId: string, lineNumber: number, lineHeight: number): void {
 		console.log('insertOrChangeSpecialLineHeightUsingDecoration', decorationId, lineNumber, lineHeight);
 		const specialLine = this._decorationIDToSpecialLine.get(decorationId);
+		console.log('this._orderedSpecialLines', JSON.stringify(this._orderedSpecialLines));
+		console.log('decorationId : ', decorationId);
+		console.log('specialLine', specialLine);
 		if (!specialLine) {
 			return this._insertSpecialLineHeight(decorationId, lineNumber, lineHeight);
 		}
@@ -107,15 +110,9 @@ export class LineHeightManager {
 			return totalHeight;
 		}
 		const modifiedIndex = -(searchIndex + 1);
-		console.log('modifiedIndex', modifiedIndex);
-		if (modifiedIndex === 0) {
-			const totalHeight = this._orderedSpecialLines[modifiedIndex].maximumSpecialHeight;
-			console.log('totalHeight', totalHeight);
-			return totalHeight;
-		}
 		const previousSpecialLine = this._orderedSpecialLines[modifiedIndex - 1];
 		console.log('previousSpecialLine', previousSpecialLine);
-		const totalHeight = previousSpecialLine.prefixSum + this._defaultLineHeight * (lineNumber - previousSpecialLine.lineNumber + 1);
+		const totalHeight = previousSpecialLine.prefixSum + previousSpecialLine.maximumSpecialHeight + this._defaultLineHeight * (lineNumber - previousSpecialLine.lineNumber);
 		console.log('totalHeight', totalHeight);
 		return totalHeight;
 	}
@@ -281,13 +278,19 @@ export class LineHeightManager {
 				console.log('maximumSpecialHeight : ', maximumSpecialHeight);
 				specialLine.maximumSpecialHeight = maximumSpecialHeight;
 				console.log('specialLine.maximumSpecialHeight : ', specialLine.maximumSpecialHeight);
-				specialLine.prefixSum = maximumSpecialHeight + (previousSpecialLine ? previousSpecialLine.prefixSum : 0);
+
+				let prefixSum: number;
+				if (previousSpecialLine) {
+					prefixSum = previousSpecialLine.prefixSum + previousSpecialLine.maximumSpecialHeight + this._defaultLineHeight * (specialLine.lineNumber - previousSpecialLine.lineNumber - 1);
+				} else {
+					prefixSum = this._defaultLineHeight * (specialLine.lineNumber - 1);
+				}
+				specialLine.prefixSum = prefixSum;
 				console.log('specialLine.prefixSum : ', specialLine.prefixSum);
 			}
 			newOrderedSpecialLines.push(specialLine);
 			newDecorationIDToSpecialLineMap.set(specialLine.decorationId, specialLine);
 		}
-		// TODO:Why is this always empty?
 		console.log('newOrderedSpecialLines : ', newOrderedSpecialLines);
 		console.log('newDecorationIDToSpecialLineMap : ', newDecorationIDToSpecialLineMap);
 
