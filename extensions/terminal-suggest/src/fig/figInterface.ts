@@ -21,6 +21,7 @@ import { IFigExecuteExternals } from './execute';
 export interface IFigSpecSuggestionsResult {
 	filesRequested: boolean;
 	foldersRequested: boolean;
+	fileExtensions?: string[];
 	hasCurrentArg: boolean;
 	items: vscode.TerminalCompletionItem[];
 }
@@ -42,6 +43,7 @@ export async function getFigSuggestions(
 		filesRequested: false,
 		foldersRequested: false,
 		hasCurrentArg: false,
+		fileExtensions: undefined,
 		items: [],
 	};
 	for (const spec of specs) {
@@ -91,6 +93,7 @@ export async function getFigSuggestions(
 			if (completionItemResult) {
 				result.filesRequested ||= completionItemResult.filesRequested;
 				result.foldersRequested ||= completionItemResult.foldersRequested;
+				result.fileExtensions = completionItemResult.fileExtensions;
 				if (completionItemResult.items) {
 					result.items.push(...completionItemResult.items);
 				}
@@ -112,6 +115,7 @@ async function getFigSpecSuggestions(
 ): Promise<IFigSpecSuggestionsResult | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
+	let fileExtensions: string[] | undefined;
 
 	const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition);
 	if (!command || !shellIntegrationCwd) {
@@ -136,11 +140,13 @@ async function getFigSpecSuggestions(
 	if (completionItemResult) {
 		filesRequested = completionItemResult.filesRequested;
 		foldersRequested = completionItemResult.foldersRequested;
+		fileExtensions = completionItemResult.filesRequested ? parsedArguments.fileExtensions : undefined;
 	}
 
 	return {
 		filesRequested,
 		foldersRequested,
+		fileExtensions,
 		hasCurrentArg: !!parsedArguments.currentArg,
 		items: items,
 	};

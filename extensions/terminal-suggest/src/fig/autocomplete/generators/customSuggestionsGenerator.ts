@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+import { FilepathsOptions } from '../../autocomplete-tools/generators';
 import { IFigExecuteExternals } from '../../execute';
 import {
 	runCachedGenerator,
@@ -15,7 +16,7 @@ export async function getCustomSuggestions(
 	generator: Fig.Generator,
 	context: GeneratorContext,
 	executableExternals: IFigExecuteExternals
-): Promise<Fig.Suggestion[] | undefined> {
+): Promise<Fig.Suggestion[] | FilepathsOptions | undefined> {
 	if (!generator.custom) {
 		return [];
 	}
@@ -23,6 +24,10 @@ export async function getCustomSuggestions(
 	if (!haveContextForGenerator(context)) {
 		console.info('Don\'t have context for custom generator');
 		return [];
+	}
+
+	if (generator.filepathOptions) {
+		return generator.filepathOptions;
 	}
 
 	const {

@@ -1,4 +1,4 @@
-// import { filepaths } from "@fig/autocomplete-generators";
+import { filepaths } from '../../fig/autocomplete-tools/generators'
 
 const completionSpec: Fig.Spec = {
 	name: "python",
@@ -22,10 +22,10 @@ const completionSpec: Fig.Spec = {
 	args: {
 		name: "python script",
 		template: "filepaths",
-		// generators: filepaths({
-		// 	extensions: ["py"],
-		// 	editFileSuggestions: { priority: 76 },
-		// }),
+		generators: filepaths({
+			extensions: ["py"],
+			editFileSuggestions: { priority: 76 },
+		}),
 	},
 	options: [
 		{

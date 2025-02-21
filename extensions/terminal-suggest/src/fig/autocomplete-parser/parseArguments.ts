@@ -89,6 +89,7 @@ export type ArgumentParserState = {
 	// Used to exclude subcommand suggestions after user has entered a subcommand arg.
 	haveEnteredSubcommandArgs: boolean;
 	isEndOfOptions: boolean;
+	fileExtensions?: string[];
 };
 
 // Result with derived completionObj/currentArg from cached state.
@@ -100,6 +101,7 @@ export type ArgumentParserResult = {
 	commandIndex: number;
 	suggestionFlags: SuggestionFlags;
 	annotations: Annotation[];
+	fileExtensions?: string[];
 };
 
 export const createArgState = (args?: Internal.Arg[]): ArgArrayState => {
@@ -749,6 +751,7 @@ export const getResultFromState = (
 		currentArg,
 		searchTerm,
 		suggestionFlags,
+		fileExtensions: state.fileExtensions,
 	};
 };
 
@@ -1036,7 +1039,15 @@ const parseArgumentsCached = async (
 	// } else {
 	// 	parseArgumentsCache.set(cacheKey, state);
 	// }
-
+	if ('args' in spec) {
+		for (const arg of Array.isArray(spec.args) ? spec.args : [spec.args]) {
+			for (const generator of Array.isArray(arg?.generators) ? arg.generators : [arg?.generators]) {
+				if (generator?.filepathOptions?.extensions) {
+					state.fileExtensions = generator.filepathOptions.extensions;
+				}
+			}
+		}
+	}
 	return state;
 };
 

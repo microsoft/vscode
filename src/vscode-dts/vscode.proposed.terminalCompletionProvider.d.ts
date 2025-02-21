@@ -126,6 +126,12 @@ declare module 'vscode' {
 		 * Show folders as completion items.
 		 */
 		foldersRequested?: boolean;
+
+		/**
+		 * The file extensions to show as completion items.
+		 */
+		fileExtensions?: string[];
+
 		/**
 		 * If no cwd is provided, no resources will be shown as completions.
 		 */

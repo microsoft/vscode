@@ -82,7 +82,7 @@ export const createGeneratorState = (
 	// }
 	const triggerGenerator = (currentState: GeneratorState, executeExternals: IFigExecuteExternals) => {
 		const { generator, context } = currentState;
-		let request: Promise<Fig.Suggestion[] | undefined>;
+		let request: Promise<Fig.Suggestion[] | Fig.FilepathsOptions | undefined>;
 
 		if (generator.template) {
 			// TODO: Implement template generators
