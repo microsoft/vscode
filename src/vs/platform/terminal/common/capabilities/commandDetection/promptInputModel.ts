@@ -105,7 +105,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	constructor(
 		private readonly _xterm: Terminal,
 		onCommandStart: Event<ITerminalCommand>,
-		onCommandStartChanged: Event<ITerminalCommand>,
+		onCommandStartChanged: Event<void>,
 		onCommandExecuted: Event<ITerminalCommand>,
 		@ILogService private readonly _logService: ILogService
 	) {

@@ -19,7 +19,7 @@ suite('PromptInputModel', () => {
 	let promptInputModel: PromptInputModel;
 	let xterm: Terminal;
 	let onCommandStart: Emitter<ITerminalCommand>;
-	let onCommandStartChanged: Emitter<ITerminalCommand>;
+	let onCommandStartChanged: Emitter<void>;
 	let onCommandExecuted: Emitter<ITerminalCommand>;
 
 	async function writePromise(data: string) {
