@@ -702,6 +702,14 @@ class SingleUpdatedNextEdit extends SingleUpdatedEdit {
 				continue;
 			}
 
+			// user did exactly the edit
+			if (change.equals(edit)) {
+				editHasChanged = true;
+				editStart = change.replaceRange.endExclusive;
+				editReplaceText = '';
+				continue;
+			}
+
 			// MOVE EDIT
 			if (change.replaceRange.start > editEnd) {
 				// the change happens after the completion range
