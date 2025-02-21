@@ -465,7 +465,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (element.model.isPaused.get()) {
 				templateData.detail.textContent = localize('paused', "Paused");
 			} else {
-				templateData.detail.textContent = localize('generating', "Generating");
+				templateData.detail.textContent = localize('working', "Working");
 			}
 		}
 	}
