@@ -332,7 +332,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.commandStartMarker = options?.marker || this._currentCommand.commandStartMarker;
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
-			this._onCommandStartChanged.fire(this._currentCommand as any);
+			this._onCommandStartChanged.fire(this._currentCommand as any as ITerminalCommand);
 			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 			return;
 		}
