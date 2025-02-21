@@ -21,6 +21,10 @@ export interface NotebookEditorDescriptor {
 	readonly providerDisplayName: string;
 }
 
+interface INotebookEditorDescriptorDto {
+	readonly _selectors: readonly NotebookSelector[];
+}
+
 export class NotebookProviderInfo {
 
 	readonly extension?: ExtensionIdentifier;
@@ -45,7 +49,9 @@ export class NotebookProviderInfo {
 		this._selectors = descriptor.selectors?.map(selector => ({
 			include: selector.filenamePattern,
 			exclude: selector.excludeFileNamePattern || ''
-		})) || [];
+		}))
+			|| (descriptor as unknown as INotebookEditorDescriptorDto)._selectors
+			|| [];
 		this.priority = descriptor.priority;
 		this.providerDisplayName = descriptor.providerDisplayName;
 		this._options = {
