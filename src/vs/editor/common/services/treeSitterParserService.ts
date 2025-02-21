@@ -29,13 +29,17 @@ export interface RangeChange {
 
 export interface TreeParseUpdateEvent {
 	ranges: RangeChange[] | undefined;
+	language: string;
 	versionId: number;
 }
 
-export interface TreeUpdateEvent {
-	textModel: ITextModel;
-	ranges: RangeChange[];
+export interface ModelTreeUpdateEvent {
+	ranges: Record<string, RangeChange[]>;
 	versionId: number;
+}
+
+export interface TreeUpdateEvent extends ModelTreeUpdateEvent {
+	textModel: ITextModel;
 }
 
 export interface ITreeSitterParserService {
