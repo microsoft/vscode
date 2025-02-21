@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, n } from '../../../../../../../base/browser/dom.js';
+import { $, getWindow, n } from '../../../../../../../base/browser/dom.js';
+import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, autorunDelta, constObservable, derived, IObservable } from '../../../../../../../base/common/observable.js';
 import { editorBackground, scrollbarShadow } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
-import { IViewZoneChangeAccessor } from '../../../../../../browser/editorBrowser.js';
+import { IEditorMouseEvent, IViewZoneChangeAccessor } from '../../../../../../browser/editorBrowser.js';
+import { EditorMouseEvent } from '../../../../../../browser/editorDom.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { Point } from '../../../../../../browser/point.js';
 import { Rect } from '../../../../../../browser/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -27,6 +31,9 @@ import { getPrefixTrim, mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { rangesToBubbleRanges, Replacement } from './inlineEditsWordReplacementView.js';
 
 export class InlineEditsLineReplacementView extends Disposable implements IInlineEditsView {
+
+	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _originalBubblesDecorationCollection = this._editor.editor.createDecorationsCollection();
 	private readonly _originalBubblesDecorationOptions: IModelDecorationOptions = {
@@ -223,8 +230,10 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
 							borderTop: `1px solid ${modifiedBorderColor}`,
 							overflow: 'hidden',
+							cursor: 'pointer',
+							pointerEvents: 'auto',
 						},
-						//onmouseup: () => this._host.accept(),
+						onmouseup: (e) => this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)),
 					}, [
 						n.div({
 							style: {
@@ -265,7 +274,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		})
 	]).keepUpdated(this._store);
 
-	readonly isHovered = this._div.didMouseMoveDuringHover;
+	readonly isHovered = this._editor.isTargetHovered((e) => this._isMouseOverWidget(e), this._store);
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
@@ -311,6 +320,15 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			position: constObservable({ preference: { top: 0, left: 0 } }),
 			allowEditorOverflow: false,
 		}));
+	}
+
+	private _isMouseOverWidget(e: IEditorMouseEvent): boolean {
+		const layout = this._layout.get();
+		if (!layout || !(e.event instanceof EditorMouseEvent)) {
+			return false;
+		}
+
+		return layout.lowerBackground.containsPoint(new Point(e.event.relativePos.x, e.event.relativePos.y));
 	}
 
 	// View Zones
