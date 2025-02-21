@@ -98,7 +98,7 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
-	margin-right: 7px; /* Add margin to the most right status bar item */
+	padding-right: 7px; /* Add padding to the most right status bar item */
 }
 
 /* Tweak appearance for items with background to improve hover feedback */
