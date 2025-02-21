@@ -20,4 +20,5 @@ export interface IInlineEditsViewHost {
 	tabAction: IObservable<InlineEditTabAction>;
 	extensionCommands: IObservable<readonly Command[] | undefined>;
 	accept(): void;
+	jump(): void;
 }

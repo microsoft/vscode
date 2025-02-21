@@ -799,6 +799,7 @@ export interface InlineCompletion {
 	readonly completeBracketPairs?: boolean;
 
 	readonly isInlineEdit?: boolean;
+	readonly showInlineEditMenu?: boolean;
 
 	readonly showRange?: IRange;
 
