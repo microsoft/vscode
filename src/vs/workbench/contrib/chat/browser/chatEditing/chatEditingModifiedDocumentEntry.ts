@@ -87,7 +87,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
 	private _allEditsAreFromUs: boolean = true;
-	private _diffOperation: Promise<any> | undefined;
+	private _diffOperation: Promise<IDocumentDiff | undefined> | undefined;
 	private _diffOperationIds: number = 0;
 
 	private readonly _diffInfo = observableValue<IDocumentDiff>(this, nullDocumentDiff);
@@ -209,8 +209,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	override async acceptStreamingEditsEnd(tx: ITransaction) {
-		await this._diffOperation;
+		const diff = await this._diffOperation;
 		super.acceptStreamingEditsEnd(tx);
+		if (diff?.identical) {
+			this.accept(tx);
+		}
 	}
 
 	protected override _resetEditsState(tx: ITransaction): void {
@@ -385,10 +388,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	private async _updateDiffInfo(): Promise<void> {
+	private async _updateDiffInfo(): Promise<IDocumentDiff | undefined> {
 
 		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
-			return;
+			return undefined;
 		}
 
 		const docVersionNow = this.doc.getVersionId();
@@ -404,7 +407,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		);
 
 		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
-			return;
+			return undefined;
 		}
 
 		// only update the diff if the documents didn't change in the meantime
@@ -412,7 +415,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			const diff2 = diff ?? nullDocumentDiff;
 			this._diffInfo.set(diff2, undefined);
 			this._edit = OffsetEdits.fromLineRangeMapping(this.docSnapshot, this.doc, diff2.changes);
+			return diff2;
 		}
+		return undefined;
 	}
 
 	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {

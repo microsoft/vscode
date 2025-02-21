@@ -90,9 +90,13 @@ class ChatEditorOverlayWidget {
 								assertType(this.label);
 
 								const { changeCount, activeIdx } = that._navigationBearings.read(r);
-								const n = activeIdx === -1 ? '?' : `${activeIdx + 1}`;
-								const m = changeCount === -1 ? '?' : `${changeCount}`;
-								this.label.innerText = localize('nOfM', "{0} of {1}", n, m);
+
+								if (changeCount > 0) {
+									const n = activeIdx === -1 ? '1' : `${activeIdx + 1}`;
+									this.label.innerText = localize('nOfM', "{0} of {1}", n, changeCount);
+								} else {
+									this.label.innerText = localize('0Of0', "0 of 0");
+								}
 
 								this.updateTooltip();
 							}));
