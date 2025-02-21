@@ -318,7 +318,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					});
 				} else if (rangeChanges[i - 1].range.endLineNumber < e.ranges[i].newRange.endLineNumber) {
 					// clip the range to the previous range
-					const range = new Range(rangeChanges[i - 1].range.endLineNumber + 1, 1, rangeChanges[i].range.endLineNumber, e.textModel.getLineMaxColumn(rangeChanges[i].range.endLineNumber));
+					const range = new Range(rangeChanges[i - 1].range.endLineNumber + 1, 1, e.ranges[i].newRange.endLineNumber, e.textModel.getLineMaxColumn(e.ranges[i].newRange.endLineNumber));
 					rangeChanges.push({
 						range,
 						startOffset: e.textModel.getOffsetAt(range.getStartPosition()),
