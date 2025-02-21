@@ -35,20 +35,25 @@ import { IChatProgressRenderableResponseContent } from '../../common/chatModel.j
 import { IChatMarkdownContent, IChatUndoStop } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
+import { IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
-import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
 import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 const $ = dom.$;
 
+export interface IChatMarkdownContentPartOptions {
+	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	readonly renderCodeBlockPills?: boolean;
+}
+
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
 	private static idPool = 0;
-	public readonly id = String(++ChatMarkdownContentPart.idPool);
+	public readonly codeblocksPartId = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock>[] = [];
 
@@ -66,7 +71,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		renderer: MarkdownRenderer,
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
-		private readonly rendererOptions: IChatListItemRendererOptions,
+		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -116,7 +121,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
+				const renderOptions = {
+					...this.rendererOptions.codeBlockRenderOptions,
+				};
+				if (hideToolbar !== undefined) {
+					renderOptions.hideToolbar = hideToolbar;
+				}
+				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri, renderOptions };
 
 				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest || !codemapperUri) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
@@ -126,7 +137,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 					this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
-					const ownerMarkdownPartId = this.id;
+					const ownerMarkdownPartId = this.codeblocksPartId;
 					const info: IChatCodeBlockInfo = new class {
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
 						readonly codeBlockIndex = globalIndex;
@@ -161,7 +172,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						});
 					}
 					this.allRefs.push(ref);
-					const ownerMarkdownPartId = this.id;
+					const ownerMarkdownPartId = this.codeblocksPartId;
 					const info: IChatCodeBlockInfo = new class {
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
 						readonly codeBlockIndex = globalIndex;

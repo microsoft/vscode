@@ -59,7 +59,7 @@ import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitation
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts/chatContentParts.js';
-import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart, EditorPool, IChatMarkdownContentPartOptions } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
@@ -140,6 +140,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private _isVisible = true;
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 
+	/**
+	 * Tool invocations get their own so that the ChatViewModel doesn't overwrite it.
+	 * TODO@roblourens @mjbvz is there a better solution?
+	 */
+	private readonly _toolInvocationCodeBlockCollection: CodeBlockModelCollection;
+
 	constructor(
 		editorOptions: ChatEditorOptions,
 		private readonly rendererOptions: IChatListItemRendererOptions,
@@ -165,6 +171,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined));
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
+		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
 	}
 
 	get templateId(): string {
@@ -921,11 +928,56 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return citationsPart;
 	}
 
+	private getCodeBlockStartIndex(context: IChatContentPartRenderContext): number {
+		return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
+	}
+
+	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number): void {
+		if (!part.addDisposable || part.codeblocksPartId === undefined) {
+			return;
+		}
+
+		const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id) ?? [];
+		this.codeBlocksByResponseId.set(element.id, codeBlocksByResponseId);
+		part.addDisposable(toDisposable(() => {
+			const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id);
+			if (codeBlocksByResponseId) {
+				// Only delete if this is my code block
+				part.codeblocks?.forEach((info, i) => {
+					const codeblock = codeBlocksByResponseId[codeBlockStartIndex + i];
+					if (codeblock?.ownerMarkdownPartId === part.codeblocksPartId) {
+						delete codeBlocksByResponseId[codeBlockStartIndex + i];
+					}
+				});
+			}
+		}));
+
+		part.codeblocks?.forEach((info, i) => {
+			codeBlocksByResponseId[codeBlockStartIndex + i] = info;
+			info.uriPromise.then(uri => {
+				if (!uri) {
+					return;
+				}
+
+				this.codeBlocksByEditorUri.set(uri, info);
+				part.addDisposable!(toDisposable(() => {
+					const codeblock = this.codeBlocksByEditorUri.get(uri);
+					if (codeblock?.ownerMarkdownPartId === part.codeblocksPartId) {
+						this.codeBlocksByEditorUri.delete(uri);
+					}
+				}));
+			});
+		});
+
+	}
+
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
-		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.renderer, this._contentReferencesListPool);
+		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
+		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.renderer, this._contentReferencesListPool, this._editorPool, this._currentLayoutWidth, this._toolInvocationCodeBlockCollection, codeBlockStartIndex);
 		part.addDisposable(part.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
 		}));
+		this.handleRenderedCodeblocks(context.element, part, codeBlockStartIndex);
 		return part;
 	}
 
@@ -968,45 +1020,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const element = context.element;
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
-		const codeBlockStartIndex = context.preceedingContentParts.reduce((acc, part) => acc + (part instanceof ChatMarkdownContentPart ? part.codeblocks.length : 0), 0);
-		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, this.rendererOptions);
-		const markdownPartId = markdownPart.id;
+		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
+		const options: IChatMarkdownContentPartOptions = {
+			renderCodeBlockPills: this.rendererOptions.renderCodeBlockPills,
+		};
+		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, options);
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
 			markdownPart.layout(this._currentLayoutWidth);
 			this.updateItemHeight(templateData);
 		}));
 
-		const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id) ?? [];
-		this.codeBlocksByResponseId.set(element.id, codeBlocksByResponseId);
-		markdownPart.addDisposable(toDisposable(() => {
-			const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id);
-			if (codeBlocksByResponseId) {
-				// Only delete if this is my code block
-				markdownPart.codeblocks.forEach((info, i) => {
-					const codeblock = codeBlocksByResponseId[codeBlockStartIndex + i];
-					if (codeblock?.ownerMarkdownPartId === markdownPartId) {
-						delete codeBlocksByResponseId[codeBlockStartIndex + i];
-					}
-				});
-			}
-		}));
-
-		markdownPart.codeblocks.forEach((info, i) => {
-			codeBlocksByResponseId[codeBlockStartIndex + i] = info;
-			info.uriPromise.then(uri => {
-				if (!uri) {
-					return;
-				}
-
-				this.codeBlocksByEditorUri.set(uri, info);
-				markdownPart.addDisposable(toDisposable(() => {
-					const codeblock = this.codeBlocksByEditorUri.get(uri);
-					if (codeblock?.ownerMarkdownPartId === markdownPartId) {
-						this.codeBlocksByEditorUri.delete(uri);
-					}
-				}));
-			});
-		});
+		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
 
 		return markdownPart;
 	}

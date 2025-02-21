@@ -121,7 +121,7 @@ declare module 'vscode' {
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
 		tooltip?: string | MarkdownString;
-		presentation?: 'hidden' | undefined;
+		presentation?: 'withCodeblocks' | 'hidden' | undefined;
 	}
 
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
