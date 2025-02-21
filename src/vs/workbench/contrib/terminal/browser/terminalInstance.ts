@@ -1527,7 +1527,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// consistent form respectively. This must be done here as xterm.js does not currently have
 		// a listener for when individual data events are parsed, only `onWriteParsed` which fires
 		// when the write buffer is flushed.
-		const match = ev.data.match(/(?<seq>\x1b][16]33;(?:C|D(?:;\d+)?)\x07)/);
+		const match = ev.data.match(/(?<seq>\x1b\][16]33;(?:C|D(?:;\d+)?)\x07)/);
 		const index = match?.index;
 		if (match?.groups?.seq && index !== undefined) {
 			const seq = match?.groups?.seq;
