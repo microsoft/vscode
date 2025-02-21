@@ -95,14 +95,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	 */
 	private readonly editedCells = new ResourceSet();
 
-	/**
-	 * When a new cell is inserted, we use the ChatEditingCodeEditorIntegration to handle the edits.
-	 * & to also display undo/redo and decorations.
-	 * However that needs a modified and original model.
-	 * For inserted cells there's no original model, so we create a new empty text model and pass that as the original.
-	 */
-	private readonly emptyTextModel: ITextModel;
-
 	public static async create(uri: URI, _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void }, telemetryInfo: IModifiedEntryTelemetryInfo, chatKind: ChatEditKind, initialContent: string | undefined, instantiationService: IInstantiationService): Promise<AbstractChatEditingModifiedFileEntry> {
 		return instantiationService.invokeFunction(async accessor => {
 			const notebookService = accessor.get(INotebookService);
@@ -154,7 +146,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		@IFileService fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IModelService model: IModelService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, instantiationService);
 		this._register(modifiedResourceRef);
@@ -171,7 +163,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			this.modifiedToOriginalCellMap.set(cell.uri, originalModel);
 			this.getOrCreateModifiedTextFileEntryForCell(cell);
 		});
-		this.emptyTextModel = this._register(model.createModel('', null, URI.parse('vscode-chat:///empty')));
 	}
 
 	createEmptyDiffs() {
@@ -185,8 +176,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			...nullDocumentDiff,
 			keep: noopKeep,
 			undo: noopUndo,
-			originalModel: this.modifiedToOriginalCellMap.get(cell.uri) || this.emptyTextModel,
-			modifiedModel: this.modifiedCellModels.get(cell.uri) || this.emptyTextModel,
+			originalModel: this.modifiedToOriginalCellMap.get(cell.uri)!,
+			modifiedModel: this.modifiedCellModels.get(cell.uri)!,
 		};
 	}
 
@@ -336,7 +327,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				const changes = [new DetailedLineRangeMapping(new LineRange(1, 1), new LineRange(1, lines.length), [innerChanges])];
 				const cell = this.modifiedModel.cells[edit.index + i];
 				const modifiedModel: ITextModel = cell.textModel ?? this._register((await this.textModelService.createModelReference(cell.uri))).object.textEditorModel;
-				const originalModel = this.emptyTextModel;
+				// When a new cell is inserted, we use the ChatEditingCodeEditorIntegration to handle the edits.
+				// & to also display undo/redo and decorations.
+				// However that needs a modified and original model.
+				// For inserted cells there's no original model, so we create a new empty text model and pass that as the original.
+				const originalModel = this._register(this.modelService.createModel('', null, URI.parse('vscode-chat:///empty')));
 				this.modifiedCellModels.set(cell.uri, modifiedModel);
 				this.modifiedToOriginalCellMap.set(cell.uri, originalModel);
 				const keep = async () => {
