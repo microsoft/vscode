@@ -345,6 +345,7 @@ export class InlineCompletionItem {
 	constructor(
 		readonly filterText: string,
 		readonly command: Command | undefined,
+		/** @deprecated. Use handleItemDidShow */
 		readonly shownCommand: Command | undefined,
 		readonly action: Command | undefined,
 		readonly range: Range,
