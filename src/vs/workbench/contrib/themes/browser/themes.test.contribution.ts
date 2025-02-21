@@ -286,7 +286,7 @@ class Snapper {
 				const capture = tokenizationSupport?.captureAtPositionTree(cursor.currentNode.startPosition.row + 1, cursor.currentNode.startPosition.column + 1, tree);
 				tokens.push({
 					c: cursor.currentNode.text.replace(/\r/g, ''),
-					t: capture?.map(cap => cap.name).join(' ') ?? '',
+					t: capture && capture.length > 0 ? capture[capture.length - 1].name : '',
 					r: {
 						dark_plus: undefined,
 						light_plus: undefined,

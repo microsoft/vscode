@@ -14,18 +14,18 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
-import { IChatAttachPromptActionOptions, ATTACH_PROMPT_ACTION_ID } from '../../actions/chatAttachPromptAction.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IChatAttachPromptActionOptions, ATTACH_PROMPT_ACTION_ID } from '../../actions/chatAttachPromptAction/chatAttachPromptAction.js';
 
 /**
- * Keybinding for the "Use Prompt" command.
+ * Command ID of the "Use Prompt" command.
  */
-const USE_COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyE;
+const COMMAND_ID = 'workbench.command.prompts.use';
 
 /**
- * Command ID for the "Use Prompt" command.
+ * Keybinding of the "Use Prompt" command.
  */
-const USE_PROMPT_COMMAND_ID = 'use-prompt';
+const COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyE;
 
 /**
  * Implementation of the "Use Prompt" command. The command works in the following way.
@@ -45,7 +45,7 @@ const USE_PROMPT_COMMAND_ID = 'use-prompt';
  * was pressed when the prompt was selected, a `chat edits` panel is used instead
  * (likewise either the last focused or a new one).
  */
-const usePromptCommand = async (
+const command = async (
 	accessor: ServicesAccessor,
 ): Promise<void> => {
 	const commandService = accessor.get(ICommandService);
@@ -62,10 +62,10 @@ const usePromptCommand = async (
  * Register the "Use Prompt" command with its keybinding.
  */
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: USE_PROMPT_COMMAND_ID,
+	id: COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: USE_COMMAND_KEY_BINDING,
-	handler: usePromptCommand,
+	primary: COMMAND_KEY_BINDING,
+	handler: command,
 });
 
 /**
@@ -73,8 +73,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
  */
 appendToCommandPalette(
 	{
-		id: USE_PROMPT_COMMAND_ID,
-		title: localize('commands.prompts.use-prompt', "Use Prompt"),
+		id: COMMAND_ID,
+		title: localize('commands.prompts.use.title', "Use Prompt"),
 		category: CHAT_CATEGORY,
 	},
 );

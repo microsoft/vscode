@@ -201,6 +201,9 @@
 (intersection_type
   ("&") @keyword.operator.type)
 
+(type_annotation
+  (":") @keyword.operator.type.annotation)
+
 [
   "{"
   "}"
@@ -313,6 +316,9 @@
 (public_field_definition
   ("?") @keyword.operator.optional)
 
+(property_signature
+  ("?") @keyword.operator.optional)
+
 (optional_parameter
   ([
     "?"
@@ -356,6 +362,14 @@
 [
   (false)
 ] @constant.language.boolean.false
+
+(literal_type
+  [
+    (null)
+    (undefined)
+    (true)
+    (false)
+  ] @support.type.builtin)
 
 (namespace_import
   "*" @constant.language)

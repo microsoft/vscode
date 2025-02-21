@@ -73,6 +73,7 @@ export interface WorkingSetDisplayMetadata {
 
 export interface IStreamingEdits {
 	pushText(edits: TextEdit[]): void;
+	pushNotebookCellText(cell: URI, edits: TextEdit[]): void;
 	pushNotebook(edits: ICellEditOperation[]): void;
 	/** Marks edits as done, idempotent */
 	complete(): void;

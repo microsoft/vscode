@@ -794,11 +794,12 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		return this.mainPart.addEntry(entry, id, alignment, priorityOrLocation);
 	}
 
-	private doAddEntryToAllWindows(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+	private doAddEntryToAllWindows(originalEntry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
 		const entryDisposables = new DisposableStore();
 
 		const accessors = new Set<IStatusbarEntryAccessor>();
 
+		let entry = originalEntry;
 		function addEntry(part: StatusbarPart | AuxiliaryStatusbarPart): void {
 			const partDisposables = new DisposableStore();
 			partDisposables.add(part.onWillDispose(() => partDisposables.dispose()));
@@ -818,9 +819,11 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		entryDisposables.add(this.onDidCreateAuxiliaryStatusbarPart(part => addEntry(part)));
 
 		return {
-			update: (entry: IStatusbarEntry) => {
+			update: (updatedEntry: IStatusbarEntry) => {
+				entry = updatedEntry;
+
 				for (const update of accessors) {
-					update.update(entry);
+					update.update(updatedEntry);
 				}
 			},
 			dispose: () => entryDisposables.dispose()

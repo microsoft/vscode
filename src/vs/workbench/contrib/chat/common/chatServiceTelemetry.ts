@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IChatUserActionEvent, ChatAgentVoteDirection, ChatCopyKind } from './chatService.js';
+import { ChatAgentVoteDirection, ChatCopyKind, IChatUserActionEvent } from './chatService.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
@@ -66,20 +65,6 @@ type ChatApplyClassification = {
 	codeMapper: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The code mapper that wa used to compute the edit.' };
 	editsProposed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there was a change proposed to the user.' };
 	owner: 'aeschli';
-	comment: 'Provides insight into the usage of Chat features.';
-};
-
-type ChatCommandEvent = {
-	commandId: string;
-	agentId: string;
-	command: string | undefined;
-};
-
-type ChatCommandClassification = {
-	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command that was executed.' };
-	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
-	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the related slash command.' };
-	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
@@ -155,15 +140,6 @@ export class ChatServiceTelemetry {
 				agentId: action.agentId ?? '',
 				command: action.command,
 				editsProposed: !!action.action.editsProposed,
-			});
-		} else if (action.action.kind === 'command') {
-			// TODO not currently called
-			const command = CommandsRegistry.getCommand(action.action.commandButton.command.id);
-			const commandId = command ? action.action.commandButton.command.id : 'INVALID';
-			this.telemetryService.publicLog2<ChatCommandEvent, ChatCommandClassification>('interactiveSessionCommand', {
-				commandId,
-				agentId: action.agentId ?? '',
-				command: action.command,
 			});
 		} else if (action.action.kind === 'runInTerminal') {
 			this.telemetryService.publicLog2<ChatTerminalEvent, ChatTerminalClassification>('interactiveSessionRunInTerminal', {

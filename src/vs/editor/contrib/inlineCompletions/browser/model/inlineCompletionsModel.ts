@@ -32,7 +32,7 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
-import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
+import { addPositions, getEndPositionsAfterApplying, getModifiedRangesAfterApplying, substringPos, subtractPositions } from '../utils.js';
 import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
@@ -269,6 +269,7 @@ export class InlineCompletionsModel extends Disposable {
 				}
 			}
 
+			this._inAcceptPartialFlow.set(false, tx);
 			this._isActive.set(false, tx);
 			this._source.clear(tx);
 		});
@@ -594,6 +595,12 @@ export class InlineCompletionsModel extends Disposable {
 			throw new BugIndicatingError();
 		}
 
+		if (this._inAcceptPartialFlow.get()) {
+			this._inAcceptPartialFlow.set(false, undefined);
+			this.jump();
+			return;
+		}
+
 		let completionWithUpdatedRange: InlineCompletionWithUpdatedRange;
 
 		const state = this.state.get();
@@ -756,6 +763,68 @@ export class InlineCompletionsModel extends Disposable {
 					acceptedLength,
 					{ kind, acceptedLength: acceptedLength, }
 				);
+			}
+		} finally {
+			completion.source.removeRef();
+		}
+	}
+
+	// TODO: clean this up if we keep it
+	private readonly _inAcceptPartialFlow = observableValue(this, false);
+	public readonly inAcceptPartialFlow: IObservable<boolean> = this._inAcceptPartialFlow;
+	public async acceptNextInlineEditPart(editor: ICodeEditor): Promise<void> {
+		if (editor.getModel() !== this.textModel) {
+			throw new BugIndicatingError();
+		}
+
+		const state = this.inlineEditState.get();
+		const updatedEdit = state?.inlineCompletion.updatedEdit.get();
+		const completion = state?.inlineCompletion.toInlineCompletion(undefined);
+		if (!updatedEdit || updatedEdit.isEmpty || !completion) {
+			return;
+		}
+
+		const nextPart = updatedEdit.edits[0];
+
+		const edit = new SingleTextEdit(Range.fromPositions(
+			this.textModel.getPositionAt(nextPart.replaceRange.start),
+			this.textModel.getPositionAt(nextPart.replaceRange.endExclusive)
+		), nextPart.newText);
+
+		const cursorAtStartPosition = this._editor.getSelection()?.getStartPosition().equals(edit.range.getStartPosition());
+		if (!cursorAtStartPosition || !this._inAcceptPartialFlow.get()) {
+			this._inAcceptPartialFlow.set(true, undefined);
+			this.jump();
+			return;
+		}
+
+		const partToJumpToNext = updatedEdit.edits[1] ?? undefined;
+		const editToJumpToNext = partToJumpToNext ? new SingleTextEdit(Range.fromPositions(
+			this.textModel.getPositionAt(partToJumpToNext.replaceRange.start),
+			this.textModel.getPositionAt(partToJumpToNext.replaceRange.endExclusive)
+		), partToJumpToNext.newText) : undefined;
+
+		// Executing the edit might free the completion, so we have to hold a reference on it.
+		completion.source.addRef();
+		try {
+			this._isAcceptingPartially = true;
+			try {
+				editor.pushUndoStop();
+
+				let selections;
+				if (editToJumpToNext) {
+					const [_, rangeOfEditToJumpTo] = getModifiedRangesAfterApplying([edit, editToJumpToNext]);
+					selections = [Selection.fromPositions(rangeOfEditToJumpTo.getStartPosition())];
+				} else {
+					selections = getEndPositionsAfterApplying([edit]).map(p => Selection.fromPositions(p));
+				}
+
+				const edits = [edit];
+				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				editor.setSelections(selections, 'inlineCompletionPartialAccept');
+				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Immediate);
+			} finally {
+				this._isAcceptingPartially = false;
 			}
 		} finally {
 			completion.source.removeRef();
