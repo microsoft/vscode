@@ -122,6 +122,8 @@ async function detectAvailableWindowsProfiles(
 				{ path: `${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`, isUnsafe: true }
 			],
 			args: ['--login'],
+			// CHERE_INVOKING retains current working directory
+			env: { CHERE_INVOKING: '1' },
 			isAutoDetected: true
 		});
 		detectedProfiles.set('bash (MSYS2)', {
