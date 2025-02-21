@@ -74,15 +74,24 @@ steps:
       condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $env:AZSECPACK_DISABLED_FEATURES = "AppLocker,CodeIntegrity"
+          exec { .\scripts\test-integration.bat --tfs "Integration Tests" }
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
-      - powershell: .\scripts\test-web-integration.bat --browser chromium
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $env:AZSECPACK_DISABLED_FEATURES = "AppLocker,CodeIntegrity"
+          exec { .\scripts\test-web-integration.bat --browser chromium }
         displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
-      - powershell: .\scripts\test-remote-integration.bat
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $env:AZSECPACK_DISABLED_FEATURES = "AppLocker,CodeIntegrity"
+          exec { .\scripts\test-remote-integration.bat }
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
