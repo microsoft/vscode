@@ -7301,6 +7301,7 @@ declare namespace monaco.languages {
 		readonly action?: Command;
 		/**
 		 * Is called the first time an inline completion is shown.
+		 * @deprecated. Use `onDidShow` of the provider instead.
 		*/
 		readonly shownCommand?: Command;
 		/**
