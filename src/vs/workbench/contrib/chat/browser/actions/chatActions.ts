@@ -57,6 +57,9 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 
+export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
+export const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
+
 export interface IChatViewOpenOptions {
 	/**
 	 * The query for quick chat.
@@ -676,8 +679,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionTitle: string;
 			let primaryActionIcon: ThemeIcon;
 			if (!chatExtensionInstalled) {
-				primaryActionId = 'workbench.action.chat.triggerSetup';
-				primaryActionTitle = localize('triggerChatSetup', "Use AI Features with Copilot for Free...");
+				primaryActionId = CHAT_SETUP_ACTION_ID;
+				primaryActionTitle = CHAT_SETUP_ACTION_LABEL.value;
 				primaryActionIcon = Codicon.copilot;
 			} else {
 				if (signedOut) {

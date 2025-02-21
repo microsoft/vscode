@@ -48,7 +48,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { CHAT_CATEGORY } from './actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
@@ -108,9 +108,6 @@ enum ChatEntitlement {
 
 //#region Contribution
 
-const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
-const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
-
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.chat.setup';
@@ -161,8 +158,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			constructor() {
 				super({
-					id: TRIGGER_SETUP_COMMAND_ID,
-					title: TRIGGER_SETUP_COMMAND_LABEL,
+					id: CHAT_SETUP_ACTION_ID,
+					title: CHAT_SETUP_ACTION_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
 					precondition: chatSetupTriggerContext,
@@ -220,7 +217,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				const { confirmed } = await dialogService.confirm({
 					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
-					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", TRIGGER_SETUP_COMMAND_LABEL.value),
+					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
 					primaryButton: localize('hideChatSetupButton', "Hide Copilot")
 				});
 
@@ -314,9 +311,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			},
 			handleURL: async url => {
 				const params = new URLSearchParams(url.query);
-				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: TRIGGER_SETUP_COMMAND_ID, from: 'url', detail: params.get('referrer') ?? undefined });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				await this.commandService.executeCommand(TRIGGER_SETUP_COMMAND_ID);
+				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 
 				return true;
 			}
@@ -844,7 +841,7 @@ class ChatSetupController extends Disposable {
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
-				command: TRIGGER_SETUP_COMMAND_ID,
+				command: CHAT_SETUP_ACTION_ID,
 				title,
 			}, () => this.doSetup(options?.forceSignIn ?? false, watch));
 		} finally {

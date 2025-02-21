@@ -6,10 +6,12 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
-import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG } from './actions/chatActions.js';
+import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -22,7 +24,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -33,7 +36,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private create(): void {
 		const enabled = this.configurationService.getValue(ChatStatusBarEntry.ENTRY_SETTING) !== false;
 		if (enabled && !this.entry) {
-			this.entry = this.statusbarService.addEntry(this.getStatusbarEntry(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */);
+			this.entry = this.statusbarService.addEntry(this.getStatusBarEntry(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */);
 		} else if (!enabled && this.entry) {
 			this.entry.dispose();
 			this.entry = undefined;
@@ -41,20 +44,35 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerListeners(): void {
-		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry?.update(this.getStatusbarEntry())));
+		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry?.update(this.getStatusBarEntry())));
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatStatusBarEntry.ENTRY_SETTING)) {
 				this.create();
 			}
 		}));
+
+		const contextKeysSet = new Set([
+			ChatContextKeys.Setup.limited.key,
+			ChatContextKeys.Setup.installed.key,
+			ChatContextKeys.Setup.canSignUp.key
+		]);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(contextKeysSet)) {
+				this.entry?.update(this.getStatusBarEntry());
+			}
+		}));
 	}
 
-	private getStatusbarEntry(): IStatusbarEntry {
-		let quotaWarning: string | undefined;
-		let quotaTooltip: string | undefined;
+	private getStatusBarEntry(): IStatusbarEntry {
+		let text: string | undefined = undefined;
+		let ariaLabel: string | undefined = undefined;
+		let command: string | undefined = undefined;
+		let tooltip: string | undefined = undefined;
 
 		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
 		if (chatQuotaExceeded || completionsQuotaExceeded) {
+			let quotaWarning: string;
 			if (chatQuotaExceeded && !completionsQuotaExceeded) {
 				quotaWarning = localize('chatQuotaExceededStatus', "Chat limit reached");
 			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
@@ -63,17 +81,26 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Copilot limit reached");
 			}
 
-			quotaTooltip = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
+			text = `$(copilot-warning) ${quotaWarning}`;
+			ariaLabel = quotaWarning;
+			command = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
+			tooltip = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
+		} else if (
+			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.canSignUp.key) === true ||
+			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false
+		) {
+			command = CHAT_SETUP_ACTION_ID;
+			tooltip = CHAT_SETUP_ACTION_LABEL.value;
 		}
 
 		return {
 			name: localize('chatStatus', "Copilot Status"),
-			text: quotaWarning ? `$(copilot-warning) ${quotaWarning}` : '$(copilot)',
-			ariaLabel: quotaWarning ?? localize('chatStatus', "Copilot Status"),
-			command: quotaWarning ? OPEN_CHAT_QUOTA_EXCEEDED_DIALOG : undefined,
+			text: text ?? '$(copilot)',
+			ariaLabel: ariaLabel ?? localize('chatStatus', "Copilot Status"),
+			command,
 			showInAllWindows: true,
 			kind: 'copilot',
-			tooltip: quotaTooltip
+			tooltip
 		};
 	}
 
