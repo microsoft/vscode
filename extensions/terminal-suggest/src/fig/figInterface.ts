@@ -160,6 +160,7 @@ export async function collectCompletionItemResult(
 ): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
+	let fileExtensions: string[] | undefined;
 
 	const addSuggestions = async (specArgs: SpecArg[] | Record<string, SpecArg> | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
 		if (kind === vscode.TerminalCompletionItemKind.Argument && parsedArguments?.currentArg?.generators) {
@@ -199,6 +200,14 @@ export async function collectCompletionItemResult(
 			const generatorResults = s.triggerGenerators(parsedArguments, executeExternals);
 			for (const generatorResult of generatorResults) {
 				for (const item of (await generatorResult?.request) ?? []) {
+					if (item.type === 'file') {
+						filesRequested = true;
+						fileExtensions = item._internal?.fileExtensions as string[] | undefined;
+					}
+					if (item.type === 'folder') {
+						foldersRequested = true;
+					}
+
 					if (!item.name) {
 						continue;
 					}

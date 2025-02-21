@@ -1,4 +1,5 @@
 // import { filepaths } from "@fig/autocomplete-generators";
+import { filepaths } from '../../helpers/filepaths';
 
 const packages: Fig.Generator = {
 	// only trigger when the token length transitions to or from 0
@@ -137,7 +138,7 @@ const completionSpec: Fig.Spec = {
 				template: 'filepaths',
 				generators: [
 					packages,
-					// filepaths({ extensions: ["deb"] })
+					filepaths({ extensions: ["deb"] })
 				],
 			},
 			options: [
