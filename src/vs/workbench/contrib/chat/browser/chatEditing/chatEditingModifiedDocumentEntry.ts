@@ -83,7 +83,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return this.doc;
 	}
 
-	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
 	private _allEditsAreFromUs: boolean = true;
@@ -183,7 +182,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
-		this._isFirstEditAfterStartOrSnapshot = true;
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
@@ -275,18 +273,19 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	}
 
+	override acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
+		super.acceptStreamingEditsStart(responseModel, tx);
+
+		// push stack element whenever streaming starts
+		const request = responseModel.session.getRequests().find(req => req.id === responseModel.requestId);
+		const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
+		this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
+	}
+
 	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 
 		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
 		assert(isEqual(resource, this.modifiedURI), ' INVALID args, can only edit THIS document');
-
-		// push stack element for the first edit
-		if (this._isFirstEditAfterStartOrSnapshot) {
-			this._isFirstEditAfterStartOrSnapshot = false;
-			const request = this._chatService.getSession(this._telemetryInfo.sessionId)?.getRequests().at(-1);
-			const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
-			this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
-		}
 
 		const ops = textEdits.map(TextEdit.asEditOperation);
 		const undoEdits = this._applyEdits(ops);
