@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { InstructionsAttachmentWidget } from './instructionsAttachmentWidget.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { InstructionsAttachmentWidget } from './instructionsAttachmentWidget.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatInstructionAttachmentsModel } from '../../chatAttachmentModel/chatInstructionAttachmentsModel.js';
 
 /**
- * Widget fot a collection of prompt instructions attachments.
+ * Widget for a collection of prompt instructions attachments.
  * See {@linkcode InstructionsAttachmentWidget}.
  */
 export class InstructionAttachmentsWidget extends Disposable {
@@ -40,9 +39,9 @@ export class InstructionAttachmentsWidget extends Disposable {
 	}
 
 	/**
-	 * The root DOM node of the widget.
+	 * The parent DOM node this widget was rendered into.
 	 */
-	public readonly domNode: HTMLElement;
+	private parentNode: HTMLElement | undefined;
 
 	/**
 	 * Get all `URI`s of all valid references, including all
@@ -76,9 +75,6 @@ export class InstructionAttachmentsWidget extends Disposable {
 		super();
 
 		this.render = this.render.bind(this);
-		this.domNode = dom.$('.chat-prompt-instructions-attachments');
-
-		this._register(this.model.onUpdate(this.render));
 
 		// when a new attachment model is added, create a new child widget for it
 		this.model.onAdd((attachment) => {
@@ -93,8 +89,12 @@ export class InstructionAttachmentsWidget extends Disposable {
 
 			// register the new child widget
 			this.children.push(widget);
-			this.domNode.appendChild(widget.domNode);
-			this.render();
+
+			// if parent node is present - append the wiget to it, otherwise wait
+			// until the `render` method will be called
+			if (this.parentNode) {
+				this.parentNode.appendChild(widget.domNode);
+			}
 
 			// fire the event to notify about the change in the number of attachments
 			this._onAttachmentsCountChange.fire();
@@ -138,11 +138,14 @@ export class InstructionAttachmentsWidget extends Disposable {
 			);
 		}
 
-		// remove the child widget root node from the DOM
-		this.domNode.removeChild(widget.domNode);
+		if (!this.parentNode) {
+			this.logService.warn(
+				`${logPrefix} no parent node reference found.`,
+			);
+		}
 
-		// re-render the whole widget
-		this.render();
+		// remove the child widget root node from the DOM
+		this.parentNode?.removeChild(widget.domNode);
 
 		// fire the event to notify about the change in the number of attachments
 		this._onAttachmentsCountChange.fire();
@@ -151,11 +154,18 @@ export class InstructionAttachmentsWidget extends Disposable {
 	}
 
 	/**
-	 * Render this widget.
+	 * Render attachments into the provided `parentNode`.
+	 *
+	 * Note! this method assumes that the provided `parentNode` is cleared by the caller.
 	 */
-	private render(): this {
-		// set visibility of the root node based on the presence of attachments
-		dom.setVisibility(!this.empty, this.domNode);
+	public render(
+		parentNode: HTMLElement,
+	): this {
+		this.parentNode = parentNode;
+
+		for (const widget of this.children) {
+			this.parentNode.appendChild(widget.domNode);
+		}
 
 		return this;
 	}

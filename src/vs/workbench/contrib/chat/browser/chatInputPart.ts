@@ -947,7 +947,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this.promptInstructionsAttached.set(!this.instructionAttachmentsPart.empty);
-		container.appendChild(this.instructionAttachmentsPart.domNode);
+		this.instructionAttachmentsPart.render(container);
 
 		const attachmentInitPromises: Promise<void>[] = [];
 		for (const [index, attachment] of attachments) {
