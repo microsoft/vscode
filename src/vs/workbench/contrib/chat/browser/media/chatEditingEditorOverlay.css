@@ -46,10 +46,6 @@
 	display: inline-flex;
 }
 
-.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .busy-label {
-	padding: 5px;
-	/* font-style: italic; */
-}
 
 @keyframes ellipsis {
 	0% {
@@ -69,32 +65,24 @@
 	}
 }
 
-.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .busy-label::after {
+.chat-editor-overlay-widget.busy.paused .chat-editor-overlay-progress {
+	.codicon-loading {
+		display: none;
+	}
+}
+
+.chat-editor-overlay-widget .action-item > .action-label {
+	padding: 5px;
+	font-size: 12px;
+}
+
+.chat-editor-overlay-widget.busy .action-item > .action-label.busy::after {
 	content: "";
 	display: inline-flex;
 	white-space: nowrap;
 	overflow: hidden;
 	width: 3ch;
 	animation: ellipsis steps(4, end) 1s infinite;
-}
-
-.chat-editor-overlay-widget.busy.paused .chat-editor-overlay-progress {
-	.codicon-loading {
-		display: none;
-	}
-
-	.busy-label::after {
-		animation-duration: 5s;
-	}
-}
-
-.chat-editor-overlay-widget.busy .chat-editor-overlay-toolbar {
-	display: none;
-}
-
-.chat-editor-overlay-widget .action-item > .action-label {
-	padding: 5px;
-	font-size: 12px;
 }
 
 .chat-editor-overlay-widget .action-item:first-child > .action-label {
