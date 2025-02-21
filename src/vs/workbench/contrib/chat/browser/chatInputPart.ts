@@ -87,10 +87,10 @@ import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWi
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleAgentModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
-import { InstructionAttachmentsWidget } from './attachments/instructionsAttachment/instructionAttachments.js';
+import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { toChatVariable } from './chatAttachmentModel/chatInstructionAttachmentsModel.js';
+import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 import { hookUpResourceAttachmentDragAndContextMenu, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
@@ -324,9 +324,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Child widget of prompt instruction attachments.
-	 * See {@linkcode InstructionAttachmentsWidget}.
+	 * See {@linkcode PromptAttachmentsCollectionWidget}.
 	 */
-	private instructionAttachmentsPart: InstructionAttachmentsWidget;
+	private instructionAttachmentsPart: PromptAttachmentsCollectionWidget;
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -393,7 +393,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.instructionAttachmentsPart = this._register(
 			instantiationService.createInstance(
-				InstructionAttachmentsWidget,
+				PromptAttachmentsCollectionWidget,
 				this.attachmentModel.promptInstructions,
 				this._contextResourceLabels,
 			),
@@ -947,7 +947,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this.promptInstructionsAttached.set(!this.instructionAttachmentsPart.empty);
-		container.appendChild(this.instructionAttachmentsPart.domNode);
+		this.instructionAttachmentsPart.render(container);
 
 		const attachmentInitPromises: Promise<void>[] = [];
 		for (const [index, attachment] of attachments) {

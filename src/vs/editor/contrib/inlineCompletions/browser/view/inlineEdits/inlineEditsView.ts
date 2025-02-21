@@ -94,7 +94,7 @@ export class InlineEditsView extends Disposable {
 			return undefined;
 		}
 
-		this._model.get()?.handleInlineCompletionShown(edit.inlineCompletion);
+		this._model.get()?.handleInlineEditShown(edit.inlineCompletion);
 
 		let mappings = RangeMapping.fromEdit(edit.edit);
 		let newText = edit.edit.apply(edit.originalText);
@@ -157,7 +157,8 @@ export class InlineEditsView extends Disposable {
 			const item = state?.read(reader);
 			const completionSource = item?.inlineCompletion?.source;
 			// TODO: expose the provider (typed) and expose the provider the edit belongs to typing and get correct edit
-			return (completionSource?.inlineCompletions as any)?.edits?.[0]?.provider?.displayName ?? previousDisplayName ?? localize('inlineEdit', "Inline Edit");
+			return (completionSource?.inlineCompletions as any)?.edits?.[0]?.provider?.displayName ?? previousDisplayName
+				?? completionSource?.provider.displayName ?? localize('inlineEdit', "Inline Edit");
 		}),
 		tabAction: derived<InlineEditTabAction>(this, reader => {
 			const m = this._model.read(reader);

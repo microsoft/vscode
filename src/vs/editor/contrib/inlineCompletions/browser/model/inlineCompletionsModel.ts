@@ -891,15 +891,17 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	public async handleInlineCompletionShown(inlineCompletion: InlineCompletionItem): Promise<void> {
-		if (!inlineCompletion.shownCommand) {
-			return;
-		}
+	public async handleInlineEditShown(inlineCompletion: InlineCompletionItem): Promise<void> {
 		if (inlineCompletion.didShow) {
 			return;
 		}
 		inlineCompletion.markAsShown();
-		await this._commandService.executeCommand(inlineCompletion.shownCommand.id, ...(inlineCompletion.shownCommand.arguments || []));
+
+		inlineCompletion.source.provider.handleItemDidShow?.(inlineCompletion.source.inlineCompletions, inlineCompletion.sourceInlineCompletion, inlineCompletion.insertText);
+
+		if (inlineCompletion.shownCommand) {
+			await this._commandService.executeCommand(inlineCompletion.shownCommand.id, ...(inlineCompletion.shownCommand.arguments || []));
+		}
 	}
 }
 
