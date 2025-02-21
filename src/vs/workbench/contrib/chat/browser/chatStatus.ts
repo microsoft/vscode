@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
@@ -27,7 +29,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -73,9 +76,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private getEntryProps(): IStatusbarEntry {
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
-		let command: string | undefined = undefined;
-		let tooltip: string | undefined = undefined;
+		let command = CHAT_OPEN_ACTION_ID;
+		let tooltip: string | IMarkdownString = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
 
+		// Quota Exceeded
 		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
 		if (chatQuotaExceeded || completionsQuotaExceeded) {
 			let quotaWarning: string;
@@ -91,19 +95,35 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			ariaLabel = quotaWarning;
 			command = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
 			tooltip = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
-		} else if (
+		}
+
+		// Copilot Not Installed
+		else if (
 			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false ||
 			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.canSignUp.key) === true
 		) {
 			command = CHAT_SETUP_ACTION_ID;
 			tooltip = CHAT_SETUP_ACTION_LABEL.value;
-		} else if (
-			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key) === true
-		) {
+		}
+
+		// Signed out
+		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key) === true) {
 			text = '$(copilot-not-connected)';
 			ariaLabel = localize('signInToUseCopilot', "Sign in to Use Copilot...");
-			command = CHAT_OPEN_ACTION_ID;
 			tooltip = localize('signInToUseCopilot', "Sign in to Use Copilot...");
+		}
+
+		// Copilot Limited User
+		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
+			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
+			if (typeof chatRemaining === 'number' && typeof chatTotal === 'number' && typeof completionsRemaining === 'number' && typeof completionsTotal === 'number') {
+				tooltip = new MarkdownString([
+					localize('limitTitle', "You are currently using Copilot Free"),
+					'---',
+					localize('limitChatQuota', "<code>{0}</code> of <code>{1}</code> chats remaining", chatRemaining, chatTotal),
+					localize('limitCompletionsQuota', "<code>{0}</code> of <code>{1}</code> code completions remaining", completionsRemaining, completionsTotal),
+				].join('\n\n'), { supportHtml: true });
+			}
 		}
 
 		return {

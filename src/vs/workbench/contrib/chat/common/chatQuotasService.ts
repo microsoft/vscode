@@ -26,6 +26,12 @@ export interface IChatQuotas {
 	chatQuotaExceeded: boolean;
 	completionsQuotaExceeded: boolean;
 	quotaResetDate: Date | undefined;
+
+	chatTotal?: number;
+	completionsTotal?: number;
+
+	chatRemaining?: number;
+	completionsRemaining?: number;
 }
 
 export class ChatQuotasService extends Disposable implements IChatQuotasService {
@@ -84,10 +90,18 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	}
 
 	acceptQuotas(quotas: IChatQuotas): void {
-		this._quotas = quotas;
+		this._quotas = this.massageQuotas(quotas);
 		this.updateContextKeys();
 
 		this._onDidChangeQuotas.fire();
+	}
+
+	private massageQuotas(quotas: IChatQuotas): IChatQuotas {
+		return {
+			...quotas,
+			chatTotal: typeof quotas.chatTotal === 'number' ? Math.floor(quotas.chatTotal / 10) : undefined,
+			chatRemaining: typeof quotas.chatRemaining === 'number' ? Math.floor(quotas.chatRemaining / 10) : undefined
+		};
 	}
 
 	clearQuotas(): void {

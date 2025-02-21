@@ -382,12 +382,20 @@ interface IEntitlementsResponse {
 		readonly chat: number;
 		readonly completions: number;
 	};
+	readonly monthly_quotas?: {
+		readonly chat: number;
+		readonly completions: number;
+	};
 	readonly limited_user_reset_date: string;
 }
 
 interface IQuotas {
-	readonly chat?: number;
-	readonly completions?: number;
+	readonly chatTotal?: number;
+	readonly completionsTotal?: number;
+
+	readonly chatRemaining?: number;
+	readonly completionsRemaining?: number;
+
 	readonly resetDate?: string;
 }
 
@@ -595,8 +603,10 @@ class ChatSetupRequests extends Disposable {
 		const entitlements: IChatEntitlements = {
 			entitlement,
 			quotas: {
-				chat: entitlementsResponse.limited_user_quotas?.chat,
-				completions: entitlementsResponse.limited_user_quotas?.completions,
+				chatTotal: entitlementsResponse.monthly_quotas?.chat,
+				completionsTotal: entitlementsResponse.monthly_quotas?.completions,
+				chatRemaining: entitlementsResponse.limited_user_quotas?.chat,
+				completionsRemaining: entitlementsResponse.limited_user_quotas?.completions,
 				resetDate: entitlementsResponse.limited_user_reset_date
 			}
 		};
@@ -640,9 +650,13 @@ class ChatSetupRequests extends Disposable {
 
 		if (state.quotas) {
 			this.chatQuotasService.acceptQuotas({
-				chatQuotaExceeded: typeof state.quotas.chat === 'number' ? state.quotas.chat <= 0 : false,
-				completionsQuotaExceeded: typeof state.quotas.completions === 'number' ? state.quotas.completions <= 0 : false,
-				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined
+				chatQuotaExceeded: typeof state.quotas.chatRemaining === 'number' ? state.quotas.chatRemaining <= 0 : false,
+				completionsQuotaExceeded: typeof state.quotas.completionsRemaining === 'number' ? state.quotas.completionsRemaining <= 0 : false,
+				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined,
+				chatTotal: state.quotas.chatTotal,
+				completionsTotal: state.quotas.completionsTotal,
+				chatRemaining: state.quotas.chatRemaining,
+				completionsRemaining: state.quotas.completionsRemaining
 			});
 		}
 	}
