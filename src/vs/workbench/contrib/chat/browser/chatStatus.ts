@@ -13,7 +13,7 @@ import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG } from './actions
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.quotasStatusBarEntry';
+	static readonly ID = 'chat.statusBarEntry';
 
 	private readonly entry = this._register(new DisposableStore());
 
@@ -24,10 +24,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		super();
 
 		this.registerListeners();
-
-		setTimeout(() => {
-			chatQuotasService.acceptQuotas({ chatQuotaExceeded: true, completionsQuotaExceeded: false, quotaResetDate: new Date() });
-		}, 5000);
 	}
 
 	private registerListeners(): void {
