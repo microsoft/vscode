@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG } from './actions/chatActions.js';
 
@@ -15,7 +15,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'chat.statusBarEntry';
 
-	private readonly entry = this._register(new DisposableStore());
+	private readonly entry = this._register(this.statusbarService.addEntry(this.getStatusbarEntry(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */));
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -27,15 +27,15 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerListeners(): void {
-		this._register(Event.runAndSubscribe(this.chatQuotasService.onDidChangeQuotas, () => this.updateStatusbarEntry()));
+		this._register(Event.runAndSubscribe(this.chatQuotasService.onDidChangeQuotas, () => this.entry.update(this.getStatusbarEntry())));
 	}
 
-	private updateStatusbarEntry(): void {
-		this.entry.clear();
+	private getStatusbarEntry(): IStatusbarEntry {
+		let text: string;
+		let quotaExceeded = false;
 
 		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
 		if (chatQuotaExceeded || completionsQuotaExceeded) {
-			let text: string;
 			if (chatQuotaExceeded && !completionsQuotaExceeded) {
 				text = localize('chatQuotaExceededStatus', "Chat limit reached");
 			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
@@ -44,16 +44,21 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				text = localize('chatAndCompletionsQuotaExceededStatus', "Copilot limit reached");
 			}
 
-			this.entry.add(this.statusbarService.addEntry({
-				name: localize('indicator', "Copilot Limit Indicator"),
-				text: `$(copilot-warning) ${text}`,
-				ariaLabel: text,
-				command: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
-				showInAllWindows: true,
-				kind: 'copilot',
-				tooltip: quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded })
-			}, ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */));
+			text = `$(copilot-warning) ${text}`;
+			quotaExceeded = true;
+		} else {
+			text = '$(copilot)';
 		}
+
+		return {
+			name: localize('chatStatus', "Copilot Status"),
+			text,
+			ariaLabel: text,
+			command: quotaExceeded ? OPEN_CHAT_QUOTA_EXCEEDED_DIALOG : undefined,
+			showInAllWindows: true,
+			kind: 'copilot',
+			tooltip: quotaExceeded ? quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }) : undefined
+		};
 	}
 }
 
