@@ -867,8 +867,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = toDispose.add(new SimpleIconLabel(labelElementContainer));
-		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
-		toDispose.add(indicatorsLabel);
+		const indicatorsLabel = toDispose.add(this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement));
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
