@@ -1541,7 +1541,7 @@
 	},
 	{
 		"c": "?",
-		"t": "punctuation.delimiter keyword.operator.ternary",
+		"t": "keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1569,7 +1569,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.ternary",
+		"t": "keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1639,7 +1639,7 @@
 	},
 	{
 		"c": "?",
-		"t": "punctuation.delimiter keyword.operator.ternary",
+		"t": "keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1667,7 +1667,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.ternary",
+		"t": "keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1947,7 +1947,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.type.annotation",
+		"t": "keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2003,7 +2003,7 @@
 	},
 	{
 		"c": "string",
-		"t": "support.type support.type.primitive",
+		"t": "support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -2199,7 +2199,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "variable entity.name.function",
+		"t": "entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2381,7 +2381,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.type.annotation",
+		"t": "keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2437,7 +2437,7 @@
 	},
 	{
 		"c": "param",
-		"t": "variable variable.parameter",
+		"t": "variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2451,7 +2451,7 @@
 	},
 	{
 		"c": "?",
-		"t": "punctuation.delimiter keyword.operator.optional",
+		"t": "keyword.operator.optional",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2465,7 +2465,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.type.annotation",
+		"t": "keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2479,7 +2479,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type support.type.primitive",
+		"t": "support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -2521,7 +2521,7 @@
 	},
 	{
 		"c": "void",
-		"t": "support.type support.type.primitive",
+		"t": "support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -2619,7 +2619,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.type.annotation",
+		"t": "keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2675,7 +2675,7 @@
 	},
 	{
 		"c": "|",
-		"t": "keyword.operator keyword.operator.type",
+		"t": "keyword.operator.type",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2731,7 +2731,7 @@
 	},
 	{
 		"c": "&",
-		"t": "keyword.operator keyword.operator.type",
+		"t": "keyword.operator.type",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2913,7 +2913,7 @@
 	},
 	{
 		"c": "?",
-		"t": "punctuation.delimiter keyword.operator.ternary",
+		"t": "keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2941,7 +2941,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.ternary",
+		"t": "keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -3067,7 +3067,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "variable entity.name.function",
+		"t": "entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3095,7 +3095,7 @@
 	},
 	{
 		"c": "string",
-		"t": "support.type support.type.primitive",
+		"t": "support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
