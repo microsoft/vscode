@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { derived, derivedObservableWithCache, derivedWithStore, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, derived, derivedObservableWithCache, derivedWithStore, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
@@ -56,6 +57,22 @@ export class InlineEditsView extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._register(autorunWithStore((reader, store) => {
+			store.add(
+				Event.any(
+					this._sideBySide.onDidClick,
+					this._deletion.onDidClick,
+					this._lineReplacementView.onDidClick,
+					this._insertion.onDidClick,
+					...this._wordReplacementViews.read(reader).map(w => w.onDidClick),
+					this._inlineDiffView.onDidClick,
+				)(e => {
+					e.preventDefault();
+					this._host.accept();
+				})
+			);
+		}));
 	}
 
 	private readonly _uiState = derived<{
@@ -197,7 +214,7 @@ export class InlineEditsView extends Disposable {
 		};
 	});
 
-	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel, this._host));
+	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
 
 	protected readonly _wordReplacementViews = mapObservableArrayCached(this, this._uiState.map(s => s?.state?.kind === 'wordReplacements' ? s.state.replacements : []), (e, store) => {
 		return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, [e], this._host));
@@ -223,7 +240,6 @@ export class InlineEditsView extends Disposable {
 			|| this._inlineDiffView.isHovered.read(reader)
 			|| this._lineReplacementView.isHovered.read(reader)
 			|| this._insertion.isHovered.read(reader);
-
 	});
 
 	private readonly _gutterIndicatorOffset = derived<number>(this, reader => {

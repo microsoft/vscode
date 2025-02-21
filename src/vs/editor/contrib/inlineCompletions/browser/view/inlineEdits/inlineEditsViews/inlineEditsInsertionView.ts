@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, n } from '../../../../../../../base/browser/dom.js';
+import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedWithStore, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -27,6 +29,9 @@ import { createRectangle, getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs = observableCodeEditor(this._editor);
+
+	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _state = derived(this, reader => {
 		const state = this._input.read(reader);
@@ -107,8 +112,8 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 	) {
 		super();
 
-		this._register(this._ghostTextView.onDidClick(() => {
-			this._host.accept();
+		this._register(this._ghostTextView.onDidClick((e) => {
+			this._onDidClick.fire(e);
 		}));
 
 		this._register(this._editorObs.createOverlayWidget({
