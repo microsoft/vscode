@@ -43,12 +43,12 @@ export class DiffEditorViewZones extends Disposable {
 	private readonly _originalTopPadding = observableValue(this, 0);
 	private readonly _originalScrollTop: IObservable<number>;
 	private readonly _originalScrollOffset = observableValue<number, boolean>(this, 0);
-	private readonly _originalScrollOffsetAnimated = animatedObservable(this._targetWindow, this._originalScrollOffset, this._store);
+	private readonly _originalScrollOffsetAnimated: IObservable<number>;
 
 	private readonly _modifiedTopPadding = observableValue(this, 0);
 	private readonly _modifiedScrollTop: IObservable<number>;
 	private readonly _modifiedScrollOffset = observableValue<number, boolean>(this, 0);
-	private readonly _modifiedScrollOffsetAnimated = animatedObservable(this._targetWindow, this._modifiedScrollOffset, this._store);
+	private readonly _modifiedScrollOffsetAnimated: IObservable<number>;
 
 	public readonly viewZones: IObservable<{ orig: IObservableViewZone[]; mod: IObservableViewZone[] }>;
 
@@ -65,6 +65,10 @@ export class DiffEditorViewZones extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super();
+
+		this._originalScrollOffsetAnimated = animatedObservable(this._targetWindow, this._originalScrollOffset, this._store);
+
+		this._modifiedScrollOffsetAnimated = animatedObservable(this._targetWindow, this._modifiedScrollOffset, this._store);
 
 		const state = observableValue('invalidateAlignmentsState', 0);
 

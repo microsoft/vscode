@@ -25,7 +25,7 @@ const enum Constants {
 }
 
 export class TokenizerWithStateStore<TState extends IState = IState> {
-	private readonly initialState = this.tokenizationSupport.getInitialState() as TState;
+	private readonly initialState: TState;
 
 	public readonly store: TrackingTokenizationStateStore<TState>;
 
@@ -33,6 +33,7 @@ export class TokenizerWithStateStore<TState extends IState = IState> {
 		lineCount: number,
 		public readonly tokenizationSupport: ITokenizationSupport
 	) {
+		this.initialState = this.tokenizationSupport.getInitialState() as TState;
 		this.store = new TrackingTokenizationStateStore<TState>(lineCount);
 	}
 

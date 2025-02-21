@@ -240,17 +240,7 @@ function suggestItemInfoEquals(a: SuggestItemInfo | undefined, b: SuggestItemInf
 }
 
 export class ObservableSuggestWidgetAdapter extends Disposable {
-	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
-		this._editorObs.editor,
-		() => {
-			this._editorObs.forceUpdate();
-			return this._suggestControllerPreselector();
-		},
-		(item) => this._editorObs.forceUpdate(_tx => {
-			/** @description InlineCompletionsController.handleSuggestAccepted */
-			this._handleSuggestAccepted(item);
-		})
-	));
+	private readonly _suggestWidgetAdaptor: SuggestWidgetAdaptor;
 
 	public readonly selectedItem = observableFromEvent(this, cb => this._suggestWidgetAdaptor.onDidSelectedItemChange(() => {
 		this._editorObs.forceUpdate(_tx => cb(undefined));
@@ -263,6 +253,18 @@ export class ObservableSuggestWidgetAdapter extends Disposable {
 		private readonly _suggestControllerPreselector: () => SingleTextEdit | undefined,
 	) {
 		super();
+
+		this._suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
+			this._editorObs.editor,
+			() => {
+				this._editorObs.forceUpdate();
+				return this._suggestControllerPreselector();
+			},
+			(item) => this._editorObs.forceUpdate(_tx => {
+				/** @description InlineCompletionsController.handleSuggestAccepted */
+				this._handleSuggestAccepted(item);
+			})
+		));
 	}
 
 	public stopForceRenderingAbove(): void {

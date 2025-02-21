@@ -15,9 +15,10 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { realpath } from '../../../../../base/node/extpath.js';
 import { Promises } from '../../../../../base/node/pfs.js';
-import { FileChangeType, IFileChange } from '../../../common/files.js';
+import { FileChangeFilter, FileChangeType, IFileChange } from '../../../common/files.js';
 import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from '../../../common/watcher.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { ParsedPattern } from '../../../../../base/common/glob.js';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -50,9 +51,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	// to coalesce events and reduce spam.
 	private readonly fileChangesAggregator = this._register(new RunOnceWorker<IFileChange>(events => this.handleFileChanges(events), NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY));
 
-	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
-	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
-	private readonly filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
+	private readonly excludes: ParsedPattern[];
+	private readonly includes: ParsedPattern[] | undefined;
+	private readonly filter: FileChangeFilter | undefined;
 
 	private readonly cts = new CancellationTokenSource();
 
@@ -95,6 +96,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		private verboseLogging?: boolean
 	) {
 		super();
+
+		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
+		this.filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
 	}
 
 	private async watch(): Promise<void> {

@@ -99,7 +99,7 @@ class UtilityProcessWorker extends Disposable {
 	private readonly _onDidTerminate = this._register(new Emitter<IUtilityProcessWorkerProcessExit>());
 	readonly onDidTerminate = this._onDidTerminate.event;
 
-	private readonly utilityProcess = this._register(new WindowUtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService));
+	private readonly utilityProcess: WindowUtilityProcess;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -109,6 +109,8 @@ class UtilityProcessWorker extends Disposable {
 		private readonly configuration: IUtilityProcessWorkerCreateConfiguration
 	) {
 		super();
+
+		this.utilityProcess = this._register(new WindowUtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService));
 
 		this.registerListeners();
 	}

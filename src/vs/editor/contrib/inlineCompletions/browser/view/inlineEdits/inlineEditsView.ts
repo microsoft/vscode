@@ -10,7 +10,7 @@ import { autorunWithStore, derived, derivedObservableWithCache, derivedOpts, der
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -34,14 +34,14 @@ import { applyEditToModifiedRangeMappings, createReindentEdit, InlineEditTabActi
 import './view.css';
 
 export class InlineEditsView extends Disposable {
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor;
 
-	private readonly _useMixedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMixedLinesDiff);
-	private readonly _useInterleavedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useInterleavedLinesDiff);
-	private readonly _useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.codeShifting);
-	private readonly _renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
-	private readonly _showCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
-	private readonly _useMultiLineGhostText = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
+	private readonly _useMixedLinesDiff: IObservable<'never' | 'whenPossible' | 'forStableInsertions' | 'afterJumpWhenPossible'>;
+	private readonly _useInterleavedLinesDiff: IObservable<'always' | 'never' | 'afterJump'>;
+	private readonly _useCodeShifting: IObservable<boolean>;
+	private readonly _renderSideBySide: IObservable<'never' | 'auto'>;
+	private readonly _showCollapsed: IObservable<boolean>;
+	private readonly _useMultiLineGhostText: IObservable<boolean>;
 
 	private _previousView: {
 		id: string;
@@ -58,6 +58,99 @@ export class InlineEditsView extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._editorObs = observableCodeEditor(this._editor);
+
+		this._useMixedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMixedLinesDiff);
+		this._useInterleavedLinesDiff = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useInterleavedLinesDiff);
+		this._useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.codeShifting);
+		this._renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.renderSideBySide);
+		this._showCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+		this._useMultiLineGhostText = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.useMultiLineGhostText);
+
+		this._previewTextModel = this._register(this._instantiationService.createInstance(
+			TextModel,
+			'',
+			this._editor.getModel()!.getLanguageId(),
+			{ ...TextModel.DEFAULT_CREATION_OPTIONS, bracketPairColorizationOptions: { enabled: true, independentColorPoolPerBracketType: false } },
+			null
+		));
+
+		// TODO: This has become messy, should it be passed in to the InlineEditsView? Maybe include in accept flow?
+		this._host = {
+			displayName: derivedObservableWithCache<string>(this, (reader, previousDisplayName) => {
+				const state = this._model.read(reader)?.inlineEditState;
+				const item = state?.read(reader);
+				const completionSource = item?.inlineCompletion?.source;
+				// TODO: expose the provider (typed) and expose the provider the edit belongs to typing and get correct edit
+				return (completionSource?.inlineCompletions as any)?.edits?.[0]?.provider?.displayName ?? previousDisplayName
+					?? completionSource?.provider.displayName ?? localize('inlineEdit', "Inline Edit");
+			}),
+			tabAction: derived<InlineEditTabAction>(this, reader => {
+				const m = this._model.read(reader);
+				if (this._editorObs.isFocused.read(reader)) {
+					if (m && m.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
+					if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
+					if (m && m.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.showInlineEditMenu) { return InlineEditTabAction.Accept; }
+				}
+				return InlineEditTabAction.Inactive;
+			}),
+			action: this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.inlineCompletion.action),
+			extensionCommands: this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.source.inlineCompletions.commands ?? []),
+			accept: () => {
+				this._model.get()?.accept();
+			},
+			jump: () => {
+				this._model.get()?.jump();
+			}
+		};
+
+		this._useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useGutterIndicator);
+
+		this._sideBySide = this._register(this._instantiationService.createInstance(InlineEditsSideBySideView,
+			this._editor,
+			this._edit,
+			this._previewTextModel,
+			this._uiState.map(s => s && s.state?.kind === 'sideBySide' ? ({
+				edit: s.edit,
+				newTextLineCount: s.newTextLineCount,
+				originalDisplayRange: s.originalDisplayRange,
+			}) : undefined),
+			this._host,
+		));
+
+		this._deletion = this._register(this._instantiationService.createInstance(InlineEditsDeletionView,
+			this._editor,
+			this._edit,
+			this._uiState.map(s => s && s.state?.kind === 'deletion' ? ({
+				originalRange: s.state.originalRange,
+				deletions: s.state.deletions,
+			}) : undefined),
+			this._host,
+		));
+
+		this._insertion = this._register(this._instantiationService.createInstance(InlineEditsInsertionView,
+			this._editor,
+			this._uiState.map(s => s && s.state?.kind === 'insertionMultiLine' ? ({
+				lineNumber: s.state.lineNumber,
+				startColumn: s.state.column,
+				text: s.state.text,
+			}) : undefined),
+			this._host,
+		));
+
+		this._inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
+
+		this._lineReplacementView = this._register(this._instantiationService.createInstance(InlineEditsLineReplacementView,
+			this._editorObs,
+			this._uiState.map(s => s?.state?.kind === 'lineReplacement' ? ({
+				originalRange: s.state.originalRange,
+				modifiedRange: s.state.modifiedRange,
+				modifiedLines: s.state.modifiedLines,
+				replacements: s.state.replacements,
+			}) : undefined),
+			this._host
+		));
 
 		this._register(autorunWithStore((reader, store) => {
 			store.add(
@@ -142,44 +235,11 @@ export class InlineEditsView extends Disposable {
 		};
 	});
 
-	private readonly _previewTextModel = this._register(this._instantiationService.createInstance(
-		TextModel,
-		'',
-		this._editor.getModel()!.getLanguageId(),
-		{ ...TextModel.DEFAULT_CREATION_OPTIONS, bracketPairColorizationOptions: { enabled: true, independentColorPoolPerBracketType: false } },
-		null
-	));
+	private readonly _previewTextModel: TextModel;
 
-	// TODO: This has become messy, should it be passed in to the InlineEditsView? Maybe include in accept flow?
-	private readonly _host: IInlineEditsViewHost = {
-		displayName: derivedObservableWithCache<string>(this, (reader, previousDisplayName) => {
-			const state = this._model.read(reader)?.inlineEditState;
-			const item = state?.read(reader);
-			const completionSource = item?.inlineCompletion?.source;
-			// TODO: expose the provider (typed) and expose the provider the edit belongs to typing and get correct edit
-			return (completionSource?.inlineCompletions as any)?.edits?.[0]?.provider?.displayName ?? previousDisplayName
-				?? completionSource?.provider.displayName ?? localize('inlineEdit', "Inline Edit");
-		}),
-		tabAction: derived<InlineEditTabAction>(this, reader => {
-			const m = this._model.read(reader);
-			if (this._editorObs.isFocused.read(reader)) {
-				if (m && m.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
-				if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
-				if (m && m.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.showInlineEditMenu) { return InlineEditTabAction.Accept; }
-			}
-			return InlineEditTabAction.Inactive;
-		}),
-		action: this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.inlineCompletion.action),
-		extensionCommands: this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.source.inlineCompletions.commands ?? []),
-		accept: () => {
-			this._model.get()?.accept();
-		},
-		jump: () => {
-			this._model.get()?.jump();
-		}
-	};
+	private readonly _host: IInlineEditsViewHost;
 
-	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useGutterIndicator);
+	private readonly _useGutterIndicator: IObservable<boolean>;
 
 	private readonly _indicatorCyclicDependencyCircuitBreaker = observableValue(this, false);
 
@@ -243,39 +303,13 @@ export class InlineEditsView extends Disposable {
 		return 0;
 	});
 
-	private readonly _sideBySide = this._register(this._instantiationService.createInstance(InlineEditsSideBySideView,
-		this._editor,
-		this._edit,
-		this._previewTextModel,
-		this._uiState.map(s => s && s.state?.kind === 'sideBySide' ? ({
-			edit: s.edit,
-			newTextLineCount: s.newTextLineCount,
-			originalDisplayRange: s.originalDisplayRange,
-		}) : undefined),
-		this._host,
-	));
+	private readonly _sideBySide: InlineEditsSideBySideView;
 
-	protected readonly _deletion = this._register(this._instantiationService.createInstance(InlineEditsDeletionView,
-		this._editor,
-		this._edit,
-		this._uiState.map(s => s && s.state?.kind === 'deletion' ? ({
-			originalRange: s.state.originalRange,
-			deletions: s.state.deletions,
-		}) : undefined),
-		this._host,
-	));
+	protected readonly _deletion: InlineEditsDeletionView;
 
-	protected readonly _insertion = this._register(this._instantiationService.createInstance(InlineEditsInsertionView,
-		this._editor,
-		this._uiState.map(s => s && s.state?.kind === 'insertionMultiLine' ? ({
-			lineNumber: s.state.lineNumber,
-			startColumn: s.state.column,
-			text: s.state.text,
-		}) : undefined),
-		this._host,
-	));
+	protected readonly _insertion: InlineEditsInsertionView;
 
-	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
+	private readonly _inlineDiffViewState: IObservable<IOriginalEditorInlineDiffViewState | undefined> = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 		const e = this._uiState.read(reader);
 		if (!e || !e.state) { return undefined; }
 		if (e.state.kind === 'wordReplacements' || e.state.kind === 'lineReplacement' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'hidden') {
@@ -289,22 +323,13 @@ export class InlineEditsView extends Disposable {
 		};
 	});
 
-	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
+	protected readonly _inlineDiffView: OriginalEditorInlineDiffView;
 
 	protected readonly _wordReplacementViews = mapObservableArrayCached(this, this._uiState.map(s => s?.state?.kind === 'wordReplacements' ? s.state.replacements : []), (e, store) => {
 		return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, [e], this._host));
 	});
 
-	protected readonly _lineReplacementView = this._register(this._instantiationService.createInstance(InlineEditsLineReplacementView,
-		this._editorObs,
-		this._uiState.map(s => s?.state?.kind === 'lineReplacement' ? ({
-			originalRange: s.state.originalRange,
-			modifiedRange: s.state.modifiedRange,
-			modifiedLines: s.state.modifiedLines,
-			replacements: s.state.replacements,
-		}) : undefined),
-		this._host
-	));
+	protected readonly _lineReplacementView: InlineEditsLineReplacementView;
 
 	private getCacheId(edit: InlineEditWithChanges) {
 		if (this._model.get()?.inAcceptPartialFlow.get()) {

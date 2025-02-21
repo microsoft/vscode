@@ -8,7 +8,7 @@ import { getStructuralKey } from '../../../base/common/equals.js';
 import { Event, IValueWithChangeEvent } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
-import { derived, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../base/common/observable.js';
+import { derived, IObservable, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -66,10 +66,7 @@ export interface IAccessbilitySignalOptions {
 export class AccessibilitySignalService extends Disposable implements IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	private readonly sounds: Map<string, HTMLAudioElement> = new Map();
-	private readonly screenReaderAttached = observableFromEvent(this,
-		this.accessibilityService.onDidChangeScreenReaderOptimized,
-		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
-	);
+	private readonly screenReaderAttached: IObservable<boolean>;
 	private readonly sentTelemetry = new Set<string>();
 
 	constructor(
@@ -78,6 +75,33 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+
+		this.screenReaderAttached = observableFromEvent(this,
+			this.accessibilityService.onDidChangeScreenReaderOptimized,
+			() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
+		);
+
+		this._signalEnabledState = new CachedFunction(
+			{ getCacheKey: getStructuralKey },
+			(arg: { signal: AccessibilitySignal; userGesture: boolean; modality?: AccessibilityModality | undefined }) => {
+				return derived(reader => {
+					/** @description sound enabled */
+					const setting = this._signalConfigValue.get(arg.signal).read(reader);
+
+					if (arg.modality === 'sound' || arg.modality === undefined) {
+						if (checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+							return true;
+						}
+					}
+					if (arg.modality === 'announcement' || arg.modality === undefined) {
+						if (checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+							return true;
+						}
+					}
+					return false;
+				}).recomputeInitiallyAndOnChange(this._store);
+			}
+		);
 	}
 
 	public getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean> {
@@ -203,27 +227,11 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 		announcement: EnabledState;
 	}>(signal.settingsKey, { sound: 'off', announcement: 'off' }, this.configurationService));
 
-	private readonly _signalEnabledState = new CachedFunction(
-		{ getCacheKey: getStructuralKey },
-		(arg: { signal: AccessibilitySignal; userGesture: boolean; modality?: AccessibilityModality | undefined }) => {
-			return derived(reader => {
-				/** @description sound enabled */
-				const setting = this._signalConfigValue.get(arg.signal).read(reader);
-
-				if (arg.modality === 'sound' || arg.modality === undefined) {
-					if (checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-						return true;
-					}
-				}
-				if (arg.modality === 'announcement' || arg.modality === undefined) {
-					if (checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-						return true;
-					}
-				}
-				return false;
-			}).recomputeInitiallyAndOnChange(this._store);
-		}
-	);
+	private readonly _signalEnabledState: CachedFunction<{
+		signal: AccessibilitySignal;
+		userGesture: boolean;
+		modality?: AccessibilityModality | undefined;
+	}, IObservable<boolean>>;
 
 	public isAnnouncementEnabled(signal: AccessibilitySignal, userGesture?: boolean): boolean {
 		if (!signal.announcementMessage) {

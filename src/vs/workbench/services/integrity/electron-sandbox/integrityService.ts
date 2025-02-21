@@ -59,7 +59,7 @@ export class IntegrityService implements IIntegrityService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _storage = new IntegrityStorage(this.storageService);
+	private readonly _storage: IntegrityStorage;
 
 	private readonly _isPurePromise = this._isPure();
 	isPure(): Promise<IntegrityTestResult> {
@@ -75,6 +75,8 @@ export class IntegrityService implements IIntegrityService {
 		@IChecksumService private readonly checksumService: IChecksumService,
 		@ILogService private readonly logService: ILogService
 	) {
+		this._storage = new IntegrityStorage(this.storageService);
+
 		this._compute();
 	}
 

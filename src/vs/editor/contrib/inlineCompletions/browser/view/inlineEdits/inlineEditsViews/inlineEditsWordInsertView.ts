@@ -23,7 +23,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
 
-	private readonly _start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
+	private readonly _start: IObservable<Point | null>;
 
 	private readonly _layout = derived(this, reader => {
 		const start = this._start.read(reader);
@@ -124,6 +124,8 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 		private readonly _tabAction: IObservable<InlineEditTabAction>
 	) {
 		super();
+
+		this._start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
 
 		this._register(this._editor.createOverlayWidget({
 			domNode: this._div.element,

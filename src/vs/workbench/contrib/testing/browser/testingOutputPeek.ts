@@ -117,11 +117,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	private lastUri?: TestUriWithDocument;
 
 	/** @inheritdoc */
-	public readonly historyVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'testHistoryVisibleInPeek',
-		scope: StorageScope.PROFILE,
-		target: StorageTarget.USER,
-	}, this.storageService), false));
+	public readonly historyVisible: MutableObservableValue<boolean>;
 
 	constructor(
 		@IConfigurationService private readonly configuration: IConfigurationService,
@@ -135,6 +131,13 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
+
+		this.historyVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
+			key: 'testHistoryVisibleInPeek',
+			scope: StorageScope.PROFILE,
+			target: StorageTarget.USER,
+		}, this.storageService), false));
+
 		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
 	}
 

@@ -11,15 +11,18 @@ import { CodeEditorWidget } from '../../../../browser/widget/codeEditor/codeEdit
 import { IRecordableEditorLogEntry, StructuredLogger } from './inlineCompletionsSource.js';
 
 export class TextModelChangeRecorder extends Disposable {
-	private readonly _structuredLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<IRecordableEditorLogEntry & { source: string }>(),
-		'editor.inlineSuggest.logChangeReason.commandId'
-	));
+	private readonly _structuredLogger: StructuredLogger<IRecordableEditorLogEntry & { source: string }>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._structuredLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<IRecordableEditorLogEntry & { source: string }>(),
+			'editor.inlineSuggest.logChangeReason.commandId'
+		));
+
 		this._register(autorunWithStore((reader, store) => {
 			if (!(this._editor instanceof CodeEditorWidget)) { return; }
 			if (!this._structuredLogger.isEnabled.read(reader)) { return; }

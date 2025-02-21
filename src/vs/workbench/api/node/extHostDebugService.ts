@@ -31,7 +31,7 @@ import { IExtHostTerminalShellIntegration } from '../common/extHostTerminalShell
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
-	override readonly _serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _integratedTerminalInstances = new DebugTerminalCollection();
 	private _terminalDisposedListener: IDisposable | undefined;

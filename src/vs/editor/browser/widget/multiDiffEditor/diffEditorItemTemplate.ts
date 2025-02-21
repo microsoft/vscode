@@ -6,7 +6,7 @@ import { h } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, globalTransaction, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, autorun, derived, globalTransaction, observableValue } from '../../../../base/common/observable.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -20,7 +20,7 @@ import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel.js';
 import { IObjectData, IPooledObject } from './objectPool.js';
 import { ActionRunnerWithContext } from './utils.js';
-import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
+import { IResourceLabel, IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -78,21 +78,14 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		])
 	]) as Record<string, HTMLElement>;
 
-	public readonly editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
-		overflowWidgetsDomNode: this._overflowWidgetsDomNode,
-	}, {}));
+	public readonly editor: DiffEditorWidget;
 
-	private readonly isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
-	private readonly isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
-	public readonly isFocused = derived(this, reader => this.isModifedFocused.read(reader) || this.isOriginalFocused.read(reader));
+	private readonly isModifedFocused: IObservable<boolean>;
+	private readonly isOriginalFocused: IObservable<boolean>;
+	public readonly isFocused: IObservable<boolean>;
 
-	private readonly _resourceLabel = this._workbenchUIElementFactory.createResourceLabel
-		? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.primaryPath))
-		: undefined;
-
-	private readonly _resourceLabel2 = this._workbenchUIElementFactory.createResourceLabel
-		? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath))
-		: undefined;
+	private readonly _resourceLabel: IResourceLabel | undefined;
+	private readonly _resourceLabel2: IResourceLabel | undefined;
 
 	private readonly _outerEditorHeight: number;
 	private readonly _contextKeyService: IScopedContextKeyService;
@@ -105,6 +98,21 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		@IContextKeyService _parentContextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this.editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
+			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
+		}, {}));
+
+		this.isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
+		this.isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
+		this.isFocused = derived(this, reader => this.isModifedFocused.read(reader) || this.isOriginalFocused.read(reader));
+
+		this._resourceLabel = this._workbenchUIElementFactory.createResourceLabel
+			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.primaryPath))
+			: undefined;
+		this._resourceLabel2 = this._workbenchUIElementFactory.createResourceLabel
+			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath))
+			: undefined;
 
 		const btn = new Button(this._elements.collapseButton, {});
 

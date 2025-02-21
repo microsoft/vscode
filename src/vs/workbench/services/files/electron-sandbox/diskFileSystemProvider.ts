@@ -32,7 +32,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileCloneCapability {
 
-	private readonly provider = this._register(new DiskFileSystemProviderClient(this.mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux, trash: true }));
+	private readonly provider: DiskFileSystemProviderClient;
 
 	constructor(
 		private readonly mainProcessService: IMainProcessService,
@@ -41,6 +41,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		private readonly loggerService: ILoggerService
 	) {
 		super(logService, { watcher: { forceUniversal: true /* send all requests to universal watcher process */ } });
+
+		this.provider = this._register(new DiskFileSystemProviderClient(this.mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux, trash: true }));
 
 		this.registerListeners();
 	}

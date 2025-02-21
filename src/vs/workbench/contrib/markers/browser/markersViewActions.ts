@@ -9,7 +9,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import Messages from './messages.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Marker } from './markersModel.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -42,6 +42,12 @@ export class MarkersFilters extends Disposable {
 	constructor(options: IMarkersFiltersOptions, private readonly contextKeyService: IContextKeyService) {
 		super();
 
+		this._excludedFiles = MarkersContextKeys.ShowExcludedFilesFilterContextKey.bindTo(this.contextKeyService);
+		this._activeFile = MarkersContextKeys.ShowActiveFileFilterContextKey.bindTo(this.contextKeyService);
+		this._showWarnings = MarkersContextKeys.ShowWarningsFilterContextKey.bindTo(this.contextKeyService);
+		this._showErrors = MarkersContextKeys.ShowErrorsFilterContextKey.bindTo(this.contextKeyService);
+		this._showInfos = MarkersContextKeys.ShowInfoFilterContextKey.bindTo(this.contextKeyService);
+
 		this._showErrors.set(options.showErrors);
 		this._showWarnings.set(options.showWarnings);
 		this._showInfos.set(options.showInfos);
@@ -52,7 +58,7 @@ export class MarkersFilters extends Disposable {
 
 	filterHistory: string[];
 
-	private readonly _excludedFiles = MarkersContextKeys.ShowExcludedFilesFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _excludedFiles: IContextKey<boolean>;
 	get excludedFiles(): boolean {
 		return !!this._excludedFiles.get();
 	}
@@ -63,7 +69,7 @@ export class MarkersFilters extends Disposable {
 		}
 	}
 
-	private readonly _activeFile = MarkersContextKeys.ShowActiveFileFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _activeFile: IContextKey<boolean>;
 	get activeFile(): boolean {
 		return !!this._activeFile.get();
 	}
@@ -74,7 +80,7 @@ export class MarkersFilters extends Disposable {
 		}
 	}
 
-	private readonly _showWarnings = MarkersContextKeys.ShowWarningsFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _showWarnings: IContextKey<boolean>;
 	get showWarnings(): boolean {
 		return !!this._showWarnings.get();
 	}
@@ -85,7 +91,7 @@ export class MarkersFilters extends Disposable {
 		}
 	}
 
-	private readonly _showErrors = MarkersContextKeys.ShowErrorsFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _showErrors: IContextKey<boolean>;
 	get showErrors(): boolean {
 		return !!this._showErrors.get();
 	}
@@ -96,7 +102,7 @@ export class MarkersFilters extends Disposable {
 		}
 	}
 
-	private readonly _showInfos = MarkersContextKeys.ShowInfoFilterContextKey.bindTo(this.contextKeyService);
+	private readonly _showInfos: IContextKey<boolean>;
 	get showInfos(): boolean {
 		return !!this._showInfos.get();
 	}

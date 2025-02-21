@@ -17,14 +17,14 @@ import { Disposable, DisposableStore, dispose } from '../../../base/common/lifec
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus } from '../common/quickInput.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey, QuickInputAlignmentContextKey } from './quickInput.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { QuickInputTree } from './quickInputTree.js';
-import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
@@ -75,9 +75,9 @@ export class QuickInputController extends Disposable {
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
 
-	private readonly inQuickInputContext = InQuickInputContextKey.bindTo(this.contextKeyService);
-	private readonly quickInputTypeContext = QuickInputTypeContextKey.bindTo(this.contextKeyService);
-	private readonly endOfQuickInputBoxContext = EndOfQuickInputBoxContextKey.bindTo(this.contextKeyService);
+	private readonly inQuickInputContext: IContextKey<boolean>;
+	private readonly quickInputTypeContext: IContextKey<QuickInputType>;
+	private readonly endOfQuickInputBoxContext: IContextKey<boolean>;
 
 	constructor(
 		private options: IQuickInputOptions,
@@ -102,6 +102,9 @@ export class QuickInputController extends Disposable {
 			}
 		}));
 		this.viewState = this.loadViewState();
+		this.inQuickInputContext = InQuickInputContextKey.bindTo(this.contextKeyService);
+		this.quickInputTypeContext = QuickInputTypeContextKey.bindTo(this.contextKeyService);
+		this.endOfQuickInputBoxContext = EndOfQuickInputBoxContextKey.bindTo(this.contextKeyService);
 	}
 
 	private registerKeyModsListeners(window: Window, disposables: DisposableStore): void {
@@ -911,7 +914,7 @@ class QuickInputDragAndDropController extends Disposable {
 	private readonly _controlsOnLeft: boolean;
 	private readonly _controlsOnRight: boolean;
 
-	private _quickInputAlignmentContext = QuickInputAlignmentContextKey.bindTo(this._contextKeyService);
+	private _quickInputAlignmentContext: IContextKey<'top' | 'center' | undefined>;
 
 	constructor(
 		private _container: HTMLElement,
@@ -929,6 +932,7 @@ class QuickInputDragAndDropController extends Disposable {
 		// Use CSS calculations to avoid having to force layout with `.clientWidth`
 		this._controlsOnLeft = customTitleBar && platform === Platform.Mac;
 		this._controlsOnRight = customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
+		this._quickInputAlignmentContext = QuickInputAlignmentContextKey.bindTo(this._contextKeyService);
 		this._registerLayoutListener();
 		this.registerMouseListeners();
 		this.dndViewState.set({ ...initialViewState, done: true }, undefined);

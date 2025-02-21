@@ -42,14 +42,12 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly inlineCompletions = this._register(disposableObservableValue<UpToDateInlineCompletions | undefined>('inlineCompletions', undefined));
 	public readonly suggestWidgetInlineCompletions = this._register(disposableObservableValue<UpToDateInlineCompletions | undefined>('suggestWidgetInlineCompletions', undefined));
 
-	private readonly _loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
+	private readonly _loggingEnabled: IObservable<boolean>;
 
-	private readonly _structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
+	private readonly _structuredFetchLogger: StructuredLogger<
 		{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
 		| { kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
-	>(),
-		'editor.inlineSuggest.logFetch.commandId'
-	));
+	>;
 
 	constructor(
 		private readonly _textModel: ITextModel,
@@ -62,6 +60,15 @@ export class InlineCompletionsSource extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
+
+		this._structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
+			{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
+			| { kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
+		>(),
+			'editor.inlineSuggest.logFetch.commandId'
+		));
 
 		this._register(this._textModel.onDidChangeContent((e) => {
 			this._updateOperation.clear();
@@ -308,11 +315,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 }
 
 export class InlineCompletionWithUpdatedRange extends Disposable {
-	public readonly semanticId = JSON.stringify([
-		this.inlineCompletion.filterText,
-		this.inlineCompletion.insertText,
-		this.inlineCompletion.range.getStartPosition().toString()
-	]);
+	public readonly semanticId: string;
 
 	public get forwardStable() {
 		return this.source.inlineCompletions.enableForwardStability ?? false;
@@ -346,6 +349,12 @@ export class InlineCompletionWithUpdatedRange extends Disposable {
 		public readonly request: UpdateRequest,
 	) {
 		super();
+
+		this.semanticId = JSON.stringify([
+			this.inlineCompletion.filterText,
+			this.inlineCompletion.insertText,
+			this.inlineCompletion.range.getStartPosition().toString()
+		]);
 
 		this._updatedEdit = this._register(this._toUpdatedEdit(updatedRange ?? this.inlineCompletion.range, this.inlineCompletion.insertText));
 	}
@@ -759,7 +768,7 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 		return this as typeof StructuredLogger<T>;
 	}
 
-	private readonly _contextKeyValue = observableContextKey<string>(this._contextKey, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
+	private readonly _contextKeyValue: IObservable<string | undefined>;
 
 	constructor(
 		private readonly _contextKey: string,
@@ -767,9 +776,13 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
+
+		this._contextKeyValue = observableContextKey<string>(this._contextKey, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
+
+		this.isEnabled = this._contextKeyValue.map(v => v !== undefined);
 	}
 
-	public readonly isEnabled = this._contextKeyValue.map(v => v !== undefined);
+	public readonly isEnabled: IObservable<boolean>;
 
 	public log(data: T): boolean {
 		const commandId = this._contextKeyValue.get();

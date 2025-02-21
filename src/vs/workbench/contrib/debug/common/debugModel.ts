@@ -744,10 +744,13 @@ export class MemoryRegion extends Disposable implements IMemoryRegion {
 	public readonly onDidInvalidate = this.invalidateEmitter.event;
 
 	/** @inheritdoc */
-	public readonly writable = !!this.session.capabilities.supportsWriteMemoryRequest;
+	public readonly writable: boolean;
 
 	constructor(private readonly memoryReference: string, private readonly session: IDebugSession) {
 		super();
+
+		this.writable = !!this.session.capabilities.supportsWriteMemoryRequest;
+
 		this._register(session.onDidInvalidateMemory(e => {
 			if (e.body.memoryReference === memoryReference) {
 				this.invalidate(e.body.offset, e.body.count - e.body.offset);

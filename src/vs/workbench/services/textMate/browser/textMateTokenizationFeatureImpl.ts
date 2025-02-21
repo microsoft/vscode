@@ -55,11 +55,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	private readonly _tokenizersRegistrations = new DisposableStore();
 	private _currentTheme: IRawTheme | null = null;
 	private _currentTokenColorMap: string[] | null = null;
-	private readonly _threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
-		ThreadedBackgroundTokenizerFactory,
-		(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample),
-		() => this.getAsyncTokenizationEnabled(),
-	);
+	private readonly _threadedBackgroundTokenizerFactory: ThreadedBackgroundTokenizerFactory;
 
 	constructor(
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -77,6 +73,12 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 		this._styleElement = domStylesheets.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
+
+		this._threadedBackgroundTokenizerFactory = this._instantiationService.createInstance(
+			ThreadedBackgroundTokenizerFactory,
+			(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample) => this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, true, isRandomSample),
+			() => this.getAsyncTokenizationEnabled(),
+		);
 
 		grammarsExtPoint.setHandler((extensions) => this._handleGrammarsExtPoint(extensions));
 

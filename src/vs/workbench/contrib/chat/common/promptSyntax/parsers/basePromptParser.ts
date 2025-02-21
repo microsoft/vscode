@@ -11,7 +11,7 @@ import { assert } from '../../../../../../base/common/assert.js';
 import { IPromptFileReference, IResolveError } from './types.js';
 import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
-import { IRange } from '../../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { IPromptContentsProvider } from '../contentProviders/types.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
@@ -552,9 +552,9 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 export class PromptFileReference extends BasePromptParser<FilePromptContentProvider> implements IPromptFileReference {
 	public readonly type = 'file';
 
-	public readonly range = this.token.range;
-	public readonly path: string = this.token.path;
-	public readonly text: string = this.token.text;
+	public readonly range: Range;
+	public readonly path: string;
+	public readonly text: string;
 
 	constructor(
 		public readonly token: FileReference | MarkdownLink,
@@ -567,6 +567,10 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 		const provider = initService.createInstance(FilePromptContentProvider, fileUri);
 
 		super(provider, seenReferences, initService, logService);
+
+		this.range = this.token.range;
+		this.path = this.token.path;
+		this.text = this.token.text;
 	}
 
 	/**

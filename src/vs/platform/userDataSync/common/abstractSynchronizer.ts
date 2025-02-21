@@ -145,13 +145,13 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
 	protected readonly lastSyncResource: URI;
-	private readonly lastSyncUserDataStateKey = `${this.collection ? `${this.collection}.` : ''}${this.syncResource.syncResource}.lastSyncUserData`;
+	private readonly lastSyncUserDataStateKey: string;
 	private hasSyncResourceStateVersionChanged: boolean = false;
 	protected readonly syncResourceLogLabel: string;
 
 	protected syncHeaders: IHeaders = {};
 
-	readonly resource = this.syncResource.syncResource;
+	readonly resource: SyncResource;
 
 	constructor(
 		readonly syncResource: IUserDataSyncResource,
@@ -173,6 +173,9 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		this.syncFolder = this.extUri.joinPath(environmentService.userDataSyncHome, ...getPathSegments(syncResource.profile.isDefault ? undefined : syncResource.profile.id, syncResource.syncResource));
 		this.syncPreviewFolder = this.extUri.joinPath(this.syncFolder, PREVIEW_DIR_NAME);
 		this.lastSyncResource = getLastSyncResourceUri(syncResource.profile.isDefault ? undefined : syncResource.profile.id, syncResource.syncResource, environmentService, this.extUri);
+		this.lastSyncUserDataStateKey = `${this.collection ? `${this.collection}.` : ''}${this.syncResource.syncResource}.lastSyncUserData`;
+		this.resource = this.syncResource.syncResource;
+
 		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
 	}
 

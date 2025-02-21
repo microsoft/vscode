@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.js';
-import { IReader } from '../../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { RangeMapping as DiffRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
@@ -23,14 +23,15 @@ export interface IMergeDiffComputerResult {
 }
 
 export class MergeDiffComputer implements IMergeDiffComputer {
-	private readonly mergeAlgorithm = observableConfigValue<'smart' | 'experimental' | 'legacy' | 'advanced'>(
-		'mergeEditor.diffAlgorithm', 'advanced', this.configurationService)
-		.map(v => v === 'smart' ? 'legacy' : v === 'experimental' ? 'advanced' : v);
+	private readonly mergeAlgorithm: IObservable<'legacy' | 'advanced'>;
 
 	constructor(
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
+		this.mergeAlgorithm = observableConfigValue<'smart' | 'experimental' | 'legacy' | 'advanced'>(
+			'mergeEditor.diffAlgorithm', 'advanced', this.configurationService)
+			.map(v => v === 'smart' ? 'legacy' : v === 'experimental' ? 'advanced' : v);
 	}
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {

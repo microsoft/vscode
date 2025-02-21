@@ -27,7 +27,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private static readonly backupWorkspacesMetadataStorageKey = 'backupWorkspaces';
 
-	protected backupHome = this.environmentMainService.backupHome;
+	protected backupHome: string;
 
 	private workspaces: IWorkspaceBackupInfo[] = [];
 	private folders: IFolderBackupInfo[] = [];
@@ -45,6 +45,7 @@ export class BackupMainService implements IBackupMainService {
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService
 	) {
+		this.backupHome = this.environmentMainService.backupHome;
 	}
 
 	async initialize(): Promise<void> {

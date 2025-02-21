@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, getWindow, n } from '../../../../../../../base/browser/dom.js';
+import { $, getWindow, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Color } from '../../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Rect } from '../../../../../../browser/rect.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -21,7 +21,7 @@ import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
 import { ITextModel } from '../../../../../../common/model.js';
-import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
+import { IStickyScrollController, StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
 import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
@@ -50,7 +50,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		return maxOriginalContent + maxModifiedContent + editorsPadding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
 	}
 
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor;
 
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
@@ -69,6 +69,79 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
+
+		this._editorObs = observableCodeEditor(this._editor);
+
+		this._editorContainer = n.div({
+			class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.useGutterIndicator && 'showHover')],
+			style: { position: 'absolute', overflow: 'hidden', cursor: 'pointer' },
+			onclick: (e) => {
+				this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
+			}
+		}, [
+			n.div({ class: 'preview', style: { pointerEvents: 'none' }, ref: this.previewRef }),
+		]).keepUpdated(this._store);
+
+		this.isHovered = this._editorContainer.didMouseMoveDuringHover;
+
+		this.previewEditor = this._register(this._instantiationService.createInstance(
+			EmbeddedCodeEditorWidget,
+			this.previewRef.element,
+			{
+				glyphMargin: false,
+				lineNumbers: 'off',
+				minimap: { enabled: false },
+				guides: {
+					indentation: false,
+					bracketPairs: false,
+					bracketPairsHorizontal: false,
+					highlightActiveIndentation: false,
+				},
+				rulers: [],
+				padding: { top: 0, bottom: 0 },
+				folding: false,
+				selectOnLineNumbers: false,
+				selectionHighlight: false,
+				columnSelection: false,
+				overviewRulerBorder: false,
+				overviewRulerLanes: 0,
+				lineDecorationsWidth: 0,
+				lineNumbersMinChars: 0,
+				revealHorizontalRightPadding: 0,
+				bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
+				scrollBeyondLastLine: false,
+				scrollbar: {
+					vertical: 'hidden',
+					horizontal: 'hidden',
+					handleMouseWheel: false,
+				},
+				readOnly: true,
+				wordWrap: 'off',
+				wordWrapOverride1: 'off',
+				wordWrapOverride2: 'off',
+			},
+			{
+				contextKeyValues: {
+					[InlineCompletionContextKeys.inInlineEditsPreviewEditor.key]: true,
+				},
+				contributions: [],
+			},
+			this._editor
+		));
+
+		this._previewEditorObs = observableCodeEditor(this.previewEditor);
+
+		this._originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
+		this._originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
+
+		this._originalDisplayRange = this._uiState.map(s => s?.originalDisplayRange);
+
+		this._stickyScrollController = StickyScrollController.get(this._editorObs.editor);
+		this._stickyScrollHeight = this._stickyScrollController ? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight) : constObservable(0);
+
+		this._originalBackgroundColor = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => {
+			return this._themeService.getColorTheme().getColor(originalBackgroundColor) ?? Color.transparent;
+		});
 
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._overflowView.element,
@@ -94,6 +167,59 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		}));
 
 		this.previewEditor.setModel(this._previewTextModel);
+
+		this._updatePreviewEditor = derived(reader => {
+			this._editorContainer.readEffect(reader);
+			this._previewEditorObs.model.read(reader); // update when the model is set
+
+			// Setting this here explicitly to make sure that the preview editor is
+			// visible when needed, we're also checking that these fields are defined
+			// because of the auto run initial
+			// Before removing these, verify with a non-monospace font family
+			this._display.read(reader);
+			if (this._overflowView) {
+				this._overflowView.element.style.display = this._display.read(reader);
+			}
+			if (this._nonOverflowView) {
+				this._nonOverflowView.element.style.display = this._display.read(reader);
+			}
+
+			const uiState = this._uiState.read(reader);
+			if (!uiState) {
+				return;
+			}
+
+			const range = uiState.edit.originalLineRange;
+
+			const hiddenAreas: Range[] = [];
+			if (range.startLineNumber > 1) {
+				hiddenAreas.push(new Range(1, 1, range.startLineNumber - 1, 1));
+			}
+			if (range.startLineNumber + uiState.newTextLineCount < this._previewTextModel.getLineCount() + 1) {
+				hiddenAreas.push(new Range(range.startLineNumber + uiState.newTextLineCount, 1, this._previewTextModel.getLineCount() + 1, 1));
+			}
+
+			this.previewEditor.setHiddenAreas(hiddenAreas, undefined, true);
+
+			// TODO: is this the proper way to handle viewzones?
+			const previousViewZones = [...this._activeViewZones];
+			this._activeViewZones = [];
+
+			const reducedLinesCount = (range.endLineNumberExclusive - range.startLineNumber) - uiState.newTextLineCount;
+			this.previewEditor.changeViewZones((changeAccessor) => {
+				previousViewZones.forEach(id => changeAccessor.removeZone(id));
+
+				if (reducedLinesCount > 0) {
+					this._activeViewZones.push(changeAccessor.addZone({
+						afterLineNumber: range.startLineNumber + uiState.newTextLineCount - 1,
+						heightInLines: reducedLinesCount,
+						showInHiddenAreas: true,
+						domNode: $('div.diagonal-fill.inline-edits-view-zone'),
+					}));
+				}
+			});
+
+		}).recomputeInitiallyAndOnChange(this._store);
 
 		this._register(autorun(reader => {
 			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
@@ -122,118 +248,16 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 
 	private readonly previewRef = n.ref<HTMLDivElement>();
 
-	private readonly _editorContainer = n.div({
-		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.useGutterIndicator && 'showHover')],
-		style: { position: 'absolute', overflow: 'hidden', cursor: 'pointer' },
-		onclick: (e) => {
-			this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
-		}
-	}, [
-		n.div({ class: 'preview', style: { pointerEvents: 'none' }, ref: this.previewRef }),
-	]).keepUpdated(this._store);
+	private readonly _editorContainer: ObserverNodeWithElement<HTMLDivElement>;
 
-	public readonly isHovered = this._editorContainer.didMouseMoveDuringHover;
+	public readonly isHovered: IObservable<boolean>;
 
-	public readonly previewEditor = this._register(this._instantiationService.createInstance(
-		EmbeddedCodeEditorWidget,
-		this.previewRef.element,
-		{
-			glyphMargin: false,
-			lineNumbers: 'off',
-			minimap: { enabled: false },
-			guides: {
-				indentation: false,
-				bracketPairs: false,
-				bracketPairsHorizontal: false,
-				highlightActiveIndentation: false,
-			},
-			rulers: [],
-			padding: { top: 0, bottom: 0 },
-			folding: false,
-			selectOnLineNumbers: false,
-			selectionHighlight: false,
-			columnSelection: false,
-			overviewRulerBorder: false,
-			overviewRulerLanes: 0,
-			lineDecorationsWidth: 0,
-			lineNumbersMinChars: 0,
-			revealHorizontalRightPadding: 0,
-			bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
-			scrollBeyondLastLine: false,
-			scrollbar: {
-				vertical: 'hidden',
-				horizontal: 'hidden',
-				handleMouseWheel: false,
-			},
-			readOnly: true,
-			wordWrap: 'off',
-			wordWrapOverride1: 'off',
-			wordWrapOverride2: 'off',
-		},
-		{
-			contextKeyValues: {
-				[InlineCompletionContextKeys.inInlineEditsPreviewEditor.key]: true,
-			},
-			contributions: [],
-		},
-		this._editor
-	));
+	public readonly previewEditor: EmbeddedCodeEditorWidget;
 
-	private readonly _previewEditorObs = observableCodeEditor(this.previewEditor);
+	private readonly _previewEditorObs: ObservableCodeEditor;
 
 	private _activeViewZones: string[] = [];
-	private readonly _updatePreviewEditor = derived(reader => {
-		this._editorContainer.readEffect(reader);
-		this._previewEditorObs.model.read(reader); // update when the model is set
-
-		// Setting this here explicitly to make sure that the preview editor is
-		// visible when needed, we're also checking that these fields are defined
-		// because of the auto run initial
-		// Before removing these, verify with a non-monospace font family
-		this._display.read(reader);
-		if (this._overflowView) {
-			this._overflowView.element.style.display = this._display.read(reader);
-		}
-		if (this._nonOverflowView) {
-			this._nonOverflowView.element.style.display = this._display.read(reader);
-		}
-
-		const uiState = this._uiState.read(reader);
-		if (!uiState) {
-			return;
-		}
-
-		const range = uiState.edit.originalLineRange;
-
-		const hiddenAreas: Range[] = [];
-		if (range.startLineNumber > 1) {
-			hiddenAreas.push(new Range(1, 1, range.startLineNumber - 1, 1));
-		}
-		if (range.startLineNumber + uiState.newTextLineCount < this._previewTextModel.getLineCount() + 1) {
-			hiddenAreas.push(new Range(range.startLineNumber + uiState.newTextLineCount, 1, this._previewTextModel.getLineCount() + 1, 1));
-		}
-
-		this.previewEditor.setHiddenAreas(hiddenAreas, undefined, true);
-
-		// TODO: is this the proper way to handle viewzones?
-		const previousViewZones = [...this._activeViewZones];
-		this._activeViewZones = [];
-
-		const reducedLinesCount = (range.endLineNumberExclusive - range.startLineNumber) - uiState.newTextLineCount;
-		this.previewEditor.changeViewZones((changeAccessor) => {
-			previousViewZones.forEach(id => changeAccessor.removeZone(id));
-
-			if (reducedLinesCount > 0) {
-				this._activeViewZones.push(changeAccessor.addZone({
-					afterLineNumber: range.startLineNumber + uiState.newTextLineCount - 1,
-					heightInLines: reducedLinesCount,
-					showInHiddenAreas: true,
-					domNode: $('div.diagonal-fill.inline-edits-view-zone'),
-				}));
-			}
-		});
-
-	}).recomputeInitiallyAndOnChange(this._store);
+	private readonly _updatePreviewEditor: IObservable<void>;
 
 	private readonly _previewEditorWidth = derived(this, reader => {
 		const edit = this._edit.read(reader);
@@ -260,10 +284,10 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		return inlineEdit ? new Position(inlineEdit.originalLineRange.endLineNumberExclusive, 1) : null;
 	});
 
-	private readonly _originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
-	private readonly _originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
+	private readonly _originalVerticalStartPosition: IObservable<number | undefined>;
+	private readonly _originalVerticalEndPosition: IObservable<number | undefined>;
 
-	private readonly _originalDisplayRange = this._uiState.map(s => s?.originalDisplayRange);
+	private readonly _originalDisplayRange: IObservable<LineRange | undefined>;
 	private readonly _editorMaxContentWidthInRange = derived(this, reader => {
 		const originalDisplayRange = this._originalDisplayRange.read(reader);
 		if (!originalDisplayRange) {
@@ -380,8 +404,8 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		};
 	});
 
-	private _stickyScrollController = StickyScrollController.get(this._editorObs.editor);
-	private readonly _stickyScrollHeight = this._stickyScrollController ? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight) : constObservable(0);
+	private _stickyScrollController: IStickyScrollController | null;
+	private readonly _stickyScrollHeight: IObservable<number>;
 
 	private readonly _shouldOverflow = derived(reader => {
 		if (!ENABLE_OVERFLOW) {
@@ -424,9 +448,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		return path.build();
 	});
 
-	private readonly _originalBackgroundColor = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => {
-		return this._themeService.getColorTheme().getColor(originalBackgroundColor) ?? Color.transparent;
-	});
+	private readonly _originalBackgroundColor: IObservable<Color>;
 
 	private readonly _backgroundSvg = n.svg({
 		transform: 'translate(-0.5 -0.5)',

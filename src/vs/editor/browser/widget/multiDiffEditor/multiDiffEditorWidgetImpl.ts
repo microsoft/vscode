@@ -13,7 +13,7 @@ import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived,
 import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -60,7 +60,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		h('div.placeholder@placeholder', {}, [h('div')]),
 	]);
 
-	private readonly _sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
+	private readonly _sizeObserver: ObservableElementSizeObserver;
 
 	private readonly _objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
 		const template = this._instantiationService.createInstance(
@@ -113,10 +113,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		return viewItem.template.read(reader)?.editor;
 	});
 
-	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
-	private readonly _instantiationService = this._register(this._parentInstantiationService.createChild(
-		new ServiceCollection([IContextKeyService, this._contextKeyService])
-	));
+	private readonly _contextKeyService: IScopedContextKeyService;
+	private readonly _instantiationService: IInstantiationService;
 
 	constructor(
 		private readonly _element: HTMLElement,
@@ -127,6 +125,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
+
+		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
+		this._instantiationService = this._register(this._parentInstantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this._contextKeyService])
+		));
 
 		this._register(autorunWithStore((reader, store) => {
 			const viewModel = this._viewModel.read(reader);

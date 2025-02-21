@@ -44,11 +44,13 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 		private readonly _model: InlineCompletionsModel,
 	) {
 		super();
+
+		this.options = { language: this._editor.getModel()?.getLanguageId() ?? undefined, type: AccessibleViewType.View };
 	}
 
 	public readonly id = AccessibleViewProviderId.InlineCompletions;
 	public readonly verbositySettingKey = 'accessibility.verbosity.inlineCompletions';
-	public readonly options = { language: this._editor.getModel()?.getLanguageId() ?? undefined, type: AccessibleViewType.View };
+	public readonly options: { language: string | undefined; type: AccessibleViewType };
 
 	public provideContent(): string {
 		const state = this._model.inlineCompletionState.get();

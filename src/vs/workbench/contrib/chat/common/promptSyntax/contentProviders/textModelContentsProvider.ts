@@ -10,6 +10,7 @@ import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { newWriteableStream, ReadableStream } from '../../../../../../base/common/stream.js';
 import { IModelContentChangedEvent } from '../../../../../../editor/common/textModelEvents.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 /**
  * Prompt contents provider for a {@linkcode ITextModel} instance.
@@ -18,12 +19,14 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	/**
 	 * URI component of the prompt associated with this contents provider.
 	 */
-	public readonly uri = this.model.uri;
+	public readonly uri: URI;
 
 	constructor(
 		private readonly model: ITextModel,
 	) {
 		super();
+
+		this.uri = this.model.uri;
 
 		this._register(this.model.onWillDispose(this.dispose.bind(this)));
 		this._register(this.model.onDidChangeContent(this.onChangeEmitter.fire));

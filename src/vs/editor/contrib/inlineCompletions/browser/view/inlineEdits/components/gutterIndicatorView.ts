@@ -20,7 +20,7 @@ import { HoverWidget } from '../../../../../../browser/services/hoverService/hov
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
-import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
+import { IStickyScrollController, StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
 import { InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
@@ -39,6 +39,14 @@ export class InlineEditsGutterIndicator extends Disposable {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
+
+		this._originalRangeObs = mapOutFalsy(this._originalRange);
+
+		this._stickyScrollController = StickyScrollController.get(this._editorObs.editor);
+
+		this._stickyScrollHeight = this._stickyScrollController
+			? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight)
+			: constObservable(0);
 
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._indicator.element,
@@ -65,7 +73,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}
 	}
 
-	private readonly _originalRangeObs = mapOutFalsy(this._originalRange);
+	private readonly _originalRangeObs: IObservable<IObservable<LineRange> | undefined>;
 
 	private readonly _state = derived(reader => {
 		const range = this._originalRangeObs.read(reader);
@@ -76,10 +84,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 		};
 	});
 
-	private readonly _stickyScrollController = StickyScrollController.get(this._editorObs.editor);
-	private readonly _stickyScrollHeight = this._stickyScrollController
-		? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight)
-		: constObservable(0);
+	private readonly _stickyScrollController: IStickyScrollController | null;
+	private readonly _stickyScrollHeight: IObservable<number>;
 
 	private readonly _layout = derived(this, reader => {
 		const s = this._state.read(reader);

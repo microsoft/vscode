@@ -25,7 +25,7 @@ export class FileStorage extends Disposable {
 	private storage: StorageDatabase = Object.create(null);
 	private lastSavedStorageContents = '';
 
-	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(this.saveStrategy === SaveStrategy.IMMEDIATE ? 0 : 100 /* buffer saves over a short time */));
+	private readonly flushDelayer: ThrottledDelayer<void>;
 
 	private initializing: Promise<void> | undefined = undefined;
 	private closing: Promise<void> | undefined = undefined;
@@ -37,6 +37,8 @@ export class FileStorage extends Disposable {
 		private readonly fileService: IFileService,
 	) {
 		super();
+
+		this.flushDelayer = this._register(new ThrottledDelayer<void>(this.saveStrategy === SaveStrategy.IMMEDIATE ? 0 : 100 /* buffer saves over a short time */));
 	}
 
 	init(): Promise<void> {

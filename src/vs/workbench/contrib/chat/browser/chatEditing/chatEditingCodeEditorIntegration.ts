@@ -38,6 +38,7 @@ import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overv
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
+import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
@@ -56,9 +57,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	readonly currentIndex: IObservable<number> = this._currentIndex;
 	private readonly _store = new DisposableStore();
 
-	private readonly _diffLineDecorations = this._editor.createDecorationsCollection(); // tracks the line range w/o visuals (used for navigate)
+	private readonly _diffLineDecorations: IEditorDecorationsCollection; // tracks the line range w/o visuals (used for navigate)
 
-	private readonly _diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
+	private readonly _diffVisualDecorations: IEditorDecorationsCollection; // tracks the real diff with character level inserts
 	private readonly _diffHunksRenderStore = this._store.add(new DisposableStore());
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
 	private _viewZones: string[] = [];
@@ -76,6 +77,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
+		this._diffVisualDecorations = this._editor.createDecorationsCollection();
+
 		const codeEditorObs = observableCodeEditor(_editor);
 
 		const enabledObs = derived(r => {

@@ -33,7 +33,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	 */
 	private readonly _states = new TokenizationStateStore<StateStack>();
 
-	private readonly _loggingEnabled = observableConfigValue('editor.experimental.asyncTokenizationLogging', false, this._configurationService);
+	private readonly _loggingEnabled: IObservable<boolean>;
 
 	private _applyStateStackDiffFn?: typeof applyStateStackDiff;
 	private _initialState?: StateStack;
@@ -48,6 +48,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	) {
 		super();
 
+		this._loggingEnabled = observableConfigValue('editor.experimental.asyncTokenizationLogging', false, this._configurationService);
 		this._register(keepObserved(this._loggingEnabled));
 
 		this._register(this._model.onDidChangeContent((e) => {

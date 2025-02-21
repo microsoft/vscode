@@ -181,13 +181,14 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
 	readonly capabilities = WorkingCopyCapabilities.None;
 
-	readonly name = basename(this.resource);
+	readonly name: string;
 
 	private dirty = false;
 
 	constructor(readonly resource: URI, isDirty = false, readonly typeId = 'testWorkingCopyType') {
 		super();
 
+		this.name = basename(this.resource);
 		this.dirty = isDirty;
 	}
 

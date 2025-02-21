@@ -57,7 +57,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 
 	private _previousState: StickyScrollWidgetState | undefined;
-	private _lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
+	private _lineHeight: number;
 	private _renderedStickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
@@ -74,6 +74,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		private readonly _editor: ICodeEditor
 	) {
 		super();
+
+		this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
 
 		this._lineNumbersDomNode.className = 'sticky-widget-line-numbers';
 		this._lineNumbersDomNode.setAttribute('role', 'none');

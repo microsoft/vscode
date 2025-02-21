@@ -45,9 +45,9 @@ export class ModifiedBaseRange {
 		);
 	}
 
-	public readonly input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
-	public readonly input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
-	public readonly isEqualChange = equals(this.input1Diffs, this.input2Diffs, (a, b) => a.getLineEdit().equals(b.getLineEdit()));
+	public readonly input1CombinedDiff: DetailedLineRangeMapping | undefined;
+	public readonly input2CombinedDiff: DetailedLineRangeMapping | undefined;
+	public readonly isEqualChange: boolean;
 
 	constructor(
 		public readonly baseRange: LineRange,
@@ -67,6 +67,10 @@ export class ModifiedBaseRange {
 		*/
 		public readonly input2Diffs: readonly DetailedLineRangeMapping[]
 	) {
+		this.input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
+		this.input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
+		this.isEqualChange = equals(this.input1Diffs, this.input2Diffs, (a, b) => a.getLineEdit().equals(b.getLineEdit()));
+
 		if (this.input1Diffs.length === 0 && this.input2Diffs.length === 0) {
 			throw new BugIndicatingError('must have at least one diff');
 		}

@@ -11,7 +11,7 @@ import { readHotReloadableExport } from '../../../../base/common/hotReloadHelper
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedDisposable, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -67,10 +67,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	public get onDidContentSizeChange() { return this._editors.onDidContentSizeChange; }
 
-	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._domElement));
-	private readonly _instantiationService = this._register(this._parentInstantiationService.createChild(
-		new ServiceCollection([IContextKeyService, this._contextKeyService])
-	));
+	private readonly _contextKeyService: IScopedContextKeyService;
+	private readonly _instantiationService: IInstantiationService;
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 
 
@@ -107,6 +105,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	) {
 		super();
 		codeEditorService.willCreateDiffEditor();
+
+		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._domElement));
+		this._instantiationService = this._register(this._parentInstantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this._contextKeyService])
+		));
 
 		this._contextKeyService.createKey('isInDiffEditor', true);
 

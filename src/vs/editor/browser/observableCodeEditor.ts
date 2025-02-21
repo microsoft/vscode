@@ -5,8 +5,8 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
-import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
+import { IObservable, IObservableWithChange, ISettableObservable, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { EditorLayoutInfo, EditorMinimapLayoutInfo, EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { LineRange } from '../common/core/lineRange.js';
 import { OffsetRange } from '../common/core/offsetRange.js';
 import { Position } from '../common/core/position.js';
@@ -70,6 +70,32 @@ export class ObservableCodeEditor extends Disposable {
 
 	private constructor(public readonly editor: ICodeEditor) {
 		super();
+
+		this._model = observableValue(this, this.editor.getModel());
+		this.model = this._model;
+
+		this.isReadonly = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
+
+		this._versionId = observableValueOpts<number | null, IModelContentChangedEvent | undefined>({ owner: this, lazy: true }, this.editor.getModel()?.getVersionId() ?? null);
+		this.versionId = this._versionId;
+
+		this._selections = observableValueOpts<Selection[] | null, ICursorSelectionChangedEvent | undefined>(
+			{ owner: this, equalsFn: equalsIfDefined(itemsEquals(Selection.selectionsEqual)), lazy: true },
+			this.editor.getSelections() ?? null
+		);
+		this.selections = this._selections;
+
+		this.scrollTop = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollTop());
+		this.scrollLeft = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollLeft());
+
+		this.layoutInfo = observableFromEvent(this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
+		this.layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
+		this.layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
+		this.layoutInfoWidth = this.layoutInfo.map(l => l.width);
+		this.layoutInfoMinimap = this.layoutInfo.map(l => l.minimap);
+		this.layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
+
+		this.contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 
 		this._register(this.editor.onBeginUpdate(() => this._beginUpdate()));
 		this._register(this.editor.onEndUpdate(() => this._endUpdate()));
@@ -149,19 +175,16 @@ export class ObservableCodeEditor extends Disposable {
 		}
 	}
 
-	private readonly _model = observableValue(this, this.editor.getModel());
-	public readonly model: IObservable<ITextModel | null> = this._model;
+	private readonly _model: ISettableObservable<ITextModel | null, void>;
+	public readonly model: IObservable<ITextModel | null>;
 
-	public readonly isReadonly = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
+	public readonly isReadonly: IObservable<boolean>;
 
-	private readonly _versionId = observableValueOpts<number | null, IModelContentChangedEvent | undefined>({ owner: this, lazy: true }, this.editor.getModel()?.getVersionId() ?? null);
-	public readonly versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined> = this._versionId;
+	private readonly _versionId: ISettableObservable<number | null, IModelContentChangedEvent | undefined>;
+	public readonly versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>;
 
-	private readonly _selections = observableValueOpts<Selection[] | null, ICursorSelectionChangedEvent | undefined>(
-		{ owner: this, equalsFn: equalsIfDefined(itemsEquals(Selection.selectionsEqual)), lazy: true },
-		this.editor.getSelections() ?? null
-	);
-	public readonly selections: IObservableWithChange<Selection[] | null, ICursorSelectionChangedEvent | undefined> = this._selections;
+	private readonly _selections: ISettableObservable<Selection[] | null, ICursorSelectionChangedEvent | undefined>;
+	public readonly selections: IObservableWithChange<Selection[] | null, ICursorSelectionChangedEvent | undefined>;
 
 
 	public readonly positions = derivedOpts<readonly Position[] | null>(
@@ -225,17 +248,17 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly onDidType = observableSignal<string>(this);
 	public readonly onDidPaste = observableSignal<IPasteEvent>(this);
 
-	public readonly scrollTop = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollTop());
-	public readonly scrollLeft = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollLeft());
+	public readonly scrollTop: IObservable<number>;
+	public readonly scrollLeft: IObservable<number>;
 
-	public readonly layoutInfo = observableFromEvent(this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
-	public readonly layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
-	public readonly layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
-	public readonly layoutInfoWidth = this.layoutInfo.map(l => l.width);
-	public readonly layoutInfoMinimap = this.layoutInfo.map(l => l.minimap);
-	public readonly layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
+	public readonly layoutInfo: IObservable<EditorLayoutInfo>;
+	public readonly layoutInfoContentLeft: IObservable<number>;
+	public readonly layoutInfoDecorationsLeft: IObservable<number>;
+	public readonly layoutInfoWidth: IObservable<number>;
+	public readonly layoutInfoMinimap: IObservable<EditorMinimapLayoutInfo>;
+	public readonly layoutInfoVerticalScrollbarWidth: IObservable<number>;
 
-	public readonly contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
+	public readonly contentWidth: IObservable<number>;
 
 	public getOption<T extends EditorOption>(id: T): IObservable<FindComputedEditorOptionValueById<T>> {
 		return observableFromEvent(this, cb => this.editor.onDidChangeConfiguration(e => {

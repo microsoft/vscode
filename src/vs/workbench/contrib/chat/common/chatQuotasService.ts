@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 
@@ -44,8 +44,8 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	private _quotas: IChatQuotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined };
 	get quotas(): IChatQuotas { return this._quotas; }
 
-	private readonly chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
-	private readonly completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
+	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
+	private readonly completionsQuotaExceededContextKey: IContextKey<boolean>;
 
 	private ExtensionQuotaContextKeys = {
 		chatQuotaExceeded: 'github.copilot.chat.quotaExceeded',
@@ -56,6 +56,9 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this.chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
+		this.completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
 
 		this.registerListeners();
 	}

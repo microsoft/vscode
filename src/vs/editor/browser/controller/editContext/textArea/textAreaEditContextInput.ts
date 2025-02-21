@@ -619,19 +619,19 @@ export class TextAreaInput extends Disposable {
 
 export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrapper {
 
-	public readonly onKeyDown = this._register(new DomEmitter(this._actual, 'keydown')).event;
-	public readonly onKeyPress = this._register(new DomEmitter(this._actual, 'keypress')).event;
-	public readonly onKeyUp = this._register(new DomEmitter(this._actual, 'keyup')).event;
-	public readonly onCompositionStart = this._register(new DomEmitter(this._actual, 'compositionstart')).event;
-	public readonly onCompositionUpdate = this._register(new DomEmitter(this._actual, 'compositionupdate')).event;
-	public readonly onCompositionEnd = this._register(new DomEmitter(this._actual, 'compositionend')).event;
-	public readonly onBeforeInput = this._register(new DomEmitter(this._actual, 'beforeinput')).event;
-	public readonly onInput = <Event<InputEvent>>this._register(new DomEmitter(this._actual, 'input')).event;
-	public readonly onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
-	public readonly onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
-	public readonly onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
-	public readonly onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
-	public readonly onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;
+	public readonly onKeyDown: Event<KeyboardEvent>;
+	public readonly onKeyPress: Event<KeyboardEvent>;
+	public readonly onKeyUp: Event<KeyboardEvent>;
+	public readonly onCompositionStart: Event<CompositionEvent>;
+	public readonly onCompositionUpdate: Event<CompositionEvent>;
+	public readonly onCompositionEnd: Event<CompositionEvent>;
+	public readonly onBeforeInput: Event<InputEvent>;
+	public readonly onInput: Event<InputEvent>;
+	public readonly onCut: Event<ClipboardEvent>;
+	public readonly onCopy: Event<ClipboardEvent>;
+	public readonly onPaste: Event<ClipboardEvent>;
+	public readonly onFocus: Event<FocusEvent>;
+	public readonly onBlur: Event<FocusEvent>;
 
 	public get ownerDocument(): Document {
 		return this._actual.ownerDocument;
@@ -646,6 +646,21 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		private readonly _actual: HTMLTextAreaElement
 	) {
 		super();
+
+		this.onKeyDown = this._register(new DomEmitter(this._actual, 'keydown')).event;
+		this.onKeyPress = this._register(new DomEmitter(this._actual, 'keypress')).event;
+		this.onKeyUp = this._register(new DomEmitter(this._actual, 'keyup')).event;
+		this.onCompositionStart = this._register(new DomEmitter(this._actual, 'compositionstart')).event;
+		this.onCompositionUpdate = this._register(new DomEmitter(this._actual, 'compositionupdate')).event;
+		this.onCompositionEnd = this._register(new DomEmitter(this._actual, 'compositionend')).event;
+		this.onBeforeInput = this._register(new DomEmitter(this._actual, 'beforeinput')).event;
+		this.onInput = <Event<InputEvent>>this._register(new DomEmitter(this._actual, 'input')).event;
+		this.onCut = this._register(new DomEmitter(this._actual, 'cut')).event;
+		this.onCopy = this._register(new DomEmitter(this._actual, 'copy')).event;
+		this.onPaste = this._register(new DomEmitter(this._actual, 'paste')).event;
+		this.onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
+		this.onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;
+
 		this._ignoreSelectionChangeTime = 0;
 
 		this._register(this.onKeyDown(() => inputLatency.onKeyDown()));

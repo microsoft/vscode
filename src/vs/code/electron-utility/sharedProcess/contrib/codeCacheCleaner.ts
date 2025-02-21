@@ -14,9 +14,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 
 export class CodeCacheCleaner extends Disposable {
 
-	private readonly _DataMaxAge = this.productService.quality !== 'stable'
-		? 1000 * 60 * 60 * 24 * 7 		// roughly 1 week (insiders)
-		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months (stable)
+	private readonly _DataMaxAge: number;
 
 	constructor(
 		currentCodeCachePath: string | undefined,
@@ -24,6 +22,10 @@ export class CodeCacheCleaner extends Disposable {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this._DataMaxAge = this.productService.quality !== 'stable'
+			? 1000 * 60 * 60 * 24 * 7 		// roughly 1 week (insiders)
+			: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months (stable)
 
 		// Cached data is stored as user data and we run a cleanup task every time
 		// the editor starts. The strategy is to delete all files that are older than

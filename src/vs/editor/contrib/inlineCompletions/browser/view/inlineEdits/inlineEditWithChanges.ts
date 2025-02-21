@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SingleLineEdit } from '../../../../../common/core/lineEdit.js';
+import { LineRange } from '../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../common/core/position.js';
 import { AbstractText, TextEdit } from '../../../../../common/core/textEdit.js';
 import { Command } from '../../../../../common/languages.js';
 import { InlineCompletionItem } from '../../model/provideInlineCompletions.js';
 
 export class InlineEditWithChanges {
-	public readonly lineEdit = SingleLineEdit.fromSingleTextEdit(this.edit.toSingle(this.originalText), this.originalText);
+	public readonly lineEdit: SingleLineEdit;
 
-	public readonly originalLineRange = this.lineEdit.lineRange;
-	public readonly modifiedLineRange = this.lineEdit.toLineEdit().getNewLineRanges()[0];
+	public readonly originalLineRange: LineRange;
+	public readonly modifiedLineRange: LineRange;
 
 	constructor(
 		public readonly originalText: AbstractText,
@@ -23,6 +24,10 @@ export class InlineEditWithChanges {
 		public readonly commands: readonly Command[],
 		public readonly inlineCompletion: InlineCompletionItem
 	) {
+		this.lineEdit = SingleLineEdit.fromSingleTextEdit(this.edit.toSingle(this.originalText), this.originalText);
+
+		this.originalLineRange = this.lineEdit.lineRange;
+		this.modifiedLineRange = this.lineEdit.toLineEdit().getNewLineRanges()[0];
 	}
 
 	equals(other: InlineEditWithChanges) {

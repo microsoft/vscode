@@ -803,7 +803,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 }
 
 class SelectionHighlighterState {
-	private readonly _modelVersionId: number = this._model.getVersionId();
+	private readonly _modelVersionId: number;
 	private _cachedFindMatches: Range[] | null = null;
 
 	constructor(
@@ -813,6 +813,8 @@ class SelectionHighlighterState {
 		private readonly _wordSeparators: string | null,
 		prevState: SelectionHighlighterState | null
 	) {
+		this._modelVersionId = this._model.getVersionId();
+
 		if (prevState
 			&& this._model === prevState._model
 			&& this._searchText === prevState._searchText

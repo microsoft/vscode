@@ -108,6 +108,13 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 	) {
 		super();
 
+		this._trace = SHOW_TRACE_FILTER_CONTEXT.bindTo(this.contextKeyService);
+		this._debug = SHOW_DEBUG_FILTER_CONTEXT.bindTo(this.contextKeyService);
+		this._info = SHOW_INFO_FILTER_CONTEXT.bindTo(this.contextKeyService);
+		this._warning = SHOW_WARNING_FILTER_CONTEXT.bindTo(this.contextKeyService);
+		this._error = SHOW_ERROR_FILTER_CONTEXT.bindTo(this.contextKeyService);
+		this._categories = HIDE_CATEGORY_FILTER_CONTEXT.bindTo(this.contextKeyService);
+
 		this._trace.set(options.trace);
 		this._debug.set(options.debug);
 		this._info.set(options.info);
@@ -131,7 +138,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _trace = SHOW_TRACE_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _trace: IContextKey<boolean>;
 	get trace(): boolean {
 		return !!this._trace.get();
 	}
@@ -142,7 +149,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _debug = SHOW_DEBUG_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _debug: IContextKey<boolean>;
 	get debug(): boolean {
 		return !!this._debug.get();
 	}
@@ -153,7 +160,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _info = SHOW_INFO_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _info: IContextKey<boolean>;
 	get info(): boolean {
 		return !!this._info.get();
 	}
@@ -164,7 +171,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _warning = SHOW_WARNING_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _warning: IContextKey<boolean>;
 	get warning(): boolean {
 		return !!this._warning.get();
 	}
@@ -175,7 +182,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _error = SHOW_ERROR_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _error: IContextKey<boolean>;
 	get error(): boolean {
 		return !!this._error.get();
 	}
@@ -186,7 +193,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _categories = HIDE_CATEGORY_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _categories: IContextKey<string>;
 	get categories(): string {
 		return this._categories.get() || ',';
 	}

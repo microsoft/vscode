@@ -22,13 +22,15 @@ export class DefaultConfiguration extends Disposable {
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel; properties: string[] }>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private _configurationModel = ConfigurationModel.createEmptyModel(this.logService);
+	private _configurationModel: ConfigurationModel;
 	get configurationModel(): ConfigurationModel {
 		return this._configurationModel;
 	}
 
 	constructor(private readonly logService: ILogService) {
 		super();
+
+		this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -91,7 +93,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private _configurationModel = ConfigurationModel.createEmptyModel(this.logService);
+	private _configurationModel: ConfigurationModel;
 	get configurationModel() { return this._configurationModel; }
 
 	constructor(
@@ -100,6 +102,8 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
 	}
 
 	async initialize(): Promise<ConfigurationModel> {

@@ -28,13 +28,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Prompt files locator utility.
 	 */
-	private readonly fileLocator = this.initService.createInstance(PromptFilesLocator);
+	private readonly fileLocator: PromptFilesLocator;
 
 	constructor(
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 	) {
 		super();
+
+		this.fileLocator = this.initService.createInstance(PromptFilesLocator);
 
 		// the factory function below creates a new prompt parser object
 		// for the provided model, if no active non-disposed parser exists

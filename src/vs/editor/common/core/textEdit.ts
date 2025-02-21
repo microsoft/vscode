@@ -384,10 +384,12 @@ export class ArrayText extends LineBasedText {
 }
 
 export class StringText extends AbstractText {
-	private readonly _t = new PositionOffsetTransformer(this.value);
+	private readonly _t: PositionOffsetTransformer;
 
 	constructor(public readonly value: string) {
 		super();
+
+		this._t = new PositionOffsetTransformer(this.value);
 	}
 
 	getValueOfRange(range: Range): string {

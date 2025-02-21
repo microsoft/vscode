@@ -1467,17 +1467,22 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 
 export class RemoteFileSystemProvider implements IFileSystemProvider {
 
-	constructor(private readonly wrappedFsp: IFileSystemProvider, private readonly remoteAuthority: string) { }
+	constructor(private readonly wrappedFsp: IFileSystemProvider, private readonly remoteAuthority: string) {
+		this.capabilities = this.wrappedFsp.capabilities;
+		this.onDidChangeCapabilities = this.wrappedFsp.onDidChangeCapabilities;
 
-	readonly capabilities: FileSystemProviderCapabilities = this.wrappedFsp.capabilities;
-	readonly onDidChangeCapabilities: Event<void> = this.wrappedFsp.onDidChangeCapabilities;
+		this.onDidChangeFile = Event.map(this.wrappedFsp.onDidChangeFile, changes => changes.map(c => {
+			return {
+				type: c.type,
+				resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
+			};
+		}));
+	}
 
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.map(this.wrappedFsp.onDidChangeFile, changes => changes.map(c => {
-		return {
-			type: c.type,
-			resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
-		};
-	}));
+	readonly capabilities: FileSystemProviderCapabilities;
+	readonly onDidChangeCapabilities: Event<void>;
+
+	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.wrappedFsp.watch(this.toFileResource(resource), opts); }
 
 	stat(resource: URI): Promise<IStat> { return this.wrappedFsp.stat(this.toFileResource(resource)); }
@@ -1728,7 +1733,7 @@ export function registerTestSideBySideEditor(): IDisposable {
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
-	readonly preferredResource = this.resource;
+	readonly preferredResource: URI;
 
 	gotDisposed = false;
 	gotSaved = false;
@@ -1745,6 +1750,8 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		private _typeId: string
 	) {
 		super();
+
+		this.preferredResource = this.resource;
 	}
 
 	override get typeId() { return this._typeId; }

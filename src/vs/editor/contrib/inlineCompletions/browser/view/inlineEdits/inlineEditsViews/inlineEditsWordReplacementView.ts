@@ -7,7 +7,7 @@ import { getWindow, n, ObserverNodeWithElement } from '../../../../../../../base
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { editorBackground, editorHoverForeground, scrollbarShadow } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -33,8 +33,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
 
-	private readonly _start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
-	private readonly _end = this._editor.observePosition(constObservable(this._edit.range.getEndPosition()), this._store);
+	private readonly _start: IObservable<Point | null>;
+	private readonly _end: IObservable<Point | null>;
 
 	private readonly _line = document.createElement('div');
 
@@ -51,6 +51,15 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
+
+		this._start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
+		this._end = this._editor.observePosition(constObservable(this._edit.range.getEndPosition()), this._store);
+
+		this._editLocations = this._innerEdits.map(edit => {
+			const start = this._editor.observePosition(constObservable(edit.range.getStartPosition()), this._store);
+			const end = this._editor.observePosition(constObservable(edit.range.getEndPosition()), this._store);
+			return { start, end, edit };
+		});
 
 		this._register(this._editor.createOverlayWidget({
 			domNode: this._root.element,
@@ -76,11 +85,11 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		renderLines(new LineSource([tokens]), RenderOptions.fromEditor(this._editor.editor).withSetWidth(false), [], this._line, true);
 	});
 
-	private readonly _editLocations = this._innerEdits.map(edit => {
-		const start = this._editor.observePosition(constObservable(edit.range.getStartPosition()), this._store);
-		const end = this._editor.observePosition(constObservable(edit.range.getEndPosition()), this._store);
-		return { start, end, edit };
-	});
+	private readonly _editLocations: Array<{
+		start: IObservable<Point | null>;
+		end: IObservable<Point | null>;
+		edit: SingleTextEdit;
+	}>;
 
 	private readonly _layout = derived(this, reader => {
 		this._renderTextEffect.read(reader);
