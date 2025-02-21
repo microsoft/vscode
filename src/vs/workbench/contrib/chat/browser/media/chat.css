@@ -1003,14 +1003,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /**
- * Styles for the `prompt instructions` attachment widget.
+ * Styles for the `reusable prompts` attachment widget.
  */
-.chat-attached-context .chat-prompt-instructions-attachments {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 2px;
-}
 .chat-attached-context .chat-prompt-instructions-attachment {
 	display: flex;
 	gap: 4px;
@@ -1052,11 +1046,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
  * This overly-specific CSS selector is needed to beat priority of some
  * styles applied on the `.chat-attached-context-attachment` element.
  */
-.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.error.implicit,
-.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.warning.implicit {
+.chat-attached-context .chat-prompt-instructions-attachment.error.implicit,
+.chat-attached-context .chat-prompt-instructions-attachment.warning.implicit {
 	border: 1px solid currentColor;
 }
-.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.implicit .monaco-button {
+.chat-attached-context .chat-prompt-instructions-attachment.implicit .monaco-button {
 	padding-left: 2px;
 	padding-right: 2px;
 }
