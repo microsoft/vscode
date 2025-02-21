@@ -29,14 +29,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
-		this.create();
+		this.createOrDispose();
 		this.registerListeners();
 	}
 
-	private create(): void {
+	private createOrDispose(): void {
 		const enabled = this.configurationService.getValue(ChatStatusBarEntry.ENTRY_SETTING) !== false;
 		if (enabled && !this.entry) {
-			this.entry = this.statusbarService.addEntry(this.getStatusBarEntry(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */);
+			this.entry = this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */);
 		} else if (!enabled && this.entry) {
 			this.entry.dispose();
 			this.entry = undefined;
@@ -44,11 +44,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerListeners(): void {
-		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry?.update(this.getStatusBarEntry())));
-
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatStatusBarEntry.ENTRY_SETTING)) {
-				this.create();
+				this.createOrDispose();
 			}
 		}));
 
@@ -59,13 +57,19 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			ChatContextKeys.Setup.signedOut.key
 		]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (!this.entry) {
+				return;
+			}
+
 			if (e.affectsSome(contextKeysSet)) {
-				this.entry?.update(this.getStatusBarEntry());
+				this.entry.update(this.getEntryProps());
 			}
 		}));
+
+		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry?.update(this.getEntryProps())));
 	}
 
-	private getStatusBarEntry(): IStatusbarEntry {
+	private getEntryProps(): IStatusbarEntry {
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let command: string | undefined = undefined;
@@ -87,8 +91,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			command = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
 			tooltip = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
 		} else if (
-			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.canSignUp.key) === true ||
-			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false
+			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false ||
+			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.canSignUp.key) === true
 		) {
 			command = CHAT_SETUP_ACTION_ID;
 			tooltip = CHAT_SETUP_ACTION_LABEL.value;

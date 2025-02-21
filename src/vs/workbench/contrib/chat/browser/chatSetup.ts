@@ -225,7 +225,16 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					return;
 				}
 
-				await hideSetupView(viewsDescriptorService, layoutService);
+				const location = viewsDescriptorService.getViewLocationById(ChatViewId);
+
+				await context.update({ hidden: true });
+
+				if (location === ViewContainerLocation.AuxiliaryBar) {
+					const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+					if (activeContainers.length === 0) {
+						layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
+					}
+				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', false);
 				configurationService.updateValue('chat.experimental.statusIndicator.enabled', false);
@@ -282,19 +291,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					if (entitlement === ChatEntitlement.Pro) {
 						refreshTokens(commandService);
 					}
-				}
-			}
-		}
-
-		async function hideSetupView(viewsDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService): Promise<void> {
-			const location = viewsDescriptorService.getViewLocationById(ChatViewId);
-
-			await context.update({ hidden: true });
-
-			if (location === ViewContainerLocation.AuxiliaryBar) {
-				const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
-				if (activeContainers.length === 0) {
-					layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
 				}
 			}
 		}
