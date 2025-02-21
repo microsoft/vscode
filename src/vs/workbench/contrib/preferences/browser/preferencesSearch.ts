@@ -211,6 +211,7 @@ export class SettingMatches {
 			}
 		}
 		if (this.useNewKeyMatchAlgorithm) {
+			// New key match algorithm
 			if (keyMatchingWords.size === queryWords.size) {
 				// All words in the query matched with something in the setting key.
 				// Matches "edit format on paste" to "editor.formatOnPaste".
@@ -230,7 +231,7 @@ export class SettingMatches {
 				this.matchType |= SettingMatchType.ContiguousQueryInSettingId;
 			}
 
-			// New algorithm only: fall back to non-contiguous searches if nothing matched yet.
+			// Fall back to non-contiguous searches if nothing matched yet.
 			if (this.matchType === SettingMatchType.None) {
 				keyMatchingWords.clear();
 				for (const word of queryWords) {
@@ -254,7 +255,7 @@ export class SettingMatches {
 				}
 			}
 		} else {
-			// Fall back to the old algorithm.
+			// Old key match algorithm
 			if (keyMatchingWords.size) {
 				this.matchType |= SettingMatchType.NonContiguousWordsInSettingsLabel;
 				this.keyMatchScore = keyMatchingWords.size;
