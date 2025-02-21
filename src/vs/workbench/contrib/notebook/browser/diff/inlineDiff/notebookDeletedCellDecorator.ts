@@ -18,6 +18,8 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { MenuWorkbenchToolBar, HiddenItemStrategy } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 
 const ttPolicy = createTrustedTypesPolicy('notebookRenderer', { createHTML: value => value });
 
@@ -179,7 +181,8 @@ export class NotebookDeletedCellWidget extends Disposable {
 		this.toolbar.className = 'chat-diff-change-content-widget';
 		container.appendChild(this.toolbar);
 
-		const toolbarWidget = this.instantiationService.createInstance(MenuWorkbenchToolBar, this.toolbar, MenuId.ChatEditingEditorHunk, {
+		const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this._notebookEditor.scopedContextKeyService])));
+		const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, this.toolbar, MenuId.ChatEditingEditorHunk, {
 			telemetrySource: 'chatEditingNotebookHunk',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
