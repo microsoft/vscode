@@ -686,7 +686,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				if (signedOut) {
 					primaryActionId = CHAT_OPEN_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to Use Copilot...");
-					primaryActionIcon = Codicon.copilotWarning;
+					primaryActionIcon = Codicon.copilotNotConnected;
 				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
 					primaryActionTitle = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });

@@ -11,7 +11,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
-import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
+import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -55,7 +55,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		const contextKeysSet = new Set([
 			ChatContextKeys.Setup.limited.key,
 			ChatContextKeys.Setup.installed.key,
-			ChatContextKeys.Setup.canSignUp.key
+			ChatContextKeys.Setup.canSignUp.key,
+			ChatContextKeys.Setup.signedOut.key
 		]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(contextKeysSet)) {
@@ -65,8 +66,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private getStatusBarEntry(): IStatusbarEntry {
-		let text: string | undefined = undefined;
-		let ariaLabel: string | undefined = undefined;
+		let text = '$(copilot)';
+		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let command: string | undefined = undefined;
 		let tooltip: string | undefined = undefined;
 
@@ -91,12 +92,19 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		) {
 			command = CHAT_SETUP_ACTION_ID;
 			tooltip = CHAT_SETUP_ACTION_LABEL.value;
+		} else if (
+			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key) === true
+		) {
+			text = '$(copilot-not-connected)';
+			ariaLabel = localize('signInToUseCopilot', "Sign in to Use Copilot...");
+			command = CHAT_OPEN_ACTION_ID;
+			tooltip = localize('signInToUseCopilot', "Sign in to Use Copilot...");
 		}
 
 		return {
 			name: localize('chatStatus', "Copilot Status"),
-			text: text ?? '$(copilot)',
-			ariaLabel: ariaLabel ?? localize('chatStatus', "Copilot Status"),
+			text,
+			ariaLabel,
 			command,
 			showInAllWindows: true,
 			kind: 'copilot',
