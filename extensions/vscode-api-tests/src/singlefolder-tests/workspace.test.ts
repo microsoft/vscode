@@ -1480,4 +1480,22 @@ suite('vscode API - workspace', () => {
 		}
 		return true;
 	}
+
+	test('encoding: save text document with a different encoding', async () => {
+		const originalText = 'Hellö\nWörld';
+		const uri = await createRandomFile(originalText);
+
+		let doc = await vscode.workspace.openTextDocument(uri);
+		assert.strictEqual(doc.encoding, 'utf8');
+
+		const text = doc.getText();
+		assert.strictEqual(text, originalText);
+		const buf = await vscode.workspace.encode(text, uri, { encoding: 'windows1252' });
+		await vscode.workspace.fs.writeFile(uri, buf);
+
+		doc = await vscode.workspace.openTextDocument(uri, { encoding: 'windows1252' });
+		assert.strictEqual(doc.encoding, 'windows1252');
+		const updatedText = doc.getText();
+		assert.strictEqual(updatedText, text);
+	});
 });
