@@ -5,8 +5,9 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG } from './actions/chatActions.js';
 
@@ -14,19 +15,38 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'chat.statusBarEntry';
 
-	private readonly entry = this._register(this.statusbarService.addEntry(this.getStatusbarEntry(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */));
+	private static readonly ENTRY_SETTING = 'chat.experimental.statusIndicator.enabled';
+
+	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService
+		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
+		this.create();
 		this.registerListeners();
 	}
 
+	private create(): void {
+		const enabled = this.configurationService.getValue(ChatStatusBarEntry.ENTRY_SETTING) !== false;
+		if (enabled && !this.entry) {
+			this.entry = this.statusbarService.addEntry(this.getStatusbarEntry(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */);
+		} else if (!enabled && this.entry) {
+			this.entry.dispose();
+			this.entry = undefined;
+		}
+	}
+
 	private registerListeners(): void {
-		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry.update(this.getStatusbarEntry())));
+		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry?.update(this.getStatusbarEntry())));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatStatusBarEntry.ENTRY_SETTING)) {
+				this.create();
+			}
+		}));
 	}
 
 	private getStatusbarEntry(): IStatusbarEntry {
@@ -56,5 +76,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			tooltip: quotaTooltip
 		};
 	}
-}
 
+	override dispose(): void {
+		this.entry?.dispose();
+		this.entry = undefined;
+
+		super.dispose();
+	}
+}
