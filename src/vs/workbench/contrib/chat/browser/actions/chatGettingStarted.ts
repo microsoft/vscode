@@ -71,9 +71,6 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 	private async onDidInstallChat() {
 
-		// Enable chat command center if previously disabled
-		this.configurationService.updateValue('chat.commandCenter.enabled', true);
-
 		// Open Copilot view
 		showCopilotView(this.viewsService, this.layoutService);
 		ensureSideBarChatViewSize(this.viewDescriptorService, this.layoutService, this.viewsService);
@@ -81,5 +78,9 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		// Only do this once
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.recentlyInstalled = false;
+
+		// Enable Copilot related settings if previously disabled
+		this.configurationService.updateValue('chat.commandCenter.enabled', true);
+		this.configurationService.updateValue('chat.experimental.statusIndicator.enabled', true);
 	}
 }

@@ -187,6 +187,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
+				configurationService.updateValue('chat.experimental.statusIndicator.enabled', true);
 			}
 		}
 
@@ -230,6 +231,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				await hideSetupView(viewsDescriptorService, layoutService);
 
 				configurationService.updateValue('chat.commandCenter.enabled', false);
+				configurationService.updateValue('chat.experimental.statusIndicator.enabled', false);
 			}
 		}
 
