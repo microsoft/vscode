@@ -424,6 +424,9 @@ export class ViewModel extends Disposable implements IViewModel {
 				const lineNumber = change.lineNumber;
 				const lineHeight = change.lineHeight;
 				const decorationId = change.decorationId;
+				console.log('lineNumber : ', lineNumber);
+				console.log('lineHeight : ', lineHeight);
+				console.log('decorationId : ', decorationId);
 				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 				if (lineHeight !== null) {
 					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
