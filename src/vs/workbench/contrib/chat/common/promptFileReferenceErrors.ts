@@ -41,22 +41,6 @@ export abstract class ParseError extends Error {
 }
 
 /**
- * A generic error for failing to resolve prompt contents stream.
- */
-export class FailedToResolveContentsStream extends ParseError {
-	public override errorType = 'FailedToResolveContentsStream';
-
-	constructor(
-		public readonly uri: URI,
-		public readonly originalError: unknown,
-		message: string = `Failed to resolve prompt contents stream for '${uri.toString()}': ${originalError}.`,
-	) {
-		super(message);
-	}
-}
-
-
-/**
  * Base resolve error class used when file reference resolution fails.
  */
 export abstract class ResolveError extends ParseError {
@@ -70,6 +54,22 @@ export abstract class ResolveError extends ParseError {
 		super(message, options);
 	}
 }
+
+/**
+ * A generic error for failing to resolve prompt contents stream.
+ */
+export class FailedToResolveContentsStream extends ResolveError {
+	public override errorType = 'FailedToResolveContentsStream';
+
+	constructor(
+		uri: URI,
+		public readonly originalError: unknown,
+		message: string = `Failed to resolve prompt contents stream for '${uri.toString()}': ${originalError}.`,
+	) {
+		super(uri, message);
+	}
+}
+
 
 /**
  * Error that reflects the case when attempt to open target file fails.

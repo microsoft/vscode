@@ -13,7 +13,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 /**
- * Class to locate prompt files.
+ * Utility class to locate prompt files.
  */
 export class PromptFilesLocator {
 	constructor(
