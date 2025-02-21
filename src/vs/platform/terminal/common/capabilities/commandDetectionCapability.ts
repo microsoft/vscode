@@ -61,6 +61,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandStarted = this._onCommandStarted.event;
+	private readonly _onCommandStartChanged = this._register(new Emitter<ITerminalCommand>());
+	readonly onCommandStartChanged = this._onCommandStartChanged.event;
 	private readonly _onBeforeCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = this._register(new Emitter<ITerminalCommand>());
@@ -78,7 +80,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	) {
 		super();
 
-		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandExecuted, this._logService));
+		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandStartChanged, this.onCommandExecuted, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(this.onCommandExecuted(command => {
@@ -330,6 +332,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.commandStartMarker = options?.marker || this._currentCommand.commandStartMarker;
 		if (this._currentCommand.commandStartMarker?.line === this._terminal.buffer.active.cursorY) {
 			this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+			this._onCommandStartChanged.fire(this._currentCommand as any as ITerminalCommand);
 			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 			return;
 		}
