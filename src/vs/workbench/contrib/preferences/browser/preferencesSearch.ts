@@ -108,21 +108,19 @@ export class LocalSearchProvider implements ISearchProvider {
 				useNewKeyMatchAlgorithm,
 				this.configurationService
 			);
-			if (matchType === SettingMatchType.None) {
+			if (matchType === SettingMatchType.None || matches.length === 0) {
 				return null;
 			}
 
 			const score = strings.equalsIgnoreCase(this._filter, setting.key) ?
 				LocalSearchProvider.EXACT_MATCH_SCORE :
 				orderedScore--;
-			return matches.length ?
-				{
-					matches,
-					matchType,
-					keyMatchScore,
-					score
-				} :
-				null;
+			return {
+				matches,
+				matchType,
+				keyMatchScore,
+				score
+			};
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
