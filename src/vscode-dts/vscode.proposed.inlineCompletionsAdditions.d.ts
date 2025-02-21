@@ -35,6 +35,8 @@ declare module 'vscode' {
 		/** If set to `true`, this item is rendered as inline edit. */
 		isInlineEdit?: boolean;
 
+		showInlineEditMenu?: boolean;
+
 		action?: Command;
 	}
 

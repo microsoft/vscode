@@ -7309,6 +7309,7 @@ declare namespace monaco.languages {
 		*/
 		readonly completeBracketPairs?: boolean;
 		readonly isInlineEdit?: boolean;
+		readonly showInlineEditMenu?: boolean;
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
 	}
