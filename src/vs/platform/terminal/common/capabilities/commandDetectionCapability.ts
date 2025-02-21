@@ -381,14 +381,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		if (newCommand) {
 			this._commands.push(newCommand);
-			this._commitCommandFinished = new RunOnceScheduler(() => {
-				this._onBeforeCommandFinished.fire(newCommand);
-				if (!this._currentCommand.isInvalid) {
-					this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
-					this._onCommandFinished.fire(newCommand);
-				}
-			}, 50);
-			this._commitCommandFinished.schedule();
+			this._onBeforeCommandFinished.fire(newCommand);
+			if (!this._currentCommand.isInvalid) {
+				this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
+				this._onCommandFinished.fire(newCommand);
+			}
 		}
 		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
