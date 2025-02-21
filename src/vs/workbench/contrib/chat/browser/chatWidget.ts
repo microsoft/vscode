@@ -23,6 +23,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
@@ -223,6 +224,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
@@ -302,6 +304,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
+				this.renderChatEditingSessionState();
+			}
+		}));
 
 		this._register(autorunWithStore((r, store) => {
 
@@ -596,7 +603,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							`_${element.shouldBeRemovedOnSend ? `${element.shouldBeRemovedOnSend.afterUndoStop || '1'}` : '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
-							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
+							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '') +
+							(isResponseVM(element) && element.model.isPaused.get() ? '_paused' : '');
 					},
 				}
 			});
@@ -921,6 +929,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	togglePaused() {
 		this.viewModel?.model.toggleLastRequestPaused();
+		this.onDidChangeItems();
 	}
 
 	setModel(model: IChatModel, viewState: IChatViewState): void {
@@ -1098,22 +1107,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			let attachedContext = this.inputPart.getAttachedAndImplicitContext(this.viewModel.sessionId);
-			let workingSet: URI[] | undefined;
 			if (this.viewOptions.enableWorkingSet !== undefined) {
 				const currentEditingSession = this._editingSession;
 
 				const unconfirmedSuggestions = new ResourceSet();
 				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
-				const editingSessionAttachedContext: IChatRequestVariableEntry[] = [];
+				const editingSessionAttachedContext: IChatRequestVariableEntry[] = attachedContext;
 				// Pick up everything that the user sees is part of the working set.
-				// This should never exceed the maximum file entries limit above.
-				for (const { uri, isMarkedReadonly } of this.inputPart.chatEditWorkingSetFiles) {
+				for (const [uri, state] of currentEditingSession.get()?.workingSet || []) {
 					// Skip over any suggested files that haven't been confirmed yet in the working set
-					if (currentEditingSession.get()?.workingSet.get(uri)?.state === WorkingSetEntryState.Suggested) {
+					if (state.state === WorkingSetEntryState.Suggested) {
 						unconfirmedSuggestions.add(uri);
 					} else {
 						uniqueWorkingSetEntries.add(uri);
-						editingSessionAttachedContext.push(this.attachmentModel.asVariableEntry(uri, undefined, isMarkedReadonly));
+						editingSessionAttachedContext.unshift(this.attachmentModel.asVariableEntry(uri, undefined, state.isMarkedReadonly));
 					}
 				}
 
@@ -1151,7 +1158,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						}
 					}
 				}
-				workingSet = [...uniqueWorkingSetEntries.values()];
 				attachedContext = editingSessionAttachedContext;
 
 				type ChatEditingWorkingSetClassification = {
@@ -1164,7 +1170,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					originalSize: number;
 					actualSize: number;
 				};
-				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: this.inputPart.attemptedWorkingSetEntriesCount, actualSize: uniqueWorkingSetEntries.size });
+				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: uniqueWorkingSetEntries.size, actualSize: uniqueWorkingSetEntries.size });
 				currentEditingSession.get()?.remove(WorkingSetEntryRemovalReason.User, ...unconfirmedSuggestions);
 			}
 
@@ -1176,7 +1182,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
 				attachedContext,
-				workingSet,
 				noCommandDetection: options?.noCommandDetection,
 				hasInstructionAttachments: this.inputPart.hasInstructionAttachments,
 			});

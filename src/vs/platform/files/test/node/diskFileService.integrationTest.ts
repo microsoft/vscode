@@ -2406,6 +2406,46 @@ flakySuite('Disk File Service', function () {
 		assert.ok(!error);
 	});
 
+	test('writeFile - no error when writing to file where content is the same', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.strictEqual(content, 'Small File');
+
+		const newContent = content; // same content
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: 'anything', mtime: 0 } /* fake it */);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(!error);
+	});
+
+	test('writeFile - error when writing to file where content is the same length but different', async () => {
+		const resource = URI.file(join(testDir, 'small.txt'));
+
+		await service.resolve(resource);
+
+		const content = readFileSync(resource.fsPath).toString();
+		assert.strictEqual(content, 'Small File');
+
+		const newContent = content.split('').reverse().join(''); // reverse content
+		let error: FileOperationError | undefined = undefined;
+		try {
+			await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: 'anything', mtime: 0 } /* fake it */);
+		} catch (err) {
+			error = err;
+		}
+
+		assert.ok(error);
+		assert.ok(error instanceof FileOperationError);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
+	});
+
 	test('writeFile - no error when writing to same nonexistent folder multiple times different new files', async () => {
 		const newFolder = URI.file(join(testDir, 'some', 'new', 'folder'));
 

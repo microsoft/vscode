@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.98.0",
-  "distro": "b37092a45bb95e5098cefcf6809fa6973cfd2538",
+  "distro": "18d6e62cad16da70804e341893ae344d5cdcc6ee",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -75,12 +75,12 @@
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.10",
-    "@vscode/proxy-agent": "^0.31.0",
+    "@vscode/proxy-agent": "^0.32.0",
     "@vscode/ripgrep": "^1.15.10",
     "@vscode/spdlog": "^0.15.0",
     "@vscode/sqlite3": "5.1.8-vscode",
     "@vscode/sudo-prompt": "9.3.1",
-    "@vscode/tree-sitter-wasm": "^0.1.2",
+    "@vscode/tree-sitter-wasm": "^0.1.3",
     "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",
@@ -180,7 +180,7 @@
     "gulp-svgmin": "^4.1.0",
     "gulp-untar": "^0.0.7",
     "husky": "^0.13.1",
-    "innosetup": "6.0.5",
+    "innosetup": "^6.4.1",
     "istanbul-lib-coverage": "^3.2.0",
     "istanbul-lib-instrument": "^6.0.1",
     "istanbul-lib-report": "^3.0.0",

@@ -32,7 +32,7 @@ import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
-import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
+import { addPositions, getEndPositionsAfterApplying, getModifiedRangesAfterApplying, substringPos, subtractPositions } from '../utils.js';
 import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
@@ -128,7 +128,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (!!this?._selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
 			const { column, lines } = ghostText.parts[0];
 
-			const firstLine = lines[0];
+			const firstLine = lines[0].line;
 
 			const indentationEndColumn = this.textModel.getLineIndentColumn(ghostText.lineNumber);
 			const inIndentation = column <= indentationEndColumn;
@@ -269,6 +269,7 @@ export class InlineCompletionsModel extends Disposable {
 				}
 			}
 
+			this._inAcceptPartialFlow.set(false, tx);
 			this._isActive.set(false, tx);
 			this._source.clear(tx);
 		});
@@ -594,6 +595,12 @@ export class InlineCompletionsModel extends Disposable {
 			throw new BugIndicatingError();
 		}
 
+		if (this._inAcceptPartialFlow.get()) {
+			this._inAcceptPartialFlow.set(false, undefined);
+			this.jump();
+			return;
+		}
+
 		let completionWithUpdatedRange: InlineCompletionWithUpdatedRange;
 
 		const state = this.state.get();
@@ -762,6 +769,68 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
+	// TODO: clean this up if we keep it
+	private readonly _inAcceptPartialFlow = observableValue(this, false);
+	public readonly inAcceptPartialFlow: IObservable<boolean> = this._inAcceptPartialFlow;
+	public async acceptNextInlineEditPart(editor: ICodeEditor): Promise<void> {
+		if (editor.getModel() !== this.textModel) {
+			throw new BugIndicatingError();
+		}
+
+		const state = this.inlineEditState.get();
+		const updatedEdit = state?.inlineCompletion.updatedEdit.get();
+		const completion = state?.inlineCompletion.toInlineCompletion(undefined);
+		if (!updatedEdit || updatedEdit.isEmpty || !completion) {
+			return;
+		}
+
+		const nextPart = updatedEdit.edits[0];
+
+		const edit = new SingleTextEdit(Range.fromPositions(
+			this.textModel.getPositionAt(nextPart.replaceRange.start),
+			this.textModel.getPositionAt(nextPart.replaceRange.endExclusive)
+		), nextPart.newText);
+
+		const cursorAtStartPosition = this._editor.getSelection()?.getStartPosition().equals(edit.range.getStartPosition());
+		if (!cursorAtStartPosition || !this._inAcceptPartialFlow.get()) {
+			this._inAcceptPartialFlow.set(true, undefined);
+			this.jump();
+			return;
+		}
+
+		const partToJumpToNext = updatedEdit.edits[1] ?? undefined;
+		const editToJumpToNext = partToJumpToNext ? new SingleTextEdit(Range.fromPositions(
+			this.textModel.getPositionAt(partToJumpToNext.replaceRange.start),
+			this.textModel.getPositionAt(partToJumpToNext.replaceRange.endExclusive)
+		), partToJumpToNext.newText) : undefined;
+
+		// Executing the edit might free the completion, so we have to hold a reference on it.
+		completion.source.addRef();
+		try {
+			this._isAcceptingPartially = true;
+			try {
+				editor.pushUndoStop();
+
+				let selections;
+				if (editToJumpToNext) {
+					const [_, rangeOfEditToJumpTo] = getModifiedRangesAfterApplying([edit, editToJumpToNext]);
+					selections = [Selection.fromPositions(rangeOfEditToJumpTo.getStartPosition())];
+				} else {
+					selections = getEndPositionsAfterApplying([edit]).map(p => Selection.fromPositions(p));
+				}
+
+				const edits = [edit];
+				editor.executeEdits('inlineSuggestion.accept', edits.map(edit => EditOperation.replace(edit.range, edit.text)));
+				editor.setSelections(selections, 'inlineCompletionPartialAccept');
+				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Immediate);
+			} finally {
+				this._isAcceptingPartially = false;
+			}
+		} finally {
+			completion.source.removeRef();
+		}
+	}
+
 	public handleSuggestAccepted(item: SuggestItemInfo) {
 		const itemEdit = singleTextRemoveCommonPrefix(item.toSingleTextEdit(), this.textModel);
 		const augmentedCompletion = this._computeAugmentation(itemEdit, undefined);
@@ -795,8 +864,9 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	}
 
-	private _jumpedTo = observableValue(this, false);
-	private _inAcceptFlow = observableValue(this, false);
+	private readonly _jumpedTo = observableValue(this, false);
+	private readonly _inAcceptFlow = observableValue(this, false);
+	public readonly inAcceptFlow: IObservable<boolean> = this._inAcceptFlow;
 
 	public jump(): void {
 		const s = this.inlineEditState.get();

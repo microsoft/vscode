@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue, IObservable, ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ISingleEditOperation, EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
@@ -34,12 +37,13 @@ import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRe
 import { SaveReason, IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IModifiedFileEntry, ChatEditKind, WorkingSetEntryState, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
+import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry, pendingRewriteMinimap, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
-import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 
 export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifiedFileEntry implements IModifiedFileEntry {
@@ -65,12 +69,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	});
 
+	readonly initialContent: string;
 
 	private readonly docSnapshot: ITextModel;
-	readonly initialContent: string;
 	private readonly doc: ITextModel;
-	private readonly docFileEditorModel: IResolvedTextFileEditorModel;
-	private _allEditsAreFromUs: boolean = true;
+	readonly docFileEditorModel: IResolvedTextFileEditorModel;
 
 	get originalModel(): ITextModel {
 		return this.docSnapshot;
@@ -80,16 +83,13 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return this.doc;
 	}
 
-	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
-	private _diffOperation: Promise<any> | undefined;
+	private _allEditsAreFromUs: boolean = true;
+	private _diffOperation: Promise<IDocumentDiff | undefined> | undefined;
 	private _diffOperationIds: number = 0;
 
 	private readonly _diffInfo = observableValue<IDocumentDiff>(this, nullDocumentDiff);
-	get diffInfo(): IObservable<IDocumentDiff> {
-		return this._diffInfo;
-	}
 
 	readonly changesCount = this._diffInfo.map(diff => diff.changes.length);
 
@@ -98,6 +98,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 
 	private readonly _diffTrimWhitespace: IObservable<boolean>;
+
+	readonly originalURI: URI;
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
@@ -129,6 +131,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		this.docFileEditorModel = this._register(resourceRef).object as IResolvedTextFileEditorModel;
 		this.doc = resourceRef.object.textEditorModel;
+		this.originalURI = ChatEditingTextModelContentProvider.getFileURI(telemetryInfo.sessionId, this.entryId, this.modifiedURI.path);
 
 		this.initialContent = initialContent ?? this.doc.getValue();
 		const docSnapshot = this.docSnapshot = this._register(
@@ -152,8 +155,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
-
-
 
 		this._register(toDisposable(() => {
 			this._clearCurrentEditLineDecoration();
@@ -181,7 +182,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
-		this._isFirstEditAfterStartOrSnapshot = true;
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
@@ -202,13 +202,16 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._updateDiffInfoSeq();
 	}
 
-	resetToInitialValue() {
+	resetToInitialContent() {
 		this._setDocValue(this.initialContent);
 	}
 
 	override async acceptStreamingEditsEnd(tx: ITransaction) {
-		await this._diffOperation;
+		const diff = await this._diffOperation;
 		super.acceptStreamingEditsEnd(tx);
+		if (diff?.identical) {
+			this.accept(tx);
+		}
 	}
 
 	protected override _resetEditsState(tx: ITransaction): void {
@@ -270,15 +273,19 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
+	override acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
+		super.acceptStreamingEditsStart(responseModel, tx);
 
-		// push stack element for the first edit
-		if (this._isFirstEditAfterStartOrSnapshot) {
-			this._isFirstEditAfterStartOrSnapshot = false;
-			const request = this._chatService.getSession(this._telemetryInfo.sessionId)?.getRequests().at(-1);
-			const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
-			this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
-		}
+		// push stack element whenever streaming starts
+		const request = responseModel.session.getRequests().find(req => req.id === responseModel.requestId);
+		const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
+		this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
+	}
+
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+
+		assertType(textEdits.every(TextEdit.isTextEdit), 'INVALID args, can only handle text edits');
+		assert(isEqual(resource, this.modifiedURI), ' INVALID args, can only edit THIS document');
 
 		const ops = textEdits.map(TextEdit.asEditOperation);
 		const undoEdits = this._applyEdits(ops);
@@ -320,7 +327,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		});
 	}
 
-	async acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+	private async _acceptHunk(change: DetailedLineRangeMapping): Promise<boolean> {
 		if (!this._diffInfo.get().changes.includes(change)) {
 			// diffInfo should have model version ids and check them (instead of the caller doing that)
 			return false;
@@ -332,13 +339,13 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 		this.docSnapshot.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
-		if (this.diffInfo.get().identical) {
+		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Accepted, undefined);
 		}
 		return true;
 	}
 
-	async rejectHunk(change: DetailedLineRangeMapping): Promise<boolean> {
+	private async _rejectHunk(change: DetailedLineRangeMapping): Promise<boolean> {
 		if (!this._diffInfo.get().changes.includes(change)) {
 			return false;
 		}
@@ -349,7 +356,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 		this.doc.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
-		if (this.diffInfo.get().identical) {
+		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
 		}
 		return true;
@@ -380,10 +387,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	private async _updateDiffInfo(): Promise<void> {
+	private async _updateDiffInfo(): Promise<IDocumentDiff | undefined> {
 
 		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
-			return;
+			return undefined;
 		}
 
 		const docVersionNow = this.doc.getVersionId();
@@ -399,7 +406,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		);
 
 		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
-			return;
+			return undefined;
 		}
 
 		// only update the diff if the documents didn't change in the meantime
@@ -407,7 +414,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			const diff2 = diff ?? nullDocumentDiff;
 			this._diffInfo.set(diff2, undefined);
 			this._edit = OffsetEdits.fromLineRangeMapping(this.docSnapshot, this.doc, diff2.changes);
+			return diff2;
 		}
+		return undefined;
 	}
 
 	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
@@ -452,6 +461,17 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	protected _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
-		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, codeEditor, this);
+
+		const diffInfo = this._diffInfo.map(value => {
+			return {
+				...value,
+				originalModel: this.originalModel,
+				modifiedModel: this.modifiedModel,
+				keep: changes => this._acceptHunk(changes),
+				undo: changes => this._rejectHunk(changes)
+			} satisfies IDocumentDiff2;
+		});
+
+		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo);
 	}
 }

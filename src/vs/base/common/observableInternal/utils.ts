@@ -316,9 +316,9 @@ export function signalFromObservable<T>(owner: DebugOwner | undefined, observabl
 }
 
 /**
- * @deprecated Use `debouncedObservable2` instead.
+ * @deprecated Use `debouncedObservable` instead.
  */
-export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
+export function debouncedObservableDeprecated<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
 	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
 
 	let timeout: any = undefined;
@@ -344,7 +344,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 /**
  * Creates an observable that debounces the input observable.
  */
-export function debouncedObservable2<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
+export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
 	let hasValue = false;
 	let lastValue: T | undefined;
 
@@ -421,10 +421,10 @@ _setKeepObserved(keepObserved);
 export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>, handleValue?: (value: T) => void): IDisposable {
 	const o = new KeepAliveObserver(true, handleValue);
 	observable.addObserver(o);
-	if (handleValue) {
-		handleValue(observable.get());
-	} else {
-		observable.reportChanges();
+	try {
+		o.beginUpdate(observable);
+	} finally {
+		o.endUpdate(observable);
 	}
 
 	return toDisposable(() => {
@@ -447,14 +447,14 @@ export class KeepAliveObserver implements IObserver {
 	}
 
 	endUpdate<T>(observable: IObservable<T>): void {
-		this._counter--;
-		if (this._counter === 0 && this._forceRecompute) {
+		if (this._counter === 1 && this._forceRecompute) {
 			if (this._handleValue) {
 				this._handleValue(observable.get());
 			} else {
 				observable.reportChanges();
 			}
 		}
+		this._counter--;
 	}
 
 	handlePossibleChange<T>(observable: IObservable<T>): void {

@@ -63,9 +63,14 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		// onDidChangeTerminalShellIntegration via env
 		const envChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.ShellEnvDetection, e => e.onDidChangeEnv));
 		this._store.add(envChangeEvent.event(e => {
-			const keysArr = Array.from(e.data.keys());
-			const valuesArr = Array.from(e.data.values());
-			this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr);
+			if (e.data.value && typeof e.data.value === 'object') {
+				const envValue = e.data.value as { [key: string]: string | undefined };
+
+				// Extract keys and values
+				const keysArr = Object.keys(envValue);
+				const valuesArr = Object.values(envValue);
+				this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr as string[], e.data.isTrusted);
+			}
 		}));
 
 		// onDidStartTerminalShellExecution

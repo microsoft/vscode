@@ -10,7 +10,7 @@ import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
-import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -19,11 +19,11 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { editorBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -78,7 +78,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	private _refCounter: number = 1;
 
-	readonly originalURI: URI;
+	readonly abstract originalURI: URI;
 
 	constructor(
 		readonly modifiedURI: URI,
@@ -91,8 +91,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this.originalURI = ChatEditingTextModelContentProvider.getFileURI(_telemetryInfo.sessionId, this.entryId, modifiedURI.path);
 
 		if (kind === ChatEditKind.Created) {
 			this.createdInRequestId = this._telemetryInfo.requestId;
@@ -219,7 +217,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	 */
 	protected abstract _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 
-	abstract readonly diffInfo: IObservable<IDocumentDiff>;
 	abstract readonly changesCount: IObservable<number>;
 
 	acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
@@ -227,6 +224,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 		this._autoAcceptCtrl.get()?.cancel();
 	}
+
+	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
 
 	async acceptStreamingEditsEnd(tx: ITransaction) {
 		this._resetEditsState(tx);
@@ -264,6 +263,20 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
 		this._rewriteRatioObs.set(0, tx);
 	}
+
+	// --- snapshot
+
+	abstract createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
+
+	abstract equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean;
+
+	abstract restoreFromSnapshot(snapshot: ISnapshotEntry): void;
+
+	// --- inital content
+
+	abstract resetToInitialContent(): void;
+
+	abstract initialContent: string;
 }
 
 export interface IModifiedEntryTelemetryInfo {

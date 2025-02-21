@@ -183,9 +183,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 							return this.chatOptions.location === ChatAgentLocation.EditingSession;
 						},
 						referencesExpandedWhenEmptyResponse: this.chatOptions.location !== ChatAgentLocation.EditingSession,
+						progressMessageAtBottomOfResponse: this.chatOptions.location === ChatAgentLocation.EditingSession,
 					},
-					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
 					editorOverflowWidgetsDomNode: editorOverflowNode,
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
 					enableWorkingSet: this.chatOptions.location === ChatAgentLocation.EditingSession ? 'explicit' : undefined
 				},
 				{

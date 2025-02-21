@@ -23,9 +23,8 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
-import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../editor/common/viewModel.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -38,8 +37,16 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../scm/common/quickDiff.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { isDiffEditorForEntry } from './chatEditing.js';
-import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
+import { isTextDiffEditorForEntry } from './chatEditing.js';
+
+export interface IDocumentDiff2 extends IDocumentDiff {
+
+	originalModel: ITextModel;
+	modifiedModel: ITextModel;
+
+	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
+	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
+}
 
 export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEditorIntegration {
 
@@ -59,8 +66,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
 
 	constructor(
+		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
-		private readonly _entry: ChatEditingModifiedDocumentEntry,
+		documentDiffInfo: IObservable<IDocumentDiff2>,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -71,10 +79,10 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		const codeEditorObs = observableCodeEditor(_editor);
 
 		const enabledObs = derived(r => {
-			if (!isEqual(codeEditorObs.model.read(r)?.uri, _entry.modifiedURI)) {
+			if (!isEqual(codeEditorObs.model.read(r)?.uri, documentDiffInfo.read(r).modifiedModel.uri)) {
 				return false;
 			}
-			if (this._editor.getOption(EditorOption.inDiffEditor) && !instantiationService.invokeFunction(isDiffEditorForEntry, _entry, this._editor)) {
+			if (this._editor.getOption(EditorOption.inDiffEditor) && !instantiationService.invokeFunction(isTextDiffEditorForEntry, _entry, this._editor)) {
 				return false;
 			}
 			return true;
@@ -90,7 +98,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 
 			const data: IModelDeltaDecoration[] = [];
-			const diff = _entry.diffInfo.read(r);
+			const diff = documentDiffInfo.read(r);
 			for (const diffEntry of diff.changes) {
 				data.push({
 					range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
@@ -107,7 +115,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			if (enabledObs.read(r)
 				&& !_entry.isCurrentlyBeingModifiedBy.read(r)
 				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
-				&& !_entry.diffInfo.read(r).identical
+				&& !documentDiffInfo.read(r).identical
 			) {
 				lastModifyingRequestId = _entry.lastModifyingRequestId;
 				const position = _editor.getPosition() ?? new Position(1, 1);
@@ -138,15 +146,14 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			// done: render diff
 			if (!_entry.isCurrentlyBeingModifiedBy.read(r)) {
 
-
 				// Add diff decoration to the UI (unless in diff editor)
 				if (!this._editor.getOption(EditorOption.inDiffEditor)) {
 					codeEditorObs.getOption(EditorOption.fontInfo).read(r);
 					codeEditorObs.getOption(EditorOption.lineHeight).read(r);
 
 					const reviewMode = _entry.reviewMode.read(r);
-					const diff = _entry.diffInfo.read(r);
-					this._updateDiffRendering(_entry, diff, reviewMode);
+					const diff = documentDiffInfo.read(r);
+					this._updateDiffRendering(diff, reviewMode);
 
 				} else {
 					this._clearDiffRendering();
@@ -162,7 +169,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				return;
 			}
 
-			const diff = _entry.diffInfo.read(r);
+			const diff = documentDiffInfo.read(r);
 			const mapping = diff.changes.find(m => m.modified.contains(position.lineNumber) || m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber);
 			if (mapping?.modified.isEmpty) {
 				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
@@ -194,8 +201,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				constObservable(true),
 				codeEditorObs.layoutInfo.map((v, r) => v.width),
 				codeEditorObs.layoutInfo.map((v, r) => v.height),
-				_entry.diffInfo.map(diff => diff.changes.slice()),
-				instantiationService.createInstance(AccessibleDiffViewerModel, _entry, _editor),
+				documentDiffInfo.map(diff => diff.changes.slice()),
+				instantiationService.createInstance(AccessibleDiffViewerModel, documentDiffInfo, _editor),
 			));
 		}));
 
@@ -247,7 +254,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 	private _clear() {
 		this._diffLineDecorations.clear();
-		// this._currentChangeIndex.set(undefined, undefined);
+		this._clearDiffRendering();
 		this._currentIndex.set(-1, undefined);
 	}
 
@@ -264,9 +271,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._diffVisualDecorations.clear();
 	}
 
-	private _updateDiffRendering(entry: ChatEditingModifiedDocumentEntry, diff: IDocumentDiff, reviewMode: boolean): void {
-
-		const originalModel = entry.originalModel;
+	private _updateDiffRendering(diff: IDocumentDiff2, reviewMode: boolean): void {
 
 		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
 			...diffAddDecoration,
@@ -297,17 +302,17 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 			this._viewZones = [];
 			const modifiedVisualDecorations: IModelDeltaDecoration[] = [];
-			const mightContainNonBasicASCII = originalModel.mightContainNonBasicASCII();
-			const mightContainRTL = originalModel.mightContainRTL();
+			const mightContainNonBasicASCII = diff.originalModel.mightContainNonBasicASCII();
+			const mightContainRTL = diff.originalModel.mightContainRTL();
 			const renderOptions = RenderOptions.fromEditor(this._editor);
 			const editorLineCount = this._editor.getModel()?.getLineCount();
 
 			for (const diffEntry of diff.changes) {
 
 				const originalRange = diffEntry.original;
-				originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
+				diff.originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
 				const source = new LineSource(
-					originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)),
+					originalRange.mapToLineArray(l => diff.originalModel.tokenization.getLineTokens(l)),
 					[],
 					mightContainNonBasicASCII,
 					mightContainRTL,
@@ -383,7 +388,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 					// Add content widget for each diff change
 					const widget = this._editor.invokeWithinContext(accessor => {
 						const instaService = accessor.get(IInstantiationService);
-						return instaService.createInstance(DiffHunkWidget, entry, diffEntry, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
+						return instaService.createInstance(DiffHunkWidget, diff, diffEntry, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
 					});
 
 					widget.layout(diffEntry.modified.startLineNumber);
@@ -669,7 +674,7 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 
 
 	constructor(
-		readonly entry: ChatEditingModifiedDocumentEntry,
+		private readonly _diffInfo: IDocumentDiff2,
 		private readonly _change: DetailedLineRangeMapping,
 		private readonly _versionId: number,
 		private readonly _editor: ICodeEditor,
@@ -746,14 +751,14 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		if (this._versionId !== this._editor.getModel()?.getVersionId()) {
 			return false;
 		}
-		return await this.entry.rejectHunk(this._change);
+		return await this._diffInfo.undo(this._change);
 	}
 
 	async accept(): Promise<boolean> {
 		if (this._versionId !== this._editor.getModel()?.getVersionId()) {
 			return false;
 		}
-		return this.entry.acceptHunk(this._change);
+		return this._diffInfo.keep(this._change);
 	}
 }
 
@@ -787,13 +792,12 @@ class AccessibleDiffViewContainer implements IOverlayWidget {
 
 class AccessibleDiffViewerModel implements IAccessibleDiffViewerModel {
 	constructor(
-		private readonly entry: IModifiedFileEntry,
+		private readonly _documentDiffInfo: IObservable<IDocumentDiff2>,
 		private readonly _editor: ICodeEditor,
-		@IModelService private readonly _modelService: IModelService,
 	) { }
 
 	getOriginalModel() {
-		return this._modelService.getModel(this.entry.originalURI)!;
+		return this._documentDiffInfo.get().originalModel;
 	}
 
 	getOriginalOptions() {
@@ -801,7 +805,7 @@ class AccessibleDiffViewerModel implements IAccessibleDiffViewerModel {
 	}
 
 	originalReveal(range: Range) {
-		const changes = this.entry.diffInfo.get().changes;
+		const changes = this._documentDiffInfo.get().changes;
 		const idx = changes.findIndex(value => value.original.intersect(LineRange.fromRange(range)));
 		if (idx >= 0) {
 			range = changes[idx].modified.toInclusiveRange() ?? range;

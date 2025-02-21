@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, constObservable, derived, IObservable, observableFromEvent } from '../../../../../../../base/common/observable.js';
+import { autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../../../../base/common/observable.js';
 import { ICodeEditor, MouseTargetType } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { rangeIsSingleLine } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
@@ -16,7 +18,7 @@ import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { Range } from '../../../../../../common/core/range.js';
 import { AbstractText } from '../../../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMapping.js';
-import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../../../common/model.js';
+import { EndOfLinePreference, IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from '../../../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
 import { IInlineEditsView } from '../inlineEditsViewInterface.js';
@@ -35,7 +37,13 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		return allowsTrueInlineDiffRendering(mapping);
 	}
 
-	readonly isHovered = constObservable(false);
+	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	readonly onDidClick = this._onDidClick.event;
+
+	readonly isHovered = observableCodeEditor(this._originalEditor).isTargetHovered(
+		p => p.target.type === MouseTargetType.CONTENT_TEXT && p.target.detail.injectedText?.options.attachedData instanceof InlineEditAttachedData,
+		this._store
+	);
 
 	private readonly _tokenizationFinished = modelTokenizationFinished(this._modifiedTextModel);
 
@@ -59,11 +67,12 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		const editor = observableCodeEditor(this._originalEditor);
 
 		this._register(this._originalEditor.onMouseUp(e => {
-			if (e.target.type === MouseTargetType.CONTENT_TEXT) {
-				const a = e.target.detail.injectedText?.options.attachedData;
-				if (a) {
-
-				}
+			if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
+				return;
+			}
+			const a = e.target.detail.injectedText?.options.attachedData;
+			if (a instanceof InlineEditAttachedData) {
+				this._onDidClick.fire(e.event);
 			}
 		}));
 
@@ -253,6 +262,8 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 											i.modifiedRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
 											...extraClasses // include extraClasses for additional styling if provided
 										),
+										cursorStops: InjectedTextCursorStops.None,
+										attachedData: new InlineEditAttachedData(),
 									},
 									zIndex: 2,
 									showIfCollapsed: true,
@@ -266,6 +277,9 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 
 		return { originalDecorations, modifiedDecorations };
 	});
+}
+
+class InlineEditAttachedData {
 }
 
 function allowsTrueInlineDiffRendering(mapping: DetailedLineRangeMapping): boolean {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../../../nls.js';
-import { PROMPT_FILE_EXTENSION } from '../../../../../common/promptSyntax/constants.js';
+import { PROMPT_FILE_EXTENSION } from '../../../../../../../../platform/prompts/common/constants.js';
 import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**

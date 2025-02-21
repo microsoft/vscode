@@ -489,7 +489,6 @@ export function registerChatActions() {
 	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.providerSetting}`, defaultChat.enterpriseProviderId));
 	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage Copilot Plan"), defaultChat.managePlanUrl, 1, nonEnterpriseCopilotUsers);
 	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2, nonEnterpriseCopilotUsers);
-	registerOpenLinkAction('workbench.action.chat.learnMore', localize2('learnMore', "Learn More"), defaultChat.documentationUrl, 3);
 
 	registerAction2(class ShowExtensionsUsingCopilot extends Action2 {
 

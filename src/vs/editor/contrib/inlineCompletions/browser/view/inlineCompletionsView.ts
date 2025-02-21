@@ -39,6 +39,7 @@ export class InlineCompletionsView extends Disposable {
 		},
 		this._editorObs.getOption(EditorOption.inlineSuggest).map(v => ({ syntaxHighlightingEnabled: v.syntaxHighlightingEnabled })),
 		false,
+		false
 	)
 	).recomputeInitiallyAndOnChange(store)
 	).recomputeInitiallyAndOnChange(this._store);

@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconL
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, constObservable, derived, observableFromEvent, observableValue, runOnChange } from '../../../../../../../base/common/observable.js';
-import { debouncedObservable2 } from '../../../../../../../base/common/observableInternal/utils.js';
+import { debouncedObservable } from '../../../../../../../base/common/observableInternal/utils.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -50,7 +50,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}));
 
 		if (!accessibilityService.isMotionReduced()) {
-			const debouncedIsHovering = debouncedObservable2(this._isHoveringOverInlineEdit, 100);
+			const debouncedIsHovering = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 			this._register(runOnChange(debouncedIsHovering, (isHovering) => {
 				if (!isHovering) {
 					return;
@@ -121,11 +121,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 	});
 
 	private readonly _iconRef = n.ref<HTMLDivElement>();
-	private _hoverVisible: boolean = false;
+	private readonly _hoverVisible = observableValue(this, false);
+	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
 	private readonly _isHoveredOverIcon = observableValue(this, false);
 
 	private _showHover(): void {
-		if (this._hoverVisible) {
+		if (this._hoverVisible.get()) {
 			return;
 		}
 
@@ -152,9 +153,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 			content: content.element,
 		}) as HoverWidget | undefined;
 		if (h) {
-			this._hoverVisible = true;
+			this._hoverVisible.set(true, undefined);
 			disposableStore.add(h.onDispose(() => {
-				this._hoverVisible = false;
+				this._hoverVisible.set(false, undefined);
 				disposableStore.dispose();
 			}));
 		} else {

@@ -1158,11 +1158,11 @@ class ChatSetupWelcomeContent extends Disposable {
 		});
 
 		if (useEnterpriseProvider) {
-			await this.configurationService.updateValue(defaultChat.providerSetting, defaultChat.enterpriseProviderId, ConfigurationTarget.USER);
 			const success = await this.handleEnterpriseInstance();
 			if (!success) {
 				return; // not properly configured, abort
 			}
+			await this.configurationService.updateValue(defaultChat.providerSetting, defaultChat.enterpriseProviderId, ConfigurationTarget.USER);
 		} else {
 			await this.configurationService.updateValue(defaultChat.providerSetting, undefined, ConfigurationTarget.USER);
 			await this.configurationService.updateValue(defaultChat.providerUriSetting, undefined, ConfigurationTarget.USER);

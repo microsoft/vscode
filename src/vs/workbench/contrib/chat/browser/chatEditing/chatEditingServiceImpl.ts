@@ -33,12 +33,12 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
+import { IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
+import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -78,10 +78,12 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	) {
 		super();
 		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this.editingSessionsObs)));
-		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver)));
-		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider)));
-		this._register(textModelService.registerTextModelContentProvider(chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider)));
+		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this.editingSessionsObs)));
 
+		// TODO@jrieken
+		// some ugly casting so that this service can pass itself as argument instad as service dependeny
+		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider as any, this)));
+		this._register(textModelService.registerTextModelContentProvider(chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider as any, this)));
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared') {
@@ -172,11 +174,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 
-	private _lookupEntry(uri: URI): ChatEditingModifiedDocumentEntry | undefined {
+	private _lookupEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
 
 		for (const item of Iterable.concat(this.editingSessionsObs.get())) {
 			const candidate = item.getEntry(uri);
-			if (candidate instanceof ChatEditingModifiedDocumentEntry) {
+			if (candidate instanceof AbstractChatEditingModifiedFileEntry) {
 				// make sure to ref-count this object
 				return candidate.acquire();
 			}
@@ -312,7 +314,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 						entry = { seen: 0, streaming: codeBlockUrisSeen[codeBlockIndex]!.streaming! };
 						codeBlockUrisSeen[codeBlockIndex]!.streaming = undefined;
 					} else {
-						entry = { seen: 0, streaming: session.startStreamingEdits(part.uri, responseModel, undoStop) };
+						entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, responseModel, undoStop) };
 					}
 
 					editsSeen[i] = entry;
@@ -324,7 +326,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
-						entry.streaming.pushNotebook(newEdits as ICellEditOperation[]);
+						newEdits.forEach(edit => {
+							if (TextEdit.isTextEdit(edit)) {
+								// Not possible, as Notebooks would have a different type.
+								return;
+							} else if (isCellTextEditOperation(edit)) {
+								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit]);
+							} else {
+								entry.streaming.pushNotebook([edit]);
+							}
+						});
 					} else if (part.kind === 'textEditGroup') {
 						entry.streaming.pushText(newEdits as TextEdit[]);
 					}
@@ -367,24 +378,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		});
 	}
 
-	async getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
-		const currentSession = this.getEditingSession(chatSessionId);
-		if (!currentSession) {
-			return undefined;
-		}
-		const userAddedWorkingSetEntries: URI[] = [];
-		for (const [uri, metadata] of currentSession.workingSet) {
-			// Don't incorporate suggested files into the related files request
-			// but do consider transient entries like open editors
-			if (metadata.state !== WorkingSetEntryState.Suggested) {
-				userAddedWorkingSetEntries.push(uri);
-			}
-		}
-
+	async getRelatedFiles(chatSessionId: string, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
 		const providers = Array.from(this._chatRelatedFilesProviders.values());
 		const result = await Promise.all(providers.map(async provider => {
 			try {
-				const relatedFiles = await provider.provideRelatedFiles({ prompt, files: userAddedWorkingSetEntries }, token);
+				const relatedFiles = await provider.provideRelatedFiles({ prompt, files }, token);
 				if (relatedFiles?.length) {
 					return { group: provider.description, files: relatedFiles };
 				}
@@ -478,8 +476,8 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	constructor(
+		private readonly _editingSessionsObs: IObservable<readonly IChatEditingSession[]>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService
 	) { }
 
 	canHandleUri(uri: URI): boolean {
@@ -489,7 +487,7 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 
 		const thisSession = derived(this, r => {
-			return this._chatEditingService.editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
+			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === uri.authority);
 		});
 
 		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession);
