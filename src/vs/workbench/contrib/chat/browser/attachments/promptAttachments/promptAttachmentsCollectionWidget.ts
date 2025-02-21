@@ -6,21 +6,21 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
+import { PromptAttachmentWidget } from './promptAttachmentWidget.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { InstructionsAttachmentWidget } from './instructionsAttachmentWidget.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ChatInstructionAttachmentsModel } from '../../chatAttachmentModel/chatInstructionAttachmentsModel.js';
+import { ChatPromptAttachmentsCollection } from '../../chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 /**
  * Widget for a collection of prompt instructions attachments.
- * See {@linkcode InstructionsAttachmentWidget}.
+ * See {@linkcode PromptAttachmentWidget}.
  */
-export class InstructionAttachmentsWidget extends Disposable {
+export class PromptAttachmentsCollectionWidget extends Disposable {
 	/**
 	 * List of child instruction attachment widgets.
 	 */
-	private children: InstructionsAttachmentWidget[] = [];
+	private children: PromptAttachmentWidget[] = [];
 
 	/**
 	 * Event that fires when number of attachments change
@@ -67,7 +67,7 @@ export class InstructionAttachmentsWidget extends Disposable {
 	}
 
 	constructor(
-		private readonly model: ChatInstructionAttachmentsModel,
+		private readonly model: ChatPromptAttachmentsCollection,
 		private readonly resourceLabels: ResourceLabels,
 		@IInstantiationService private readonly initService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -79,7 +79,7 @@ export class InstructionAttachmentsWidget extends Disposable {
 		// when a new attachment model is added, create a new child widget for it
 		this.model.onAdd((attachment) => {
 			const widget = this.initService.createInstance(
-				InstructionsAttachmentWidget,
+				PromptAttachmentWidget,
 				attachment,
 				this.resourceLabels,
 			);
@@ -105,7 +105,7 @@ export class InstructionAttachmentsWidget extends Disposable {
 	 * Handle child widget disposal.
 	 * @param widget The child widget that was disposed.
 	 */
-	public handleAttachmentDispose(widget: InstructionsAttachmentWidget): this {
+	public handleAttachmentDispose(widget: PromptAttachmentWidget): this {
 		// common prefix for all log messages
 		const logPrefix = `[onChildDispose] Widget for instructions attachment '${widget.uri.path}'`;
 
