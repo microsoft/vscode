@@ -34,8 +34,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 
-	private _commitCommandFinished?: RunOnceScheduler;
-
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
@@ -128,10 +126,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			get commandMarkers() { return that._commandMarkers; }
 			set commandMarkers(value) { that._commandMarkers = value; }
 			get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
-			commitCommandFinished() {
-				that._commitCommandFinished?.flush();
-				that._commitCommandFinished = undefined;
-			}
 		};
 		this._ptyHeuristics = this._register(new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService)));
 
@@ -219,10 +213,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					get commandMarkers() { return that._commandMarkers; }
 					set commandMarkers(value) { that._commandMarkers = value; }
 					get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
-					commitCommandFinished() {
-						that._commitCommandFinished?.flush();
-						that._commitCommandFinished = undefined;
-					}
 				},
 				this._logService
 			);
@@ -467,7 +457,6 @@ interface ICommandDetectionHeuristicsHooks {
 	commandMarkers: IMarker[];
 
 	clearCommandsInViewport(): void;
-	commitCommandFinished(): void;
 }
 
 type IPtyHeuristics = (
@@ -499,8 +488,6 @@ class UnixPtyHeuristics extends Disposable {
 	}
 
 	handleCommandStart(options?: IHandleCommandOptions) {
-		this._hooks.commitCommandFinished();
-
 		const currentCommand = this._capability.currentCommand;
 		currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
@@ -754,8 +741,6 @@ class WindowsPtyHeuristics extends Disposable {
 			this._tryAdjustCommandStartMarkerScheduler.flush();
 			this._tryAdjustCommandStartMarkerScheduler = undefined;
 		}
-
-		this._hooks.commitCommandFinished();
 
 		if (!this._capability.currentCommand.commandExecutedMarker) {
 			this._onCursorMoveListener.value = this._terminal.onCursorMove(() => {
