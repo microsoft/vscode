@@ -501,13 +501,13 @@ declare module 'vscode' {
 		 * The position at which the selection starts.
 		 * This position might be before or after {@link Selection.active active}.
 		 */
-		anchor: Position;
+		readonly anchor: Position;
 
 		/**
 		 * The position of the cursor.
 		 * This position might be before or after {@link Selection.anchor anchor}.
 		 */
-		active: Position;
+		readonly active: Position;
 
 		/**
 		 * Create a selection from two positions.
@@ -530,7 +530,7 @@ declare module 'vscode' {
 		/**
 		 * A selection is reversed if its {@link Selection.anchor anchor} is the {@link Selection.end end} position.
 		 */
-		isReversed: boolean;
+		readonly isReversed: boolean;
 	}
 
 	/**
