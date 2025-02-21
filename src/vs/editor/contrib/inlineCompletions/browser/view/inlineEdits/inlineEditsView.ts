@@ -305,9 +305,17 @@ export class InlineEditsView extends Disposable {
 		this._host
 	));
 
+	private getCacheId(edit: InlineEditWithChanges) {
+		if (this._model.get()?.inAcceptPartialFlow.get()) {
+			return `${edit.inlineCompletion.id}_${edit.edit.edits.map(edit => edit.range.toString() + edit.text).join(',')}`;
+		}
+
+		return edit.inlineCompletion.id;
+	}
+
 	private determineView(edit: InlineEditWithChanges, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange): string {
 		// Check if we can use the previous view if it is the same InlineCompletion as previously shown
-		const canUseCache = this._previousView?.id === edit.inlineCompletion.id;
+		const canUseCache = this._previousView?.id === this.getCacheId(edit);
 		const reconsiderViewAfterJump = edit.userJumpedToIt !== this._previousView?.userJumpedToIt &&
 			(
 				(this._useMixedLinesDiff.read(reader) === 'afterJumpWhenPossible' && this._previousView?.view !== 'mixedLines') ||
@@ -384,7 +392,7 @@ export class InlineEditsView extends Disposable {
 
 		const view = this.determineView(edit, reader, diff, newText, originalDisplayRange);
 
-		this._previousView = { id: edit.inlineCompletion.id, view, userJumpedToIt: edit.userJumpedToIt, editorWidth: this._editor.getLayoutInfo().width };
+		this._previousView = { id: this.getCacheId(edit), view, userJumpedToIt: edit.userJumpedToIt, editorWidth: this._editor.getLayoutInfo().width };
 
 		switch (view) {
 			case 'insertionInline': return { kind: 'insertionInline' as const };

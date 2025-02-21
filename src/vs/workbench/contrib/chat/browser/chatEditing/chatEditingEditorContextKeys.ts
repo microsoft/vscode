@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKey, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 
@@ -26,8 +29,7 @@ export class ChatEditingEditorContextKeys implements IWorkbenchContribution {
 	private readonly _store = new DisposableStore();
 
 	constructor(
-		@IChatEditingService chatEditingService: IChatEditingService,
-		@IChatService chatService: IChatService,
+		@IInstantiationService instaService: IInstantiationService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 	) {
 
@@ -51,7 +53,7 @@ export class ChatEditingEditorContextKeys implements IWorkbenchContribution {
 					continue;
 				}
 
-				editorGroupCtx.set(group, new ContextKeyGroup(group, chatEditingService, chatService));
+				editorGroupCtx.set(group, instaService.createInstance(ContextKeyGroup, group));
 			}
 
 			for (const item of toDispose) {
@@ -78,8 +80,9 @@ class ContextKeyGroup {
 
 	constructor(
 		group: IEditorGroup,
-		chatEditingService: IChatEditingService,
-		chatService: IChatService,
+		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
+		@IChatEditingService chatEditingService: IChatEditingService,
+		@IChatService chatService: IChatService,
 	) {
 		this._ctxIsGlobalEditingSession = ctxIsGlobalEditingSession.bindTo(group.scopedContextKeyService);
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(group.scopedContextKeyService);
@@ -99,29 +102,27 @@ class ContextKeyGroup {
 				return;
 			}
 
-			let tuple: [IChatEditingSession, IModifiedFileEntry] | undefined;
-			for (const session of chatEditingService.editingSessionsObs.read(r)) {
-				const entry = session.readEntry(uri, r);
-				if (entry) {
-					tuple = [session, entry];
-					break;
-				}
-			}
+			const tuple = new ObservableEditorSession(uri, chatEditingService, inlineChatSessionService).value.read(r);
 
 			if (!tuple) {
 				this._reset();
 				return;
 			}
 
-			const [session, entry] = tuple;
+			const { session, entry } = tuple;
+
+			const chatModel = chatService.getSession(session.chatSessionId);
+
+			const isRequestInProgress = chatModel
+				? observableFromEvent(this, chatModel.onDidChange, () => chatModel.requestInProgress)
+				: constObservable(false);
 
 			this._ctxHasEditorModification.set(true);
 			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);
-			this._ctxReviewModeEnabled.set(entry.reviewMode.read(r));
-			this._ctxHasRequestInProgress.set(session.state.read(r) === ChatEditingSessionState.StreamingEdits);
+			this._ctxReviewModeEnabled.set(entry ? entry.reviewMode.read(r) : false);
+			this._ctxHasRequestInProgress.set(session.state.read(r) === ChatEditingSessionState.StreamingEdits || isRequestInProgress.read(r) || !entry);
 
 			// number of requests
-			const chatModel = chatService.getSession(session.chatSessionId);
 			const requestCount = chatModel
 				? observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().length)
 				: constObservable(0);
@@ -141,5 +142,39 @@ class ContextKeyGroup {
 	dispose(): void {
 		this._store.dispose();
 		this._reset();
+	}
+}
+
+export class ObservableEditorSession {
+
+	readonly value: IObservable<undefined | { session: IChatEditingSession; entry: IModifiedFileEntry | undefined }>;
+
+	constructor(
+		uri: URI,
+		@IChatEditingService chatEditingService: IChatEditingService,
+		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
+	) {
+		this.value = derived(r => {
+			const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => {
+				for (const session of value) {
+					const entry = session.readEntry(uri, r);
+					if (entry) {
+						return { session, entry };
+					}
+				}
+				return undefined;
+			});
+
+			const result = sessionObs.read(r);
+			if (result) {
+				return result;
+			}
+
+			const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
+			const inlineSession = inlineSessionObs.read(r);
+			return inlineSession
+				? { session: inlineSession.editingSession, entry: inlineSession.editingSession.readEntry(uri, r) }
+				: undefined;
+		});
 	}
 }
