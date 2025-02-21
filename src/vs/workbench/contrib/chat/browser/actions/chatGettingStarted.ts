@@ -16,6 +16,7 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { ensureSideBarChatViewSize, showCopilotView } from '../chat.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
 
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
@@ -33,6 +34,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
 		super();
 
@@ -79,8 +81,8 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.recentlyInstalled = false;
 
-		// Enable Copilot related settings if previously disabled
+		// Enable Copilot related UI if previously disabled
+		this.statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
 		this.configurationService.updateValue('chat.commandCenter.enabled', true);
-		this.configurationService.updateValue('chat.experimental.statusIndicator.enabled', true);
 	}
 }

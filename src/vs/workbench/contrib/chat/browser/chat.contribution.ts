@@ -97,7 +97,6 @@ import { PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/const
 import { DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
-import product from '../../../../platform/product/common/product.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -161,12 +160,6 @@ configurationRegistry.registerConfiguration({
 			deprecationMessage: nls.localize('chat.experimental.detectParticipant.enabled.deprecated', "This setting is deprecated. Please use `chat.detectParticipant.enabled` instead."),
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: null
-		},
-		'chat.experimental.statusIndicator.enabled': {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.statusIndicator.enabled', "Enable the Copilot status indicator in the status bar."),
-			default: product.quality !== 'stable',
-			tags: ['experimental', 'onExp']
 		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
