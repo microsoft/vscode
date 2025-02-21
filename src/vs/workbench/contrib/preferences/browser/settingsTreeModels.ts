@@ -971,8 +971,8 @@ export class SearchResultModel extends SettingsTreeModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
-			} else if (a.matchType === SettingMatchType.KeyMatch) {
-				// The match types are the same and are KeyMatch.
+			} else if (a.matchType === SettingMatchType.NonContiguousWordsInSettingsLabel || a.matchType === SettingMatchType.ContiguousWordsInSettingsLabel) {
+				// The match types are the same.
 				// Sort by the number of words matched in the key.
 				// If those are the same, sort by the order in the table of contents.
 				return (b.keyMatchScore - a.keyMatchScore) || compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder);
