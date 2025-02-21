@@ -42,6 +42,7 @@ import { ILanguageModelStatsService, LanguageModelStatsService } from '../common
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import '../common/promptSyntax/languageFeatures/promptLinkProvider.js';
 import '../common/promptSyntax/languageFeatures/promptPathAutocompletion.js';
+import '../common/promptSyntax/languageFeatures/promptLinkDiagnosticsProvider.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { IPromptsService } from '../common/promptSyntax/service/types.js';
 import './promptSyntax/contributions/usePromptCommand.js';
