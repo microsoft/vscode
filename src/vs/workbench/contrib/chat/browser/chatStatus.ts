@@ -50,9 +50,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				ariaLabel: text,
 				command: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
 				showInAllWindows: true,
-				kind: 'prominent',
+				kind: 'copilot',
 				tooltip: quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded })
-			}, ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, 1));
+			}, ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, -Number.MAX_VALUE /* the end of the right hand side */));
 		}
 	}
 }

@@ -97,7 +97,7 @@ export class NotificationsStatus extends Disposable {
 				statusProperties,
 				'status.notifications',
 				StatusbarAlignment.RIGHT,
-				-Number.MAX_VALUE /* towards the far end of the right hand side */
+				-Number.MAX_VALUE + 1 /* towards the far end of the right hand side */
 			);
 		} else {
 			this.notificationsCenterStatusItem.update(statusProperties);

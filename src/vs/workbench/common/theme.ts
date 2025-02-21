@@ -565,11 +565,12 @@ export const PROFILE_BADGE_FOREGROUND = registerColor('profileBadge.foreground',
 	hcLight: Color.white
 }, localize('profileBadgeForeground', "Profile badge foreground color. The profile badge shows on top of the settings gear icon in the activity bar."));
 
+
 // < --- Remote --- >
 
-export const STATUS_BAR_REMOTE_ITEM_BACKGROUND = registerColor('statusBarItem.remoteBackground', ACTIVITY_BAR_BADGE_BACKGROUND, localize('statusBarItemHostBackground', "Background color for the remote indicator on the status bar."));
+export const STATUS_BAR_REMOTE_ITEM_BACKGROUND = registerColor('statusBarItem.remoteBackground', ACTIVITY_BAR_BADGE_BACKGROUND, localize('statusBarItemRemoteBackground', "Background color for the remote indicator on the status bar."));
 
-export const STATUS_BAR_REMOTE_ITEM_FOREGROUND = registerColor('statusBarItem.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('statusBarItemHostForeground', "Foreground color for the remote indicator on the status bar."));
+export const STATUS_BAR_REMOTE_ITEM_FOREGROUND = registerColor('statusBarItem.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('statusBarItemRemoteForeground', "Foreground color for the remote indicator on the status bar."));
 
 export const STATUS_BAR_REMOTE_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.remoteHoverForeground', STATUS_BAR_ITEM_HOVER_FOREGROUND, localize('statusBarRemoteItemHoverForeground', "Foreground color for the remote indicator on the status bar when hovering."));
 
@@ -596,6 +597,17 @@ export const STATUS_BAR_OFFLINE_ITEM_HOVER_BACKGROUND = registerColor('statusBar
 export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.remoteBackground', ACTIVITY_BAR_BADGE_BACKGROUND, localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view."));
 
 export const EXTENSION_BADGE_REMOTE_FOREGROUND = registerColor('extensionBadge.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view."));
+
+
+// < --- Copilot --- >
+
+export const STATUS_BAR_COPILOT_ITEM_BACKGROUND = registerColor('statusBarItem.copilotBackground', STATUS_BAR_REMOTE_ITEM_BACKGROUND, localize('statusBarItemCopilotBackground', "Background color for the Copilot indicator on the status bar."));
+
+export const STATUS_BAR_COPILOT_ITEM_FOREGROUND = registerColor('statusBarItem.copilotForeground', STATUS_BAR_REMOTE_ITEM_FOREGROUND, localize('statusBarItemCopilotForeground', "Foreground color for the Copilot indicator on the status bar."));
+
+export const STATUS_BAR_COPILOT_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.copilotHoverForeground', STATUS_BAR_REMOTE_ITEM_HOVER_FOREGROUND, localize('statusBarCopilotItemHoverForeground', "Foreground color for the Copilot indicator on the status bar when hovering."));
+
+export const STATUS_BAR_COPILOT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.copilotHoverBackground', STATUS_BAR_REMOTE_ITEM_HOVER_BACKGROUND, localize('statusBarAiItemHoverBackground', "Background color for the Copilot indicator on the status bar when hovering."));
 
 
 // < --- Side Bar --- >
