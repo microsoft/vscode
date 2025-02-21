@@ -452,7 +452,6 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			return undefined;
 		}
 
-
 		// if the first error is the error of the root reference,
 		// then return it as an `error` otherwise use `warning`
 		const [firstError, ...restErrors] = errors;
