@@ -256,8 +256,8 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right {
 	overflow: hidden;
-	flex-shrink: 4;
-	max-width: 70%;
+	flex-shrink: 0;
+	max-width: 100%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore {
