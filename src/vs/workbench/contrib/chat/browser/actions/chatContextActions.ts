@@ -284,10 +284,6 @@ class AttachFileToChatAction extends AttachFileAction {
 			f1: false,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
 			menu: [{
-				id: MenuId.ChatTitleBarMenu,
-				group: 'b_chat_context',
-				order: 15,
-			}, {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
 				order: 1
@@ -320,10 +316,6 @@ class AttachSelectionToChatAction extends Action2 {
 			f1: false,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
 			menu: [{
-				id: MenuId.ChatTitleBarMenu,
-				group: 'b_chat_context',
-				order: 10,
-			}, {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
 				order: 2
@@ -385,10 +377,6 @@ class AttachFileToEditingSessionAction extends AttachFileAction {
 			f1: false,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
 			menu: [{
-				id: MenuId.ChatTitleBarMenu,
-				group: 'c_edits_context',
-				order: 15,
-			}, {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
 				order: 2
@@ -419,12 +407,7 @@ class AttachSelectionToEditingSessionAction extends Action2 {
 			title: localize2('workbench.action.edits.attachSelection.label', "Add Selection to {0}", 'Copilot Edits'),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext)),
-			menu: {
-				id: MenuId.ChatTitleBarMenu,
-				group: 'c_edits_context',
-				order: 10,
-			}
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID), TextCompareEditorActiveContext))
 		});
 	}
 
