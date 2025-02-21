@@ -307,7 +307,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		}
 	}
 
-	private calculateRangeChange(changedNodes: ChangedRange[] | undefined): RangeChange[] | undefined {
+	private calculateRangeChange(model: ITextModel, changedNodes: ChangedRange[] | undefined): RangeChange[] | undefined {
 		if (!changedNodes) {
 			return undefined;
 		}
@@ -326,6 +326,14 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				prevRangeChange.newRangeEndOffset = node.newEndIndex;
 			} else {
 				ranges.push({ newRange: Range.fromPositions(node.newStartPosition, node.newEndPosition), oldRangeLength: node.oldEndIndex - node.oldStartIndex, newRangeStartOffset: node.newStartIndex, newRangeEndOffset: node.newEndIndex });
+			}
+		}
+
+		if (ranges.length > 0) {
+			const lastRange = ranges[ranges.length - 1];
+			const maxLine = model.getLineCount();
+			if (lastRange.newRange.endLineNumber > maxLine) {
+				lastRange.newRange = new Range(lastRange.newRange.startLineNumber, lastRange.newRange.startColumn, maxLine, model.getLineMaxColumn(maxLine));
 			}
 		}
 		return ranges;
@@ -348,7 +356,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 
 			let ranges: RangeChange[] | undefined;
 			if (this._lastFullyParsedWithEdits && this._lastFullyParsed) {
-				ranges = this.calculateRangeChange(this.findChangedNodes(this._lastFullyParsedWithEdits, this._lastFullyParsed));
+				ranges = this.calculateRangeChange(model, this.findChangedNodes(this._lastFullyParsedWithEdits, this._lastFullyParsed));
 			}
 
 			const completed = await this._parseAndUpdateTree(model, version);

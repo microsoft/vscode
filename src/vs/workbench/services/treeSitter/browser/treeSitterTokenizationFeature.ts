@@ -646,8 +646,8 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 						break;
 					}
 					withinTokenIndex--;
-					previousTokenStartOffset = ((withinTokenIndex >= 2) ? endOffsetsAndScopes[withinTokenIndex - 1].endOffset : 0);
-					previousTokenEndOffset = endOffsetsAndScopes[withinTokenIndex].endOffset;
+					previousTokenStartOffset = ((withinTokenIndex >= 1) ? endOffsetsAndScopes[withinTokenIndex - 1].endOffset : 0);
+					previousTokenEndOffset = ((withinTokenIndex >= 0) ? endOffsetsAndScopes[withinTokenIndex].endOffset : 0);
 				} while (previousTokenEndOffset > startOffset);
 			} else {
 				// Just add the token to the array
