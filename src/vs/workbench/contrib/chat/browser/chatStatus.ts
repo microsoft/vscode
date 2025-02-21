@@ -50,7 +50,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			return;
 		}
 
-		this.entry = this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */);
+		this.entry = this._register(this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */));
 	}
 
 	private registerListeners(): void {
@@ -135,12 +135,5 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			kind: 'copilot',
 			tooltip
 		};
-	}
-
-	override dispose(): void {
-		this.entry?.dispose();
-		this.entry = undefined;
-
-		super.dispose();
 	}
 }
