@@ -69,7 +69,6 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
-import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -178,14 +177,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const configurationService = accessor.get(IConfigurationService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
-				const statusbarService = accessor.get(IStatusbarService);
 
 				await context.update({ hidden: false });
 
 				showCopilotView(viewsService, layoutService);
 				ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
 
-				statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 			}
 		}
@@ -216,7 +213,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
-				const statusbarService = accessor.get(IStatusbarService);
 
 				const { confirmed } = await dialogService.confirm({
 					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
@@ -239,7 +235,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					}
 				}
 
-				statusbarService.updateEntryVisibility('chat.statusBarEntry', false);
 				configurationService.updateValue('chat.commandCenter.enabled', false);
 			}
 		}

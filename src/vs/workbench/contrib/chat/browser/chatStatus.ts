@@ -55,6 +55,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private registerListeners(): void {
 		const contextKeysSet = new Set([
+			ChatContextKeys.Setup.hidden.key,
 			ChatContextKeys.Setup.limited.key,
 			ChatContextKeys.Setup.installed.key,
 			ChatContextKeys.Setup.canSignUp.key,
@@ -68,6 +69,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			if (e.affectsSome(contextKeysSet)) {
 				this.entry.update(this.getEntryProps());
 			}
+
+			this.statusbarService.updateEntryVisibility(ChatStatusBarEntry.ID, !this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key));
 		}));
 
 		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry?.update(this.getEntryProps())));
