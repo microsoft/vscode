@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -27,37 +26,34 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerListeners(): void {
-		this._register(Event.runAndSubscribe(this.chatQuotasService.onDidChangeQuotas, () => this.entry.update(this.getStatusbarEntry())));
+		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry.update(this.getStatusbarEntry())));
 	}
 
 	private getStatusbarEntry(): IStatusbarEntry {
-		let text: string;
-		let quotaExceeded = false;
+		let quotaWarning: string | undefined;
+		let quotaTooltip: string | undefined;
 
 		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
 		if (chatQuotaExceeded || completionsQuotaExceeded) {
 			if (chatQuotaExceeded && !completionsQuotaExceeded) {
-				text = localize('chatQuotaExceededStatus', "Chat limit reached");
+				quotaWarning = localize('chatQuotaExceededStatus', "Chat limit reached");
 			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-				text = localize('completionsQuotaExceededStatus', "Completions limit reached");
+				quotaWarning = localize('completionsQuotaExceededStatus', "Completions limit reached");
 			} else {
-				text = localize('chatAndCompletionsQuotaExceededStatus', "Copilot limit reached");
+				quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Copilot limit reached");
 			}
 
-			text = `$(copilot-warning) ${text}`;
-			quotaExceeded = true;
-		} else {
-			text = '$(copilot)';
+			quotaTooltip = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
 		}
 
 		return {
 			name: localize('chatStatus', "Copilot Status"),
-			text,
-			ariaLabel: text,
-			command: quotaExceeded ? OPEN_CHAT_QUOTA_EXCEEDED_DIALOG : undefined,
+			text: quotaWarning ? `$(copilot-warning) ${quotaWarning}` : '$(copilot)',
+			ariaLabel: quotaWarning ?? localize('chatStatus', "Copilot Status"),
+			command: quotaWarning ? OPEN_CHAT_QUOTA_EXCEEDED_DIALOG : undefined,
 			showInAllWindows: true,
 			kind: 'copilot',
-			tooltip: quotaExceeded ? quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }) : undefined
+			tooltip: quotaTooltip
 		};
 	}
 }
