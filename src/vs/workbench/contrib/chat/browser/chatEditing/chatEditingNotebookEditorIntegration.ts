@@ -47,7 +47,7 @@ export type ICellDiffInfo = {
 	modifiedCellIndex: number;
 	originalCellIndex: undefined;
 	type: 'insert';
-	diff: IDocumentDiff; // List of all the new lines.
+	diff: IDocumentDiff2; // List of all the new lines.
 };
 
 
@@ -99,7 +99,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		}));
 
 		this._register(autorun(r => {
-			const changes = cellChanges.read(r).filter(c => c.type === 'modified');
+			const changes = cellChanges.read(r).filter(c => c.type !== 'unchanged' && c.type !== 'delete');
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
@@ -219,7 +219,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			// return this.getIntegrationForCell(changes[0].modifiedCellIndex);
 			return;
 		}
-		const changes = this.cellChanges.get().filter(c => c.type === 'modified' || c.type !== 'delete');
+		const changes = this.cellChanges.get().filter(c => c.type === 'modified' || c.type === 'insert');
 		const nextIndex = changes.reduce((prev, curr) => {
 			if (nextOrPrevious) {
 				if (typeof curr.modifiedCellIndex !== 'number' || curr.modifiedCellIndex <= current.index) {
@@ -246,7 +246,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	}
 
 	reveal(firstOrLast: boolean): void {
-		const changes = this.cellChanges.get().filter(c => c.type === 'modified' || c.type !== 'delete');
+		const changes = this.cellChanges.get().filter(c => c.type === 'modified' || c.type === 'insert');
 		if (!changes.length) {
 			return undefined;
 		}
