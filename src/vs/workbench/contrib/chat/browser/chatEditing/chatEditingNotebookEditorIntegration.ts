@@ -30,7 +30,7 @@ export type ICellDiffInfo = {
 	originalCellIndex: number;
 	modifiedCellIndex: number;
 	type: 'unchanged';
-	diff: IDocumentDiff; // Null diff Change (property to be consistent with others, also we have a list of all line numbers)
+	diff: IDocumentDiff2; // Null diff Change (property to be consistent with others, also we have a list of all line numbers)
 } | {
 	originalCellIndex: number;
 	modifiedCellIndex: number;
@@ -131,12 +131,12 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 					this.cellEditorIntegrations.set(cell, { integration, diff: diff2 });
 					this._register(integration);
 					this._register(editor.onDidDispose(() => {
-						this.cellEditorIntegrations.get(cell)!.integration.dispose();
+						this.cellEditorIntegrations.get(cell)?.integration.dispose();
 						this.cellEditorIntegrations.delete(cell);
 					}));
 					this._register(editor.onDidChangeModel(() => {
 						if (editor.getModel() !== cell.textModel) {
-							this.cellEditorIntegrations.get(cell)!.integration.dispose();
+							this.cellEditorIntegrations.get(cell)?.integration.dispose();
 							this.cellEditorIntegrations.delete(cell);
 						}
 					}));
