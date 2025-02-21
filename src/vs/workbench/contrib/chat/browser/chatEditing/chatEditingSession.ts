@@ -940,7 +940,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
-		entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
+		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 	}
 
 	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {
