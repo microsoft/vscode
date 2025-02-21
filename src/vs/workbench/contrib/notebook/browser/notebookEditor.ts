@@ -146,7 +146,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 	override getActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			// this is being disposed by the consumer
-			return this._instantiationService.createInstance(NotebooKernelActionViewItem, action, this, options);
+			return this._register(this._instantiationService.createInstance(NotebooKernelActionViewItem, action, this, options));
 		}
 		return undefined;
 	}

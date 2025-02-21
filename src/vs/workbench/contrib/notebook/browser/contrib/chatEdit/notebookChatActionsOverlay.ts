@@ -107,15 +107,15 @@ export class NotebookChatActionsOverlay extends Disposable {
 			actionViewItemProvider: (action, options) => {
 
 				if (action.id === navigationBearingFakeActionId) {
-					return new class extends ActionViewItem {
+					return this._register(new class extends ActionViewItem {
 						constructor() {
 							super(undefined, action, { ...options, icon: false, label: false, keybindingNotRenderedWithLabel: true });
 						}
-					};
+					});
 				}
 
 				if (action.id === AcceptAction.ID || action.id === RejectAction.ID) {
-					return new class extends ActionViewItem {
+					return this._register(new class extends ActionViewItem {
 						private readonly _reveal = this._store.add(new MutableDisposable());
 						constructor() {
 							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
@@ -143,23 +143,23 @@ export class NotebookChatActionsOverlay extends Disposable {
 						override get actionRunner(): IActionRunner {
 							return super.actionRunner;
 						}
-					};
+					});
 				}
 				// Override next/previous with our implementation.
 				if (action.id === 'chatEditor.action.navigateNext' || action.id === 'chatEditor.action.navigatePrevious') {
-					return new class extends ActionViewItem {
+					return this._register(new class extends ActionViewItem {
 						constructor() {
 							super(undefined, action, { ...options, icon: true, label: false, keybindingNotRenderedWithLabel: true });
 						}
 						override set actionRunner(_: IActionRunner) {
 							const next = action.id === 'chatEditor.action.navigateNext' ? nextEntry : previousEntry;
 							const direction = action.id === 'chatEditor.action.navigateNext' ? 'next' : 'previous';
-							super.actionRunner = new NextPreviousChangeActionRunner(notebookEditor, cellDiffInfo, entry, next, direction, _editorService, deletedCellDecorator, focusedDiff);
+							super.actionRunner = this._register(new NextPreviousChangeActionRunner(notebookEditor, cellDiffInfo, entry, next, direction, _editorService, deletedCellDecorator, focusedDiff));
 						}
 						override get actionRunner(): IActionRunner {
 							return super.actionRunner;
 						}
-					};
+					});
 				}
 				return undefined;
 			}
