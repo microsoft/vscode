@@ -52,7 +52,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				showInAllWindows: true,
 				kind: 'copilot',
 				tooltip: quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded })
-			}, ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, -Number.MAX_VALUE /* the end of the right hand side */));
+			}, ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */));
 		}
 	}
 }

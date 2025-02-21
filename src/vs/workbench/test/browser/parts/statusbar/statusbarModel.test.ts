@@ -78,6 +78,26 @@ suite('Workbench status bar model', () => {
 		assert.strictEqual(model.entries.length, 0);
 	});
 
+	test('sorting with infinity and max number', () => {
+		const container = document.createElement('div');
+		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
+
+		assert.strictEqual(model.entries.length, 0);
+
+		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: Number.MAX_VALUE, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: Number.MIN_VALUE, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: Number.POSITIVE_INFINITY, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: '0', alignment: StatusbarAlignment.LEFT, name: '0', priority: { primary: Number.NEGATIVE_INFINITY, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+		model.add({ id: '4', alignment: StatusbarAlignment.LEFT, name: '4', priority: { primary: 100, secondary: 1 }, container, labelContainer: container, hasCommand: false, extensionId: undefined });
+
+		const entries = model.entries;
+		assert.strictEqual(entries[0].id, '1');
+		assert.strictEqual(entries[1].id, '3');
+		assert.strictEqual(entries[2].id, '4');
+		assert.strictEqual(entries[3].id, '2');
+		assert.strictEqual(entries[4].id, '0');
+	});
+
 	test('secondary priority used when primary is same', () => {
 		const container = document.createElement('div');
 		const model = disposables.add(new StatusbarViewModel(disposables.add(new TestStorageService())));
