@@ -210,7 +210,7 @@ export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTru
 	const defaultTrustedDomains = [
 		// MEMBRANE: add membrane trusted domains to skip confirmation dialog
 		'https://membrane.io',
-		'https://docs.membrane.io',
+		'https://*.membrane.io',
 		...productService.linkProtectionTrustedDomains ?? [],
 		...environmentService.options?.additionalTrustedDomains ?? []
 	];

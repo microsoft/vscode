@@ -59,6 +59,10 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 		{
 			id: 'membrane.completeInitialization', handler: () => window.completeInitialization?.()
 		},
+		// For product tour, emit an event to advance to the next step
+		{
+			id: 'membrane.advanceTour', handler: (event) => window.dispatchEvent(new Event(`tour:${event.trigger}`))
+		},
 		{
 			id: 'membrane.getLaunchParams', handler: () => {
 				// eslint-disable-next-line no-restricted-syntax
