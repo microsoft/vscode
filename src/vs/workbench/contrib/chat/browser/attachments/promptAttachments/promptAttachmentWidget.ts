@@ -118,7 +118,7 @@ export class PromptAttachmentWidget extends Disposable {
 		// add the issue details in the hover title for the attachment, one
 		// error/warning at a time because there is a limited space available
 		if (topError) {
-			const { isRootError, message: details } = topError;
+			const { isRootError, localizedMessage: details } = topError;
 			const isWarning = !isRootError;
 
 			this.domNode.classList.add(
