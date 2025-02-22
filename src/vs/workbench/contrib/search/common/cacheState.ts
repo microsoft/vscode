@@ -38,7 +38,7 @@ export class FileQueryCacheState {
 		return isUpdating || !this.previousCacheState ? isUpdating : this.previousCacheState.isUpdating;
 	}
 
-	private readonly query = this.cacheQuery(this._cacheKey);
+	private readonly query: IFileQuery;
 
 	private loadingPhase = LoadingPhase.Created;
 	private loadPromise: Promise<void> | undefined;
@@ -49,6 +49,8 @@ export class FileQueryCacheState {
 		private disposeFn: (cacheKey: string) => Promise<void>,
 		private previousCacheState: FileQueryCacheState | undefined
 	) {
+		this.query = this.cacheQuery(this._cacheKey);
+
 		if (this.previousCacheState) {
 			const current = Object.assign({}, this.query, { cacheKey: null });
 			const previous = Object.assign({}, this.previousCacheState.query, { cacheKey: null });

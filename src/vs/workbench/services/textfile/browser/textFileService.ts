@@ -51,9 +51,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private static readonly TEXTFILE_SAVE_CREATE_SOURCE = SaveSourceRegistry.registerSource('textFileCreate.source', localize('textFileCreate.source', "File Created"));
 	private static readonly TEXTFILE_SAVE_REPLACE_SOURCE = SaveSourceRegistry.registerSource('textFileOverwrite.source', localize('textFileOverwrite.source', "File Replaced"));
 
-	readonly files: ITextFileEditorModelManager = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
+	readonly files: ITextFileEditorModelManager;
 
-	readonly untitled: IUntitledTextEditorModelManager = this.untitledTextEditorService;
+	readonly untitled: IUntitledTextEditorModelManager;
 
 	constructor(
 		@IFileService protected readonly fileService: IFileService,
@@ -76,6 +76,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IDecorationsService private readonly decorationsService: IDecorationsService
 	) {
 		super();
+
+		this.files = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
+
+		this.untitled = this.untitledTextEditorService;
 
 		this.provideDecorations();
 	}

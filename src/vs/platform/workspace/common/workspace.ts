@@ -329,7 +329,7 @@ export function isWorkspaceFolder(thing: unknown): thing is IWorkspaceFolder {
 
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => true);
+	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder>;
 	private _folders!: WorkspaceFolder[];
 
 	constructor(
@@ -339,6 +339,7 @@ export class Workspace implements IWorkspace {
 		private _configuration: URI | null,
 		private _ignorePathCasing: (key: URI) => boolean,
 	) {
+		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => true);
 		this.folders = folders;
 	}
 

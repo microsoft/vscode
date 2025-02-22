@@ -212,6 +212,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+
+		this._ignoreTrimWhitespaceObservable = observableConfigValue('diffEditor.ignoreTrimWhitespace', true, this._configurationService);
 	}
 
 	public async init(): Promise<void> {
@@ -312,7 +314,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private _diffsBetweenStops = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 
-	private readonly _ignoreTrimWhitespaceObservable = observableConfigValue('diffEditor.ignoreTrimWhitespace', true, this._configurationService);
+	private readonly _ignoreTrimWhitespaceObservable: IObservable<boolean>;
 
 	/**
 	 * Gets diff for text entries between stops.

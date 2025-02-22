@@ -319,7 +319,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	static readonly TEMPLATE_ID = 'history-item';
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
 
-	private readonly _badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
+	private readonly _badgesConfig: IObservable<'all' | 'filter'>;
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate,
@@ -329,7 +329,9 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IThemeService private readonly _themeService: IThemeService
-	) { }
+	) {
+		this._badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
+	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
 		// hack
@@ -751,18 +753,9 @@ type RepositoryState = {
 
 class SCMHistoryViewModel extends Disposable {
 
-	private readonly _closedRepository = observableFromEvent(
-		this,
-		this._scmService.onDidRemoveRepository,
-		repository => repository);
+	private readonly _closedRepository: IObservable<ISCMRepository | undefined>;
 
-	private readonly _firstRepository = this._scmService.repositoryCount > 0 ?
-		constObservable(Iterable.first(this._scmService.repositories)) :
-		observableFromEvent(
-			this,
-			Event.once(this._scmService.onDidAddRepository),
-			repository => repository
-		);
+	private readonly _firstRepository: IObservable<ISCMRepository | undefined>;
 
 	private readonly _selectedRepository = observableValue<'auto' | ISCMRepository>(this, 'auto');
 
@@ -779,7 +772,7 @@ class SCMHistoryViewModel extends Disposable {
 	 * The active | selected repository takes precedence over the first repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
-	readonly repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
+	readonly repository: IObservable<ISCMRepository | undefined>;
 	readonly onDidChangeHistoryItemsFilter = observableSignal(this);
 	readonly isViewModelEmpty = observableValue(this, false);
 
@@ -797,6 +790,21 @@ class SCMHistoryViewModel extends Disposable {
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
+
+		this._closedRepository = observableFromEvent(
+			this,
+			this._scmService.onDidRemoveRepository,
+			repository => repository);
+
+		this._firstRepository = this._scmService.repositoryCount > 0 ?
+			constObservable(Iterable.first(this._scmService.repositories)) :
+			observableFromEvent(
+				this,
+				Event.once(this._scmService.onDidAddRepository),
+				repository => repository
+			);
+
+		this.repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
 
 		this._repositoryFilterState = this._loadHistoryItemsFilterState();
 

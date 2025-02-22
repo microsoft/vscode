@@ -13,7 +13,7 @@ import { IObservable, autorun, autorunWithStore, constObservable, derived, obser
 import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IViewZoneChangeAccessor, MouseTargetType } from '../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
 import { OffsetEdit, SingleOffsetEdit } from '../../../../../common/core/offsetEdit.js';
 import { Position } from '../../../../../common/core/position.js';
@@ -44,7 +44,7 @@ const GHOST_TEXT_CLASS_NAME = 'ghost-text';
 
 export class GhostTextView extends Disposable {
 	private readonly _isDisposed = observableValue(this, false);
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor;
 	public static hot = createHotClass(GhostTextView);
 
 	private _warningState = derived(reader => {
@@ -70,6 +70,33 @@ export class GhostTextView extends Disposable {
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
+
+		this._editorObs = observableCodeEditor(this._editor);
+
+		this._useSyntaxHighlighting = this._options.map(o => o.syntaxHighlightingEnabled);
+
+		this._additionalLinesWidget = this._register(
+			new AdditionalLinesWidget(
+				this._editor,
+				derived(reader => {
+					/** @description lines */
+					const uiState = this.uiState.read(reader);
+					return uiState ? {
+						lineNumber: uiState.lineNumber,
+						additionalLines: uiState.additionalLines,
+						minReservedLineCount: uiState.additionalReservedLineCount,
+						targetTextModel: uiState.targetTextModel,
+					} : undefined;
+				}),
+				this._shouldKeepCursorStable,
+				this._isClickable
+			)
+		);
+
+		this._isInlineTextHovered = this._editorObs.isTargetHovered(
+			p => p.target.type === MouseTargetType.CONTENT_TEXT && p.target.detail.injectedText?.options.attachedData instanceof GhostTextAttachedData,
+			this._store
+		);
 
 		this._register(toDisposable(() => { this._isDisposed.set(true, undefined); }));
 		this._register(this._editorObs.setDecorations(this.decorations));
@@ -144,7 +171,7 @@ export class GhostTextView extends Disposable {
 		return undefined;
 	}
 
-	private readonly _useSyntaxHighlighting = this._options.map(o => o.syntaxHighlightingEnabled);
+	private readonly _useSyntaxHighlighting: IObservable<boolean>;
 
 	private readonly _extraClassNames = derived(this, reader => {
 		const extraClasses = [...this._options.read(reader).extraClasses ?? []];
@@ -236,28 +263,9 @@ export class GhostTextView extends Disposable {
 		return decorations;
 	});
 
-	private readonly _additionalLinesWidget = this._register(
-		new AdditionalLinesWidget(
-			this._editor,
-			derived(reader => {
-				/** @description lines */
-				const uiState = this.uiState.read(reader);
-				return uiState ? {
-					lineNumber: uiState.lineNumber,
-					additionalLines: uiState.additionalLines,
-					minReservedLineCount: uiState.additionalReservedLineCount,
-					targetTextModel: uiState.targetTextModel,
-				} : undefined;
-			}),
-			this._shouldKeepCursorStable,
-			this._isClickable
-		)
-	);
+	private readonly _additionalLinesWidget: AdditionalLinesWidget;
 
-	private readonly _isInlineTextHovered = this._editorObs.isTargetHovered(
-		p => p.target.type === MouseTargetType.CONTENT_TEXT && p.target.detail.injectedText?.options.attachedData instanceof GhostTextAttachedData,
-		this._store
-	);
+	private readonly _isInlineTextHovered: IObservable<boolean>;
 
 	public readonly isHovered = derived(this, reader => {
 		if (this._isDisposed.read(reader)) { return false; }
@@ -356,26 +364,14 @@ export class AdditionalLinesWidget extends Disposable {
 	private _viewZoneHeight = observableValue<undefined | number>('viewZoneHeight', undefined);
 	public get viewZoneHeight(): IObservable<number | undefined> { return this._viewZoneHeight; }
 
-	private readonly editorOptionsChanged = observableSignalFromEvent('editorOptionChanged', Event.filter(
-		this._editor.onDidChangeConfiguration,
-		e => e.hasChanged(EditorOption.disableMonospaceOptimizations)
-			|| e.hasChanged(EditorOption.stopRenderingLineAfter)
-			|| e.hasChanged(EditorOption.renderWhitespace)
-			|| e.hasChanged(EditorOption.renderControlCharacters)
-			|| e.hasChanged(EditorOption.fontLigatures)
-			|| e.hasChanged(EditorOption.fontInfo)
-			|| e.hasChanged(EditorOption.lineHeight)
-	));
+	private readonly editorOptionsChanged: IObservable<void>;
 
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	public readonly onDidClick = this._onDidClick.event;
 
 	private readonly _viewZoneListener = this._register(new MutableDisposable());
 
-	readonly isHovered = observableCodeEditor(this._editor).isTargetHovered(
-		p => isTargetGhostText(p.target.element),
-		this._store
-	);
+	readonly isHovered: IObservable<boolean>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -389,6 +385,22 @@ export class AdditionalLinesWidget extends Disposable {
 		private readonly _isClickable: boolean,
 	) {
 		super();
+
+		this.editorOptionsChanged = observableSignalFromEvent('editorOptionChanged', Event.filter(
+			this._editor.onDidChangeConfiguration,
+			e => e.hasChanged(EditorOption.disableMonospaceOptimizations)
+				|| e.hasChanged(EditorOption.stopRenderingLineAfter)
+				|| e.hasChanged(EditorOption.renderWhitespace)
+				|| e.hasChanged(EditorOption.renderControlCharacters)
+				|| e.hasChanged(EditorOption.fontLigatures)
+				|| e.hasChanged(EditorOption.fontInfo)
+				|| e.hasChanged(EditorOption.lineHeight)
+		));
+
+		this.isHovered = observableCodeEditor(this._editor).isTargetHovered(
+			p => isTargetGhostText(p.target.element),
+			this._store
+		);
 
 		this._register(autorun(reader => {
 			/** @description update view zone */

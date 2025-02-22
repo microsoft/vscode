@@ -14,7 +14,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../../common/core/cursorColumns.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
@@ -43,7 +43,7 @@ import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTe
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 
 export class InlineCompletionsModel extends Disposable {
-	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
+	private readonly _source: InlineCompletionsSource;
 	private readonly _isActive = observableValue<boolean>(this, false);
 	private readonly _onlyRequestInlineEditsSignal = observableSignal(this);
 	private readonly _forceUpdateExplicitlySignal = observableSignal(this);
@@ -56,13 +56,13 @@ export class InlineCompletionsModel extends Disposable {
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor;
 
-	private readonly _suggestPreviewEnabled = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
-	private readonly _suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
-	private readonly _inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
-	private readonly _inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
-	private readonly _inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+	private readonly _suggestPreviewEnabled: IObservable<boolean>;
+	private readonly _suggestPreviewMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>;
+	private readonly _inlineSuggestMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>;
+	private readonly _inlineEditsEnabled: IObservable<boolean>;
+	private readonly _inlineEditsShowCollapsed: IObservable<boolean>;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -78,6 +78,18 @@ export class InlineCompletionsModel extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
+
+		this._source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
+
+		this._editorObs = observableCodeEditor(this._editor);
+
+		this._suggestPreviewEnabled = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
+		this._suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
+		this._inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
+		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
+		this._inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+
+		this.lastTriggerKind = this._source.inlineCompletions.map(this, v => v?.request.context.triggerKind);
 
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
@@ -330,8 +342,7 @@ export class InlineCompletionsModel extends Disposable {
 		r => this.selectedInlineCompletion.read(r)?.source.inlineCompletions.commands ?? []
 	);
 
-	public readonly lastTriggerKind: IObservable<InlineCompletionTriggerKind | undefined>
-		= this._source.inlineCompletions.map(this, v => v?.request.context.triggerKind);
+	public readonly lastTriggerKind: IObservable<InlineCompletionTriggerKind | undefined>;
 
 	public readonly inlineCompletionsCount = derived<number | undefined>(this, reader => {
 		if (this.lastTriggerKind.read(reader) === InlineCompletionTriggerKind.Explicit) {

@@ -89,7 +89,7 @@ export class EditorPanes extends Disposable {
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private pagePosition: IDomNodePagePosition | undefined;
 	private boundarySashes: IBoundarySashes | undefined;
-	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
+	private readonly editorOperation: LongRunningOperation;
 	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
 	constructor(
@@ -105,6 +105,8 @@ export class EditorPanes extends Disposable {
 		@IHostService private readonly hostService: IHostService
 	) {
 		super();
+
+		this.editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
 
 		this.registerListeners();
 	}

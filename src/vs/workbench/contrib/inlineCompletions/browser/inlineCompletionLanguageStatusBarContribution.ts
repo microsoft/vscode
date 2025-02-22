@@ -18,7 +18,7 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 
 	public static Id = 'vs.editor.contrib.inlineCompletionLanguageStatusBarContribution';
 
-	private readonly _c = InlineCompletionsController.get(this._editor);
+	private readonly _c: InlineCompletionsController | null;
 
 	private readonly _state = derived(this, reader => {
 		const model = this._c?.model.read(reader);
@@ -35,6 +35,8 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 	) {
 		super();
+
+		this._c = InlineCompletionsController.get(this._editor);
 
 		this._register(autorunWithStore((reader, store) => {
 			const state = this._state.read(reader);

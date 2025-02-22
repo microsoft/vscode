@@ -8,7 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { createHotClass } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ITransaction, autorun, derived, derivedDisposable, derivedObservableWithCache, observableFromEvent, observableSignal, observableValue, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { IObservable, ITransaction, autorun, derived, derivedDisposable, derivedObservableWithCache, observableFromEvent, observableSignal, observableValue, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -21,13 +21,13 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { hotClassGetOriginalInstance } from '../../../../../platform/observable/common/wrapInHotClass.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
-import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { TextModelChangeRecorder } from '../model/changeRecorder.js';
@@ -59,28 +59,17 @@ export class InlineCompletionsController extends Disposable {
 		return hotClassGetOriginalInstance(editor.getContribution<InlineCompletionsController>(InlineCompletionsController.ID));
 	}
 
-	private readonly _editorObs = observableCodeEditor(this.editor);
-	private readonly _positions = derived(this, reader => this._editorObs.selections.read(reader)?.map(s => s.getEndPosition()) ?? [new Position(1, 1)]);
+	private readonly _editorObs: ObservableCodeEditor;
+	private readonly _positions: IObservable<Position[]>;
 
-	private readonly _suggestWidgetAdapter = this._register(new ObservableSuggestWidgetAdapter(
-		this._editorObs,
-		item => this.model.get()?.handleSuggestAccepted(item),
-		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
-	));
+	private readonly _suggestWidgetAdapter: ObservableSuggestWidgetAdapter;
 
-	private readonly _enabledInConfig = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
-	private readonly _isScreenReaderEnabled = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
-	private readonly _editorDictationInProgress = observableFromEvent(this,
-		this._contextKeyService.onDidChangeContext,
-		() => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true
-	);
-	private readonly _enabled = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
+	private readonly _enabledInConfig: IObservable<boolean>;
+	private readonly _isScreenReaderEnabled: IObservable<boolean>;
+	private readonly _editorDictationInProgress: IObservable<boolean>;
+	private readonly _enabled: IObservable<boolean> = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
 
-	private readonly _debounceValue = this._debounceService.for(
-		this._languageFeaturesService.inlineCompletionsProvider,
-		'InlineCompletionsDebounce',
-		{ min: 50, max: 50 }
-	);
+	private readonly _debounceValue: IFeatureDebounceInformation;
 
 	private readonly _focusIsInMenu = observableValue<boolean>(this, false);
 	private readonly _focusIsInEditorOrMenu = derived(this, reader => {
@@ -99,29 +88,13 @@ export class InlineCompletionsController extends Disposable {
 		return cursorPos.column <= indentMaxColumn;
 	});
 
-	public readonly model = derivedDisposable<InlineCompletionsModel | undefined>(this, reader => {
-		if (this._editorObs.isReadonly.read(reader)) { return undefined; }
-		const textModel = this._editorObs.model.read(reader);
-		if (!textModel) { return undefined; }
-
-		const model: InlineCompletionsModel = this._instantiationService.createInstance(
-			InlineCompletionsModel,
-			textModel,
-			this._suggestWidgetAdapter.selectedItem,
-			this._editorObs.versionId,
-			this._positions,
-			this._debounceValue,
-			this._enabled,
-			this.editor,
-		);
-		return model;
-	}).recomputeInitiallyAndOnChange(this._store);
+	public readonly model: IObservable<InlineCompletionsModel | undefined>;
 
 	private readonly _playAccessibilitySignal = observableSignal(this);
 
-	private readonly _hideInlineEditOnSelectionChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => true);
+	private readonly _hideInlineEditOnSelectionChange: IObservable<boolean>;
 
-	protected readonly _view = this._register(this._instantiationService.createInstance(InlineCompletionsView, this.editor, this.model, this._focusIsInMenu));
+	protected readonly _view: InlineCompletionsView;
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -136,6 +109,51 @@ export class InlineCompletionsController extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
+
+		this._editorObs = observableCodeEditor(this.editor);
+		this._positions = derived(this, reader => this._editorObs.selections.read(reader)?.map(s => s.getEndPosition()) ?? [new Position(1, 1)]);
+
+		this._suggestWidgetAdapter = this._register(new ObservableSuggestWidgetAdapter(
+			this._editorObs,
+			item => this.model.get()?.handleSuggestAccepted(item),
+			() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
+		));
+
+		this._enabledInConfig = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
+		this._isScreenReaderEnabled = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
+		this._editorDictationInProgress = observableFromEvent(this,
+			this._contextKeyService.onDidChangeContext,
+			() => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true
+		);
+		this._enabled = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
+
+		this._debounceValue = this._debounceService.for(
+			this._languageFeaturesService.inlineCompletionsProvider,
+			'InlineCompletionsDebounce',
+			{ min: 50, max: 50 }
+		);
+
+		this.model = derivedDisposable<InlineCompletionsModel | undefined>(this, reader => {
+			if (this._editorObs.isReadonly.read(reader)) { return undefined; }
+			const textModel = this._editorObs.model.read(reader);
+			if (!textModel) { return undefined; }
+
+			const model: InlineCompletionsModel = this._instantiationService.createInstance(
+				InlineCompletionsModel,
+				textModel,
+				this._suggestWidgetAdapter.selectedItem,
+				this._editorObs.versionId,
+				this._positions,
+				this._debounceValue,
+				this._enabled,
+				this.editor,
+			);
+			return model;
+		}).recomputeInitiallyAndOnChange(this._store);
+
+		this._hideInlineEditOnSelectionChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => true);
+
+		this._view = this._register(this._instantiationService.createInstance(InlineCompletionsView, this.editor, this.model, this._focusIsInMenu));
 
 		InlineCompletionsController._instances.add(this);
 		this._register(toDisposable(() => InlineCompletionsController._instances.delete(this)));

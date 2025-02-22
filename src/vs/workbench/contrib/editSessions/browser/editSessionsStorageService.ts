@@ -25,6 +25,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { EditSessionsStoreClient } from '../common/editSessionsStorageClient.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { ConfigurationSyncStore } from '../../../../base/common/product.js';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -35,7 +36,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	public readonly SIZE_LIMIT = Math.floor(1024 * 1024 * 1.9); // 2 MB
 
-	private serverConfiguration = this.productService['editSessions.store'];
+	private serverConfiguration: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'> | undefined;
 	private machineClient: IUserDataSyncMachinesService | undefined;
 
 	private authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
@@ -84,6 +85,8 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService
 	) {
 		super();
+
+		this.serverConfiguration = this.productService['editSessions.store'];
 
 		// If the user signs out of the current session, reset our cached auth state in memory and on disk
 		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));

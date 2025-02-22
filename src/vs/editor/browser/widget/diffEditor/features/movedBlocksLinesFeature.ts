@@ -26,9 +26,9 @@ export class MovedBlocksLinesFeature extends Disposable {
 	public static readonly movedCodeBlockPadding = 4;
 
 	private readonly _element: SVGElement;
-	private readonly _originalScrollTop = observableFromEvent(this, this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
-	private readonly _modifiedScrollTop = observableFromEvent(this, this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
-	private readonly _viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
+	private readonly _originalScrollTop: IObservable<number>;
+	private readonly _modifiedScrollTop: IObservable<number>;
+	private readonly _viewZonesChanged: IObservable<void>;
 
 	public readonly width = observableValue(this, 0);
 
@@ -40,6 +40,13 @@ export class MovedBlocksLinesFeature extends Disposable {
 		private readonly _editors: DiffEditorEditors,
 	) {
 		super();
+
+		this._originalScrollTop = observableFromEvent(this, this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
+		this._modifiedScrollTop = observableFromEvent(this, this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
+		this._viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
+
+		this._modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
+		this._originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
 
 		this._element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 		this._element.setAttribute('class', 'moved-blocks-lines');
@@ -133,8 +140,8 @@ export class MovedBlocksLinesFeature extends Disposable {
 		}));
 	}
 
-	private readonly _modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
-	private readonly _originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
+	private readonly _modifiedViewZonesChangedSignal: IObservable<void>;
+	private readonly _originalViewZonesChangedSignal: IObservable<void>;
 
 	private readonly _state = derivedWithStore(this, (reader, store) => {
 		/** @description state */

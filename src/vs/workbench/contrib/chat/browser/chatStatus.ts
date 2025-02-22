@@ -22,7 +22,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'chat.statusBarEntry';
 
-	private readonly treatment = this.assignmentService.getTreatment<boolean>('config.chat.experimental.statusIndicator.enabled'); //TODO@bpasero remove this experiment eventually
+	private readonly treatment: Promise<boolean | undefined>;
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
@@ -36,6 +36,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
+
+		this.treatment = this.assignmentService.getTreatment<boolean>('config.chat.experimental.statusIndicator.enabled'); //TODO@bpasero remove this experiment eventually
 
 		this.create();
 		this.registerListeners();

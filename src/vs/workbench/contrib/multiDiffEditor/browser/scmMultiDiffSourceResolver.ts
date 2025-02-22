@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableFromEvent, ValueWithChangeEventFromObservable, waitForState } from '../../../../base/common/observable.js';
+import { IObservable, observableFromEvent, ValueWithChangeEventFromObservable, waitForState } from '../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { localize2 } from '../../../../nls.js';
@@ -84,21 +84,26 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 }
 
 class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
-	private readonly _resources = observableFromEvent<MultiDiffEditorItem[]>(
-		this._group.onDidChangeResources,
-		() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
-	);
-	readonly resources = new ValueWithChangeEventFromObservable(this._resources);
+	private readonly _resources: IObservable<MultiDiffEditorItem[]>;
+	readonly resources: ValueWithChangeEventFromObservable<MultiDiffEditorItem[]>;
 
-	public readonly contextKeys: Record<string, ContextKeyValue> = {
-		scmResourceGroup: this._group.id,
-		scmProvider: this._repository.provider.contextValue,
-	};
+	public readonly contextKeys: Record<string, ContextKeyValue>;
 
 	constructor(
 		private readonly _group: ISCMResourceGroup,
 		private readonly _repository: ISCMRepository,
-	) { }
+	) {
+		this._resources = observableFromEvent<MultiDiffEditorItem[]>(
+			this._group.onDidChangeResources,
+			() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
+		);
+		this.resources = new ValueWithChangeEventFromObservable(this._resources);
+
+		this.contextKeys = {
+			scmResourceGroup: this._group.id,
+			scmProvider: this._repository.provider.contextValue,
+		};
+	}
 }
 
 interface UriFields {

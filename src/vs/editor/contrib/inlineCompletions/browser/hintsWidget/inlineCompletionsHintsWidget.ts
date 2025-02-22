@@ -19,7 +19,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { MenuEntryActionViewItem, getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -37,7 +37,7 @@ import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import './inlineCompletionsHintsWidget.css';
 
 export class InlineCompletionsHintsWidget extends Disposable {
-	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
+	private readonly alwaysShowToolbar: IObservable<boolean>;
 
 	private sessionPosition: Position | undefined = undefined;
 
@@ -65,6 +65,8 @@ export class InlineCompletionsHintsWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description setup content widget */
@@ -150,10 +152,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this._warningMessageContentNode,
 	]).keepUpdated(this._store);
 
-	private readonly nodes = h('div.inlineSuggestionsHints', { className: this.withBorder ? 'monaco-hover monaco-hover-content' : '' }, [
-		this._warningMessageNode.element,
-		h('div@toolBar'),
-	]);
+	private readonly nodes: { toolBar: HTMLDivElement; root: HTMLDivElement };
 
 	private createCommandAction(commandId: string, label: string, iconClassName: string): Action {
 		const action = new Action(
@@ -179,10 +178,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	private readonly toolBar: CustomizedMenuWorkbenchToolBar;
 
 	// TODO@hediet: deprecate MenuId.InlineCompletionsActions
-	private readonly inlineCompletionsActionsMenus = this._register(this._menuService.createMenu(
-		MenuId.InlineCompletionsActions,
-		this._contextKeyService
-	));
+	private readonly inlineCompletionsActionsMenus: IMenu;
 
 	private readonly clearAvailableSuggestionCountLabelDebounced = this._register(new RunOnceScheduler(() => {
 		this.availableSuggestionCountAction.label = '';
@@ -208,6 +204,16 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		@IMenuService private readonly _menuService: IMenuService,
 	) {
 		super();
+
+		this.nodes = h('div.inlineSuggestionsHints', { className: this.withBorder ? 'monaco-hover monaco-hover-content' : '' }, [
+			this._warningMessageNode.element,
+			h('div@toolBar'),
+		]);
+
+		this.inlineCompletionsActionsMenus = this._register(this._menuService.createMenu(
+			MenuId.InlineCompletionsActions,
+			this._contextKeyService
+		));
 
 		this._register(autorun(reader => {
 			this._warningMessageContentNode.read(reader);
@@ -356,7 +362,7 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 }
 
 export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
-	private readonly menu = this._store.add(this.menuService.createMenu(this.menuId, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
+	private readonly menu: IMenu;
 	private additionalActions: IAction[] = [];
 	private prependedPrimaryActions: IAction[] = [];
 	private additionalPrimaryActions: IAction[] = [];
@@ -373,6 +379,8 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
+
+		this.menu = this._store.add(this.menuService.createMenu(this.menuId, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		this._store.add(this.menu.onDidChange(() => this.updateToolbar()));
 		this.updateToolbar();

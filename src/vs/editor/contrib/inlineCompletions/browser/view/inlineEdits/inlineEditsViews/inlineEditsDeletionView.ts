@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../../base/common/observable.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../../browser/point.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../../common/core/position.js';
@@ -20,7 +20,7 @@ import { getOriginalBorderColor, originalBackgroundColor } from '../theme.js';
 import { createRectangle, getPrefixTrim, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
 
 export class InlineEditsDeletionView extends Disposable implements IInlineEditsView {
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor;
 
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
@@ -35,6 +35,56 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		private readonly _host: IInlineEditsViewHost,
 	) {
 		super();
+
+		this._editorObs = observableCodeEditor(this._editor);
+
+		this._originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
+		this._originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
+
+		this._originalDisplayRange = this._uiState.map(s => s?.originalRange);
+
+		this._editorLayoutInfo = derived(this, (reader) => {
+			const inlineEdit = this._edit.read(reader);
+			if (!inlineEdit) {
+				return null;
+			}
+			const state = this._uiState.read(reader);
+			if (!state) {
+				return null;
+			}
+
+			const editorLayout = this._editorObs.layoutInfo.read(reader);
+			const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
+
+			const left = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
+
+			const range = inlineEdit.originalLineRange;
+			const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
+			const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
+
+			const codeLeft = editorLayout.contentLeft + this._maxPrefixTrim.read(reader).prefixLeftOffset;
+
+			if (left <= codeLeft) {
+				return null;
+			}
+
+			const code1 = new Point(left, selectionTop);
+			const codeStart1 = new Point(codeLeft, selectionTop);
+			const code2 = new Point(left, selectionBottom);
+			const codeStart2 = new Point(codeLeft, selectionBottom);
+			const codeHeight = selectionBottom - selectionTop;
+
+			return {
+				code1,
+				codeStart1,
+				code2,
+				codeStart2,
+				codeHeight,
+				horizontalScrollOffset,
+				padding: 3,
+				borderRadius: 4,
+			};
+		}).recomputeInitiallyAndOnChange(this._store);
 
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._nonOverflowView.element,
@@ -60,10 +110,10 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		return inlineEdit ? new Position(inlineEdit.originalLineRange.endLineNumberExclusive, 1) : null;
 	});
 
-	private readonly _originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
-	private readonly _originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
+	private readonly _originalVerticalStartPosition: IObservable<number | undefined>;
+	private readonly _originalVerticalEndPosition: IObservable<number | undefined>;
 
-	private readonly _originalDisplayRange = this._uiState.map(s => s?.originalRange);
+	private readonly _originalDisplayRange: IObservable<LineRange | undefined>;
 	private readonly _editorMaxContentWidthInRange = derived(this, reader => {
 		const originalDisplayRange = this._originalDisplayRange.read(reader);
 		if (!originalDisplayRange) {
@@ -87,48 +137,16 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		return getPrefixTrim(state.deletions, state.originalRange, [], this._editor);
 	});
 
-	private readonly _editorLayoutInfo = derived(this, (reader) => {
-		const inlineEdit = this._edit.read(reader);
-		if (!inlineEdit) {
-			return null;
-		}
-		const state = this._uiState.read(reader);
-		if (!state) {
-			return null;
-		}
-
-		const editorLayout = this._editorObs.layoutInfo.read(reader);
-		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
-
-		const left = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
-
-		const range = inlineEdit.originalLineRange;
-		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
-		const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
-
-		const codeLeft = editorLayout.contentLeft + this._maxPrefixTrim.read(reader).prefixLeftOffset;
-
-		if (left <= codeLeft) {
-			return null;
-		}
-
-		const code1 = new Point(left, selectionTop);
-		const codeStart1 = new Point(codeLeft, selectionTop);
-		const code2 = new Point(left, selectionBottom);
-		const codeStart2 = new Point(codeLeft, selectionBottom);
-		const codeHeight = selectionBottom - selectionTop;
-
-		return {
-			code1,
-			codeStart1,
-			code2,
-			codeStart2,
-			codeHeight,
-			horizontalScrollOffset,
-			padding: 3,
-			borderRadius: 4,
-		};
-	}).recomputeInitiallyAndOnChange(this._store);
+	private readonly _editorLayoutInfo: IObservable<{
+		code1: Point;
+		codeStart1: Point;
+		code2: Point;
+		codeStart2: Point;
+		codeHeight: number;
+		horizontalScrollOffset: number;
+		padding: number;
+		borderRadius: number;
+	} | null>;
 
 	private readonly _foregroundSvg = n.svg({
 		transform: 'translate(-0.5 -0.5)',

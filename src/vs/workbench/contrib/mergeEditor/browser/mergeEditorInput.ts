@@ -67,6 +67,13 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService,
 	) {
 		super(result, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService, customEditorLabelService);
+
+		this.mergeEditorModeFactory = this._instaService.createInstance(
+			this.useWorkingCopy
+				? TempFileMergeEditorModeFactory
+				: WorkspaceMergeEditorModeFactory,
+			this._instaService.createInstance(MergeEditorTelemetry),
+		);
 	}
 
 	override dispose(): void {
@@ -93,12 +100,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput implements
 		return localize('name', "Merging: {0}", super.getName());
 	}
 
-	private readonly mergeEditorModeFactory = this._instaService.createInstance(
-		this.useWorkingCopy
-			? TempFileMergeEditorModeFactory
-			: WorkspaceMergeEditorModeFactory,
-		this._instaService.createInstance(MergeEditorTelemetry),
-	);
+	private readonly mergeEditorModeFactory: TempFileMergeEditorModeFactory | WorkspaceMergeEditorModeFactory;
 
 	override async resolve(): Promise<IMergeEditorInputModel> {
 		if (!this._inputModel) {

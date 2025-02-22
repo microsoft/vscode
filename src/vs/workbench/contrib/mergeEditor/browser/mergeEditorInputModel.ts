@@ -7,7 +7,7 @@ import { assertFn } from '../../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import Severity from '../../../../base/common/severity.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -125,7 +125,7 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 }
 
 class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorInputModel {
-	private readonly savedAltVersionId = observableValue(this, this.model.resultTextModel.getAlternativeVersionId());
+	private readonly savedAltVersionId: ISettableObservable<number, void>;
 	private readonly altVersionId = observableFromEvent(this,
 		e => this.model.resultTextModel.onDidChangeContent(e),
 		() =>
@@ -146,6 +146,8 @@ class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorI
 		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
+
+		this.savedAltVersionId = observableValue(this, this.model.resultTextModel.getAlternativeVersionId());
 	}
 
 	override dispose(): void {
@@ -340,10 +342,7 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 }
 
 class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditorInputModel {
-	public readonly isDirty = observableFromEvent(this,
-		Event.any(this.resultTextFileModel.onDidChangeDirty, this.resultTextFileModel.onDidSaveError),
-		() => /** @description isDirty */ this.resultTextFileModel.isDirty()
-	);
+	public readonly isDirty: IObservable<boolean>;
 
 	private reported = false;
 	private readonly dateTimeOpened = new Date();
@@ -357,6 +356,11 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
+
+		this.isDirty = observableFromEvent(this,
+			Event.any(this.resultTextFileModel.onDidChangeDirty, this.resultTextFileModel.onDidSaveError),
+			() => /** @description isDirty */ this.resultTextFileModel.isDirty()
+		);
 	}
 
 	public override dispose(): void {

@@ -18,9 +18,10 @@ import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { derivedObservableWithCache, derivedOpts, latestChangedValue, observableFromEventOpts } from '../../../../base/common/observable.js';
+import { IObservable, derivedObservableWithCache, derivedOpts, latestChangedValue, observableFromEventOpts } from '../../../../base/common/observable.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -164,12 +165,7 @@ export class SCMViewService implements ISCMViewService {
 		}, this.onDidFocusRepository,
 		() => this.focusedRepository);
 
-	private readonly _activeEditor = observableFromEventOpts(
-		{
-			owner: this,
-			equalsFn: () => false
-		}, this.editorService.onDidActiveEditorChange,
-		() => this.editorService.activeEditor);
+	private readonly _activeEditor: IObservable<EditorInput | undefined>;
 
 	private readonly _activeEditorRepository = derivedObservableWithCache<ISCMRepository | undefined>(this,
 		(reader, lastValue) => {
@@ -221,6 +217,13 @@ export class SCMViewService implements ISCMViewService {
 		} catch {
 			// noop
 		}
+
+		this._activeEditor = observableFromEventOpts(
+			{
+				owner: this,
+				equalsFn: () => false
+			}, this.editorService.onDidActiveEditorChange,
+			() => this.editorService.activeEditor);
 
 		this._repositoriesSortKey = this.previousState?.sortKey ?? this.getViewSortOrder();
 		this._sortKeyContextKey = RepositoryContextKeys.RepositorySortKey.bindTo(contextKeyService);

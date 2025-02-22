@@ -483,7 +483,7 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		return this._notebookProviderInfoStore;
 	}
-	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
+	private readonly _notebookRenderersInfoStore: NotebookOutputRendererInfoStore;
 	private readonly _onDidChangeOutputRenderers = this._register(new Emitter<void>());
 	readonly onDidChangeOutputRenderers = this._onDidChangeOutputRenderers.event;
 
@@ -524,6 +524,8 @@ export class NotebookService extends Disposable implements INotebookService {
 		@INotebookDocumentService private readonly _notebookDocumentService: INotebookDocumentService
 	) {
 		super();
+
+		this._notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
 
 		notebookRendererExtensionPoint.setHandler((renderers) => {
 			this._notebookRenderersInfoStore.clear();

@@ -19,10 +19,11 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/quickAccess/browser/editorNavigationQuickAccess.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { Event } from '../../../../../base/common/event.js';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
-	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -30,6 +31,8 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+
+		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
 
 	private get configuration() {

@@ -231,12 +231,13 @@ export class PlaceholderViewZone implements IObservableViewZone {
 
 	public get afterLineNumber(): number { return this._afterLineNumber.get(); }
 
-	public readonly onChange?: IObservable<unknown> = this._afterLineNumber;
+	public readonly onChange?: IObservable<unknown>;
 
 	constructor(
 		private readonly _afterLineNumber: IObservable<number>,
 		public readonly heightInPx: number,
 	) {
+		this.onChange = this._afterLineNumber;
 	}
 
 	onDomNodeTop = (top: number) => {

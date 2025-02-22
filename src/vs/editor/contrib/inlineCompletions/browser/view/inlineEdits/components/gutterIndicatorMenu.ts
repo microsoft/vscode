@@ -27,7 +27,7 @@ import { FirstFnArg, InlineEditTabAction } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
 
-	private readonly _inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
+	private readonly _inlineEditsShowCollapsed: IObservable<boolean>;
 
 	constructor(
 		private readonly _host: IInlineEditsViewHost,
@@ -37,6 +37,7 @@ export class GutterIndicatorMenuContent {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
+		this._inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 	}
 
 	public toDisposableLiveElement(): LiveElement {

@@ -34,7 +34,7 @@ import { SparseTokensStore } from '../tokens/sparseTokensStore.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
-	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
+	private readonly _semanticTokens: SparseTokensStore;
 
 	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
 	public readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeLanguage.event;
@@ -58,6 +58,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+
+		this._semanticTokens = new SparseTokensStore(this._languageService.languageIdCodec);
 
 		// We just look at registry changes to determine whether to use tree sitter.
 		// This means that removing a language from the setting will not cause a switch to textmate and will require a reload.

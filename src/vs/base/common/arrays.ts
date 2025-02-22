@@ -702,12 +702,14 @@ export function compareUndefinedSmallest<T>(comparator: Comparator<T>): Comparat
 
 export class ArrayQueue<T> {
 	private firstIdx = 0;
-	private lastIdx = this.items.length - 1;
+	private lastIdx: number;
 
 	/**
 	 * Constructs a queue that is backed by the given array. Runtime is O(1).
 	*/
-	constructor(private readonly items: readonly T[]) { }
+	constructor(private readonly items: readonly T[]) {
+		this.lastIdx = this.items.length - 1;
+	}
 
 	get length(): number {
 		return this.lastIdx - this.firstIdx + 1;

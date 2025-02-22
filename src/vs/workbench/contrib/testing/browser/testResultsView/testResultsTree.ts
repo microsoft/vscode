@@ -79,9 +79,9 @@ class TestResultElement implements ITreeElement {
 	public readonly changeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.changeEmitter.event;
 	public readonly type = 'result';
-	public readonly context = this.value.id;
-	public readonly id = this.value.id;
-	public readonly label = this.value.name;
+	public readonly context: string;
+	public readonly id: string;
+	public readonly label: string;
 
 	public get icon() {
 		return icons.testingStatesToIcons.get(
@@ -91,7 +91,11 @@ class TestResultElement implements ITreeElement {
 		);
 	}
 
-	constructor(public readonly value: ITestResult) { }
+	constructor(public readonly value: ITestResult) {
+		this.context = this.value.id;
+		this.id = this.value.id;
+		this.label = this.value.name;
+	}
 }
 
 const openCoverageLabel = localize('openTestCoverage', 'View Test Coverage');
@@ -100,7 +104,7 @@ const closeCoverageLabel = localize('closeTestCoverage', 'Close Test Coverage');
 class CoverageElement implements ITreeElement {
 	public readonly type = 'coverage';
 	public readonly context: undefined;
-	public readonly id = `coverage-${this.results.id}/${this.task.id}`;
+	public readonly id: string;
 	public readonly onDidChange: Event<void>;
 
 	public get label() {
@@ -120,6 +124,7 @@ class CoverageElement implements ITreeElement {
 		public readonly task: ITestRunTaskResults,
 		private readonly coverageService: ITestCoverageService,
 	) {
+		this.id = `coverage-${this.results.id}/${this.task.id}`;
 		this.onDidChange = Event.fromObservableLight(coverageService.selected);
 	}
 }
@@ -127,11 +132,12 @@ class CoverageElement implements ITreeElement {
 class OlderResultsElement implements ITreeElement {
 	public readonly type = 'older';
 	public readonly context: undefined;
-	public readonly id = `older-${this.n}`;
+	public readonly id: string;
 	public readonly onDidChange = Event.None;
 	public readonly label: string;
 
 	constructor(private readonly n: number) {
+		this.id = `older-${this.n}`;
 		this.label = localize('nOlderResults', '{0} older results', n);
 
 	}
@@ -139,11 +145,8 @@ class OlderResultsElement implements ITreeElement {
 
 class TestCaseElement implements ITreeElement {
 	public readonly type = 'test';
-	public readonly context: ITestItemContext = {
-		$mid: MarshalledId.TestItemContext,
-		tests: [InternalTestItem.serialize(this.test)],
-	};
-	public readonly id = `${this.results.id}/${this.test.item.extId}`;
+	public readonly context: ITestItemContext;
+	public readonly id: string;
 	public readonly description?: string;
 
 	public get onDidChange() {
@@ -179,7 +182,13 @@ class TestCaseElement implements ITreeElement {
 		public readonly results: ITestResult,
 		public readonly test: TestResultItem,
 		public readonly taskIndex: number,
-	) { }
+	) {
+		this.context = {
+			$mid: MarshalledId.TestItemContext,
+			tests: [InternalTestItem.serialize(this.test)],
+		};
+		this.id = `${this.results.id}/${this.test.item.extId}`;
+	}
 }
 
 class TaskElement implements ITreeElement {

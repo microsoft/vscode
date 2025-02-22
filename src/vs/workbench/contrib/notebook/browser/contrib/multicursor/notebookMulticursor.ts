@@ -35,7 +35,7 @@ import { WordHighlighterContribution } from '../../../../../../editor/contrib/wo
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IPastFutureElements, IUndoRedoElement, IUndoRedoService, UndoRedoElementType } from '../../../../../../platform/undoRedo/common/undoRedo.js';
@@ -111,8 +111,8 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		return this.state;
 	}
 
-	private _nbIsMultiSelectSession = NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor.bindTo(this.contextKeyService);
-	private _nbMultiSelectState = NOTEBOOK_MULTI_CURSOR_CONTEXT.NotebookMultiSelectCursorState.bindTo(this.contextKeyService);
+	private _nbIsMultiSelectSession: IContextKey<boolean>;
+	private _nbMultiSelectState: IContextKey<NotebookMultiCursorState>;
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -126,6 +126,9 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		super();
 
 		this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
+
+		this._nbIsMultiSelectSession = NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor.bindTo(this.contextKeyService);
+		this._nbMultiSelectState = NOTEBOOK_MULTI_CURSOR_CONTEXT.NotebookMultiSelectCursorState.bindTo(this.contextKeyService);
 
 		// anchor cell will catch and relay all type, cut, paste events to the cursors controllers
 		// need to create new controllers when the anchor cell changes, then update their listeners

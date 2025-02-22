@@ -60,7 +60,7 @@ const newCommands: ApiCommand[] = [
 				range!: vscode.Range;
 				selectionRange!: vscode.Range;
 				children!: vscode.DocumentSymbol[];
-				override containerName!: string;
+				declare containerName: string;
 			}
 			return value.map(MergedInfo.to);
 

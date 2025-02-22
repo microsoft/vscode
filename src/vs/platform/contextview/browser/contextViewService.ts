@@ -12,12 +12,14 @@ import { getWindow } from '../../../base/browser/dom.js';
 export class ContextViewHandler extends Disposable implements IContextViewProvider {
 
 	private openContextView: IOpenContextView | undefined;
-	protected readonly contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
+	protected readonly contextView: ContextView;
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super();
+
+		this.contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
 
 		this.layout();
 		this._register(layoutService.onDidLayoutContainer(() => this.layout()));

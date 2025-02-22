@@ -40,12 +40,9 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
 
-	readonly isHovered = observableCodeEditor(this._originalEditor).isTargetHovered(
-		p => p.target.type === MouseTargetType.CONTENT_TEXT && p.target.detail.injectedText?.options.attachedData instanceof InlineEditAttachedData,
-		this._store
-	);
+	readonly isHovered: IObservable<boolean>;
 
-	private readonly _tokenizationFinished = modelTokenizationFinished(this._modifiedTextModel);
+	private readonly _tokenizationFinished: IObservable<number>;
 
 	constructor(
 		private readonly _originalEditor: ICodeEditor,
@@ -53,6 +50,13 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		private readonly _modifiedTextModel: ITextModel,
 	) {
 		super();
+
+		this.isHovered = observableCodeEditor(this._originalEditor).isTargetHovered(
+			p => p.target.type === MouseTargetType.CONTENT_TEXT && p.target.detail.injectedText?.options.attachedData instanceof InlineEditAttachedData,
+			this._store
+		);
+
+		this._tokenizationFinished = modelTokenizationFinished(this._modifiedTextModel);
 
 		this._register(observableCodeEditor(this._originalEditor).setDecorations(this._decorations.map(d => d?.originalDecorations ?? [])));
 

@@ -252,11 +252,12 @@ export class RenderedLinesCollection<T extends ILine> {
 export class VisibleLinesCollection<T extends IVisibleLine> {
 
 	public readonly domNode: FastDomNode<HTMLElement> = this._createDomNode();
-	private readonly _linesCollection: RenderedLinesCollection<T> = new RenderedLinesCollection<T>(this._lineFactory);
+	private readonly _linesCollection: RenderedLinesCollection<T>;
 
 	constructor(
 		private readonly _lineFactory: ILineFactory<T>
 	) {
+		this._linesCollection = new RenderedLinesCollection<T>(this._lineFactory);
 	}
 
 	private _createDomNode(): FastDomNode<HTMLElement> {

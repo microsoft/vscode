@@ -75,13 +75,13 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly inputResultView = this._register(this.instantiationService.createInstance(ResultCodeEditorView, this._viewModel));
 	private readonly _layoutMode = this.instantiationService.createInstance(MergeEditorLayoutStore);
 	private readonly _layoutModeObs = observableValue(this, this._layoutMode.value);
-	private readonly _ctxIsMergeEditor: IContextKey<boolean> = ctxIsMergeEditor.bindTo(this.contextKeyService);
-	private readonly _ctxUsesColumnLayout: IContextKey<string> = ctxMergeEditorLayout.bindTo(this.contextKeyService);
-	private readonly _ctxShowBase: IContextKey<boolean> = ctxMergeEditorShowBase.bindTo(this.contextKeyService);
-	private readonly _ctxShowBaseAtTop = ctxMergeEditorShowBaseAtTop.bindTo(this.contextKeyService);
-	private readonly _ctxResultUri: IContextKey<string> = ctxMergeResultUri.bindTo(this.contextKeyService);
-	private readonly _ctxBaseUri: IContextKey<string> = ctxMergeBaseUri.bindTo(this.contextKeyService);
-	private readonly _ctxShowNonConflictingChanges: IContextKey<boolean> = ctxMergeEditorShowNonConflictingChanges.bindTo(this.contextKeyService);
+	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
+	private readonly _ctxUsesColumnLayout: IContextKey<string>;
+	private readonly _ctxShowBase: IContextKey<boolean>;
+	private readonly _ctxShowBaseAtTop: IContextKey<boolean>;
+	private readonly _ctxResultUri: IContextKey<string>;
+	private readonly _ctxBaseUri: IContextKey<string>;
+	private readonly _ctxShowNonConflictingChanges: IContextKey<boolean>;
 	private readonly _inputModel = observableValue<IMergeEditorInputModel | undefined>(this, undefined);
 	public get inputModel(): IObservable<IMergeEditorInputModel | undefined> {
 		return this._inputModel;
@@ -100,11 +100,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		this.inputResultView.editor,
 	);
 
-	protected readonly codeLensesVisible = observableConfigValue<boolean>(
-		'mergeEditor.showCodeLenses',
-		true,
-		this.configurationService,
-	);
+	protected readonly codeLensesVisible: IObservable<boolean>;
 
 	private readonly scrollSynchronizer = this._register(new ScrollSynchronizer(this._viewModel, this.input1View, this.input2View, this.baseView, this.inputResultView, this._layoutModeObs));
 
@@ -124,6 +120,20 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(MergeEditor.ID, group, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
+
+		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(this.contextKeyService);
+		this._ctxUsesColumnLayout = ctxMergeEditorLayout.bindTo(this.contextKeyService);
+		this._ctxShowBase = ctxMergeEditorShowBase.bindTo(this.contextKeyService);
+		this._ctxShowBaseAtTop = ctxMergeEditorShowBaseAtTop.bindTo(this.contextKeyService);
+		this._ctxResultUri = ctxMergeResultUri.bindTo(this.contextKeyService);
+		this._ctxBaseUri = ctxMergeBaseUri.bindTo(this.contextKeyService);
+		this._ctxShowNonConflictingChanges = ctxMergeEditorShowNonConflictingChanges.bindTo(this.contextKeyService);
+
+		this.codeLensesVisible = observableConfigValue<boolean>(
+			'mergeEditor.showCodeLenses',
+			true,
+			this.configurationService,
+		);
 	}
 
 	override dispose(): void {

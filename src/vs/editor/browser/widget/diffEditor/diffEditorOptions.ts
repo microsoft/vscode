@@ -19,7 +19,7 @@ export class DiffEditorOptions {
 
 	private readonly _diffEditorWidth = observableValue<number>(this, 0);
 
-	private readonly _screenReaderMode = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
+	private readonly _screenReaderMode: IObservable<boolean>;
 
 	constructor(
 		options: Readonly<IDiffEditorOptions>,
@@ -27,6 +27,8 @@ export class DiffEditorOptions {
 	) {
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
 		this._options = observableValue(this, optionsCopy);
+
+		this._screenReaderMode = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
 	}
 
 	public readonly couldShowInlineViewBecauseOfSize = derived(this, reader =>

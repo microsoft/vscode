@@ -23,9 +23,11 @@ import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from '..
 import { setStyle } from '../../utils.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { MergeEditorViewModel } from '../viewModel.js';
+import { Position } from '../../../../../../editor/common/core/position.js';
+import { MergeEditorModel } from '../../model/mergeEditorModel.js';
 
 export abstract class CodeEditorView extends Disposable {
-	readonly model = this.viewModel.map(m => /** @description model */ m?.model);
+	readonly model: IObservable<MergeEditorModel | undefined>;
 
 	protected readonly htmlElements = h('div.code-view', [
 		h('div.header@header', [
@@ -62,39 +64,23 @@ export abstract class CodeEditorView extends Disposable {
 		// snap?: boolean | undefined;
 	};
 
-	protected readonly checkboxesVisible = observableConfigValue<boolean>('mergeEditor.showCheckboxes', false, this.configurationService);
-	protected readonly showDeletionMarkers = observableConfigValue<boolean>('mergeEditor.showDeletionMarkers', true, this.configurationService);
-	protected readonly useSimplifiedDecorations = observableConfigValue<boolean>('mergeEditor.useSimplifiedDecorations', false, this.configurationService);
+	protected readonly checkboxesVisible: IObservable<boolean>;
+	protected readonly showDeletionMarkers: IObservable<boolean>;
+	protected readonly useSimplifiedDecorations: IObservable<boolean>;
 
-	public readonly editor = this.instantiationService.createInstance(
-		CodeEditorWidget,
-		this.htmlElements.editor,
-		{},
-		{
-			contributions: this.getEditorContributions(),
-		}
-	);
+	public readonly editor: CodeEditorWidget;
 
 	public updateOptions(newOptions: Readonly<IEditorOptions>): void {
 		this.editor.updateOptions(newOptions);
 	}
 
-	public readonly isFocused = observableFromEvent(this,
-		Event.any(this.editor.onDidBlurEditorWidget, this.editor.onDidFocusEditorWidget),
-		() => /** @description editor.hasWidgetFocus */ this.editor.hasWidgetFocus()
-	);
+	public readonly isFocused: IObservable<boolean>;
 
-	public readonly cursorPosition = observableFromEvent(this,
-		this.editor.onDidChangeCursorPosition,
-		() => /** @description editor.getPosition */ this.editor.getPosition()
-	);
+	public readonly cursorPosition: IObservable<Position | null>;
 
-	public readonly selection = observableFromEvent(this,
-		this.editor.onDidChangeCursorSelection,
-		() => /** @description editor.getSelections */ this.editor.getSelections()
-	);
+	public readonly selection: IObservable<Selection[] | null>;
 
-	public readonly cursorLineNumber = this.cursorPosition.map(p => /** @description cursorPosition.lineNumber */ p?.lineNumber);
+	public readonly cursorLineNumber: IObservable<number | undefined>;
 
 	constructor(
 		private readonly instantiationService: IInstantiationService,
@@ -103,6 +89,37 @@ export abstract class CodeEditorView extends Disposable {
 	) {
 		super();
 
+		this.model = this.viewModel.map(m => /** @description model */ m?.model);
+
+		this.checkboxesVisible = observableConfigValue<boolean>('mergeEditor.showCheckboxes', false, this.configurationService);
+		this.showDeletionMarkers = observableConfigValue<boolean>('mergeEditor.showDeletionMarkers', true, this.configurationService);
+		this.useSimplifiedDecorations = observableConfigValue<boolean>('mergeEditor.useSimplifiedDecorations', false, this.configurationService);
+
+		this.editor = this.instantiationService.createInstance(
+			CodeEditorWidget,
+			this.htmlElements.editor,
+			{},
+			{
+				contributions: this.getEditorContributions(),
+			}
+		);
+
+		this.isFocused = observableFromEvent(this,
+			Event.any(this.editor.onDidBlurEditorWidget, this.editor.onDidFocusEditorWidget),
+			() => /** @description editor.hasWidgetFocus */ this.editor.hasWidgetFocus()
+		);
+
+		this.cursorPosition = observableFromEvent(this,
+			this.editor.onDidChangeCursorPosition,
+			() => /** @description editor.getPosition */ this.editor.getPosition()
+		);
+
+		this.selection = observableFromEvent(this,
+			this.editor.onDidChangeCursorSelection,
+			() => /** @description editor.getSelections */ this.editor.getSelections()
+		);
+
+		this.cursorLineNumber = this.cursorPosition.map(p => /** @description cursorPosition.lineNumber */ p?.lineNumber);
 	}
 
 	protected getEditorContributions(): IEditorContributionDescription[] {

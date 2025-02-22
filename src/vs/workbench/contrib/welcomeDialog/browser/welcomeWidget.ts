@@ -34,7 +34,7 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 	private readonly _rootDomNode: HTMLElement;
 	private readonly element: HTMLElement;
 	private readonly messageContainer: HTMLElement;
-	private readonly markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+	private readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -44,6 +44,9 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		private readonly openerService: IOpenerService
 	) {
 		super();
+
+		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+
 		this._rootDomNode = document.createElement('div');
 		this._rootDomNode.className = 'welcome-widget';
 

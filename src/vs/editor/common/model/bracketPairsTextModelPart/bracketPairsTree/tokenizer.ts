@@ -64,7 +64,7 @@ export class TextBufferTokenizer implements Tokenizer {
 	private readonly textBufferLineCount: number;
 	private readonly textBufferLastLineLength: number;
 
-	private readonly reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens);
+	private readonly reader: NonPeekableTextBufferTokenizer;
 
 	constructor(
 		private readonly textModel: ITokenizerSource,
@@ -72,6 +72,8 @@ export class TextBufferTokenizer implements Tokenizer {
 	) {
 		this.textBufferLineCount = textModel.getLineCount();
 		this.textBufferLastLineLength = textModel.getLineLength(this.textBufferLineCount);
+
+		this.reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens); // rebuild here
 	}
 
 	private _offset: Length = lengthZero;

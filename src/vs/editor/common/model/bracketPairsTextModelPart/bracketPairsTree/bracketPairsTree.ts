@@ -40,7 +40,7 @@ export class BracketPairsTree extends Disposable {
 	private astWithTokens: AstNode | undefined;
 
 	private readonly denseKeyProvider = new DenseKeyProvider<string>();
-	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider, this.getLanguageConfiguration);
+	private readonly brackets: LanguageAgnosticBracketTokens;
 
 	public didLanguageChange(languageId: string): boolean {
 		return this.brackets.didLanguageChange(languageId);
@@ -55,6 +55,8 @@ export class BracketPairsTree extends Disposable {
 		private readonly getLanguageConfiguration: (languageId: string) => ResolvedLanguageConfiguration
 	) {
 		super();
+
+		this.brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider, this.getLanguageConfiguration);
 
 		if (!textModel.tokenization.hasTokens) {
 			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageId());

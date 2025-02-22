@@ -12,7 +12,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, autorun, autorunWithStore, derived, derivedDisposable, derivedWithSetter, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -35,9 +35,9 @@ const emptyArr: never[] = [];
 const width = 35;
 
 export class DiffEditorGutter extends Disposable {
-	private readonly _menu = this._register(this._menuService.createMenu(MenuId.DiffEditorHunkToolbar, this._contextKeyService));
-	private readonly _actions = observableFromEvent(this, this._menu.onDidChange, () => this._menu.getActions());
-	private readonly _hasActions = this._actions.map(a => a.length > 0);
+	private readonly _menu: IMenu;
+	private readonly _actions: IObservable<[string, Array<MenuItemAction | SubmenuItemAction>][]>;
+	private readonly _hasActions: IObservable<boolean>;
 	private readonly _showSash = derived(this, reader => this._options.renderSideBySide.read(reader) && this._hasActions.read(reader));
 
 	public readonly width = derived(this, reader => this._hasActions.read(reader) ? width : 0);
@@ -56,6 +56,10 @@ export class DiffEditorGutter extends Disposable {
 		@IMenuService private readonly _menuService: IMenuService,
 	) {
 		super();
+
+		this._menu = this._register(this._menuService.createMenu(MenuId.DiffEditorHunkToolbar, this._contextKeyService));
+		this._actions = observableFromEvent(this, this._menu.onDidChange, () => this._menu.getActions());
+		this._hasActions = this._actions.map(a => a.length > 0);
 
 		this._register(prependRemoveOnDispose(diffEditorRoot, this.elements.root));
 
@@ -202,8 +206,8 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		h('div.buttons@buttons', {}, []),
 	]);
 
-	private readonly _showAlways = this._item.map(this, item => item.showAlways);
-	private readonly _menuId = this._item.map(this, item => item.menuId);
+	private readonly _showAlways: IObservable<boolean>;
+	private readonly _menuId: IObservable<MenuId>;
 
 	private readonly _isSmall = observableValue(this, false);
 
@@ -214,6 +218,9 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
+
+		this._showAlways = this._item.map(this, item => item.showAlways);
+		this._menuId = this._item.map(this, item => item.menuId);
 
 		const hoverDelegate = this._register(instantiationService.createInstance(
 			WorkbenchHoverDelegate,

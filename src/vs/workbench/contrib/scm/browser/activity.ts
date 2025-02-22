@@ -30,11 +30,9 @@ const ActiveRepositoryContextKeys = {
 };
 
 export class SCMActiveRepositoryController extends Disposable implements IWorkbenchContribution {
-	private readonly _countBadgeConfig = observableConfigValue<'all' | 'focused' | 'off'>('scm.countBadge', 'all', this.configurationService);
+	private readonly _countBadgeConfig: IObservable<'all' | 'focused' | 'off'>;
 
-	private readonly _repositories = observableFromEvent(this,
-		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
-		() => this.scmService.repositories);
+	private readonly _repositories: IObservable<Iterable<ISCMRepository>>;
 
 	private readonly _activeRepositoryHistoryItemRefName = derived(reader => {
 		const repository = this.scmViewService.activeRepository.read(reader);
@@ -87,6 +85,11 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		@ITitleService private readonly titleService: ITitleService
 	) {
 		super();
+
+		this._countBadgeConfig = observableConfigValue<'all' | 'focused' | 'off'>('scm.countBadge', 'all', this.configurationService);
+		this._repositories = observableFromEvent(this,
+			Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
+			() => this.scmService.repositories);
 
 		this._activeRepositoryNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryName.bindTo(this.contextKeyService);
 		this._activeRepositoryBranchNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryBranchName.bindTo(this.contextKeyService);
@@ -177,9 +180,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 }
 
 export class SCMActiveResourceContextKeyController extends Disposable implements IWorkbenchContribution {
-	private readonly _repositories = observableFromEvent(this,
-		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
-		() => this.scmService.repositories);
+	private readonly _repositories: IObservable<Iterable<ISCMRepository>>;
 
 	private readonly _onDidRepositoryChange = new Emitter<void>();
 
@@ -189,6 +190,10 @@ export class SCMActiveResourceContextKeyController extends Disposable implements
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
+
+		this._repositories = observableFromEvent(this,
+			Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
+			() => this.scmService.repositories);
 
 		const activeResourceHasChangesContextKey = new RawContextKey<boolean>('scmActiveResourceHasChanges', false, localize('scmActiveResourceHasChanges', "Whether the active resource has changes"));
 		const activeResourceRepositoryContextKey = new RawContextKey<string | undefined>('scmActiveResourceRepository', undefined, localize('scmActiveResourceRepository', "The active resource's repository"));

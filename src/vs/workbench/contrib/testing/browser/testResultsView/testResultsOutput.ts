@@ -41,17 +41,21 @@ import { ITaskRawOutput, ITestResult, ITestRunTaskResults, LiveTestResult, TestR
 import { ITestMessage, TestMessageType, getMarkId } from '../../common/testTypes.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { CALL_STACK_WIDGET_HEADER_HEIGHT } from '../../../debug/browser/callStackWidget.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 
 
 class SimpleDiffEditorModel extends EditorModel {
-	public readonly original = this._original.object.textEditorModel;
-	public readonly modified = this._modified.object.textEditorModel;
+	public readonly original: ITextModel;
+	public readonly modified: ITextModel;
 
 	constructor(
 		private readonly _original: IReference<IResolvedTextEditorModel>,
 		private readonly _modified: IReference<IResolvedTextEditorModel>,
 	) {
 		super();
+
+		this.original = this._original.object.textEditorModel;
+		this.modified = this._modified.object.textEditorModel;
 	}
 
 	public override dispose() {

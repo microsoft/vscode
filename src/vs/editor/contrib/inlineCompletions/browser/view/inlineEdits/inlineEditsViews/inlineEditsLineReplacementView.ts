@@ -20,6 +20,7 @@ import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { Range } from '../../../../../../common/core/range.js';
+import { IEditorDecorationsCollection } from '../../../../../../common/editorCommon.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { IModelDecorationOptions, TrackedRangeStickiness } from '../../../../../../common/model.js';
 import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
@@ -35,14 +36,14 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
 
-	private readonly _originalBubblesDecorationCollection = this._editor.editor.createDecorationsCollection();
+	private readonly _originalBubblesDecorationCollection: IEditorDecorationsCollection;
 	private readonly _originalBubblesDecorationOptions: IModelDecorationOptions = {
 		description: 'inlineCompletions-original-bubble',
 		className: 'inlineCompletions-original-bubble',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
-	private readonly _maxPrefixTrim = this._edit.map(e => e ? getPrefixTrim(e.replacements.flatMap(r => [r.originalRange, r.modifiedRange]), e.originalRange, e.modifiedLines, this._editor.editor) : undefined);
+	private readonly _maxPrefixTrim: IObservable<{ prefixTrim: number; prefixLeftOffset: number } | undefined>;
 
 	private readonly _modifiedLineElements = derived(reader => {
 		const lines = [];
@@ -274,7 +275,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		})
 	]).keepUpdated(this._store);
 
-	readonly isHovered = this._editor.isTargetHovered((e) => this._isMouseOverWidget(e), this._store);
+	readonly isHovered: IObservable<boolean>;
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
@@ -288,6 +289,12 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 		@ILanguageService private readonly _languageService: ILanguageService
 	) {
 		super();
+
+		this._originalBubblesDecorationCollection = this._editor.editor.createDecorationsCollection();
+
+		this._maxPrefixTrim = this._edit.map(e => e ? getPrefixTrim(e.replacements.flatMap(r => [r.originalRange, r.modifiedRange]), e.originalRange, e.modifiedLines, this._editor.editor) : undefined);
+
+		this.isHovered = this._editor.isTargetHovered((e) => this._isMouseOverWidget(e), this._store);
 
 		this._register(toDisposable(() => this._originalBubblesDecorationCollection.clear()));
 		this._register(toDisposable(() => this._editor.editor.changeViewZones(accessor => this.removePreviousViewZone(accessor))));

@@ -5,9 +5,9 @@
 
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise, observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from '../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise, observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -20,12 +20,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IDebugService } from '../../debug/common/debug.js';
 
 export class EditorTextPropertySignalsContribution extends Disposable implements IWorkbenchContribution {
-	private readonly _textProperties: TextProperty[] = [
-		this._instantiationService.createInstance(MarkerTextProperty, AccessibilitySignal.errorAtPosition, AccessibilitySignal.errorOnLine, MarkerSeverity.Error),
-		this._instantiationService.createInstance(MarkerTextProperty, AccessibilitySignal.warningAtPosition, AccessibilitySignal.warningOnLine, MarkerSeverity.Warning),
-		this._instantiationService.createInstance(FoldedAreaTextProperty),
-		this._instantiationService.createInstance(BreakpointTextProperty),
-	];
+	private readonly _textProperties: TextProperty[];
 
 	private readonly _someAccessibilitySignalIsEnabled = derived(this, reader =>
 		this._textProperties
@@ -34,20 +29,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 			.some(signal => observableFromValueWithChangeEvent(this, this._accessibilitySignalService.getEnabledState(signal, false)).read(reader))
 	);
 
-	private readonly _activeEditorObservable = observableFromEvent(this,
-		this._editorService.onDidActiveEditorChange,
-		(_) => {
-			const activeTextEditorControl = this._editorService.activeTextEditorControl;
-
-			const editor = isDiffEditor(activeTextEditorControl)
-				? activeTextEditorControl.getOriginalEditor()
-				: isCodeEditor(activeTextEditorControl)
-					? activeTextEditorControl
-					: undefined;
-
-			return editor && editor.hasModel() ? { editor, model: editor.getModel() } : undefined;
-		}
-	);
+	private readonly _activeEditorObservable: IObservable<{ editor: IActiveCodeEditor; model: ITextModel } | undefined>;
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
@@ -55,6 +37,28 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService
 	) {
 		super();
+
+		this._textProperties = [
+			this._instantiationService.createInstance(MarkerTextProperty, AccessibilitySignal.errorAtPosition, AccessibilitySignal.errorOnLine, MarkerSeverity.Error),
+			this._instantiationService.createInstance(MarkerTextProperty, AccessibilitySignal.warningAtPosition, AccessibilitySignal.warningOnLine, MarkerSeverity.Warning),
+			this._instantiationService.createInstance(FoldedAreaTextProperty),
+			this._instantiationService.createInstance(BreakpointTextProperty),
+		];
+
+		this._activeEditorObservable = observableFromEvent(this,
+			this._editorService.onDidActiveEditorChange,
+			(_) => {
+				const activeTextEditorControl = this._editorService.activeTextEditorControl;
+
+				const editor = isDiffEditor(activeTextEditorControl)
+					? activeTextEditorControl.getOriginalEditor()
+					: isCodeEditor(activeTextEditorControl)
+						? activeTextEditorControl
+						: undefined;
+
+				return editor && editor.hasModel() ? { editor, model: editor.getModel() } : undefined;
+			}
+		);
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description updateSignalsEnabled */

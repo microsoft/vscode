@@ -78,7 +78,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	// #region Pty service contribution RPC calls
 
-	private readonly _autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
+	private readonly _autoRepliesContribution: AutoRepliesPtyServiceContribution;
 	@traceRpc
 	async installAutoReply(match: string, reply: string) {
 		await this._autoRepliesContribution.installAutoReply(match, reply);
@@ -89,10 +89,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	// #endregion
-
-	private readonly _contributions: IPtyServiceContribution[] = [
-		this._autoRepliesContribution
-	];
+	private readonly _contributions: IPtyServiceContribution[];
 
 	private _lastPtyId: number = 0;
 
@@ -138,6 +135,12 @@ export class PtyService extends Disposable implements IPtyService {
 		private readonly _simulatedLatency: number
 	) {
 		super();
+
+		this._autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
+
+		this._contributions = [
+			this._autoRepliesContribution
+		];
 
 		this._register(toDisposable(() => {
 			for (const pty of this._ptys.values()) {

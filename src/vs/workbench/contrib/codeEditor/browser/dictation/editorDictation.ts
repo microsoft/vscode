@@ -10,7 +10,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { HasSpeechProvider, ISpeechService, SpeechToTextInProgress, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
@@ -187,8 +187,8 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		return editor.getContribution<EditorDictation>(EditorDictation.ID);
 	}
 
-	private readonly widget = this._register(new DictationWidget(this.editor, this.keybindingService));
-	private readonly editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
+	private readonly widget: DictationWidget;
+	private readonly editorDictationInProgress: IContextKey<boolean>;
 
 	private readonly sessionDisposables = this._register(new MutableDisposable());
 
@@ -199,6 +199,9 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
+
+		this.widget = this._register(new DictationWidget(this.editor, this.keybindingService));
+		this.editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
 	}
 
 	async start(): Promise<void> {

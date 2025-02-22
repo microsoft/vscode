@@ -31,7 +31,7 @@ export const IExtHostSearch = createDecorator<IExtHostSearch>('IExtHostSearch');
 
 export class ExtHostSearch implements IExtHostSearch {
 
-	protected readonly _proxy: MainThreadSearchShape = this.extHostRpc.getProxy(MainContext.MainThreadSearch);
+	protected readonly _proxy: MainThreadSearchShape;
 	protected _handlePool: number = 0;
 
 	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider2>();
@@ -49,7 +49,9 @@ export class ExtHostSearch implements IExtHostSearch {
 		@IExtHostRpcService private extHostRpc: IExtHostRpcService,
 		@IURITransformerService protected _uriTransformer: IURITransformerService,
 		@ILogService protected _logService: ILogService,
-	) { }
+	) {
+		this._proxy = this.extHostRpc.getProxy(MainContext.MainThreadSearch);
+	}
 
 	protected _transformScheme(scheme: string): string {
 		return this._uriTransformer.transformOutgoingScheme(scheme);

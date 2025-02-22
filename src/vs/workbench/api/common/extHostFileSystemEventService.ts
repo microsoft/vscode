@@ -243,9 +243,11 @@ interface IExtensionListener<E> {
 
 class LazyRevivedFileSystemEvents implements FileSystemEvents {
 
-	constructor(private readonly _events: FileSystemEvents) { }
+	constructor(private readonly _events: FileSystemEvents) {
+		this.session = this._events.session;
+	}
 
-	readonly session = this._events.session;
+	readonly session: number | undefined;
 
 	private _created = new Lazy(() => this._events.created.map(URI.revive) as URI[]);
 	get created(): URI[] { return this._created.value; }

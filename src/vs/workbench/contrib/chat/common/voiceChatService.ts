@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { rtrim } from '../../../../base/common/strings.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatAgentService } from './chatAgents.js';
 import { IChatModel } from './chatModel.js';
@@ -81,7 +81,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 
 	private static readonly CHAT_AGENT_ALIAS = new Map<string, string>([['vscode', 'code']]);
 
-	private readonly voiceChatInProgress = VoiceChatInProgress.bindTo(this.contextKeyService);
+	private readonly voiceChatInProgress: IContextKey<boolean>;
 	private activeVoiceChatSessions = 0;
 
 	constructor(
@@ -90,6 +90,8 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
+
+		this.voiceChatInProgress = VoiceChatInProgress.bindTo(this.contextKeyService);
 	}
 
 	private createPhrases(model?: IChatModel): Map<string, IPhraseValue> {

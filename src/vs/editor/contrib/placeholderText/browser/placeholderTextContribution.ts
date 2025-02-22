@@ -8,7 +8,7 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, DebugOwner, derivedObservableWithCache, derivedOpts, derivedWithStore, IObservable, IReader } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 
@@ -21,9 +21,9 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 	}
 
 	public static readonly ID = 'editor.contrib.placeholderText';
-	private readonly _editorObs = observableCodeEditor(this._editor);
+	private readonly _editorObs: ObservableCodeEditor;
 
-	private readonly _placeholderText = this._editorObs.getOption(EditorOption.placeholder);
+	private readonly _placeholderText: IObservable<string>;
 
 	private readonly _state = derivedOpts<{ placeholder: string } | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
 		const p = this._placeholderText.read(reader);
@@ -68,6 +68,11 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 		private readonly _editor: ICodeEditor,
 	) {
 		super();
+
+		this._editorObs = observableCodeEditor(this._editor);
+
+		this._placeholderText = this._editorObs.getOption(EditorOption.placeholder);
+
 		this._view.recomputeInitiallyAndOnChange(this._store);
 	}
 }

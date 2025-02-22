@@ -149,9 +149,9 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	private readonly _onDidChangeCache = this._register(new Emitter<ExtensionType>());
 	readonly onDidChangeCache = this._onDidChangeCache.event;
 
-	private readonly systemExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, this.currentProfile));
-	private readonly userExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, this.currentProfile));
-	private readonly extensionsScanner = this._register(this.instantiationService.createInstance(ExtensionsScanner));
+	private readonly systemExtensionsCachedScanner: CachedExtensionsScanner;
+	private readonly userExtensionsCachedScanner: CachedExtensionsScanner;
+	private readonly extensionsScanner: ExtensionsScanner;
 
 	constructor(
 		readonly systemExtensionsLocation: URI,
@@ -168,6 +168,10 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.systemExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, this.currentProfile));
+		this.userExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, this.currentProfile));
+		this.extensionsScanner = this._register(this.instantiationService.createInstance(ExtensionsScanner));
 
 		this._register(this.systemExtensionsCachedScanner.onDidChangeCache(() => this._onDidChangeCache.fire(ExtensionType.System)));
 		this._register(this.userExtensionsCachedScanner.onDidChangeCache(() => this._onDidChangeCache.fire(ExtensionType.User)));

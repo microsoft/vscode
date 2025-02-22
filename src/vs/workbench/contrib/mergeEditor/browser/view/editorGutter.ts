@@ -5,23 +5,17 @@
 
 import { h, reset } from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from '../../../../../base/common/observable.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { LineRange } from '../model/lineRange.js';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
-	private readonly scrollTop = observableFromEvent(this,
-		this._editor.onDidScrollChange,
-		(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
-	);
-	private readonly isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
-	private readonly modelAttached = observableFromEvent(this,
-		this._editor.onDidChangeModel,
-		(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
-	);
+	private readonly scrollTop: IObservable<number>;
+	private readonly isScrollTopZero: IObservable<boolean>;
+	private readonly modelAttached: IObservable<boolean>;
 
-	private readonly editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
-	private readonly editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
+	private readonly editorOnDidChangeViewZones: IObservable<void>;
+	private readonly editorOnDidContentSizeChange: IObservable<void>;
 	private readonly domNodeSizeChanged = observableSignal('domNodeSizeChanged');
 
 	constructor(
@@ -30,6 +24,20 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		private readonly itemProvider: IGutterItemProvider<T>
 	) {
 		super();
+
+		this.scrollTop = observableFromEvent(this,
+			this._editor.onDidScrollChange,
+			(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
+		);
+		this.isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
+		this.modelAttached = observableFromEvent(this,
+			this._editor.onDidChangeModel,
+			(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
+		);
+
+		this.editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
+		this.editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
+
 		this._domNode.className = 'gutter monaco-editor';
 		const scrollDecoration = this._domNode.appendChild(
 			h('div.scroll-decoration', { role: 'presentation', ariaHidden: 'true', style: { width: '100%' } })

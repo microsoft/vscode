@@ -26,7 +26,7 @@ export class MergeEditorViewModel extends Disposable {
 		{ range: ModifiedBaseRange | undefined; counter: number }
 	>(this, { range: undefined, counter: 0 });
 
-	private readonly attachedHistory = this._register(new AttachedHistory(this.model.resultTextModel));
+	private readonly attachedHistory: AttachedHistory;
 
 	constructor(
 		public readonly model: MergeEditorModel,
@@ -39,6 +39,14 @@ export class MergeEditorViewModel extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
+
+		this.attachedHistory = this._register(new AttachedHistory(this.model.resultTextModel));
+
+		this.shouldUseAppendInsteadOfAccept = observableConfigValue<boolean>(
+			'mergeEditor.shouldUseAppendInsteadOfAccept',
+			false,
+			this.configurationService,
+		);
 
 		this._register(resultCodeEditorView.editor.onDidChangeModelContent(e => {
 			if (this.model.isApplyingEditInResult || e.isRedoing || e.isUndoing) {
@@ -86,11 +94,7 @@ export class MergeEditorViewModel extends Disposable {
 		}));
 	}
 
-	public readonly shouldUseAppendInsteadOfAccept = observableConfigValue<boolean>(
-		'mergeEditor.shouldUseAppendInsteadOfAccept',
-		false,
-		this.configurationService,
-	);
+	public readonly shouldUseAppendInsteadOfAccept: IObservable<boolean>;
 
 	private counter = 0;
 	private readonly lastFocusedEditor = derivedObservableWithWritableCache<
@@ -293,10 +297,12 @@ export class MergeEditorViewModel extends Disposable {
 
 class AttachedHistory extends Disposable {
 	private readonly attachedHistory: { element: IAttachedHistoryElement; altId: number }[] = [];
-	private previousAltId: number = this.model.getAlternativeVersionId();
+	private previousAltId: number;
 
 	constructor(private readonly model: ITextModel) {
 		super();
+
+		this.previousAltId = this.model.getAlternativeVersionId();
 
 		this._register(model.onDidChangeContent((e) => {
 			const currentAltId = model.getAlternativeVersionId();

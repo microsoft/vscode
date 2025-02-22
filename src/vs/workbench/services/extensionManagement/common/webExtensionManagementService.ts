@@ -250,7 +250,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
 
-	private _profileLocation = this.options.profileLocation;
+	private _profileLocation: URI;
 	get profileLocation() { return this._profileLocation; }
 
 	private _operation = InstallOperation.Install;
@@ -266,6 +266,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 		super();
 		this.identifier = URI.isUri(extension) ? { id: getGalleryExtensionId(manifest.publisher, manifest.name) } : extension.identifier;
 		this.source = extension;
+		this._profileLocation = this.options.profileLocation;
 	}
 
 	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {

@@ -111,13 +111,7 @@ export class RevertButton extends Disposable implements IGlyphMarginWidget {
 
 	getId(): string { return this._id; }
 
-	private readonly _domNode = h('div.revertButton', {
-		title: this._revertSelection
-			? localize('revertSelectedChanges', 'Revert Selected Changes')
-			: localize('revertChange', 'Revert Change')
-	},
-		[renderIcon(Codicon.arrowRight)]
-	).root;
+	private readonly _domNode: HTMLDivElement;
 
 	constructor(
 		private readonly _lineNumber: number,
@@ -127,6 +121,13 @@ export class RevertButton extends Disposable implements IGlyphMarginWidget {
 	) {
 		super();
 
+		this._domNode = h('div.revertButton', {
+			title: this._revertSelection
+				? localize('revertSelectedChanges', 'Revert Selected Changes')
+				: localize('revertChange', 'Revert Change')
+		},
+			[renderIcon(Codicon.arrowRight)]
+		).root;
 
 		this._register(addDisposableListener(this._domNode, EventType.MOUSE_DOWN, e => {
 			// don't prevent context menu from showing up

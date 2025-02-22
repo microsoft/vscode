@@ -50,11 +50,7 @@ export class SashLayout {
 }
 
 export class DiffEditorSash extends Disposable {
-	private readonly _sash = this._register(new Sash(this._domNode, {
-		getVerticalSashTop: (_sash: Sash): number => 0,
-		getVerticalSashLeft: (_sash: Sash): number => this.sashLeft.get(),
-		getVerticalSashHeight: (_sash: Sash): number => this._dimensions.height.get(),
-	}, { orientation: Orientation.VERTICAL }));
+	private readonly _sash: Sash;
 
 	private _startSashPosition: number | undefined = undefined;
 
@@ -67,6 +63,12 @@ export class DiffEditorSash extends Disposable {
 		private readonly _resetSash: () => void,
 	) {
 		super();
+
+		this._sash = this._register(new Sash(this._domNode, {
+			getVerticalSashTop: (_sash: Sash): number => 0,
+			getVerticalSashLeft: (_sash: Sash): number => this.sashLeft.get(),
+			getVerticalSashHeight: (_sash: Sash): number => this._dimensions.height.get(),
+		}, { orientation: Orientation.VERTICAL }));
 
 		this._register(this._sash.onDidStart(() => {
 			this._startSashPosition = this.sashLeft.get();

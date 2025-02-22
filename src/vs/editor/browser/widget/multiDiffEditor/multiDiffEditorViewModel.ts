@@ -18,21 +18,13 @@ import { RefCounted } from '../diffEditor/utils.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
 
 export class MultiDiffEditorViewModel extends Disposable {
-	private readonly _documents: IObservable<readonly RefCounted<IDocumentDiffItem>[] | 'loading'> = observableFromValueWithChangeEvent(this.model, this.model.documents);
+	private readonly _documents: IObservable<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>;
 
-	private readonly _documentsArr = derived(this, reader => {
-		const result = this._documents.read(reader);
-		if (result === 'loading') { return []; }
-		return result;
-	});
+	private readonly _documentsArr: IObservable<readonly RefCounted<IDocumentDiffItem>[]>;
 
 	public readonly isLoading = derived(this, reader => this._documents.read(reader) === 'loading');
 
-	public readonly items: IObservable<readonly DocumentDiffItemViewModel[]> = mapObservableArrayCached(
-		this,
-		this._documentsArr,
-		(d, store) => store.add(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this))
-	).recomputeInitiallyAndOnChange(this._store);
+	public readonly items: IObservable<readonly DocumentDiffItemViewModel[]>;
 
 	public readonly focusedDiffItem = derived(this, reader => this.items.read(reader).find(i => i.isFocused.read(reader)));
 	public readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this,
@@ -70,6 +62,20 @@ export class MultiDiffEditorViewModel extends Disposable {
 		private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._documents = observableFromValueWithChangeEvent(this.model, this.model.documents);
+
+		this._documentsArr = derived(this, reader => {
+			const result = this._documents.read(reader);
+			if (result === 'loading') { return []; }
+			return result;
+		});
+
+		this.items = mapObservableArrayCached(
+			this,
+			this._documentsArr,
+			(d, store) => store.add(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this))
+		).recomputeInitiallyAndOnChange(this._store);
 	}
 }
 

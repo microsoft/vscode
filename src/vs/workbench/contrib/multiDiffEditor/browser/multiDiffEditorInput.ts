@@ -93,6 +93,12 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	) {
 		super();
 
+		this.textFileServiceOnDidChange = new FastEventDispatcher<ITextFileEditorModel, URI>(
+			this._textFileService.files.onDidChangeDirty,
+			item => item.resource.toString(),
+			uri => uri.toString()
+		);
+
 		this._register(autorun((reader) => {
 			/** @description Updates name */
 			const resources = this.resources.read(reader);
@@ -233,11 +239,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	public readonly resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
 
-	private readonly textFileServiceOnDidChange = new FastEventDispatcher<ITextFileEditorModel, URI>(
-		this._textFileService.files.onDidChangeDirty,
-		item => item.resource.toString(),
-		uri => uri.toString()
-	);
+	private readonly textFileServiceOnDidChange: FastEventDispatcher<ITextFileEditorModel, URI>;
 
 	private readonly _isDirtyObservables = mapObservableArrayCached(this, this.resources.map(r => r ?? []), res => {
 		const isModifiedDirty = res.modifiedUri ? isUriDirty(this.textFileServiceOnDidChange, this._textFileService, res.modifiedUri) : constObservable(false);

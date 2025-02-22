@@ -72,7 +72,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly collection = new MainThreadTestCollection(this.uriIdentityService, this.expandTest.bind(this));
+	public readonly collection: MainThreadTestCollection;
 
 	/**
 	 * @inheritdoc
@@ -82,11 +82,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly showInlineOutput = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'inlineTestOutputVisible',
-		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.USER
-	}, this.storage), true));
+	public readonly showInlineOutput: MutableObservableValue<boolean>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -101,7 +97,13 @@ export class TestService extends Disposable implements ITestService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
+		this.collection = new MainThreadTestCollection(this.uriIdentityService, this.expandTest.bind(this));
 		this.excluded = instantiationService.createInstance(TestExclusions);
+		this.showInlineOutput = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
+			key: 'inlineTestOutputVisible',
+			scope: StorageScope.WORKSPACE,
+			target: StorageTarget.USER
+		}, this.storage), true));
 		this.isRefreshingTests = TestingContextKeys.isRefreshingTests.bindTo(contextKeyService);
 		this.activeEditorHasTests = TestingContextKeys.activeEditorHasTests.bindTo(contextKeyService);
 
