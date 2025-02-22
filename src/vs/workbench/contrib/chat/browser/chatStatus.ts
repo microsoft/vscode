@@ -77,7 +77,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		}));
 
 		this._register(this.chatQuotasService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
-		this._register(this.chatQuotasService.onDidChangeQuotaRemaining(() => this.entry?.update(this.getEntryProps())));
 	}
 
 	private getEntryProps(): IStatusbarEntry {
