@@ -1891,7 +1891,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 	) {
 		super();
 		this.labels = instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
-		this.hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse', false, {}));
+		this.hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse', undefined, {}));
 	}
 
 	renderTemplate(parent: HTMLElement): IProfileResourceChildTreeItemTemplateData {
