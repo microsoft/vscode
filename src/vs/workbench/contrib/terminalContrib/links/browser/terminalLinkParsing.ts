@@ -205,11 +205,17 @@ function parseIntOptional(value: string | undefined): number | undefined {
 	return parseInt(value);
 }
 
+// This determines if the line contains a file path or a common link
+// If it is a path, then using the pathWithSuffixPathCharacters regex
+// If not, then using the linkWithSuffixPathCharacters regex otherwise
+const pathOrLinkDeterminer = /(?:file:\/\/\/|([A-Za-z]:[\/\\])|[^\d\$&#%\^\*][\/\\])/;
 // This defines valid path characters for a link with a suffix, the first `[]` of the regex includes
 // characters the path is not allowed to _start_ with, the second `[]` includes characters not
 // allowed at all in the path. If the characters show up in both regexes the link will stop at that
 // character, otherwise it will stop at a space character.
-const linkWithSuffixPathCharacters = /(?<path>(?:file:\/\/\/)?[^\s\|<>\[\]\(\){][^\s\|<>]*)$/;
+const linkWithSuffixPathCharacters = /(?<path>[^\s\|<>\[\]\(\){][^\s\|<>]*)$/;
+// The same as above, but for paths
+const pathWithSuffixPathCharacters = /(?<path>(?:file:\/\/\/|([A-Za-z]:[\/\\])|[^\d\$&#%\^\*][\/\\])[^\s\|<>\[\]\(\){][^\s\|<>]*)/;
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
@@ -268,7 +274,10 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 	const suffixes = detectLinkSuffixes(line);
 	for (const suffix of suffixes) {
 		const beforeSuffix = line.substring(0, suffix.suffix.index);
-		const possiblePathMatch = beforeSuffix.match(linkWithSuffixPathCharacters);
+		const matcher = pathOrLinkDeterminer.test(beforeSuffix)
+			? pathWithSuffixPathCharacters
+			: linkWithSuffixPathCharacters;
+		const possiblePathMatch = beforeSuffix.match(matcher);
 		if (possiblePathMatch && possiblePathMatch.index !== undefined && possiblePathMatch.groups?.path) {
 			let linkStartIndex = possiblePathMatch.index;
 			let path = possiblePathMatch.groups.path;
