@@ -6261,6 +6261,14 @@ declare namespace monaco.editor {
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
 		/**
+		 * Get the amount of diffs
+		 */
+		getAmountOfDiffs(): number
+		/**
+		 * Get the index of the currently revealed diff
+		 */
+		getIndexOfCurrentlyRevealedDiff(): number
+		/**
 		 * Jumps to the next or previous diff.
 		 */
 		goToDiff(target: 'next' | 'previous'): void;
