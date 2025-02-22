@@ -11,7 +11,6 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../../base/co
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatMarkdownContent, IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
@@ -118,7 +117,6 @@ class ChatToolInvocationSubPart extends Disposable {
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
@@ -225,10 +223,6 @@ class ChatToolInvocationSubPart extends Disposable {
 			this.toolInvocation.isComplete ?
 				Codicon.check : undefined;
 		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride));
-		if (this.toolInvocation.tooltip) {
-			this._register(this.hoverService.setupDelayedHover(progressPart.domNode, { content: this.toolInvocation.tooltip, additionalClasses: ['chat-tool-hover'] }));
-		}
-
 		return progressPart.domNode;
 	}
 
