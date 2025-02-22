@@ -153,9 +153,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						public focus() {
 							ref.object.focus();
 						}
-						public getContent(): string {
-							return ref.object.editor.getValue();
-						}
 					}();
 					this.codeblocks.push(info);
 					orderedDisposablesList.push(ref);
@@ -185,9 +182,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly uriPromise = Promise.resolve(undefined);
 						public focus() {
 							return ref.object.element.focus();
-						}
-						public getContent(): string {
-							return ''; // Not needed for collapsed code blocks
 						}
 					}();
 					this.codeblocks.push(info);
