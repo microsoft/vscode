@@ -47,7 +47,7 @@ export class GhostText {
 		const text = new TextEdit([
 			...this.parts.map(p => new SingleTextEdit(
 				Range.fromPositions(new Position(1, p.column)),
-				p.lines.join('\n')
+				p.lines.map(line => line.line).join('\n')
 			)),
 		]).applyToString(cappedLineText);
 

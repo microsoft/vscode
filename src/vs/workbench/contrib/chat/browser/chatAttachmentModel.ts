@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { basename } from '../../../../base/common/resources.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatInstructionAttachmentsModel } from './chatAttachmentModel/chatInstructionAttachmentsModel.js';
+import { ChatPromptAttachmentsCollection } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
 
 export class ChatAttachmentModel extends Disposable {
 	/**
 	 * Collection on prompt instruction attachments.
 	 */
-	public readonly promptInstructions: ChatInstructionAttachmentsModel;
+	public readonly promptInstructions: ChatPromptAttachmentsCollection;
 
 	constructor(
 		@IInstantiationService private readonly initService: IInstantiationService,
@@ -24,7 +24,7 @@ export class ChatAttachmentModel extends Disposable {
 		super();
 
 		this.promptInstructions = this._register(
-			this.initService.createInstance(ChatInstructionAttachmentsModel),
+			this.initService.createInstance(ChatPromptAttachmentsCollection),
 		).onUpdate(() => {
 			this._onDidChangeContext.fire();
 		});

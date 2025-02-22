@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/824
+	// https://github.com/microsoft/vscode/issues/241449
 
 	export interface TextDocument {
 
@@ -31,6 +31,91 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
+		 * Opens a document. Will return early if this document is already open. Otherwise
+		 * the document is loaded and the {@link workspace.onDidOpenTextDocument didOpen}-event fires.
+		 *
+		 * The document is denoted by an {@link Uri}. Depending on the {@link Uri.scheme scheme} the
+		 * following rules apply:
+		 * * `file`-scheme: Open a file on disk (`openTextDocument(Uri.file(path))`). Will be rejected if the file
+		 * does not exist or cannot be loaded.
+		 * * `untitled`-scheme: Open a blank untitled file with associated path (`openTextDocument(Uri.file(path).with({ scheme: 'untitled' }))`).
+		 * The language will be derived from the file name.
+		 * * For all other schemes contributed {@link TextDocumentContentProvider text document content providers} and
+		 * {@link FileSystemProvider file system providers} are consulted.
+		 *
+		 * *Note* that the lifecycle of the returned document is owned by the editor and not by the extension. That means an
+		 * {@linkcode workspace.onDidCloseTextDocument onDidClose}-event can occur at any time after opening it.
+		 *
+		 * @throws This method will throw an error when an existing text document with the provided uri is dirty.
+		 *
+		 * @param uri Identifies the resource to open.
+		 * @param options Options to control how the document will be opened.
+		 * @returns A promise that resolves to a {@link TextDocument document}.
+		 */
+		export function openTextDocument(uri: Uri, options?: {
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document to use
+			 * for decoding the underlying buffer to text. If omitted, the encoding
+			 * will be guessed based on the file content and/or the editor settings.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding.
+			 *
+			 * *Note* that opening a text document that was already opened with a
+			 * different encoding has the potential of changing the text contents of
+			 * the text document.
+			 */
+			encoding?: string;
+		}): Thenable<TextDocument>;
+
+		/**
+		 * A short-hand for `openTextDocument(Uri.file(path))`.
+		 *
+		 * @see {@link workspace.openTextDocument}
+		 * @param path A path of a file on disk.
+		 * @param options Options to control how the document will be opened.
+		 * @returns A promise that resolves to a {@link TextDocument document}.
+		 */
+		export function openTextDocument(path: string, options?: {
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document to use
+			 * for decoding the underlying buffer to text. If omitted, the encoding
+			 * will be guessed based on the file content and/or the editor settings.
+			 *
+			 * See {@link TextDocument.encoding} for more information about valid
+			 * values for encoding.
+			 *
+			 * *Note* that opening a text document that was already opened with a
+			 * different encoding has the potential of changing the text contents of
+			 * the text document.
+			 */
+			encoding?: string;
+		}): Thenable<TextDocument>;
+
+		/**
+		 * Opens an untitled text document. The editor will prompt the user for a file
+		 * path when the document is to be saved. The `options` parameter allows to
+		 * specify the *language*, *encoding* and/or the *content* of the document.
+		 *
+		 * @param options Options to control how the document will be created.
+		 * @returns A promise that resolves to a {@link TextDocument document}.
+		 */
+		export function openTextDocument(options?: {
+			/**
+			 * The {@link TextDocument.languageId language} of the document.
+			 */
+			language?: string;
+			/**
+			 * The initial contents of the document.
+			 */
+			content?: string;
+			/**
+			 * The {@link TextDocument.encoding encoding} of the document.
+			 */
+			encoding?: string;
+		}): Thenable<TextDocument>;
+
+		/**
 		 * Decodes the content from a `Uint8Array` to a `string`.
 		 *
 		 * If no encoding is provided, will try to pick an encoding based
@@ -42,10 +127,11 @@ declare module 'vscode' {
 		 * @param content The content to decode as a `Uint8Array`.
 		 * @param uri The URI that represents the file. This information
 		 * is used to figure out the encoding related configuration for the file.
-		 * @param options Allows to explicitly pick the encoding to use.
+		 * @param options Allows to explicitly pick the encoding to use. See {@link TextDocument.encoding}
+		 * for more information about valid values for encoding.
 		 * @returns A thenable that resolves to the decoded `string`.
 		 */
-		export function decode(content: Uint8Array, uri: Uri | undefined, options?: { readonly encoding: string }): Thenable<string>;
+		export function decode(content: Uint8Array, uri: Uri | undefined, options?: { encoding: string }): Thenable<string>;
 
 		/**
 		 * Encodes the content of a `string` to a `Uint8Array`.
@@ -56,9 +142,10 @@ declare module 'vscode' {
 		 * @param content The content to decode as a `string`.
 		 * @param uri The URI that represents the file. This information
 		 * is used to figure out the encoding related configuration for the file.
-		 * @param options Allows to explicitly pick the encoding to use.
+		 * @param options Allows to explicitly pick the encoding to use. See {@link TextDocument.encoding}
+		 * for more information about valid values for encoding.
 		 * @returns A thenable that resolves to the encoded `Uint8Array`.
 		 */
-		export function encode(content: string, uri: Uri | undefined, options?: { readonly encoding: string }): Thenable<Uint8Array>;
+		export function encode(content: string, uri: Uri | undefined, options?: { encoding: string }): Thenable<Uint8Array>;
 	}
 }

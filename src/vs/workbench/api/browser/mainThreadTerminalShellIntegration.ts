@@ -63,9 +63,14 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		// onDidChangeTerminalShellIntegration via env
 		const envChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.ShellEnvDetection, e => e.onDidChangeEnv));
 		this._store.add(envChangeEvent.event(e => {
-			const keysArr = Array.from(e.data.keys());
-			const valuesArr = Array.from(e.data.values());
-			this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr);
+			if (e.data.value && typeof e.data.value === 'object') {
+				const envValue = e.data.value as { [key: string]: string | undefined };
+
+				// Extract keys and values
+				const keysArr = Object.keys(envValue);
+				const valuesArr = Object.values(envValue);
+				this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr as string[], e.data.isTrusted);
+			}
 		}));
 
 		// onDidStartTerminalShellExecution
@@ -85,7 +90,9 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			// TerminalShellExecution.createDataStream
 			// Debounce events to reduce the message count - when this listener is disposed the events will be flushed
 			instanceDataListeners.get(instanceId)?.dispose();
-			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, this._store)(events => this._proxy.$shellExecutionData(instanceId, events.join(''))));
+			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, this._store)(events => {
+				this._proxy.$shellExecutionData(instanceId, events.join(''));
+			}));
 		}));
 
 		// onDidEndTerminalShellExecution
@@ -94,10 +101,10 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			currentCommand = undefined;
 			const instanceId = e.instance.instanceId;
 			instanceDataListeners.get(instanceId)?.dispose();
-			// Send end in a microtask to ensure the data events are sent first
-			setTimeout(() => {
-				this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
-			});
+			// Shell integration C (executed) and D (command finished) sequences should always be in
+			// their own events, so send this immediately. This means that the D sequence will not
+			// be included as it's currently being parsed when the command finished event fires.
+			this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
 		}));
 
 		// Clean up after dispose

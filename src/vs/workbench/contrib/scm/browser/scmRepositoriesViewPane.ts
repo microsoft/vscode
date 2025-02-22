@@ -149,16 +149,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const menu = menus.repositoryContextMenu;
 		const actions = collectContextMenuActions(menu);
 
-		const actionRunner = this._register(new RepositoryActionRunner(() => {
+		const actionRunner = new RepositoryActionRunner(() => {
 			return this.list.getSelectedElements();
-		}));
+		});
 		actionRunner.onWillRun(() => this.list.domFocus());
 
 		this.contextMenuService.showContextMenu({
 			actionRunner,
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => provider
+			getActionsContext: () => provider,
+			onHide: () => actionRunner.dispose()
 		});
 	}
 

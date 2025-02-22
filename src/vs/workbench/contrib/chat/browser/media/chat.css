@@ -370,6 +370,10 @@
 		margin: 0 0 6px 0;
 	}
 
+	.rendered-markdown [data-code] {
+		margin: 0;
+	}
+
 	.progress-container {
 		padding-top: 2px;
 	}
@@ -427,6 +431,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		background-color: var(--vscode-textPreformat-background);
 		padding: 1px 3px;
 		border-radius: 4px;
+		white-space: pre-wrap;
 	}
 }
 
@@ -685,11 +690,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: start;
 }
 
+.chat-attachments-container {
+	display: flex;
+	flex-direction: row;
+	gap: 4px;
+	margin-top: 6px;
+	flex-wrap: wrap;
+	overflow: hidden;
+}
+
 .chat-related-files {
-	padding: 4px 0 0 0;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
+	gap: 4px;
 }
 
 .chat-related-files .monaco-button-dropdown .monaco-text-button {
@@ -725,7 +739,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-related-files .monaco-icon-label::before {
-	padding: 2px 2px 0 0;
+	padding: 4px 3px 0 2px;
 }
 
 .interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:first-child {
@@ -1001,60 +1015,54 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /**
- * Styles for the `prompt instructions` attachment widget.
+ * Styles for the `reusable prompts` attachment widget.
  */
-.chat-attached-context .chat-prompt-instructions-attachments {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 2px;
-}
-.chat-attached-context .chat-prompt-instructions-attachment {
+.chat-attached-context .chat-prompt-attachment {
 	display: flex;
 	gap: 4px;
 }
-.chat-attached-context .chat-prompt-instructions-attachment .codicon {
+.chat-attached-context .chat-prompt-attachment .codicon {
 	color: inherit;
 	text-decoration: none;
 }
-.chat-attached-context .chat-prompt-instructions-attachment .chat-implicit-hint {
+.chat-attached-context .chat-prompt-attachment .chat-implicit-hint {
 	opacity: 0.7;
 	font-size: .9em;
 	margin-top: -0.5px;
 }
-.chat-attached-context .chat-prompt-instructions-attachment.warning {
+.chat-attached-context .chat-prompt-attachment.warning {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
-.chat-attached-context .chat-prompt-instructions-attachment.error {
+.chat-attached-context .chat-prompt-attachment.error {
 	color: var(--vscode-notificationsErrorIcon-foreground);
 }
-.chat-attached-context .chat-prompt-instructions-attachment.disabled {
+.chat-attached-context .chat-prompt-attachment.disabled {
 	border-style: dashed;
 	opacity: 0.75;
 }
-.chat-attached-context .chat-prompt-instructions-attachment .monaco-button {
+.chat-attached-context .chat-prompt-attachment .monaco-button {
 	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	margin-left: 3px;
 }
-.chat-attached-context .chat-prompt-instructions-attachment.error .monaco-button,
-.chat-attached-context .chat-prompt-instructions-attachment.warning .monaco-button {
+.chat-attached-context .chat-prompt-attachment.error .monaco-button,
+.chat-attached-context .chat-prompt-attachment.warning .monaco-button {
 	border-left-color: currentColor;
 }
-.chat-attached-context .chat-prompt-instructions-attachment:focus .monaco-button {
+.chat-attached-context .chat-prompt-attachment:focus .monaco-button {
 	border-color: var(--vscode-focusBorder);
 }
-.chat-attached-context .chat-prompt-instructions-attachment .monaco-icon-label-container {
+.chat-attached-context .chat-prompt-attachment .monaco-icon-label-container {
 	margin-top: -0.1em;
 }
 /*
  * This overly-specific CSS selector is needed to beat priority of some
  * styles applied on the `.chat-attached-context-attachment` element.
  */
-.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.error.implicit,
-.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.warning.implicit {
+.chat-attached-context .chat-prompt-attachment.error.implicit,
+.chat-attached-context .chat-prompt-attachment.warning.implicit {
 	border: 1px solid currentColor;
 }
-.chat-attached-context .chat-prompt-instructions-attachments .chat-prompt-instructions-attachment.implicit .monaco-button {
+.chat-attached-context .chat-prompt-attachment.implicit .monaco-button {
 	padding-left: 2px;
 	padding-right: 2px;
 }
@@ -1062,23 +1070,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
  * If in one of the non-normal states, make sure the `main icon` of
  * the component has the same color as the component itself
  */
-.chat-attached-context .chat-prompt-instructions-attachment.error .monaco-icon-label::before,
-.chat-attached-context .chat-prompt-instructions-attachment.warning .monaco-icon-label::before,
-.chat-attached-context .chat-prompt-instructions-attachment.disabled .monaco-icon-label::before {
+.chat-attached-context .chat-prompt-attachment.error .monaco-icon-label::before,
+.chat-attached-context .chat-prompt-attachment.warning .monaco-icon-label::before,
+.chat-attached-context .chat-prompt-attachment.disabled .monaco-icon-label::before {
 	color: inherit;
 }
-.chat-attached-context .chat-prompt-instructions-attachment.disabled .monaco-icon-label::before {
+.chat-attached-context .chat-prompt-attachment.disabled .monaco-icon-label::before {
 	font-style: italic;
 }
-.chat-attached-context .chat-prompt-instructions-attachment.disabled:hover {
+.chat-attached-context .chat-prompt-attachment.disabled:hover {
 	opacity: 1;
 }
-.chat-attached-context .chat-prompt-instructions-attachment.disabled .chat-implicit-hint,
-.chat-attached-context .chat-prompt-instructions-attachment.disabled .label-name {
+.chat-attached-context .chat-prompt-attachment.disabled .chat-implicit-hint,
+.chat-attached-context .chat-prompt-attachment.disabled .label-name {
 	font-style: italic;
 	text-decoration: line-through;
 }
-.chat-attached-context .chat-prompt-instructions-attachment.disabled:focus {
+.chat-attached-context .chat-prompt-attachment.disabled:focus {
 	outline: none;
 	border-color: var(--vscode-focusBorder);
 }
@@ -1111,6 +1119,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 0 0 0
 }
 
+.action-item.chat-attached-context-attachment.chat-add-files {
+	height: 20px;
+	gap: 0px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.action-item.chat-attached-context-attachment.chat-add-files .action-label,
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
 	gap: 2px;
@@ -1124,10 +1139,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 }
 
-.interactive-session .chat-attached-context .chat-attached-context-attachment.chat-add-files {
-	height: 20px;
-	gap: 0px;
+.action-item.chat-attached-context-attachment.chat-add-files .action-label {
 	color: var(--vscode-descriptionForeground);
+	font-family: unset;
+}
+
+.action-item.chat-attached-context-attachment.chat-add-files .action-label.codicon::before {
+	font: normal normal normal 16px/1 codicon;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button {
@@ -1142,7 +1160,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-related-files .monaco-button.codicon.codicon-add:hover,
-.interactive-session .chat-attached-context .chat-attached-context-attachment.chat-add-files:hover,
+.action-item.chat-attached-context-attachment.chat-add-files:hover,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
 	background: var(--vscode-toolbar-hoverBackground);
@@ -1174,14 +1192,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context {
-	padding: 5px 0 0 0;
 	display: flex;
 	flex-wrap: wrap;
 	cursor: default;
+	gap: 4px;
 }
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {
-	padding-top: 8px;
 	padding-bottom: 0px;
 	display: flex;
 	gap: 4px;

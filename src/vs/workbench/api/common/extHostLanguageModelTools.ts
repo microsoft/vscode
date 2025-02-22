@@ -144,7 +144,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			return undefined;
 		}
 
-		if (result.pastTenseMessage || result.tooltip) {
+		if (result.pastTenseMessage || result.presentation) {
 			checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
 		}
 
@@ -155,7 +155,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			} : undefined,
 			invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 			pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
-			tooltip: result.tooltip ? typeConvert.MarkdownString.fromStrict(result.tooltip) : undefined,
 			presentation: result.presentation
 		};
 	}

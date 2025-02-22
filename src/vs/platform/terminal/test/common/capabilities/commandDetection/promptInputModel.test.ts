@@ -19,6 +19,7 @@ suite('PromptInputModel', () => {
 	let promptInputModel: PromptInputModel;
 	let xterm: Terminal;
 	let onCommandStart: Emitter<ITerminalCommand>;
+	let onCommandStartChanged: Emitter<void>;
 	let onCommandExecuted: Emitter<ITerminalCommand>;
 
 	async function writePromise(data: string) {
@@ -62,8 +63,9 @@ suite('PromptInputModel', () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		onCommandStart = store.add(new Emitter());
+		onCommandStartChanged = store.add(new Emitter());
 		onCommandExecuted = store.add(new Emitter());
-		promptInputModel = store.add(new PromptInputModel(xterm, onCommandStart.event, onCommandExecuted.event, new NullLogService));
+		promptInputModel = store.add(new PromptInputModel(xterm, onCommandStart.event, onCommandStartChanged.event, onCommandExecuted.event, new NullLogService));
 	});
 
 	test('basic input and execute', async () => {

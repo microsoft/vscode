@@ -30,6 +30,7 @@ import { SnapshotContext } from '../../../../../services/workingCopy/common/file
 import { INotebookEditorService } from '../../services/notebookEditorService.js';
 import { CellEditState } from '../../notebookBrowser.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ChatEditingModifiedDocumentEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
@@ -93,7 +94,8 @@ export class NotebookModelSynchronizer extends Disposable {
 
 		const entryObs = derived((r) => {
 			const sessions = _chatEditingService.editingSessionsObs.read(r);
-			return sessions.map(s => s.readEntry(model.uri, r)).find(r => !!r);
+			const entry = sessions.map(s => s.readEntry(model.uri, r)).find(r => !!r);
+			return entry instanceof ChatEditingModifiedDocumentEntry ? entry : undefined;
 		}).recomputeInitiallyAndOnChange(this._store);
 
 
