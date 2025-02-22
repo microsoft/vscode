@@ -179,7 +179,10 @@ class ChatToolInvocationSubPart extends Disposable {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 				hideToolbar: true,
 				reserveWidth: 19,
-				verticalPadding: 5
+				verticalPadding: 5,
+				editorOptions: {
+					wordWrap: 'on'
+				}
 			};
 			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidth, this.codeBlockModelCollection, { codeBlockRenderOptions }));
 			this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -241,7 +244,10 @@ class ChatToolInvocationSubPart extends Disposable {
 		const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 			hideToolbar: true,
 			reserveWidth: 19,
-			verticalPadding: 5
+			verticalPadding: 5,
+			editorOptions: {
+				wordWrap: 'on'
+			}
 		};
 		this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidth, this.codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));

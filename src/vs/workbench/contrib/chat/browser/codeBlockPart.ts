@@ -139,6 +139,7 @@ export interface ICodeBlockRenderOptions {
 	hideToolbar?: boolean;
 	verticalPadding?: number;
 	reserveWidth?: number;
+	editorOptions?: IEditorOptions;
 }
 
 const defaultCodeblockPadding = 10;
@@ -355,6 +356,7 @@ export class CodeBlockPart extends Disposable {
 			fontSize: this.editorOptions.configuration.resultEditor.fontSize,
 			fontWeight: this.editorOptions.configuration.resultEditor.fontWeight,
 			lineHeight: this.editorOptions.configuration.resultEditor.lineHeight,
+			...this.currentCodeBlockData?.renderOptions?.editorOptions,
 		};
 	}
 
@@ -381,7 +383,7 @@ export class CodeBlockPart extends Disposable {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
 
-		if (this.editorOptions.configuration.resultEditor.wordWrap === 'on') {
+		if (this.getEditorOptionsFromConfig().wordWrap === 'on') {
 			// Initialize the editor with the new proper width so that getContentHeight
 			// will be computed correctly in the next call to layout()
 			this.layout(width);
@@ -393,7 +395,10 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		this.layout(width);
-		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1) });
+		this.editor.updateOptions({
+			...this.getEditorOptionsFromConfig(),
+			ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1),
+		});
 		this.toolbar.setAriaLabel(localize('chat.codeBlockToolbarLabel', "Toolbar for code block {0}", data.codeBlockIndex + 1));
 		if (data.renderOptions?.hideToolbar) {
 			dom.hide(this.toolbar.getElement());
