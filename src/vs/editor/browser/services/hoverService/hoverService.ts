@@ -440,7 +440,7 @@ export class HoverService extends Disposable implements IHoverService {
 				return; // Do not show hover when the mouse is over another hover target
 			}
 
-			mouseOverStore.add(triggerShowHover(typeof hoverDelegate.delay === 'number' ? hoverDelegate.delay : hoverDelegate.delay(content), false, target));
+			mouseOverStore.add(triggerShowHover(typeof hoverDelegate.delay === 'function' ? hoverDelegate.delay(content) : hoverDelegate.delay, false, target));
 		}, true));
 
 		const onFocus = () => {
@@ -454,7 +454,7 @@ export class HoverService extends Disposable implements IHoverService {
 			const toDispose: DisposableStore = new DisposableStore();
 			const onBlur = () => hideHover(true, true);
 			toDispose.add(addDisposableListener(targetElement, EventType.BLUR, onBlur, true));
-			toDispose.add(triggerShowHover(typeof hoverDelegate.delay === 'number' ? hoverDelegate.delay : hoverDelegate.delay(content), false, target));
+			toDispose.add(triggerShowHover(typeof hoverDelegate.delay === 'function' ? hoverDelegate.delay(content) : hoverDelegate.delay, false, target));
 			hoverPreparation = toDispose;
 		};
 
