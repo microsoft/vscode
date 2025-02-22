@@ -625,7 +625,7 @@ class HistoryItemHoverDelegate extends WorkbenchHoverDelegate {
 		@IHoverService hoverService: IHoverService,
 
 	) {
-		super('element', true, () => this.getHoverOptions(), configurationService, hoverService);
+		super('element', { instantHover: true }, () => this.getHoverOptions(), configurationService, hoverService);
 	}
 
 	private getHoverOptions(): Partial<IHoverOptions> {
