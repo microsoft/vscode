@@ -690,8 +690,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: start;
 }
 
+.chat-attachments-container {
+	display: flex;
+	flex-direction: row;
+	gap: 4px;
+	margin-top: 6px;
+	flex-wrap: wrap;
+	overflow: hidden;
+}
+
 .chat-related-files {
-	padding: 4px 0 0 0;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -731,7 +739,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-related-files .monaco-icon-label::before {
-	padding: 2px 2px 0 0;
+	padding: 4px 3px 0 2px;
 }
 
 .interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:first-child {
@@ -1111,6 +1119,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 0 0 0
 }
 
+.action-item.chat-attached-context-attachment.chat-add-files {
+	height: 20px;
+	gap: 0px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.action-item.chat-attached-context-attachment.chat-add-files .action-label,
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
 	gap: 2px;
@@ -1124,10 +1139,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 }
 
-.interactive-session .chat-attached-context .chat-attached-context-attachment.chat-add-files {
-	height: 20px;
-	gap: 0px;
+.action-item.chat-attached-context-attachment.chat-add-files .action-label {
 	color: var(--vscode-descriptionForeground);
+	font-family: unset;
+}
+
+.action-item.chat-attached-context-attachment.chat-add-files .action-label.codicon::before {
+	font: normal normal normal 16px/1 codicon;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button {
@@ -1142,7 +1160,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-related-files .monaco-button.codicon.codicon-add:hover,
-.interactive-session .chat-attached-context .chat-attached-context-attachment.chat-add-files:hover,
+.action-item.chat-attached-context-attachment.chat-add-files:hover,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
 	background: var(--vscode-toolbar-hoverBackground);
@@ -1174,7 +1192,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context {
-	padding: 6px 0 0 0;
 	display: flex;
 	flex-wrap: wrap;
 	cursor: default;
@@ -1182,7 +1199,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {
-	padding-top: 8px;
 	padding-bottom: 0px;
 	display: flex;
 	gap: 4px;

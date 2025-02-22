@@ -8,6 +8,7 @@ import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IActionProvider } from '../../../../base/browser/ui/dropdown/dropdown.js';
@@ -235,6 +236,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private followupsContainer!: HTMLElement;
 	private readonly followupsDisposables = this._register(new DisposableStore());
+
+	private attachmentsContainer!: HTMLElement;
 
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -675,8 +678,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							dom.h('.chat-input-toolbars@inputToolbars'),
 						]),
 					]),
-					dom.h('.chat-attached-context@attachedContextContainer'),
-					dom.h('.chat-related-files@relatedFilesContainer'),
+					dom.h('.chat-attachments-container@attachmentsContainer', [
+						dom.h('.chat-attachment-toolbar@attachmentToolbar'),
+						dom.h('.chat-attached-context@attachedContextContainer'),
+						dom.h('.chat-related-files@relatedFilesContainer'),
+					]),
 					dom.h('.interactive-input-followups@followupsContainer'),
 				])
 			]);
@@ -686,8 +692,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 					dom.h('.chat-input-container@inputContainer', [
-						dom.h('.chat-attached-context@attachedContextContainer'),
-						dom.h('.chat-related-files@relatedFilesContainer'),
+						dom.h('.chat-attachments-container@attachmentsContainer', [
+							dom.h('.chat-attachment-toolbar@attachmentToolbar'),
+							dom.h('.chat-attached-context@attachedContextContainer'),
+							dom.h('.chat-related-files@relatedFilesContainer'),
+						]),
 						dom.h('.chat-editor-container@editorContainer'),
 						dom.h('.chat-input-toolbars@inputToolbars'),
 					]),
@@ -701,11 +710,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		const editorContainer = elements.editorContainer;
+		this.attachmentsContainer = elements.attachmentsContainer;
 		this.attachedContextContainer = elements.attachedContextContainer;
 		this.relatedFilesContainer = elements.relatedFilesContainer;
 		const toolbarsContainer = elements.inputToolbars;
+		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
-		this.renderAttachedContext(widget);
+		this.renderAttachedContext();
 		if (this.options.enableImplicitContext) {
 			this._implicitContext = this._register(new ChatImplicitContext());
 			this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
@@ -825,7 +836,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
 							setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 								this.setCurrentLanguageModelByUser(model);
-								this.renderAttachedContext(widget);
+								this.renderAttachedContext();
 							},
 							getModels: () => this.getModels()
 						};
@@ -902,29 +913,37 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		onDidChangeCursorPosition();
 
 		this._register(this.themeService.onDidFileIconThemeChange(() => {
-			this.renderAttachedContext(widget);
+			this.renderAttachedContext();
 		}));
+
+		if (this.options.renderWorkingSet) {
+			const attachmentToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, attachmentToolbarContainer, MenuId.ChatInputAttachmentToolbar, {
+				telemetrySource: this.options.menus.telemetrySource,
+				label: true,
+				menuOptions: { shouldForwardArgs: true, renderShortTitle: true },
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				hoverDelegate,
+				getKeyBinding: () => undefined,
+				actionViewItemProvider: (action, options) => {
+					if (action.id === 'workbench.action.chat.editing.attachFiles') {
+						const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
+						return viewItem;
+					}
+					return undefined;
+				}
+			}));
+			attachmentToolbar.context = { widget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') };
+			this._register(attachmentToolbar.onDidChangeMenuItems(() => {
+				if (this.cachedDimensions) {
+					this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+				}
+			}));
+		} else {
+			dom.hide(attachmentToolbarContainer);
+		}
 	}
 
-	private renderAddFilesHint(container: HTMLElement, hoverDelegate: IHoverDelegate, store: DisposableStore, chatWidget: IChatWidget) {
-		const button = store.add(new Button(container, {
-			supportIcons: true,
-			secondary: true,
-			hoverDelegate
-		}));
-		button.element.classList.add('chat-attached-context-attachment', 'chat-add-files');
-		button.label = localize('chatAddFiles', '{0} Add Files...', '$(attach)');
-		const commandId = 'workbench.action.chat.editing.attachFiles';
-		const kb = this.keybindingService.lookupKeybinding(commandId)?.getLabel();
-		const title = localize('attachFiles.label', 'Attach files to your request{0}', kb ? ` (${kb})` : '');
-		button.setTitle(title);
-		store.add(button.onDidClick(() => {
-			this.commandService.executeCommand(commandId, { widget: chatWidget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') });
-		}));
-		dom.append(container, button.element);
-	}
-
-	private async renderAttachedContext(widget?: IChatWidget) {
+	private async renderAttachedContext() {
 		const container = this.attachedContextContainer;
 		const oldHeight = container.offsetHeight;
 		const store = new DisposableStore();
@@ -932,11 +951,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		dom.clearNode(container);
 		const hoverDelegate = store.add(createInstantHoverDelegate());
-		if (widget && this.options.renderWorkingSet) {
-			this.renderAddFilesHint(container, hoverDelegate, store, widget);
-		}
+
 		const attachments = [...this.attachmentModel.attachments.entries()];
-		dom.setVisibility(Boolean(widget && this.options.renderWorkingSet) || Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.instructionAttachmentsPart.empty, this.attachedContextContainer);
+		dom.setVisibility(Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.instructionAttachmentsPart.empty, this.attachedContextContainer);
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
@@ -1219,7 +1236,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
-		await this.renderAttachedContext(chatWidget);
 		if (chatEditingSession && this.configurationService.getValue('chat.renderRelatedFiles')) {
 			this.renderChatRelatedFiles(chatEditingSession, this.relatedFilesContainer);
 		}
@@ -1470,7 +1486,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 32,
 			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 28,
-			attachmentsHeight: this.attachedContextContainer.offsetHeight + this.relatedFilesContainer.offsetHeight,
+			attachmentsHeight: this.attachmentsContainer.offsetHeight + 6,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + inputToolbarWidth + inputToolbarPadding : 0,
@@ -1664,5 +1680,16 @@ class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-modelPicker-item');
+	}
+}
+
+class AddFilesButton extends ActionViewItem {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
+		super(context, action, options);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-attached-context-attachment', 'chat-add-files');
 	}
 }

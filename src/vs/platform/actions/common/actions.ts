@@ -234,6 +234,7 @@ export class MenuId {
 	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
 	static readonly ChatEditingEditorContent = new MenuId('ChatEditingEditorContent');
 	static readonly ChatEditingEditorHunk = new MenuId('ChatEditingEditorHunk');
+	static readonly ChatInputAttachmentToolbar = new MenuId('ChatInputAttachmentToolbar');
 	static readonly ChatEditingWidgetModifiedFilesToolbar = new MenuId('ChatEditingWidgetModifiedFilesToolbar');
 	static readonly ChatInputResourceAttachmentContext = new MenuId('ChatInputResourceAttachmentContext');
 	static readonly ChatInputSymbolAttachmentContext = new MenuId('ChatInputSymbolAttachmentContext');
