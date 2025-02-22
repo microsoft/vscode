@@ -1,5 +1,3 @@
-// import { filepaths } from "@fig/autocomplete-generators";
-
 import { filepaths } from '../../helpers/filepaths';
 
 const completionSpec: Fig.Spec = {
