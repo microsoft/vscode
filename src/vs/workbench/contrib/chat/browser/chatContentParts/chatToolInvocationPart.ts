@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Relay } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -22,7 +22,7 @@ import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
-import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
+import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatMarkdownContentPart.js';
 import { ChatCustomProgressPart, ChatProgressContentPart } from './chatProgressContentPart.js';
@@ -96,7 +96,7 @@ class ChatToolInvocationSubPart extends Disposable {
 	private _onNeedsRerender = this._register(new Emitter<void>());
 	public readonly onNeedsRerender = this._onNeedsRerender.event;
 
-	private _onDidChangeHeight = this._register(new Relay<void>());
+	private _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
@@ -109,28 +109,28 @@ class ChatToolInvocationSubPart extends Disposable {
 	}
 
 	constructor(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		context: IChatContentPartRenderContext,
-		renderer: MarkdownRenderer,
-		listPool: CollapsibleListPool,
+		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		private readonly context: IChatContentPartRenderContext,
+		private readonly renderer: MarkdownRenderer,
+		private readonly listPool: CollapsibleListPool,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 
 		if (toolInvocation.kind === 'toolInvocation' && toolInvocation.confirmationMessages) {
-			this.domNode = this.createConfirmationWidget(toolInvocation, instantiationService);
+			this.domNode = this.createConfirmationWidget(toolInvocation);
 		} else if (toolInvocation.presentation === 'withCodeblocks' && typeof toolInvocation.invocationMessage !== 'string') {
-			this.domNode = this.createMarkdownProgressPart(toolInvocation, context, renderer);
+			this.domNode = this.createMarkdownProgressPart(toolInvocation);
 		} else if (toolInvocation.resultDetails?.length) {
-			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails, context, instantiationService, listPool);
+			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
 		} else {
-			this.domNode = this.createProgressPart(toolInvocation, context, renderer, instantiationService, hoverService);
+			this.domNode = this.createProgressPart();
 		}
 
 		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
@@ -138,7 +138,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		}
 	}
 
-	private createConfirmationWidget(toolInvocation: IChatToolInvocation, instantiationService: IInstantiationService): HTMLElement {
+	private createConfirmationWidget(toolInvocation: IChatToolInvocation): HTMLElement {
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
 		}
@@ -150,72 +150,86 @@ class ChatToolInvocationSubPart extends Disposable {
 		const cancelLabel = localize('cancel', "Cancel");
 		const cancelKeybinding = this.keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
-		const confirmWidget = this._register(instantiationService.createInstance(
-			ChatConfirmationWidget,
-			title,
-			message,
-			[
-				{
-					label: continueLabel,
-					data: true,
-					tooltip: continueTooltip
-				},
-				{
-					label: cancelLabel,
-					data: false,
-					isSecondary: true,
-					tooltip: cancelTooltip
-				}]
-		));
+
+		const buttons: IChatConfirmationButton[] = [
+			{
+				label: continueLabel,
+				data: true,
+				tooltip: continueTooltip
+			},
+			{
+				label: cancelLabel,
+				data: false,
+				isSecondary: true,
+				tooltip: cancelTooltip
+			}];
+		let confirmWidget: ChatConfirmationWidget | ChatCustomConfirmationWidget;
+		if (typeof message === 'string') {
+			confirmWidget = this._register(this.instantiationService.createInstance(
+				ChatConfirmationWidget,
+				title,
+				message,
+				buttons
+			));
+		} else {
+			const chatMarkdownContent: IChatMarkdownContent = {
+				kind: 'markdownContent',
+				content: message,
+			};
+			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
+				hideToolbar: true,
+				reserveWidth: 19,
+				verticalPadding: 5
+			};
+			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidth, this.codeBlockModelCollection, { codeBlockRenderOptions }));
+			this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+			confirmWidget = this._register(this.instantiationService.createInstance(
+				ChatCustomConfirmationWidget,
+				title,
+				this.markdownPart.domNode,
+				buttons
+			));
+		}
+
 		this._register(confirmWidget.onDidClick(button => {
 			toolInvocation.confirmed.complete(button.data);
 		}));
-		this._onDidChangeHeight.input = confirmWidget.onDidChangeHeight;
+		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		toolInvocation.confirmed.p.then(() => {
 			this._onNeedsRerender.fire();
 		});
 		return confirmWidget.domNode;
 	}
 
-	private createProgressPart(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		context: IChatContentPartRenderContext,
-		renderer: MarkdownRenderer,
-		instantiationService: IInstantiationService,
-		hoverService: IHoverService
-	): HTMLElement {
+	private createProgressPart(): HTMLElement {
 		let content: IMarkdownString;
-		if (toolInvocation.isComplete && toolInvocation.isConfirmed !== false && toolInvocation.pastTenseMessage) {
-			content = typeof toolInvocation.pastTenseMessage === 'string' ?
-				new MarkdownString().appendText(toolInvocation.pastTenseMessage) :
-				toolInvocation.pastTenseMessage;
+		if (this.toolInvocation.isComplete && this.toolInvocation.isConfirmed !== false && this.toolInvocation.pastTenseMessage) {
+			content = typeof this.toolInvocation.pastTenseMessage === 'string' ?
+				new MarkdownString().appendText(this.toolInvocation.pastTenseMessage) :
+				this.toolInvocation.pastTenseMessage;
 		} else {
-			content = typeof toolInvocation.invocationMessage === 'string' ?
-				new MarkdownString().appendText(toolInvocation.invocationMessage + '…') :
-				new MarkdownString(toolInvocation.invocationMessage.value + '…');
+			content = typeof this.toolInvocation.invocationMessage === 'string' ?
+				new MarkdownString().appendText(this.toolInvocation.invocationMessage + '…') :
+				new MarkdownString(this.toolInvocation.invocationMessage.value + '…');
 		}
 
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
 			content
 		};
-		const iconOverride = toolInvocation.isConfirmed === false ?
+		const iconOverride = this.toolInvocation.isConfirmed === false ?
 			Codicon.error :
-			toolInvocation.isComplete ?
+			this.toolInvocation.isComplete ?
 				Codicon.check : undefined;
-		const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, progressMessage, renderer, context, undefined, true, iconOverride));
-		if (toolInvocation.tooltip) {
-			this._register(hoverService.setupDelayedHover(progressPart.domNode, { content: toolInvocation.tooltip, additionalClasses: ['chat-tool-hover'] }));
+		const progressPart = this._register(this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, iconOverride));
+		if (this.toolInvocation.tooltip) {
+			this._register(this.hoverService.setupDelayedHover(progressPart.domNode, { content: this.toolInvocation.tooltip, additionalClasses: ['chat-tool-hover'] }));
 		}
 
 		return progressPart.domNode;
 	}
 
-	private createMarkdownProgressPart(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		context: IChatContentPartRenderContext,
-		renderer: MarkdownRenderer,
-	): HTMLElement {
+	private createMarkdownProgressPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): HTMLElement {
 		const content = toolInvocation.isComplete ?
 			(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage)
 			: toolInvocation.invocationMessage;
@@ -229,9 +243,12 @@ class ChatToolInvocationSubPart extends Disposable {
 			reserveWidth: 19,
 			verticalPadding: 5
 		};
-		this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, this.editorPool, false, this.codeBlockStartIndex, renderer, this.currentWidth, this.codeBlockModelCollection, { codeBlockRenderOptions }));
-
-		const icon = toolInvocation.isComplete ? Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
+		this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidth, this.codeBlockModelCollection, { codeBlockRenderOptions }));
+		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		const icon = this.toolInvocation.isConfirmed === false ?
+			Codicon.error :
+			this.toolInvocation.isComplete ?
+				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
 		const progressPart = this.instantiationService.createInstance(ChatCustomProgressPart, this.markdownPart.domNode, icon);
 		return progressPart.domNode;
 	}
@@ -239,21 +256,18 @@ class ChatToolInvocationSubPart extends Disposable {
 	private createResultList(
 		message: string | IMarkdownString,
 		toolDetails: NonNullable<IToolResult['toolResultDetails']>,
-		context: IChatContentPartRenderContext,
-		instantiationService: IInstantiationService,
-		listPool: CollapsibleListPool
 	): HTMLElement {
-		const collapsibleListPart = this._register(instantiationService.createInstance(
+		const collapsibleListPart = this._register(this.instantiationService.createInstance(
 			ChatCollapsibleListContentPart,
 			toolDetails.map<IChatCollapsibleListItem>(detail => ({
 				kind: 'reference',
 				reference: detail,
 			})),
 			message,
-			context,
-			listPool,
+			this.context,
+			this.listPool,
 		));
-		this._onDidChangeHeight.input = collapsibleListPart.onDidChangeHeight;
+		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		return collapsibleListPart.domNode;
 	}
 }
