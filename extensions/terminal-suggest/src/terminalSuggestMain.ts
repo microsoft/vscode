@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
 import codeInsidersCompletionSpec from './completions/code-insiders';
+import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
 import { PathExecutableCache } from './env/pathExecutableCache';
 import { osIsWindows } from './helpers/os';
@@ -49,6 +50,7 @@ export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
+	setLocationSpec,
 ];
 for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
