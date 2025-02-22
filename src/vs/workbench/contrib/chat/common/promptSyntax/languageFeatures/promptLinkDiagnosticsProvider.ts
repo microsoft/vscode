@@ -78,10 +78,12 @@ class PromptLinkDiagnosticsProvider extends ObservableDisposable {
 				continue;
 			}
 
+			const { originalError } = topError;
+
 			// the `NotPromptFile` error is allowed because we allow users
 			// to include non-prompt file links in the prompt files
 			// note! this check also handles the `FolderReference` error
-			if (topError instanceof NotPromptFile) {
+			if (originalError instanceof NotPromptFile) {
 				continue;
 			}
 
@@ -106,17 +108,19 @@ const toMarker = (
 	const { topError, linkRange } = link;
 
 	// a sanity check because this function must be
-	// used only if these attributes are present
+	// used only if these link attributes are present
 	assertDefined(
 		topError,
-		'Error condition must to be defined.',
+		'Top error must to be defined.',
 	);
 	assertDefined(
 		linkRange,
 		'Link range must to be defined.',
 	);
+
+	const { originalError } = topError;
 	assert(
-		!(topError instanceof NotPromptFile),
+		!(originalError instanceof NotPromptFile),
 		'Error must not be of "not prompt file" type.',
 	);
 
@@ -127,7 +131,7 @@ const toMarker = (
 		: MarkerSeverity.Warning;
 
 	return {
-		message: topError.message,
+		message: topError.localizedMessage,
 		severity,
 		...linkRange,
 	};
