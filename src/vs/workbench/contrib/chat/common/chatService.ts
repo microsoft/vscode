@@ -460,6 +460,8 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
+	onDidSubmitRequest: Event<{ chatSessionId: string }>;
+
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
 	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel;
