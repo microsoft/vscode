@@ -343,6 +343,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleCompletionProviders(this._terminal, token, explicitlyInvoked);
 	}
 
+	private _requestTriggerCharQuickSuggestCompletions(): boolean {
+		if (!this._wasLastInputVerticalArrowKey()) {
+			// Only request on trigger character when it's a regular input, or on an arrow if the widget
+			// is already visible
+			if (!this._wasLastInputArrowKey() || this._terminalSuggestWidgetVisibleContextKey.get()) {
+				this.requestCompletions();
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private _wasLastInputRightArrowKey(): boolean {
 		return !!this._lastUserData?.match(/^\x1b[\[O]?C$/);
 	}
@@ -373,10 +385,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						(typeof config.quickSuggestions === 'object' && commandLineHasSpace && config.quickSuggestions.arguments !== 'off')
 					) {
 						if (promptInputState.prefix.match(/[^\s]$/)) {
-							if (!this._wasLastInputArrowKey()) {
-								this.requestCompletions();
-								sent = true;
-							}
+							sent = this._requestTriggerCharQuickSuggestCompletions();
 						}
 					}
 				}
@@ -392,10 +401,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						// with git branches in particular
 						this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 					) {
-						if (!this._wasLastInputVerticalArrowKey()) {
-							this.requestCompletions();
-							sent = true;
-						}
+						sent = this._requestTriggerCharQuickSuggestCompletions();
 					}
 					if (!sent) {
 						for (const provider of this._terminalCompletionService.providers) {
@@ -404,10 +410,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 							}
 							for (const char of provider.triggerCharacters) {
 								if (prefix?.endsWith(char)) {
-									if (!this._wasLastInputVerticalArrowKey()) {
-										this.requestCompletions();
-										sent = true;
-									}
+									sent = this._requestTriggerCharQuickSuggestCompletions();
 									break;
 								}
 							}
@@ -426,10 +429,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						// with git branches in particular
 						this._isFilteringDirectories && char.match(/[\\\/]$/)
 					) {
-						if (!this._wasLastInputVerticalArrowKey()) {
-							this.requestCompletions();
-							sent = true;
-						}
+						sent = this._requestTriggerCharQuickSuggestCompletions();
 					}
 				}
 			}
@@ -450,12 +450,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
+		const previousPromptInputState = this._currentPromptInputState;
 		this._currentPromptInputState = promptInputState;
 
 		// Hide the widget if the latest character was a space
 		if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
-			this.hideSuggestWidget(false);
-			return;
+			if (!this._wasLastInputArrowKey()) {
+				this.hideSuggestWidget(false);
+				return;
+			}
 		}
 
 		// Hide the widget if the cursor moves to the left and invalidates the completions.
@@ -463,7 +466,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// requested, but since extensions are expected to allow the client-side to filter, they are
 		// only invalidated when whitespace is encountered.
 		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
-			if (this._currentPromptInputState.cursorIndex <= 0 || this._currentPromptInputState.value[this._currentPromptInputState.cursorIndex]?.match(/[\\\/\s]/)) {
+			if (this._currentPromptInputState.cursorIndex <= 0 || previousPromptInputState?.value[this._currentPromptInputState.cursorIndex]?.match(/[\\\/\s]/)) {
 				this.hideSuggestWidget(false);
 				return;
 			}
