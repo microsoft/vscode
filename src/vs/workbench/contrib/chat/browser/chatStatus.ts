@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -13,8 +14,9 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
-import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
+import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID } from './actions/chatActions.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -27,6 +29,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
+		@IChatEntitlementsService private readonly chatEntitlementsService: IChatEntitlementsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
@@ -73,14 +76,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			this.statusbarService.updateEntryVisibility(ChatStatusBarEntry.ID, !this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key));
 		}));
 
-		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.chatQuotasService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
 	}
 
 	private getEntryProps(): IStatusbarEntry {
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
-		let command = CHAT_OPEN_ACTION_ID;
-		let tooltip: string | IMarkdownString = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
+		let command = TOGGLE_CHAT_ACTION_ID;
+		let tooltip: string | IManagedHoverTooltipMarkdownString = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
 
 		// Quota Exceeded
 		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
@@ -105,7 +108,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false ||
 			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.canSignUp.key) === true
 		) {
-			command = CHAT_SETUP_ACTION_ID;
 			tooltip = CHAT_SETUP_ACTION_LABEL.value;
 		}
 
@@ -118,15 +120,29 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		// Copilot Limited User
 		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
-			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
-			if (typeof chatRemaining === 'number' && typeof chatTotal === 'number' && typeof completionsRemaining === 'number' && typeof completionsTotal === 'number') {
-				tooltip = new MarkdownString([
-					localize('limitTitle', "You are currently using Copilot Free"),
-					'---',
-					localize('limitChatQuota', "<code>{0}</code> of <code>{1}</code> chats remaining", chatRemaining, chatTotal),
-					localize('limitCompletionsQuota', "<code>{0}</code> of <code>{1}</code> code completions remaining", completionsRemaining, completionsTotal),
-				].join('\n\n'), { supportHtml: true });
-			}
+			const that = this;
+			tooltip = {
+				async markdown(token) {
+					const entitlements = await that.chatEntitlementsService.resolve(token);
+
+					if (token.isCancellationRequested || !entitlements?.quotas) {
+						return;
+					}
+
+					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = entitlements.quotas;
+					if (typeof chatRemaining === 'number' && typeof chatTotal === 'number' && typeof completionsRemaining === 'number' && typeof completionsTotal === 'number') {
+						return new MarkdownString([
+							localize('limitTitle', "You are currently using Copilot Free"),
+							'---',
+							localize('limitChatQuota', "<code>{0}</code> of <code>{1}</code> chats remaining", chatRemaining, chatTotal),
+							localize('limitCompletionsQuota', "<code>{0}</code> of <code>{1}</code> code completions remaining", completionsRemaining, completionsTotal),
+						].join('\n\n'), { supportHtml: true });
+					}
+
+					return undefined;
+				},
+				markdownNotSupportedFallback: undefined
+			};
 		}
 
 		return {
