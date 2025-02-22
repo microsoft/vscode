@@ -80,7 +80,7 @@ import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatQuotasService, IChatQuotasService } from '../common/chatQuotasService.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
-import { ChatSetupContribution } from './chatSetup.js';
+import { ChatEntitlementsService, ChatSetupContribution, IChatEntitlementsService } from './chatSetup.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidgetService } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
@@ -469,5 +469,6 @@ registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Del
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);
+registerSingleton(IChatEntitlementsService, ChatEntitlementsService, InstantiationType.Delayed);
 
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
