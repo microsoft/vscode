@@ -1057,11 +1057,24 @@ export class SearchResultModel extends SettingsTreeModel {
 			settings: this.getFlatSettings()
 		});
 
-		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
+		// Save time by filtering children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
 		const isRemote = !!this.environmentService.remoteAuthority;
 
-		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && child.matchesAnyFeature(this._viewState.featureFilters) && child.matchesAllLanguages(this._viewState.languageFilter));
+		const newChildren = [];
+		for (const child of this.root.children) {
+			if (child instanceof SettingsTreeSettingElement
+				&& child.matchesAllTags(this._viewState.tagFilters)
+				&& child.matchesScope(this._viewState.settingsTarget, isRemote)
+				&& child.matchesAnyExtension(this._viewState.extensionFilters)
+				&& child.matchesAnyId(this._viewState.idFilters)
+				&& child.matchesAnyFeature(this._viewState.featureFilters)
+				&& child.matchesAllLanguages(this._viewState.languageFilter)) {
+				newChildren.push(child);
+			} else {
+				child.dispose();
+			}
+		}
+		this.root.children = newChildren;
 		this.searchResultCount = this.root.children.length;
 
 		if (this.newExtensionSearchResults?.filterMatches.length) {

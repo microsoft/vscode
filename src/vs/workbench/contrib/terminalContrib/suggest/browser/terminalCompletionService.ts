@@ -191,7 +191,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				}
 				return completionItems;
 			}
-			return;
+			return completionItems.length ? completionItems : undefined;
 		});
 
 		const results = await Promise.all(completionPromises);

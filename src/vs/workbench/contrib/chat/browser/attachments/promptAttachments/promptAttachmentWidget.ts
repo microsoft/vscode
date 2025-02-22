@@ -22,16 +22,16 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
+import { ChatPromptAttachmentModel } from '../../chatAttachmentModel/chatPromptAttachmentModel.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { ChatInstructionsAttachmentModel } from '../../chatAttachmentModel/chatInstructionsAttachment.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 /**
  * Widget for a single prompt instructions attachment.
  */
-export class InstructionsAttachmentWidget extends Disposable {
+export class PromptAttachmentWidget extends Disposable {
 	/**
 	 * The root DOM node of the widget.
 	 */
@@ -66,7 +66,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
-		private readonly model: ChatInstructionsAttachmentModel,
+		private readonly model: ChatPromptAttachmentModel,
 		private readonly resourceLabels: ResourceLabels,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -79,7 +79,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 	) {
 		super();
 
-		this.domNode = dom.$('.chat-prompt-instructions-attachment.chat-attached-context-attachment.show-file-icons.implicit');
+		this.domNode = dom.$('.chat-prompt-attachment.chat-attached-context-attachment.show-file-icons.implicit');
 
 		this.render = this.render.bind(this);
 		this.dispose = this.dispose.bind(this);

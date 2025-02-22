@@ -48,11 +48,11 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { CHAT_CATEGORY } from './actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { IChatQuotasService } from './chatQuotasService.js';
+import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -108,9 +108,6 @@ enum ChatEntitlement {
 
 //#region Contribution
 
-const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
-const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
-
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.chat.setup';
@@ -161,8 +158,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			constructor() {
 				super({
-					id: TRIGGER_SETUP_COMMAND_ID,
-					title: TRIGGER_SETUP_COMMAND_LABEL,
+					id: CHAT_SETUP_ACTION_ID,
+					title: CHAT_SETUP_ACTION_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
 					precondition: chatSetupTriggerContext,
@@ -219,7 +216,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				const { confirmed } = await dialogService.confirm({
 					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
-					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", TRIGGER_SETUP_COMMAND_LABEL.value),
+					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
 					primaryButton: localize('hideChatSetupButton', "Hide Copilot")
 				});
 
@@ -227,7 +224,16 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					return;
 				}
 
-				await hideSetupView(viewsDescriptorService, layoutService);
+				const location = viewsDescriptorService.getViewLocationById(ChatViewId);
+
+				await context.update({ hidden: true });
+
+				if (location === ViewContainerLocation.AuxiliaryBar) {
+					const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+					if (activeContainers.length === 0) {
+						layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
+					}
+				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', false);
 			}
@@ -287,19 +293,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		async function hideSetupView(viewsDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService): Promise<void> {
-			const location = viewsDescriptorService.getViewLocationById(ChatViewId);
-
-			await context.update({ hidden: true });
-
-			if (location === ViewContainerLocation.AuxiliaryBar) {
-				const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
-				if (activeContainers.length === 0) {
-					layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
-				}
-			}
-		}
-
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
@@ -312,9 +305,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			},
 			handleURL: async url => {
 				const params = new URLSearchParams(url.query);
-				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: TRIGGER_SETUP_COMMAND_ID, from: 'url', detail: params.get('referrer') ?? undefined });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				await this.commandService.executeCommand(TRIGGER_SETUP_COMMAND_ID);
+				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 
 				return true;
 			}
@@ -384,12 +377,20 @@ interface IEntitlementsResponse {
 		readonly chat: number;
 		readonly completions: number;
 	};
+	readonly monthly_quotas?: {
+		readonly chat: number;
+		readonly completions: number;
+	};
 	readonly limited_user_reset_date: string;
 }
 
 interface IQuotas {
-	readonly chat?: number;
-	readonly completions?: number;
+	readonly chatTotal?: number;
+	readonly completionsTotal?: number;
+
+	readonly chatRemaining?: number;
+	readonly completionsRemaining?: number;
+
 	readonly resetDate?: string;
 }
 
@@ -597,8 +598,10 @@ class ChatSetupRequests extends Disposable {
 		const entitlements: IChatEntitlements = {
 			entitlement,
 			quotas: {
-				chat: entitlementsResponse.limited_user_quotas?.chat,
-				completions: entitlementsResponse.limited_user_quotas?.completions,
+				chatTotal: entitlementsResponse.monthly_quotas?.chat,
+				completionsTotal: entitlementsResponse.monthly_quotas?.completions,
+				chatRemaining: entitlementsResponse.limited_user_quotas?.chat,
+				completionsRemaining: entitlementsResponse.limited_user_quotas?.completions,
 				resetDate: entitlementsResponse.limited_user_reset_date
 			}
 		};
@@ -642,9 +645,13 @@ class ChatSetupRequests extends Disposable {
 
 		if (state.quotas) {
 			this.chatQuotasService.acceptQuotas({
-				chatQuotaExceeded: typeof state.quotas.chat === 'number' ? state.quotas.chat <= 0 : false,
-				completionsQuotaExceeded: typeof state.quotas.completions === 'number' ? state.quotas.completions <= 0 : false,
-				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined
+				chatQuotaExceeded: typeof state.quotas.chatRemaining === 'number' ? state.quotas.chatRemaining <= 0 : false,
+				completionsQuotaExceeded: typeof state.quotas.completionsRemaining === 'number' ? state.quotas.completionsRemaining <= 0 : false,
+				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined,
+				chatTotal: state.quotas.chatTotal,
+				completionsTotal: state.quotas.completionsTotal,
+				chatRemaining: state.quotas.chatRemaining,
+				completionsRemaining: state.quotas.completionsRemaining
 			});
 		}
 	}
@@ -842,7 +849,7 @@ class ChatSetupController extends Disposable {
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
-				command: TRIGGER_SETUP_COMMAND_ID,
+				command: CHAT_SETUP_ACTION_ID,
 				title,
 			}, () => this.doSetup(options?.forceSignIn ?? false, watch));
 		} finally {

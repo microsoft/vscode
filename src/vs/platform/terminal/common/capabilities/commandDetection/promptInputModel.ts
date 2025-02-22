@@ -105,6 +105,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	constructor(
 		private readonly _xterm: Terminal,
 		onCommandStart: Event<ITerminalCommand>,
+		onCommandStartChanged: Event<void>,
 		onCommandExecuted: Event<ITerminalCommand>,
 		@ILogService private readonly _logService: ILogService
 	) {
@@ -118,6 +119,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._register(this._xterm.onData(e => this._handleUserInput(e)));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
+		this._register(onCommandStartChanged(() => this._handleCommandStartChanged()));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
 
 		this._register(this.onDidStartInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidStartInput')));
@@ -213,6 +215,16 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 		}
+	}
+
+	private _handleCommandStartChanged() {
+		if (this._state !== PromptInputState.Input) {
+			return;
+		}
+
+		this._commandStartX = this._xterm.buffer.active.cursorX;
+		this._onDidChangeInput.fire(this._createStateObject());
+		this._sync();
 	}
 
 	private _handleCommandExecuted() {

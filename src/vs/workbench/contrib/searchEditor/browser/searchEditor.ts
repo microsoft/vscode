@@ -212,7 +212,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			ariaLabel: localize('label.excludes', 'Search Exclude Patterns'),
 			inputBoxStyles: searchEditorInputboxStyles
 		}));
-		this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
+		this._register(this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 })));
 		this._register(this.inputPatternExcludes.onChangeIgnoreBox(() => this.triggerSearch()));
 
 		// Messages
@@ -251,7 +251,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	private registerEditorListeners() {
-		this.searchResultEditor.onMouseUp(e => {
+		this._register(this.searchResultEditor.onMouseUp(e => {
 			if (e.event.detail === 1) {
 				const behaviour = this.searchConfig.searchEditor.singleClickBehaviour;
 				const position = e.target.position;
@@ -276,7 +276,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 					}
 				}
 			}
-		});
+		}));
 		this._register(this.searchResultEditor.onDidChangeModelContent(() => {
 			if (!this.updatingModelForSearch) {
 				this.getInput()?.setDirty(true);

@@ -789,6 +789,7 @@ export interface InlineCompletion {
 
 	/**
 	 * Is called the first time an inline completion is shown.
+	 * @deprecated. Use `onDidShow` of the provider instead.
 	*/
 	readonly shownCommand?: Command;
 
@@ -799,6 +800,7 @@ export interface InlineCompletion {
 	readonly completeBracketPairs?: boolean;
 
 	readonly isInlineEdit?: boolean;
+	readonly showInlineEditMenu?: boolean;
 
 	readonly showRange?: IRange;
 
