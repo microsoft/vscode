@@ -256,51 +256,46 @@ export async function collectCompletionItemResult(
 			return { filesRequested, foldersRequested };
 		}
 		const flagsToExclude = kind === vscode.TerminalCompletionItemKind.Flag ? parsedArguments?.passedOptions.map(option => option.name).flat() : undefined;
-		if (Array.isArray(specArgs)) {
+
+		function addItem(label: string, item: SpecArg) {
+			if (flagsToExclude?.includes(label)) {
+				return;
+			}
+
 			let itemKind = kind;
-			if (parsedArguments?.currentArg?.suggestions?.length === specArgs.length) {
+			if (typeof item === 'object' && 'args' in item && (asArray(item.args ?? [])).length > 0) {
+				itemKind = vscode.TerminalCompletionItemKind.Option;
+			}
+			const lastArgType: string | undefined = parsedArguments?.annotations.at(-1)?.type;
+			if (lastArgType === 'option_arg') {
 				itemKind = vscode.TerminalCompletionItemKind.OptionValue;
 			}
+
+			items.push(
+				createCompletionItem(
+					terminalContext.cursorPosition,
+					prefix,
+					{ label },
+					undefined,
+					typeof item === 'string' ? item : item.description,
+					itemKind,
+				)
+			);
+		}
+
+		if (Array.isArray(specArgs)) {
 			for (const item of specArgs) {
 				const suggestionLabels = getFigSuggestionLabel(item);
 				if (!suggestionLabels?.length) {
 					continue;
 				}
 				for (const label of suggestionLabels) {
-					if (flagsToExclude?.includes(label)) {
-						continue;
-					}
-					items.push(
-						createCompletionItem(
-							terminalContext.cursorPosition,
-							prefix,
-							{ label },
-							undefined,
-							typeof item === 'string' ? item : item.description,
-							itemKind
-						)
-					);
+					addItem(label, item);
 				}
 			}
 		} else {
 			for (const [label, item] of Object.entries(specArgs)) {
-				if (flagsToExclude?.includes(label)) {
-					continue;
-				}
-				let itemKind = kind;
-				if (typeof item === 'object' && 'args' in item && (asArray(item.args ?? [])).length > 0) {
-					itemKind = vscode.TerminalCompletionItemKind.Option;
-				}
-				items.push(
-					createCompletionItem(
-						terminalContext.cursorPosition,
-						prefix,
-						{ label },
-						undefined,
-						typeof item === 'string' ? item : item.description,
-						itemKind,
-					)
-				);
+				addItem(label, item);
 			}
 		}
 	};
