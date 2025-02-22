@@ -73,7 +73,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			this.statusbarService.updateEntryVisibility(ChatStatusBarEntry.ID, !this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key));
 		}));
 
-		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.chatQuotasService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.chatQuotasService.onDidChangeQuotaRemaining(() => this.entry?.update(this.getEntryProps())));
 	}
 
 	private getEntryProps(): IStatusbarEntry {

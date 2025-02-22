@@ -704,7 +704,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			}, undefined, undefined, undefined, undefined), dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
 		}, Event.any(
 			agentService.onDidChangeAgents,
-			chatQuotasService.onDidChangeQuotas,
+			chatQuotasService.onDidChangeQuotaExceeded,
 			Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(contextKeySet))
 		));
 
