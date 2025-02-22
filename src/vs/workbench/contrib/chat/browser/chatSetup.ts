@@ -27,7 +27,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -69,6 +69,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { ChatEntitlement, IChatEntitlements, IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -92,45 +93,6 @@ const defaultChat = {
 };
 
 //#region Service
-
-export const IChatEntitlementsService = createDecorator<IChatEntitlementsService>('chatEntitlementsService');
-
-export enum ChatEntitlement {
-	/** Signed out */
-	Unknown = 1,
-	/** Signed in but not yet resolved */
-	Unresolved,
-	/** Signed in and entitled to Limited */
-	Available,
-	/** Signed in but not entitled to Limited */
-	Unavailable,
-	/** Signed-up to Limited */
-	Limited,
-	/** Signed-up to Pro */
-	Pro
-}
-
-export interface IChatEntitlements {
-	readonly entitlement: ChatEntitlement;
-	readonly quotas?: IQuotas;
-}
-
-export interface IQuotas {
-	readonly chatTotal?: number;
-	readonly completionsTotal?: number;
-
-	readonly chatRemaining?: number;
-	readonly completionsRemaining?: number;
-
-	readonly resetDate?: string;
-}
-
-export interface IChatEntitlementsService {
-
-	_serviceBrand: undefined;
-
-	resolve(token: CancellationToken): Promise<IChatEntitlements | undefined>;
-}
 
 export class ChatEntitlementsService extends Disposable implements IChatEntitlementsService {
 
