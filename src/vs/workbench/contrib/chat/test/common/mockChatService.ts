@@ -14,6 +14,7 @@ import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequest
 export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
+	onDidSubmitRequest: Event<{ chatSessionId: string }> = Event.None;
 
 	private sessions = new Map<string, IChatModel>();
 

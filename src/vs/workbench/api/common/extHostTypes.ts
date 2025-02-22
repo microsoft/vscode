@@ -2204,6 +2204,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
+	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
 

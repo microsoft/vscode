@@ -70,9 +70,8 @@ export interface IToolConfirmationMessages {
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
-	tooltip?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
-	presentation?: 'hidden' | undefined;
+	presentation?: 'withCodeblocks' | 'hidden' | undefined;
 }
 
 export interface IToolImpl {

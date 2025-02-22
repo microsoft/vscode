@@ -953,8 +953,11 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 		super({
 			id: 'workbench.action.chat.editing.attachFiles',
 			title: localize2('workbench.action.chat.editing.attachFiles.label', "Add Files to Copilot Edits"),
+			shortTitle: localize2('workbench.action.chat.editing.attachFiles.shortLabel', "Add Files..."),
 			f1: false,
 			category: CHAT_CATEGORY,
+			menu: { id: MenuId.ChatInputAttachmentToolbar, group: 'navigation' },
+			icon: Codicon.attach,
 			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),

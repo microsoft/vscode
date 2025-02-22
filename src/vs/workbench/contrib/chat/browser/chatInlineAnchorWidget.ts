@@ -130,21 +130,29 @@ export class InlineAnchorWidget extends Disposable {
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
 				label;
 
-			const fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
 
 			iconClasses = recomputeIconClasses();
 
-			this._register(themeService.onDidFileIconThemeChange(() => {
+			const refreshIconClasses = () => {
 				iconEl.classList.remove(...iconClasses);
 				iconClasses = recomputeIconClasses();
 				iconEl.classList.add(...iconClasses);
+			};
+
+			this._register(themeService.onDidFileIconThemeChange(() => {
+				refreshIconClasses();
 			}));
 
 			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
 			fileService.stat(location.uri)
 				.then(stat => {
 					isFolderContext.set(stat.isDirectory);
+					if (stat.isDirectory) {
+						fileKind = FileKind.FOLDER;
+						refreshIconClasses();
+					}
 				})
 				.catch(() => { });
 

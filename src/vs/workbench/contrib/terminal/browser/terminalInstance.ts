@@ -1522,18 +1522,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
-		// Ensure events are split by SI command execute sequence to ensure the output of the
-		// command can be read by extensions. This must be done here as xterm.js does not currently
-		// have a listener for when individual data events are parsed, only `onWriteParsed` which
-		// fires when the write buffer is flushed.
-		const execIndex = ev.data.indexOf('\x1b]633;C\x07');
-		if (execIndex !== -1) {
+		// Ensure events are split by SI command execute and command finished sequence to ensure the
+		// output of the command can be read by extensions and the output of the command is of a
+		// consistent form respectively. This must be done here as xterm.js does not currently have
+		// a listener for when individual data events are parsed, only `onWriteParsed` which fires
+		// when the write buffer is flushed.
+		const match = ev.data.match(/(?<seq>\x1b\][16]33;(?:C|D(?:;\d+)?)\x07)/);
+		const index = match?.index;
+		if (match?.groups?.seq && index !== undefined) {
+			const seq = match?.groups?.seq;
 			if (ev.trackCommit) {
-				this._writeProcessData(ev.data.substring(0, execIndex + '\x1b]633;C\x07'.length));
-				ev.writePromise = new Promise<void>(r => this._writeProcessData(ev.data.substring(execIndex + '\x1b]633;C\x07'.length), r));
+				this._writeProcessData(ev.data.substring(0, index));
+				this._writeProcessData(seq);
+				ev.writePromise = new Promise<void>(r => this._writeProcessData(ev.data.substring(index + seq.length), r));
 			} else {
-				this._writeProcessData(ev.data.substring(0, execIndex + '\x1b]633;C\x07'.length));
-				this._writeProcessData(ev.data.substring(execIndex + '\x1b]633;C\x07'.length));
+				this._writeProcessData(ev.data.substring(0, index));
+				this._writeProcessData(seq);
+				this._writeProcessData(ev.data.substring(index + seq.length));
 			}
 		} else {
 			if (ev.trackCommit) {

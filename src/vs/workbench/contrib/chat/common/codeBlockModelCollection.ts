@@ -43,6 +43,7 @@ export class CodeBlockModelCollection extends Disposable {
 	private readonly maxModelCount = 100;
 
 	constructor(
+		private readonly tag: string | undefined,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
@@ -201,10 +202,11 @@ export class CodeBlockModelCollection extends Disposable {
 
 	private getCodeBlockUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
 		const metadata = this.getUriMetaData(chat);
+		const indexPart = this.tag ? `${this.tag}-${index}` : `${index}`;
 		return URI.from({
 			scheme: Schemas.vscodeChatCodeBlock,
 			authority: sessionId,
-			path: `/${chat.id}/${index}`,
+			path: `/${chat.id}/${indexPart}`,
 			fragment: metadata ? JSON.stringify(metadata) : undefined,
 		});
 	}

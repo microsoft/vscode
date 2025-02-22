@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 /**
  * Model for a single chat prompt instructions attachment.
  */
-export class ChatInstructionsAttachmentModel extends Disposable {
+export class ChatPromptAttachmentModel extends Disposable {
 	/**
 	 * Private reference of the underlying prompt instructions
 	 * reference instance.
