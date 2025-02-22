@@ -12,12 +12,12 @@ const cdSpec: Fig.Spec = {
 		suggestions: [
 			{
 				name: '-',
-				description: 'Go to previous directory',
+				description: 'Go to previous directory in history stack',
 				hidden: true,
 			},
 			{
 				name: '+',
-				description: 'Go to next directory',
+				description: 'Go to next directory in history stack',
 				hidden: true,
 			},
 		],
