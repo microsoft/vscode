@@ -15,7 +15,9 @@ export interface IChatQuotasService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidChangeQuotas: Event<void>;
+	readonly onDidChangeQuotaExceeded: Event<void>;
+	readonly onDidChangeQuotaRemaining: Event<void>;
+
 	readonly quotas: IChatQuotas;
 
 	acceptQuotas(quotas: IChatQuotas): void;
@@ -38,8 +40,11 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 	declare _serviceBrand: undefined;
 
-	private readonly _onDidChangeQuotas = this._register(new Emitter<void>());
-	readonly onDidChangeQuotas: Event<void> = this._onDidChangeQuotas.event;
+	private readonly _onDidChangeQuotaExceeded = this._register(new Emitter<void>());
+	readonly onDidChangeQuotaExceeded = this._onDidChangeQuotaExceeded.event;
+
+	private readonly _onDidChangeQuotaRemaining = this._register(new Emitter<void>());
+	readonly onDidChangeQuotaRemaining = this._onDidChangeQuotaRemaining.event;
 
 	private _quotas: IChatQuotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined };
 	get quotas(): IChatQuotas { return this._quotas; }
@@ -84,16 +89,29 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 			if (changed) {
 				this.updateContextKeys();
-				this._onDidChangeQuotas.fire();
+				this._onDidChangeQuotaExceeded.fire();
 			}
 		}));
 	}
 
 	acceptQuotas(quotas: IChatQuotas): void {
+		const oldQuota = this._quotas;
 		this._quotas = this.massageQuotas(quotas);
 		this.updateContextKeys();
 
-		this._onDidChangeQuotas.fire();
+		if (
+			oldQuota.chatQuotaExceeded !== this._quotas.chatQuotaExceeded ||
+			oldQuota.completionsQuotaExceeded !== this._quotas.completionsQuotaExceeded
+		) {
+			this._onDidChangeQuotaExceeded.fire();
+		}
+
+		if (
+			oldQuota.chatRemaining !== this._quotas.chatRemaining ||
+			oldQuota.completionsRemaining !== this._quotas.completionsRemaining
+		) {
+			this._onDidChangeQuotaRemaining.fire();
+		}
 	}
 
 	private massageQuotas(quotas: IChatQuotas): IChatQuotas {

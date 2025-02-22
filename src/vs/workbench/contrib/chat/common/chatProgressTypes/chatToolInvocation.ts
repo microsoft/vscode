@@ -39,7 +39,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	public readonly invocationMessage: string | IMarkdownString;
 	public pastTenseMessage: string | IMarkdownString | undefined;
-	public readonly tooltip: string | IMarkdownString | undefined;
 	private _confirmationMessages: IToolConfirmationMessages | undefined;
 	public readonly presentation: IPreparedToolInvocation['presentation'];
 
@@ -48,7 +47,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
 		this.invocationMessage = invocationMessage;
 		this.pastTenseMessage = preparedInvocation?.pastTenseMessage;
-		this.tooltip = preparedInvocation?.tooltip;
 		this._confirmationMessages = preparedInvocation?.confirmationMessages;
 		this.presentation = preparedInvocation?.presentation;
 
@@ -87,7 +85,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			presentation: this.presentation,
 			invocationMessage: this.invocationMessage,
 			pastTenseMessage: this.pastTenseMessage,
-			tooltip: this.tooltip,
 			isConfirmed: this._isConfirmed,
 			isComplete: this._isComplete,
 			resultDetails: this._resultDetails
