@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 /**
  * Base prompt parsing error class.
  */
-export abstract class ParseError extends Error {
+abstract class ParseError extends Error {
 	/**
 	 * Error type name.
 	 */

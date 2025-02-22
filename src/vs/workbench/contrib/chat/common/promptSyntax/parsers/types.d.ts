@@ -4,9 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { ParseError } from '../../promptFileReferenceErrors.js';
+import { ResolveError } from '../../promptFileReferenceErrors.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
+
+/**
+ * TODO: @legomushroom
+ */
+export interface IErrorWithLink {
+	/**
+	 * TODO: @legomushroom
+	 */
+	readonly error: ResolveError;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	readonly link: IPromptReference;
+}
 
 /**
  * Interface for a resolve error.
@@ -15,7 +30,12 @@ export interface IResolveError {
 	/**
 	 * Localized error message.
 	 */
-	message: string;
+	localizedMessage: string;
+
+	/**
+	 * Original error object.
+	 */
+	originalError: ResolveError;
 
 	/**
 	 * Whether this error is for the root reference
@@ -85,13 +105,18 @@ export interface IPromptReference extends IDisposable {
 	 *
 	 * See also {@linkcode resolveFailed}.
 	 */
-	readonly errorCondition: ParseError | undefined;
+	readonly errorCondition: ResolveError | undefined;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	readonly errors: readonly IErrorWithLink[];
 
 	/**
 	 * List of all errors that occurred while resolving the current
 	 * reference including all possible errors of nested children.
 	 */
-	readonly allErrors: readonly ParseError[];
+	readonly allErrors: readonly IErrorWithLink[];
 
 	/**
 	 * The top most error of the current reference or any of its
