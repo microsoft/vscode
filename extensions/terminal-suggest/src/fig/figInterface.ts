@@ -68,10 +68,13 @@ export async function getFigSuggestions(
 					result.items.push(createCompletionItem(
 						terminalContext.cursorPosition,
 						prefix,
-						{ label: { label: specLabel, description }, kind: vscode.TerminalCompletionItemKind.Flag },
+						{
+							label: { label: specLabel, description },
+							kind: vscode.TerminalCompletionItemKind.Method
+						},
 						description,
-						availableCommand.detail)
-					);
+						availableCommand.detail
+					));
 				}
 				continue;
 			}
