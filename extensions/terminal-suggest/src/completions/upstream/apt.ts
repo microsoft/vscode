@@ -135,7 +135,6 @@ const completionSpec: Fig.Spec = {
 				name: "package",
 				description: "The package you want to install",
 				isVariadic: true,
-				template: 'filepaths',
 				generators: [
 					packages,
 					filepaths({ extensions: ["deb"] })

@@ -21,6 +21,7 @@ import { IFigExecuteExternals } from './execute';
 export interface IFigSpecSuggestionsResult {
 	filesRequested: boolean;
 	foldersRequested: boolean;
+	fileExtensions?: string[];
 	hasCurrentArg: boolean;
 	items: vscode.TerminalCompletionItem[];
 }
@@ -91,6 +92,7 @@ export async function getFigSuggestions(
 			if (completionItemResult) {
 				result.filesRequested ||= completionItemResult.filesRequested;
 				result.foldersRequested ||= completionItemResult.foldersRequested;
+				result.fileExtensions ||= completionItemResult.fileExtensions;
 				if (completionItemResult.items) {
 					result.items.push(...completionItemResult.items);
 				}
@@ -112,6 +114,7 @@ async function getFigSpecSuggestions(
 ): Promise<IFigSpecSuggestionsResult | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
+	let fileExtensions: string[] | undefined;
 
 	const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorPosition);
 	if (!command || !shellIntegrationCwd) {
@@ -136,11 +139,13 @@ async function getFigSpecSuggestions(
 	if (completionItemResult) {
 		filesRequested = completionItemResult.filesRequested;
 		foldersRequested = completionItemResult.foldersRequested;
+		fileExtensions = completionItemResult.fileExtensions;
 	}
 
 	return {
 		filesRequested,
 		foldersRequested,
+		fileExtensions,
 		hasCurrentArg: !!parsedArguments.currentArg,
 		items: items,
 	};
@@ -157,7 +162,7 @@ export async function collectCompletionItemResult(
 	env: Record<string, string>,
 	items: vscode.TerminalCompletionItem[],
 	executeExternals: IFigExecuteExternals
-): Promise<{ filesRequested: boolean; foldersRequested: boolean } | undefined> {
+): Promise<{ filesRequested: boolean; foldersRequested: boolean; fileExtensions: string[] | undefined } | undefined> {
 	let filesRequested = false;
 	let foldersRequested = false;
 	let fileExtensions: string[] | undefined;
@@ -202,6 +207,7 @@ export async function collectCompletionItemResult(
 				for (const item of (await generatorResult?.request) ?? []) {
 					if (item.type === 'file') {
 						filesRequested = true;
+						foldersRequested = true;
 						fileExtensions = item._internal?.fileExtensions as string[] | undefined;
 					}
 					if (item.type === 'folder') {
@@ -297,7 +303,7 @@ export async function collectCompletionItemResult(
 		await addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag, parsedArguments);
 	}
 
-	return { filesRequested, foldersRequested };
+	return { filesRequested, foldersRequested, fileExtensions };
 }
 
 function convertEnvRecordToArray(env: Record<string, string>): EnvironmentVariable[] {

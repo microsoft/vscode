@@ -23,7 +23,6 @@ const completionSpec: Fig.Spec = {
 	},
 	args: {
 		name: "python script",
-		template: "filepaths",
 		generators: filepaths({
 			extensions: ["py"],
 			editFileSuggestions: { priority: 76 },

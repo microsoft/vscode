@@ -50,6 +50,7 @@ export class TerminalCompletionList<ITerminalCompletion> {
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
+	fileExtensions?: string[];
 	cwd?: UriComponents;
 	pathSeparator: string;
 	env?: { [key: string]: string | null | undefined };
@@ -209,6 +210,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// provide diagnostics when a folder is provided where a file is expected.
 		const foldersRequested = (resourceRequestConfig.foldersRequested || resourceRequestConfig.filesRequested) ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
+		const fileExtensions = resourceRequestConfig.fileExtensions ?? undefined;
 
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		if (!cwd || (!foldersRequested && !filesRequested)) {
@@ -376,6 +378,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			if (child.isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label += resourceRequestConfig.pathSeparator;
+			}
+
+			if (child.isFile && fileExtensions) {
+				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
+				if (extension && !fileExtensions.includes(extension)) {
+					continue;
+				}
 			}
 
 			resourceCompletions.push({
