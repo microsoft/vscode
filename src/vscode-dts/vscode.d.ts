@@ -8407,7 +8407,7 @@ declare module 'vscode' {
 		 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
 		 *
 		 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
-		 *  an uri.
+		 *  a uri.
 		 */
 		readonly storageUri: Uri | undefined;
 
