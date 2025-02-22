@@ -370,6 +370,10 @@
 		margin: 0 0 6px 0;
 	}
 
+	.rendered-markdown [data-code] {
+		margin: 0;
+	}
+
 	.progress-container {
 		padding-top: 2px;
 	}
