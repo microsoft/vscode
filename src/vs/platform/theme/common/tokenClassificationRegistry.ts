@@ -22,12 +22,12 @@ type TokenClassificationString = string;
 const idPattern = '\\w+[-_\\w+]*';
 export const typeAndModifierIdPattern = `^${idPattern}$`;
 
-const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
+const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern}(,${idPattern})*)?$`;
 
 const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
 
 export interface TokenSelector {
-	match(type: string, modifiers: string[], language: string): number;
+	match(type: string, modifiers: string[], languages: string[]): number;
 	readonly id: string;
 }
 
@@ -393,10 +393,10 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		}
 
 		return {
-			match: (type: string, modifiers: string[], language: string) => {
+			match: (type: string, modifiers: string[], languages: string[]) => {
 				let score = 0;
-				if (selector.language !== undefined) {
-					if (selector.language !== language) {
+				if (selector.languages !== undefined) {
+					if (!selector.languages.some(l => languages.includes(l))) {
 						return -1;
 					}
 					score += 10;
@@ -417,7 +417,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 				}
 				return score + selector.modifiers.length * 100;
 			},
-			id: `${[selector.type, ...selector.modifiers.sort()].join('.')}${selector.language !== undefined ? ':' + selector.language : ''}`
+			id: `${[selector.type, ...selector.modifiers.sort()].join('.')}${selector.languages !== undefined ? ':' + selector.languages.sort().join(',') : ''}`
 		};
 	}
 
@@ -489,11 +489,11 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 const CHAR_LANGUAGE = TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR.charCodeAt(0);
 const CHAR_MODIFIER = CLASSIFIER_MODIFIER_SEPARATOR.charCodeAt(0);
 
-export function parseClassifierString(s: string, defaultLanguage: string): { type: string; modifiers: string[]; language: string };
-export function parseClassifierString(s: string, defaultLanguage?: string): { type: string; modifiers: string[]; language: string | undefined };
-export function parseClassifierString(s: string, defaultLanguage: string | undefined): { type: string; modifiers: string[]; language: string | undefined } {
+export function parseClassifierString(s: string, defaultLanguage: string): { type: string; modifiers: string[]; languages: string[] };
+export function parseClassifierString(s: string, defaultLanguage?: string): { type: string; modifiers: string[]; languages: string[] | undefined };
+export function parseClassifierString(s: string, defaultLanguage: string | undefined): { type: string; modifiers: string[]; languages: string[] | undefined } {
 	let k = s.length;
-	let language: string | undefined = defaultLanguage;
+	let languages: string[] | undefined = defaultLanguage ? [defaultLanguage] : undefined;
 	const modifiers = [];
 
 	for (let i = k - 1; i >= 0; i--) {
@@ -502,14 +502,14 @@ export function parseClassifierString(s: string, defaultLanguage: string | undef
 			const segment = s.substring(i + 1, k);
 			k = i;
 			if (ch === CHAR_LANGUAGE) {
-				language = segment;
+				languages = segment.split(',').map(l => l.trim()).filter(l => l.length > 0);
 			} else {
 				modifiers.push(segment);
 			}
 		}
 	}
 	const type = s.substring(0, k);
-	return { type, modifiers, language };
+	return { type, modifiers, languages };
 }
 
 

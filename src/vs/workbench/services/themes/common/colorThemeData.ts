@@ -154,7 +154,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return undefined;
 	}
 
-	private getTokenStyle(type: string, modifiers: string[], language: string, useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
+	private getTokenStyle(type: string, modifiers: string[], languages: string[], useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
 		const result: any = {
 			foreground: undefined,
 			bold: undefined,
@@ -189,7 +189,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			}
 		}
 		function _processSemanticTokenRule(rule: SemanticTokenRule) {
-			const matchScore = rule.selector.match(type, modifiers, language);
+			const matchScore = rule.selector.match(type, modifiers, languages);
 			if (matchScore >= 0) {
 				_processStyle(matchScore, rule.style, rule);
 			}
@@ -209,7 +209,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 		if (hasUndefinedStyleProperty) {
 			for (const rule of tokenClassificationRegistry.getTokenStylingDefaultRules()) {
-				const matchScore = rule.selector.match(type, modifiers, language);
+				const matchScore = rule.selector.match(type, modifiers, languages);
 				if (matchScore >= 0) {
 					let style: TokenStyle | undefined;
 					if (rule.defaults.scopesToProbe) {
@@ -239,8 +239,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		if (tokenStyleValue === undefined) {
 			return undefined;
 		} else if (typeof tokenStyleValue === 'string') {
-			const { type, modifiers, language } = parseClassifierString(tokenStyleValue, '');
-			return this.getTokenStyle(type, modifiers, language);
+			const { type, modifiers, languages } = parseClassifierString(tokenStyleValue, '');
+			return this.getTokenStyle(type, modifiers, languages);
 		} else if (typeof tokenStyleValue === 'object') {
 			return tokenStyleValue;
 		}
@@ -275,8 +275,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getTokenStyleMetadata(typeWithLanguage: string, modifiers: string[], defaultLanguage: string, useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
-		const { type, language } = parseClassifierString(typeWithLanguage, defaultLanguage);
-		const style = this.getTokenStyle(type, modifiers, language, useDefault, definitions);
+		const { type, languages } = parseClassifierString(typeWithLanguage, defaultLanguage);
+		const style = this.getTokenStyle(type, modifiers, languages, useDefault, definitions);
 		if (!style) {
 			return undefined;
 		}
