@@ -43,7 +43,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../.
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { ChatViewId, EditsViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { IChatQuotasService } from '../../common/chatQuotasService.js';
@@ -53,12 +53,18 @@ import { clearChatEditor } from './chatClear.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { language } from '../../../../../base/common/platform.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
+
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
+export const CHAT_OPEN_ACTION_LABEL = localize2('openChat', "Open Chat");
 
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 export const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
+
+export const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 
 export interface IChatViewOpenOptions {
 	/**
@@ -89,256 +95,6 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
-class OpenChatGlobalAction extends Action2 {
-
-	static readonly TITLE = localize2('openChat', "Open Chat");
-
-	constructor() {
-		super({
-			id: CHAT_OPEN_ACTION_ID,
-			title: OpenChatGlobalAction.TITLE,
-			icon: Codicon.copilot,
-			f1: true,
-			category: CHAT_CATEGORY,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
-				}
-			},
-			menu: {
-				id: MenuId.ChatTitleBarMenu,
-				group: 'a_open',
-				order: 1
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
-		opts = typeof opts === 'string' ? { query: opts } : opts;
-
-		const chatService = accessor.get(IChatService);
-		const toolsService = accessor.get(ILanguageModelToolsService);
-		const viewsService = accessor.get(IViewsService);
-		const hostService = accessor.get(IHostService);
-
-		const chatWidget = await showChatView(viewsService);
-		if (!chatWidget) {
-			return;
-		}
-		if (opts?.previousRequests?.length && chatWidget.viewModel) {
-			for (const { request, response } of opts.previousRequests) {
-				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
-			}
-		}
-		if (opts?.attachScreenshot) {
-			const screenshot = await hostService.getScreenshot();
-			if (screenshot) {
-				chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
-			}
-		}
-		if (opts?.query) {
-			if (opts.isPartialQuery) {
-				chatWidget.setInput(opts.query);
-			} else {
-				chatWidget.acceptInput(opts.query);
-			}
-		}
-		if (opts?.toolIds && opts.toolIds.length > 0) {
-			for (const toolId of opts.toolIds) {
-				const tool = toolsService.getTool(toolId);
-				if (tool) {
-					chatWidget.attachmentModel.addContext({
-						id: tool.id,
-						name: tool.displayName,
-						fullName: tool.displayName,
-						value: undefined,
-						icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
-						isTool: true
-					});
-				}
-			}
-		}
-
-		chatWidget.focusInput();
-	}
-}
-
-class ChatHistoryAction extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.action.chat.history`,
-			title: localize2('chat.history.label', "Show Chats..."),
-			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', ChatViewId),
-				group: 'navigation',
-				order: 2
-			},
-			category: CHAT_CATEGORY,
-			icon: Codicon.history,
-			f1: true,
-			precondition: ChatContextKeys.enabled
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const chatService = accessor.get(IChatService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const viewsService = accessor.get(IViewsService);
-		const editorService = accessor.get(IEditorService);
-
-		const showPicker = () => {
-			const openInEditorButton: IQuickInputButton = {
-				iconClass: ThemeIcon.asClassName(Codicon.file),
-				tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
-			};
-			const deleteButton: IQuickInputButton = {
-				iconClass: ThemeIcon.asClassName(Codicon.x),
-				tooltip: localize('interactiveSession.history.delete', "Delete"),
-			};
-			const renameButton: IQuickInputButton = {
-				iconClass: ThemeIcon.asClassName(Codicon.pencil),
-				tooltip: localize('chat.history.rename', "Rename"),
-			};
-
-			interface IChatPickerItem extends IQuickPickItem {
-				chat: IChatDetail;
-			}
-
-			const getPicks = () => {
-				const items = chatService.getHistory();
-				items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
-
-				let lastDate: string | undefined = undefined;
-				const picks = items.flatMap((i): [IQuickPickSeparator | undefined, IChatPickerItem] => {
-					const timeAgoStr = fromNowByDay(i.lastMessageDate, true, true);
-					const separator: IQuickPickSeparator | undefined = timeAgoStr !== lastDate ? {
-						type: 'separator', label: timeAgoStr,
-					} : undefined;
-					lastDate = timeAgoStr;
-					return [
-						separator,
-						{
-							label: i.title,
-							description: i.isActive ? `(${localize('currentChatLabel', 'current')})` : '',
-							chat: i,
-							buttons: i.isActive ? [renameButton] : [
-								renameButton,
-								openInEditorButton,
-								deleteButton,
-							]
-						}
-					];
-				});
-
-				return coalesce(picks);
-			};
-
-			const store = new DisposableStore();
-			const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
-			picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
-			const picks = getPicks();
-			picker.items = picks;
-			store.add(picker.onDidTriggerItemButton(async context => {
-				if (context.button === openInEditorButton) {
-					const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
-					editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
-					picker.hide();
-				} else if (context.button === deleteButton) {
-					chatService.removeHistoryEntry(context.item.chat.sessionId);
-					picker.items = getPicks();
-				} else if (context.button === renameButton) {
-					const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
-					if (title) {
-						chatService.setChatSessionTitle(context.item.chat.sessionId, title);
-					}
-
-					// The quick input hides the picker, it gets disposed, so we kick it off from scratch
-					showPicker();
-				}
-			}));
-			store.add(picker.onDidAccept(async () => {
-				try {
-					const item = picker.selectedItems[0];
-					const sessionId = item.chat.sessionId;
-					const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-					view.loadSession(sessionId);
-				} finally {
-					picker.hide();
-				}
-			}));
-			store.add(picker.onDidHide(() => store.dispose()));
-
-			picker.show();
-		};
-		showPicker();
-	}
-}
-
-class OpenChatEditorAction extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.action.openChat`,
-			title: localize2('interactiveSession.open', "Open Editor"),
-			f1: true,
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
-	}
-}
-
-
-class ChatAddAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.addParticipant',
-			title: localize2('chatWith', "Chat with Extension"),
-			icon: Codicon.mention,
-			f1: false,
-			category: CHAT_CATEGORY,
-			menu: {
-				id: MenuId.ChatInput,
-				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-				group: 'navigation',
-				order: 1
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const widgetService = accessor.get(IChatWidgetService);
-		const context: { widget?: IChatWidget } | undefined = args[0];
-		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
-			return;
-		}
-
-		const hasAgentOrCommand = extractAgentAndCommand(widget.parsedInput);
-		if (hasAgentOrCommand?.agentPart || hasAgentOrCommand?.commandPart) {
-			return;
-		}
-
-		const suggestCtrl = SuggestController.get(widget.inputEditor);
-		if (suggestCtrl) {
-			const curText = widget.inputEditor.getValue();
-			const newValue = curText ? `@ ${curText}` : '@';
-			if (!curText.startsWith('@')) {
-				widget.inputEditor.setValue(newValue);
-			}
-
-			widget.inputEditor.setPosition(new Position(1, 2));
-			suggestCtrl.triggerSuggest(undefined, true);
-		}
-	}
-}
-
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
 		id: 'update.showCurrentReleaseNotes',
@@ -350,10 +106,298 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 export const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 export function registerChatActions() {
-	registerAction2(OpenChatGlobalAction);
-	registerAction2(ChatHistoryAction);
-	registerAction2(OpenChatEditorAction);
-	registerAction2(ChatAddAction);
+	registerAction2(class OpenChatGlobalAction extends Action2 {
+
+		constructor() {
+			super({
+				id: CHAT_OPEN_ACTION_ID,
+				title: CHAT_OPEN_ACTION_LABEL,
+				icon: Codicon.copilot,
+				f1: true,
+				category: CHAT_CATEGORY,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+					}
+				},
+				menu: {
+					id: MenuId.ChatTitleBarMenu,
+					group: 'a_open',
+					order: 1
+				}
+			});
+		}
+
+		override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+			opts = typeof opts === 'string' ? { query: opts } : opts;
+
+			const chatService = accessor.get(IChatService);
+			const toolsService = accessor.get(ILanguageModelToolsService);
+			const viewsService = accessor.get(IViewsService);
+			const hostService = accessor.get(IHostService);
+
+			const chatWidget = await showChatView(viewsService);
+			if (!chatWidget) {
+				return;
+			}
+			if (opts?.previousRequests?.length && chatWidget.viewModel) {
+				for (const { request, response } of opts.previousRequests) {
+					chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+				}
+			}
+			if (opts?.attachScreenshot) {
+				const screenshot = await hostService.getScreenshot();
+				if (screenshot) {
+					chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
+				}
+			}
+			if (opts?.query) {
+				if (opts.isPartialQuery) {
+					chatWidget.setInput(opts.query);
+				} else {
+					chatWidget.acceptInput(opts.query);
+				}
+			}
+			if (opts?.toolIds && opts.toolIds.length > 0) {
+				for (const toolId of opts.toolIds) {
+					const tool = toolsService.getTool(toolId);
+					if (tool) {
+						chatWidget.attachmentModel.addContext({
+							id: tool.id,
+							name: tool.displayName,
+							fullName: tool.displayName,
+							value: undefined,
+							icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined,
+							isTool: true
+						});
+					}
+				}
+			}
+
+			chatWidget.focusInput();
+		}
+	});
+
+	registerAction2(class ToggleChatAction extends Action2 {
+		constructor() {
+			super({
+				id: TOGGLE_CHAT_ACTION_ID,
+				title: localize2('toggleChat', "Toggle Chat"),
+				category: CHAT_CATEGORY
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const layoutService = accessor.get(IWorkbenchLayoutService);
+			const viewsService = accessor.get(IViewsService);
+			const viewDescriptorService = accessor.get(IViewDescriptorService);
+
+			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
+			const editsLocation = viewDescriptorService.getViewLocationById(EditsViewId);
+
+			if (viewsService.isViewVisible(ChatViewId) || (chatLocation === editsLocation && viewsService.isViewVisible(EditsViewId))) {
+				this.updatePartVisibility(layoutService, chatLocation, false);
+			} else {
+				this.updatePartVisibility(layoutService, chatLocation, true);
+				(await showCopilotView(viewsService, layoutService))?.focusInput();
+			}
+		}
+
+		private updatePartVisibility(layoutService: IWorkbenchLayoutService, location: ViewContainerLocation | null, visible: boolean): void {
+			let part: Parts.PANEL_PART | Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | undefined;
+			switch (location) {
+				case ViewContainerLocation.Panel:
+					part = Parts.PANEL_PART;
+					break;
+				case ViewContainerLocation.Sidebar:
+					part = Parts.SIDEBAR_PART;
+					break;
+				case ViewContainerLocation.AuxiliaryBar:
+					part = Parts.AUXILIARYBAR_PART;
+					break;
+			}
+
+			if (part) {
+				layoutService.setPartHidden(!visible, part);
+			}
+		}
+	});
+
+	registerAction2(class ChatHistoryAction extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.chat.history`,
+				title: localize2('chat.history.label', "Show Chats..."),
+				menu: {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					group: 'navigation',
+					order: 2
+				},
+				category: CHAT_CATEGORY,
+				icon: Codicon.history,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const chatService = accessor.get(IChatService);
+			const quickInputService = accessor.get(IQuickInputService);
+			const viewsService = accessor.get(IViewsService);
+			const editorService = accessor.get(IEditorService);
+
+			const showPicker = () => {
+				const openInEditorButton: IQuickInputButton = {
+					iconClass: ThemeIcon.asClassName(Codicon.file),
+					tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
+				};
+				const deleteButton: IQuickInputButton = {
+					iconClass: ThemeIcon.asClassName(Codicon.x),
+					tooltip: localize('interactiveSession.history.delete', "Delete"),
+				};
+				const renameButton: IQuickInputButton = {
+					iconClass: ThemeIcon.asClassName(Codicon.pencil),
+					tooltip: localize('chat.history.rename', "Rename"),
+				};
+
+				interface IChatPickerItem extends IQuickPickItem {
+					chat: IChatDetail;
+				}
+
+				const getPicks = () => {
+					const items = chatService.getHistory();
+					items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
+
+					let lastDate: string | undefined = undefined;
+					const picks = items.flatMap((i): [IQuickPickSeparator | undefined, IChatPickerItem] => {
+						const timeAgoStr = fromNowByDay(i.lastMessageDate, true, true);
+						const separator: IQuickPickSeparator | undefined = timeAgoStr !== lastDate ? {
+							type: 'separator', label: timeAgoStr,
+						} : undefined;
+						lastDate = timeAgoStr;
+						return [
+							separator,
+							{
+								label: i.title,
+								description: i.isActive ? `(${localize('currentChatLabel', 'current')})` : '',
+								chat: i,
+								buttons: i.isActive ? [renameButton] : [
+									renameButton,
+									openInEditorButton,
+									deleteButton,
+								]
+							}
+						];
+					});
+
+					return coalesce(picks);
+				};
+
+				const store = new DisposableStore();
+				const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
+				picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
+				const picks = getPicks();
+				picker.items = picks;
+				store.add(picker.onDidTriggerItemButton(async context => {
+					if (context.button === openInEditorButton) {
+						const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
+						editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
+						picker.hide();
+					} else if (context.button === deleteButton) {
+						chatService.removeHistoryEntry(context.item.chat.sessionId);
+						picker.items = getPicks();
+					} else if (context.button === renameButton) {
+						const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
+						if (title) {
+							chatService.setChatSessionTitle(context.item.chat.sessionId, title);
+						}
+
+						// The quick input hides the picker, it gets disposed, so we kick it off from scratch
+						showPicker();
+					}
+				}));
+				store.add(picker.onDidAccept(async () => {
+					try {
+						const item = picker.selectedItems[0];
+						const sessionId = item.chat.sessionId;
+						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+						view.loadSession(sessionId);
+					} finally {
+						picker.hide();
+					}
+				}));
+				store.add(picker.onDidHide(() => store.dispose()));
+
+				picker.show();
+			};
+			showPicker();
+		}
+	});
+
+	registerAction2(class OpenChatEditorAction extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.openChat`,
+				title: localize2('interactiveSession.open', "Open Editor"),
+				f1: true,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const editorService = accessor.get(IEditorService);
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
+		}
+	});
+
+
+	registerAction2(class ChatAddAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.addParticipant',
+				title: localize2('chatWith', "Chat with Extension"),
+				icon: Codicon.mention,
+				f1: false,
+				category: CHAT_CATEGORY,
+				menu: {
+					id: MenuId.ChatInput,
+					when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					group: 'navigation',
+					order: 1
+				}
+			});
+		}
+
+		override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+			const widgetService = accessor.get(IChatWidgetService);
+			const context: { widget?: IChatWidget } | undefined = args[0];
+			const widget = context?.widget ?? widgetService.lastFocusedWidget;
+			if (!widget) {
+				return;
+			}
+
+			const hasAgentOrCommand = extractAgentAndCommand(widget.parsedInput);
+			if (hasAgentOrCommand?.agentPart || hasAgentOrCommand?.commandPart) {
+				return;
+			}
+
+			const suggestCtrl = SuggestController.get(widget.inputEditor);
+			if (suggestCtrl) {
+				const curText = widget.inputEditor.getValue();
+				const newValue = curText ? `@ ${curText}` : '@';
+				if (!curText.startsWith('@')) {
+					widget.inputEditor.setValue(newValue);
+				}
+
+				widget.inputEditor.setPosition(new Position(1, 2));
+				suggestCtrl.triggerSuggest(undefined, true);
+			}
+		}
+	});
 
 	registerAction2(class ClearChatInputHistoryAction extends Action2 {
 		constructor() {
@@ -693,7 +737,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionIcon = Codicon.copilotWarning;
 				} else {
 					primaryActionId = CHAT_OPEN_ACTION_ID;
-					primaryActionTitle = OpenChatGlobalAction.TITLE.value;
+					primaryActionTitle = CHAT_OPEN_ACTION_LABEL.value;
 					primaryActionIcon = Codicon.copilot;
 				}
 			}

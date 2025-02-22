@@ -16,7 +16,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
-import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
+import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID } from './actions/chatActions.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -82,7 +82,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private getEntryProps(): IStatusbarEntry {
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
-		let command = CHAT_OPEN_ACTION_ID;
+		let command = TOGGLE_CHAT_ACTION_ID;
 		let tooltip: string | IManagedHoverTooltipMarkdownString = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
 
 		// Quota Exceeded
@@ -108,7 +108,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false ||
 			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.canSignUp.key) === true
 		) {
-			command = CHAT_SETUP_ACTION_ID;
 			tooltip = CHAT_SETUP_ACTION_LABEL.value;
 		}
 
