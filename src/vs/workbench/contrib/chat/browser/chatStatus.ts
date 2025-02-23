@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { safeIntl } from '../../../../base/common/date.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -25,6 +27,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private readonly treatment = this.assignmentService.getTreatment<boolean>('config.chat.experimental.statusIndicator.enabled'); //TODO@bpasero remove this experiment eventually
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
+
+	private dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -129,13 +133,15 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 						return;
 					}
 
-					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = entitlements.quotas;
-					if (typeof chatRemaining === 'number' && typeof chatTotal === 'number' && typeof completionsRemaining === 'number' && typeof completionsTotal === 'number') {
+					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, resetDate } = entitlements.quotas;
+					if (typeof chatRemaining === 'number' && typeof chatTotal === 'number' && typeof completionsRemaining === 'number' && typeof completionsTotal === 'number' && resetDate) {
 						return new MarkdownString([
 							localize('limitTitle', "You are currently using Copilot Free"),
 							'---',
 							localize('limitChatQuota', "<code>{0}</code> of <code>{1}</code> chats remaining", chatRemaining, chatTotal),
 							localize('limitCompletionsQuota', "<code>{0}</code> of <code>{1}</code> code completions remaining", completionsRemaining, completionsTotal),
+							'---',
+							localize('chatAndCompletionsQuotaExceeded', "Limits will reset on {0}.", that.dateFormatter.format(new Date(resetDate)))
 						].join('\n\n'), { supportHtml: true });
 					}
 
