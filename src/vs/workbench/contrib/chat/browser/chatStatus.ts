@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import './media/chatStatus.css';
+import { safeIntl } from '../../../../base/common/date.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID } from './actions/chatActions.js';
+import { $ } from '../../../../base/browser/dom.js';
+import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -25,6 +28,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private readonly treatment = this.assignmentService.getTreatment<boolean>('config.chat.experimental.statusIndicator.enabled'); //TODO@bpasero remove this experiment eventually
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
+
+	private dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -83,7 +88,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let command = TOGGLE_CHAT_ACTION_ID;
-		let tooltip: string | IManagedHoverTooltipMarkdownString = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
+		let tooltip: TooltipContent = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
 
 		// Quota Exceeded
 		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
@@ -120,28 +125,28 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		// Copilot Limited User
 		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
-			const that = this;
-			tooltip = {
-				async markdown(token) {
-					const entitlements = await that.chatEntitlementsService.resolve(token);
+			tooltip = () => {
+				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
 
-					if (token.isCancellationRequested || !entitlements?.quotas) {
-						return;
-					}
+				const container = $('div.chat-status-bar-entry-tooltip');
+				container.appendChild($('div', undefined, localize('limitTitle', "You are currently using Copilot Free:")));
 
-					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = entitlements.quotas;
-					if (typeof chatRemaining === 'number' && typeof chatTotal === 'number' && typeof completionsRemaining === 'number' && typeof completionsTotal === 'number') {
-						return new MarkdownString([
-							localize('limitTitle', "You are currently using Copilot Free"),
-							'---',
-							localize('limitChatQuota', "<code>{0}</code> of <code>{1}</code> chats remaining", chatRemaining, chatTotal),
-							localize('limitCompletionsQuota', "<code>{0}</code> of <code>{1}</code> code completions remaining", completionsRemaining, completionsTotal),
-						].join('\n\n'), { supportHtml: true });
-					}
+				const chatQuotaIndicator = this.createQuotaIndicator(chatTotal, chatRemaining, localize('chatsLabel', "Chat Messages"));
+				container.appendChild(chatQuotaIndicator.element);
 
-					return undefined;
-				},
-				markdownNotSupportedFallback: undefined
+				const completionsQuotaIndicator = this.createQuotaIndicator(completionsTotal, completionsRemaining, localize('completionsLabel', "Code Completions"));
+				container.appendChild(completionsQuotaIndicator.element);
+
+				this.chatEntitlementsService.resolve(CancellationToken.None).then(() => {
+					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
+
+					chatQuotaIndicator.update(chatTotal, chatRemaining);
+					completionsQuotaIndicator.update(completionsTotal, completionsRemaining);
+				});
+
+				container.appendChild($('div', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
+
+				return container;
 			};
 		}
 
@@ -153,6 +158,34 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			showInAllWindows: true,
 			kind: 'copilot',
 			tooltip
+		};
+	}
+
+	private createQuotaIndicator(total: number | undefined, remaining: number | undefined, label: string): { element: HTMLElement; update: (total: number | undefined, remaining: number | undefined) => void } {
+		const quotaText = $('span');
+		const quotaBit = $('div.quota-bit');
+		const quotaContainer = $('div.quota-indicator', undefined,
+			$('div.quota-label', undefined,
+				$('span', undefined, label),
+				quotaText
+			),
+			$('div.quota-bar', undefined,
+				quotaBit
+			)
+		);
+
+		const update = (total: number | undefined, remaining: number | undefined) => {
+			if (typeof total === 'number' && typeof remaining === 'number') {
+				quotaText.textContent = localize('quotaDisplay', "{0} / {1}", remaining, total);
+				quotaBit.style.width = `${(remaining / total) * 100}%`;
+			}
+		};
+
+		update(total, remaining);
+
+		return {
+			element: quotaContainer,
+			update
 		};
 	}
 }
