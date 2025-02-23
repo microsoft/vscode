@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Command } from '../../../../editor/common/languages.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -135,6 +135,7 @@ export interface TimelineRequest {
 	readonly source: string;
 	readonly tokenSource: CancellationTokenSource;
 	readonly uri: URI;
+	readonly disposables: DisposableStore;
 }
 
 export interface ITimelineService {

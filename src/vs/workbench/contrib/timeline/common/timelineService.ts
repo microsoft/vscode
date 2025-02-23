@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, TimelinePaneId } from './timeline.js';
@@ -60,6 +60,8 @@ export class TimelineService implements ITimelineService {
 			return undefined;
 		}
 
+		const disposables = new DisposableStore();
+		disposables.add(tokenSource);
 		return {
 			result: provider.provideTimeline(uri, options, tokenSource.token)
 				.then(result => {
@@ -75,7 +77,8 @@ export class TimelineService implements ITimelineService {
 			options: options,
 			source: provider.id,
 			tokenSource: tokenSource,
-			uri: uri
+			uri: uri,
+			disposables
 		};
 	}
 
@@ -120,6 +123,7 @@ export class TimelineService implements ITimelineService {
 		}
 
 		this.providers.delete(id);
+		this.providerSubscriptions.get(id)?.dispose();
 		this.providerSubscriptions.delete(id);
 
 		this.updateHasProviderContext();

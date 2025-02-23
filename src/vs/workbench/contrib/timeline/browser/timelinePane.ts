@@ -495,8 +495,9 @@ export class TimelinePane extends ViewPane {
 		this.timelinesBySource.clear();
 
 		if (cancelPending) {
-			for (const { tokenSource } of this.pendingRequests.values()) {
-				tokenSource.dispose(true);
+			for (const { tokenSource, disposables } of this.pendingRequests.values()) {
+				tokenSource.cancel();
+				disposables.dispose();
 			}
 
 			this.pendingRequests.clear();
@@ -601,7 +602,7 @@ export class TimelinePane extends ViewPane {
 				}
 			}
 		}
-		request?.tokenSource.dispose(true);
+		request?.disposables.dispose();
 		options.cacheResults = true;
 		options.resetCache = reset;
 		request = this.timelineService.getTimeline(
@@ -613,7 +614,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this.pendingRequests.set(source, request);
-		request.tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source));
+		request.disposables.add(request.tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source)));
 
 		this.handleRequest(request);
 
@@ -641,6 +642,7 @@ export class TimelinePane extends ViewPane {
 			response = await this.progressService.withProgress({ location: this.id }, () => request.result);
 		}
 		finally {
+			this.pendingRequests.get(request.source)?.disposables.dispose();
 			this.pendingRequests.delete(request.source);
 		}
 
@@ -920,11 +922,11 @@ export class TimelinePane extends ViewPane {
 		container.appendChild(this.$tree);
 
 		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands);
-		this.treeRenderer.onDidScrollToEnd(item => {
+		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
 			}
-		});
+		}));
 
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree<TreeElement, FuzzyScore>, 'TimelinePane',
 			this.$tree, new TimelineListVirtualDelegate(), [this.treeRenderer], {
