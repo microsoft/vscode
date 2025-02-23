@@ -126,27 +126,25 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		// Copilot Limited User
 		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
 			tooltip = () => {
+				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
+
 				const container = $('div.chat-status-bar-entry-tooltip');
 				container.appendChild($('div', undefined, localize('limitTitle', "You are currently using Copilot Free:")));
 
-				const quotas = this.chatQuotasService.quotas;
-				const chatQuotaIndicator = this.createQuotaIndicator(quotas.chatTotal, quotas.chatRemaining, localize('chatsLabel', "Chat Messages"));
+				const chatQuotaIndicator = this.createQuotaIndicator(chatTotal, chatRemaining, localize('chatsLabel', "Chat Messages"));
 				container.appendChild(chatQuotaIndicator.element);
 
-				const completionsQuotaIndicator = this.createQuotaIndicator(quotas.completionsTotal, quotas.completionsRemaining, localize('completionsLabel', "Code Completions"));
+				const completionsQuotaIndicator = this.createQuotaIndicator(completionsTotal, completionsRemaining, localize('completionsLabel', "Code Completions"));
 				container.appendChild(completionsQuotaIndicator.element);
 
-				this.chatEntitlementsService.resolve(CancellationToken.None).then(entitlements => {
-					const quotas = this.chatQuotasService.quotas;
-					if (typeof quotas?.chatTotal === 'number' && typeof quotas?.chatRemaining === 'number') {
-						chatQuotaIndicator.update(quotas.chatTotal, quotas.chatRemaining);
-					}
-					if (typeof quotas?.completionsTotal === 'number' && typeof quotas?.completionsRemaining === 'number') {
-						completionsQuotaIndicator.update(quotas.completionsTotal, quotas.completionsRemaining);
-					}
+				this.chatEntitlementsService.resolve(CancellationToken.None).then(() => {
+					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
+
+					chatQuotaIndicator.update(chatTotal, chatRemaining);
+					completionsQuotaIndicator.update(completionsTotal, completionsRemaining);
 				});
 
-				container.appendChild($('div', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.format(this.chatQuotasService.quotas.quotaResetDate))));
+				container.appendChild($('div', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
 
 				return container;
 			};
@@ -163,27 +161,27 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		};
 	}
 
-	private createQuotaIndicator(total: number | undefined, remaining: number | undefined, label: string): { element: HTMLElement; update: (total: number, remaining: number) => void } {
-		const quotaLabel = $('span', undefined);
+	private createQuotaIndicator(total: number | undefined, remaining: number | undefined, label: string): { element: HTMLElement; update: (total: number | undefined, remaining: number | undefined) => void } {
+		const quotaText = $('span');
 		const quotaBit = $('div.quota-bit');
 		const quotaContainer = $('div.quota-indicator', undefined,
 			$('div.quota-label', undefined,
 				$('span', undefined, label),
-				quotaLabel
+				quotaText
 			),
 			$('div.quota-bar', undefined,
 				quotaBit
 			)
 		);
 
-		const update = (newTotal: number, newRemaining: number) => {
-			quotaLabel.textContent = localize('quotaDisplay', "{0} / {1}", newRemaining, newTotal);
-			quotaBit.style.width = `${(newRemaining / newTotal) * 100}%`;
+		const update = (total: number | undefined, remaining: number | undefined) => {
+			if (typeof total === 'number' && typeof remaining === 'number') {
+				quotaText.textContent = localize('quotaDisplay', "{0} / {1}", remaining, total);
+				quotaBit.style.width = `${(remaining / total) * 100}%`;
+			}
 		};
 
-		if (typeof total === 'number' && typeof remaining === 'number') {
-			update(total, remaining);
-		}
+		update(total, remaining);
 
 		return {
 			element: quotaContainer,
