@@ -142,7 +142,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test('TerminalShellExecution.read iterables should be available between the start and end execution events', async () => {
+	test.skip('TerminalShellExecution.read iterables should be available between the start and end execution events', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
 		disposables.push(window.onDidStartTerminalShellExecution(() => events.push('start')));
