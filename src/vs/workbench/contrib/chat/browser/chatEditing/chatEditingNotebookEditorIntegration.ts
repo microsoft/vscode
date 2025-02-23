@@ -59,7 +59,12 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	private readonly _currentCell = observableValue<NotebookCellTextModel | undefined>(this, undefined);
 	readonly currentCell: IObservable<NotebookCellTextModel | undefined> = this._currentCell;
 
+	private readonly _currentChange = observableValue<{ change: ICellDiffInfo; index: number } | undefined>(this, undefined);
+	readonly currentChange: IObservable<{ change: ICellDiffInfo; index: number } | undefined> = this._currentChange;
+
 	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
+
+	private readonly insertDeleteDecorators: IObservable<{ insertedCellDecorator: NotebookInsertedCellDecorator; deletedCellDecorator: NotebookDeletedCellDecorator } | undefined>;
 
 	constructor(
 		private readonly _entry: IModifiedFileEntry,
@@ -99,7 +104,9 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		}));
 
 		this._register(autorun(r => {
-			const changes = cellChanges.read(r).filter(c => c.type !== 'unchanged' && c.type !== 'delete');
+			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
+
+			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete');
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
@@ -121,13 +128,6 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 				} else {
 					const diff2 = observableValue(`diff${cell.handle}`, diff.diff);
 					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2);
-					this._register(autorun((r) => {
-						const current = integration.currentIndex.read(r);
-						const indexOfChange = current >= 0 ? this.getIndexOfChange(cell, current) : -1;
-						if (indexOfChange >= 0) {
-							this._currentIndex.set(indexOfChange, undefined);
-						}
-					}));
 					this.cellEditorIntegrations.set(cell, { integration, diff: diff2 });
 					this._register(integration);
 					this._register(editor.onDidDispose(() => {
@@ -150,10 +150,29 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 					this.cellEditorIntegrations.delete(cell);
 				}
 			});
+
+			// set initial index
+			this._currentIndex.set(0, undefined);
+			this._revealChange(sortedCellChanges[0]);
+
+			this._register(autorun(r => {
+				const currentChange = this.currentChange.read(r);
+				if (currentChange) {
+					const change = currentChange.change;
+					const indexInChange = currentChange.index;
+					const diffChangeIndex = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged')).findIndex(c => c === change);
+
+					if (diffChangeIndex !== -1) {
+						this._currentIndex.set(diffChangeIndex + indexInChange, undefined);
+					}
+				} else {
+					this._currentIndex.set(-1, undefined);
+				}
+			}));
 		}));
 
 
-		const insertDeleteDecorators = derivedWithStore((r, store) => {
+		this.insertDeleteDecorators = derivedWithStore((r, store) => {
 			if (!notebookEdotirViewModelAttached.read(r)) {
 				return;
 			}
@@ -169,7 +188,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 		this._register(autorun(r => {
 			const changes = cellChanges.read(r);
-			const decorators = insertDeleteDecorators.read(r);
+			const decorators = this.insertDeleteDecorators.read(r);
 			if (decorators) {
 				decorators.insertedCellDecorator.apply(changes);
 				decorators.deletedCellDecorator.apply(changes, originalModel);
@@ -177,18 +196,6 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		}));
 	}
 
-	private getIndexOfChange(cell: NotebookCellTextModel, change: number): number {
-		if (this.getCurrentCell()?.cell !== cell) {
-			return -1;
-		}
-		const cellIndex = this.notebookModel.cells.findIndex(c => c.handle === cell.handle);
-		const indexOfCellChange = this.cellChanges.get().findIndex(c => c.modifiedCellIndex === cellIndex);
-		if (indexOfCellChange === -1) {
-			return -1;
-		}
-		// Count all changes upto this cell.
-		return countChanges(this.cellChanges.get().slice(0, indexOfCellChange)) + change;
-	}
 	getCurrentCell() {
 		const activeCell = this.notebookModel.cells.find(c => c.handle === this.notebookEditor.getActiveCell()?.handle) || this._currentCell.get();
 		if (!activeCell) {
@@ -246,55 +253,156 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	}
 
 	reveal(firstOrLast: boolean): void {
-		const changes = this.cellChanges.get().filter(c => c.type === 'modified' || c.type === 'insert');
+		const changes = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged'));
 		if (!changes.length) {
 			return undefined;
 		}
-		const index = firstOrLast ?
-			changes.reduce((prev, curr) => prev.modifiedCellIndex < curr.modifiedCellIndex ? prev : curr).modifiedCellIndex :
-			changes.reduce((prev, curr) => prev.modifiedCellIndex > curr.modifiedCellIndex ? prev : curr).modifiedCellIndex;
-		const info = this.getCell(index);
-		if (info) {
-			this.selectCell(info.cell);
-			info.integration.reveal(firstOrLast);
+		const change = firstOrLast ? changes[0] : changes[changes.length - 1];
+		this._revealChange(change, firstOrLast);
+	}
+
+	private _revealChange(change: ICellDiffInfo, firstOrLast?: boolean) {
+		switch (change.type) {
+			case 'insert':
+			case 'modified':
+				{
+					const cell = this.getCell(change.modifiedCellIndex);
+					if (!cell) {
+						return false;
+					}
+
+					cell.integration.reveal(firstOrLast ?? true);
+					this._currentChange.set({ change: change, index: cell.integration.currentIndex.get() }, undefined);
+
+					return true;
+				}
+			case 'delete':
+				// reveal the deleted cell decorator
+				this._currentCell.set(undefined, undefined);
+				this.insertDeleteDecorators.get()?.deletedCellDecorator.reveal(change.originalCellIndex);
+				this._currentChange.set({ change: change, index: 0 }, undefined);
+				return true;
+			default:
+				break;
 		}
+
+		return false;
 	}
 
 	next(wrap: boolean): boolean {
-		const info = this.getCurrentCell();
-		if (!info) {
-			return false;
-		}
-		if (info.integration.next(wrap)) {
-			return true;
-		} else {
-			const info = this.getNextCell(true);
-			if (info) {
-				this.selectCell(info.cell);
-				this.selectCell(info.cell);
-				info.integration.reveal(true);
-				return true;
+		const changes = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged'));
+		const currentChange = this.currentChange.get();
+		if (!currentChange) {
+			const firstChange = changes[0];
+
+			if (firstChange) {
+				this._currentCell.set(undefined, undefined);
+				return this._revealChange(firstChange);
 			}
+
 			return false;
 		}
+
+		// go to next
+		// first check if we are at the end of the current change
+		switch (currentChange.change.type) {
+			case 'modified':
+				{
+					const currentChangeInfo = this.getCell(currentChange.change.modifiedCellIndex);
+					if (!currentChangeInfo) {
+						return false;
+					}
+
+					if (currentChangeInfo.integration.next(false)) {
+						this._currentChange.set({ change: currentChange.change, index: currentChangeInfo.integration.currentIndex.get() }, undefined);
+						return true;
+					} else {
+						const nextChange = changes[changes.indexOf(currentChange.change) + 1];
+						if (nextChange) {
+							return this._revealChange(nextChange, true);
+						}
+					}
+				}
+				break;
+			case 'insert':
+			case 'delete':
+				{
+					// go to next change directly
+					const nextChange = changes[changes.indexOf(currentChange.change) + 1];
+					if (nextChange) {
+						return this._revealChange(nextChange, true);
+					}
+				}
+				break;
+			default:
+				break;
+		}
+
+		if (wrap) {
+			return this.next(false);
+		}
+
+		return false;
 	}
+
 	previous(wrap: boolean): boolean {
-		const info = this.getCurrentCell();
-		if (!info) {
-			return false;
-		}
-		if (info.integration.previous(wrap)) {
-			return true;
-		} else {
-			const info = this.getNextCell(false);
-			if (info) {
-				this.selectCell(info.cell);
-				info.integration.reveal(false);
-				return true;
+		const changes = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged'));
+		const currentChange = this.currentChange.get();
+		if (!currentChange) {
+			const lastChange = changes[changes.length - 1];
+			if (lastChange) {
+				this._currentCell.set(undefined, undefined);
+				return this._revealChange(lastChange, false);
 			}
+
 			return false;
 		}
+
+		// go to previous
+		// first check if we are at the start of the current change
+		switch (currentChange.change.type) {
+			case 'modified':
+				{
+					const currentChangeInfo = this.getCell(currentChange.change.modifiedCellIndex);
+					if (!currentChangeInfo) {
+						return false;
+					}
+
+					if (currentChangeInfo.integration.previous(false)) {
+						this._currentChange.set({ change: currentChange.change, index: currentChangeInfo.integration.currentIndex.get() }, undefined);
+						return true;
+					} else {
+						const prevChange = changes[changes.indexOf(currentChange.change) - 1];
+						if (prevChange) {
+							return this._revealChange(prevChange, false);
+						}
+					}
+				}
+				break;
+			case 'insert':
+			case 'delete':
+				{
+					// go to previous change directly
+					const prevChange = changes[changes.indexOf(currentChange.change) - 1];
+					if (prevChange) {
+						return this._revealChange(prevChange, false);
+					}
+				}
+				break;
+			default:
+				break;
+		}
+
+		if (wrap) {
+			const lastChange = changes[changes.length - 1];
+			if (lastChange) {
+				return this._revealChange(lastChange, false);
+			}
+		}
+
+		return false;
 	}
+
 	enableAccessibleDiffView(): void {
 		this.getCurrentCell()?.integration.enableAccessibleDiffView();
 	}
@@ -334,4 +442,32 @@ export function countChanges(changes: ICellDiffInfo[]): number {
 		}
 	}, 0);
 
+}
+
+export function sortCellChanges(changes: ICellDiffInfo[]): ICellDiffInfo[] {
+	return [...changes].sort((a, b) => {
+		// For unchanged and modified, use modifiedCellIndex
+		if ((a.type === 'unchanged' || a.type === 'modified') &&
+			(b.type === 'unchanged' || b.type === 'modified')) {
+			return a.modifiedCellIndex - b.modifiedCellIndex;
+		}
+
+		// For delete entries, use originalCellIndex
+		if (a.type === 'delete' && b.type === 'delete') {
+			return a.originalCellIndex - b.originalCellIndex;
+		}
+
+		// For insert entries, use modifiedCellIndex
+		if (a.type === 'insert' && b.type === 'insert') {
+			return a.modifiedCellIndex - b.modifiedCellIndex;
+		}
+
+		// Mixed types: compare based on available indices
+		const aIndex = a.type === 'delete' ? a.originalCellIndex :
+			(a.type === 'insert' ? a.modifiedCellIndex : a.modifiedCellIndex);
+		const bIndex = b.type === 'delete' ? b.originalCellIndex :
+			(b.type === 'insert' ? b.modifiedCellIndex : b.modifiedCellIndex);
+
+		return aIndex - bIndex;
+	});
 }

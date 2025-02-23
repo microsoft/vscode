@@ -40,12 +40,28 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 		}
 		const cells = this._notebookEditor.getCellsInRange({ start: info.previousIndex, end: info.previousIndex + 1 });
 		if (!cells.length) {
-			return;
+			return this._notebookEditor.getLayoutInfo().height + info.offset;
 		}
 		const cell = cells[0];
 		const cellHeight = this._notebookEditor.getHeightOfElement(cell);
 		const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
 		return top + cellHeight + info.offset;
+	}
+
+	reveal(deletedIndex: number) {
+		const top = this.getTop(deletedIndex);
+		if (typeof top === 'number') {
+			this._notebookEditor.focusContainer();
+			this._notebookEditor.revealOffsetInCenterIfOutsideViewport(top);
+
+			const info = this.deletedCellInfos.get(deletedIndex);
+
+			if (info) {
+				const prevIndex = info.previousIndex;
+				this._notebookEditor.setFocus({ start: prevIndex, end: prevIndex });
+				this._notebookEditor.setSelections([{ start: prevIndex, end: prevIndex }]);
+			}
+		}
 	}
 
 	public apply(diffInfo: CellDiffInfo[], original: NotebookTextModel): void {

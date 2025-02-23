@@ -393,6 +393,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				return d;
 			});
 			this._cellDiffInfo.set(diff, undefined);
+			const changeCount = countChanges(this._cellDiffInfo.get());
+			this._changesCount.set(changeCount, undefined);
 		}
 	}
 
