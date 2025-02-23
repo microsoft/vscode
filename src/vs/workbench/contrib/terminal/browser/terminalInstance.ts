@@ -13,7 +13,7 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { AutoOpenBarrier, Barrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ISeparator, template } from '../../../../base/common/labels.js';
@@ -1527,25 +1527,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// consistent form respectively. This must be done here as xterm.js does not currently have
 		// a listener for when individual data events are parsed, only `onWriteParsed` which fires
 		// when the write buffer is flushed.
-		const match = ev.data.match(/(?<seq>\x1b\][16]33;(?:C|D(?:;\d+)?)\x07)/);
-		const index = match?.index;
-		if (match?.groups?.seq && index !== undefined) {
-			const seq = match?.groups?.seq;
-			if (ev.trackCommit) {
-				this._writeProcessData(ev.data.substring(0, index));
-				this._writeProcessData(seq);
-				ev.writePromise = new Promise<void>(r => this._writeProcessData(ev.data.substring(index + seq.length), r));
-			} else {
-				this._writeProcessData(ev.data.substring(0, index));
-				this._writeProcessData(seq);
-				this._writeProcessData(ev.data.substring(index + seq.length));
+		const leadingSegmentedData: string[] = [];
+		const matches = ev.data.matchAll(/(?<seq>\x1b\][16]33;(?:C|D(?:;\d+)?)\x07)/g);
+		let i = 0;
+		for (const match of matches) {
+			if (match.groups?.seq === undefined) {
+				throw new BugIndicatingError('seq must be defined');
 			}
+			leadingSegmentedData.push(ev.data.substring(i, match.index));
+			leadingSegmentedData.push(match.groups?.seq ?? '');
+			i = match.index + match[0].length;
+		}
+		const lastData = ev.data.substring(i);
+
+		// Write all leading segmented data first, followed by the last data, tracking commit if
+		// necessary
+		for (let i = 0; i < leadingSegmentedData.length; i++) {
+			this._writeProcessData(leadingSegmentedData[i]);
+		}
+		if (ev.trackCommit) {
+			ev.writePromise = new Promise<void>(r => this._writeProcessData(lastData, r));
 		} else {
-			if (ev.trackCommit) {
-				ev.writePromise = new Promise<void>(r => this._writeProcessData(ev.data, r));
-			} else {
-				this._writeProcessData(ev.data);
-			}
+			this._writeProcessData(lastData);
 		}
 	}
 

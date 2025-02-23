@@ -382,6 +382,11 @@ export interface IManagedHoverTooltipMarkdownString {
 	markdownNotSupportedFallback: string | undefined;
 }
 
+export function isManagedHoverTooltipMarkdownString(obj: unknown): obj is IManagedHoverTooltipMarkdownString {
+	const candidate = obj as IManagedHoverTooltipMarkdownString;
+	return typeof candidate === 'object' && 'markdown' in candidate && 'markdownNotSupportedFallback' in candidate;
+}
+
 export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | HTMLElement | undefined;
 export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManagedHoverContent);
 

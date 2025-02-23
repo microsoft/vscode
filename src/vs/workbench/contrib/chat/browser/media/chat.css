@@ -370,7 +370,7 @@
 		margin: 0 0 6px 0;
 	}
 
-	.rendered-markdown [data-code] {
+	.progress-container .rendered-markdown [data-code] {
 		margin: 0;
 	}
 

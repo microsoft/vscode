@@ -151,7 +151,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
-	private _env: vscode.TerminalShellIntegrationEnvironment = { value: {}, isTrusted: false };
+	private _env: vscode.TerminalShellIntegrationEnvironment | undefined;
 	private _cwd: URI | undefined;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
@@ -176,7 +176,7 @@ class InternalTerminalShellIntegration extends Disposable {
 			get cwd(): URI | undefined {
 				return that._cwd;
 			},
-			get env(): vscode.TerminalShellIntegrationEnvironment {
+			get env(): vscode.TerminalShellIntegrationEnvironment | undefined {
 				return that._env;
 			},
 			// executeCommand(commandLine: string): vscode.TerminalShellExecution;

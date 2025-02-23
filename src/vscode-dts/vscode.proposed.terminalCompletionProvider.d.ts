@@ -127,6 +127,10 @@ declare module 'vscode' {
 		 */
 		foldersRequested?: boolean;
 		/**
+		 * File extensions to filter by.
+		 */
+		fileExtensions?: string[];
+		/**
 		 * If no cwd is provided, no resources will be shown as completions.
 		 */
 		cwd?: Uri;

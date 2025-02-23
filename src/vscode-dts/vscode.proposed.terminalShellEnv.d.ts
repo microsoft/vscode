@@ -29,7 +29,7 @@ declare module 'vscode' {
 		 * The environment of the shell process. This is undefined if the shell integration script
 		 * does not send the environment.
 		 */
-		readonly env: TerminalShellIntegrationEnvironment;
+		readonly env: TerminalShellIntegrationEnvironment | undefined;
 	}
 
 	// TODO: Is it fine that this shares onDidChangeTerminalShellIntegration with cwd and the shellIntegration object itself?

@@ -133,7 +133,7 @@ export class StatusbarEntryItem extends Disposable {
 
 			const hoverContents = isMarkdownString(hoverTooltip) ? { markdown: hoverTooltip, markdownNotSupportedFallback: undefined } : hoverTooltip;
 			if (this.hover) {
-				this.hover.update(hoverContents, hoverOptions);
+				this.hover.update(typeof hoverContents === 'function' ? hoverContents() : hoverContents, hoverOptions);
 			} else {
 				this.hover = this._register(this.hoverService.setupManagedHover(this.hoverDelegate, this.container, hoverContents, hoverOptions));
 			}

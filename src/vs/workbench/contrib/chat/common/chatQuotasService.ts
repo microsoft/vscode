@@ -118,7 +118,8 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 		return {
 			...quotas,
 			chatTotal: typeof quotas.chatTotal === 'number' ? Math.floor(quotas.chatTotal / 10) : undefined,
-			chatRemaining: typeof quotas.chatRemaining === 'number' ? Math.floor(quotas.chatRemaining / 10) : undefined
+			chatRemaining: typeof quotas.chatRemaining === 'number' ? Math.floor(Math.max(0, quotas.chatRemaining) / 10) : undefined,
+			completionsRemaining: typeof quotas.completionsRemaining === 'number' ? Math.max(0, quotas.completionsRemaining) : undefined
 		};
 	}
 
