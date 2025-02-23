@@ -5,8 +5,8 @@
 
 import './media/chatStatus.css';
 import { safeIntl } from '../../../../base/common/date.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { language } from '../../../../base/common/platform.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { language, OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -16,10 +16,12 @@ import { IWorkbenchAssignmentService } from '../../../services/assignment/common
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
-import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID } from './actions/chatActions.js';
-import { $ } from '../../../../base/browser/dom.js';
+import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
+import { $, append } from '../../../../base/browser/dom.js';
 import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -28,6 +30,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private readonly treatment = this.assignmentService.getTreatment<boolean>('config.chat.experimental.statusIndicator.enabled'); //TODO@bpasero remove this experiment eventually
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
+	private readonly entryDisposables = this._register(new DisposableStore());
 
 	private dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -85,6 +88,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private getEntryProps(): IStatusbarEntry {
+		this.entryDisposables.clear();
+
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let command = TOGGLE_CHAT_ACTION_ID;
@@ -126,9 +131,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		// Copilot Limited User
 		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
 			tooltip = () => {
+				const container = $('div.chat-status-bar-entry-tooltip');
+
+				// Quota Indicator
 				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
 
-				const container = $('div.chat-status-bar-entry-tooltip');
 				container.appendChild($('div', undefined, localize('limitTitle', "You are currently using Copilot Free:")));
 
 				const chatQuotaIndicator = this.createQuotaIndicator(chatTotal, chatRemaining, localize('chatsLabel', "Chat Messages"));
@@ -145,6 +152,20 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				});
 
 				container.appendChild($('div', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
+
+				// Shortcuts
+				container.appendChild(document.createElement('hr'));
+				this.createShortcuts(container);
+
+				return container;
+			};
+		}
+
+		// Any other User
+		else {
+			tooltip = () => {
+				const container = $('div.chat-status-bar-entry-tooltip');
+				this.createShortcuts(container);
 
 				return container;
 			};
@@ -187,5 +208,30 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			element: quotaContainer,
 			update
 		};
+	}
+
+	private createShortcuts(container: HTMLElement): HTMLElement {
+		const shortcuts = container.appendChild($('div.shortcuts'));
+
+		const openChat = { text: localize('shortcuts.chat', "Chat"), id: CHAT_OPEN_ACTION_ID };
+		const openCopilotEdits = { text: localize('shortcuts.copilotEdits', "Copilot Edits"), id: 'workbench.action.chat.openEditSession' };
+		const inlineChat = { text: localize('shortcuts.inlineChat', "Inline Chat"), id: 'inlineChat.start' };
+
+		for (const entry of [openChat, openCopilotEdits, inlineChat]) {
+			const keys = this.keybindingService.lookupKeybinding(entry.id);
+			if (!keys) {
+				continue;
+			}
+
+			const shortcut = append(shortcuts, $('div.shortcut'));
+
+			const labelValue = append(shortcut, $('span.shortcut-label'));
+			labelValue.textContent = entry.text;
+
+			const labelKey = this.entryDisposables.add(new KeybindingLabel(shortcut, OS, { ...defaultKeybindingLabelStyles }));
+			labelKey.set(keys);
+		}
+
+		return shortcuts;
 	}
 }
