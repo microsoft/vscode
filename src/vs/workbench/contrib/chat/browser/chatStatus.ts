@@ -126,7 +126,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		// Copilot Limited User
 		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
 			tooltip = () => {
-				const container = $('div.chat-status-bar-entry');
+				const container = $('div.chat-status-bar-entry-tooltip');
 				container.appendChild($('div', undefined, localize('limitTitle', "You are currently using Copilot Free:")));
 
 				const quotas = this.chatQuotasService.quotas;

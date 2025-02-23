@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-status-bar-entry .quota-indicator {
+.chat-status-bar-entry-tooltip .quota-indicator {
 	margin-top: 8px;
 	margin-bottom: 8px;
 }
 
-.chat-status-bar-entry .quota-indicator .quota-label {
+.chat-status-bar-entry-tooltip .quota-indicator .quota-label {
 	display: flex;
 	justify-content: space-between;
 }
 
-.chat-status-bar-entry .quota-indicator .quota-bar {
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
 	width: 100%;
 	height: 8px;
 	background-color: var(--vscode-activityBarBadge-foreground);
@@ -21,7 +21,7 @@
 	border-radius: 6px;
 }
 
-.chat-status-bar-entry .quota-indicator .quota-bar .quota-bit {
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {
 	height: 100%;
 	background-color: var(--vscode-activityBarBadge-background);
 	border-radius: 6px;
