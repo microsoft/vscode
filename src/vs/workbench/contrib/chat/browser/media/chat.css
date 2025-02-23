@@ -373,10 +373,6 @@
 	.progress-container .rendered-markdown [data-code] {
 		margin: 0;
 	}
-
-	.progress-container {
-		padding-top: 2px;
-	}
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
@@ -1537,6 +1533,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 7px;
 	margin: 0 0 6px 4px;
+
+	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
+	The working progress also can be replaced by a tool progress part. So align this padding so the text doesn't appear to shift. */
+	padding-top: 2px;
 
 	> .codicon[class*='codicon-'] {
 		height: 12px;
