@@ -388,24 +388,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
-			case 'window.customTitleBarVisibility':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'benibenj';
-					comment: 'This is used to know if window custom title bar visibility is configured or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.customTitleBarVisibility', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
-			case 'window.nativeTabs':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'benibenj';
-					comment: 'This is used to know if window native tabs are enabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('window.nativeTabs', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
 			case 'extensions.verifySignature':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';
