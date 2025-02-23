@@ -129,14 +129,15 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				const container = $('div.chat-status-bar-entry');
 				container.appendChild($('div', undefined, localize('limitTitle', "You are currently using Copilot Free:")));
 
-				const chatQuotaIndicator = this.createQuotaIndicator(0, 0, localize('chatsLabel', "Chat Messages"));
+				const quotas = this.chatQuotasService.quotas;
+				const chatQuotaIndicator = this.createQuotaIndicator(quotas.chatTotal, quotas.chatRemaining, localize('chatsLabel', "Chat Messages"));
 				container.appendChild(chatQuotaIndicator.element);
 
-				const completionsQuotaIndicator = this.createQuotaIndicator(0, 0, localize('completionsLabel', "Code Completions"));
+				const completionsQuotaIndicator = this.createQuotaIndicator(quotas.completionsTotal, quotas.completionsRemaining, localize('completionsLabel', "Code Completions"));
 				container.appendChild(completionsQuotaIndicator.element);
 
 				this.chatEntitlementsService.resolve(CancellationToken.None).then(entitlements => {
-					const quotas = entitlements?.quotas;
+					const quotas = this.chatQuotasService.quotas;
 					if (typeof quotas?.chatTotal === 'number' && typeof quotas?.chatRemaining === 'number') {
 						chatQuotaIndicator.update(quotas.chatTotal, quotas.chatRemaining);
 					}
@@ -162,7 +163,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		};
 	}
 
-	private createQuotaIndicator(total: number, remaining: number, label: string): { element: HTMLElement; update: (total: number, remaining: number) => void } {
+	private createQuotaIndicator(total: number | undefined, remaining: number | undefined, label: string): { element: HTMLElement; update: (total: number, remaining: number) => void } {
 		const quotaLabel = $('span', undefined);
 		const quotaBit = $('div.quota-bit');
 		const quotaContainer = $('div.quota-indicator', undefined,
@@ -180,7 +181,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			quotaBit.style.width = `${(newRemaining / newTotal) * 100}%`;
 		};
 
-		update(total, remaining);
+		if (typeof total === 'number' && typeof remaining === 'number') {
+			update(total, remaining);
+		}
 
 		return {
 			element: quotaContainer,
