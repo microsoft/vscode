@@ -60,8 +60,6 @@ export class TimelineService implements ITimelineService {
 			return undefined;
 		}
 
-		const disposables = new DisposableStore();
-		disposables.add(tokenSource);
 		return {
 			result: provider.provideTimeline(uri, options, tokenSource.token)
 				.then(result => {
@@ -78,7 +76,7 @@ export class TimelineService implements ITimelineService {
 			source: provider.id,
 			tokenSource: tokenSource,
 			uri: uri,
-			disposables
+			disposables: new DisposableStore()
 		};
 	}
 

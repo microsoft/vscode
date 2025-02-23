@@ -602,11 +602,13 @@ export class TimelinePane extends ViewPane {
 				}
 			}
 		}
+		request?.tokenSource.cancel();
 		request?.disposables.dispose();
 		options.cacheResults = true;
 		options.resetCache = reset;
+		const tokenSource = new CancellationTokenSource();
 		request = this.timelineService.getTimeline(
-			source, uri, options, new CancellationTokenSource()
+			source, uri, options, tokenSource
 		);
 
 		if (request === undefined) {
@@ -614,6 +616,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this.pendingRequests.set(source, request);
+		request.disposables.add(tokenSource);
 		request.disposables.add(request.tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source)));
 
 		this.handleRequest(request);
