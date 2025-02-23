@@ -52,12 +52,12 @@
         ]
       },
       {
-        "id": "cpp_embedded_latex",
+        "id": "internal_only_cpp_embedded_latex",
         "configuration": "latex-cpp-embedded-language-configuration.json",
         "aliases": []
       },
       {
-        "id": "markdown_latex_combined",
+        "id": "internal_only_markdown_latex_combined",
         "configuration": "markdown-latex-combined-language-configuration.json",
         "aliases": []
       }
@@ -73,7 +73,7 @@
         "scopeName": "text.tex.latex",
         "path": "./syntaxes/LaTeX.tmLanguage.json",
         "embeddedLanguages": {
-          "source.cpp": "cpp_embedded_latex",
+          "source.cpp": "internal_only_cpp_embedded_latex",
           "source.css": "css",
           "text.html": "html",
           "source.java": "java",
@@ -85,7 +85,7 @@
           "source.ts": "typescript",
           "text.xml": "xml",
           "source.yaml": "yaml",
-          "meta.embedded.markdown_latex_combined": "markdown_latex_combined"
+          "meta.embedded.internal_only_markdown_latex_combined": "internal_only_markdown_latex_combined"
         }
       },
       {
@@ -94,12 +94,12 @@
         "path": "./syntaxes/Bibtex.tmLanguage.json"
       },
       {
-        "language": "markdown_latex_combined",
-        "scopeName": "text.tex.markdown_latex_combined",
+        "language": "internal_only_markdown_latex_combined",
+        "scopeName": "text.tex.internal_only_markdown_latex_combined",
         "path": "./syntaxes/markdown-latex-combined.tmLanguage.json"
       },
       {
-        "language": "cpp_embedded_latex",
+        "language": "internal_only_cpp_embedded_latex",
         "scopeName": "source.cpp.embedded.latex",
         "path": "./syntaxes/cpp-grammar-bailout.tmLanguage.json"
       }
