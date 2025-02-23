@@ -124,7 +124,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		if (toolInvocation.kind === 'toolInvocation' && toolInvocation.confirmationMessages) {
 			this.domNode = this.createConfirmationWidget(toolInvocation);
 		} else if (toolInvocation.presentation === 'withCodeblocks' && typeof toolInvocation.invocationMessage !== 'string') {
-			this.domNode = this.createMarkdownProgressPart(toolInvocation);
+			this.domNode = this.createMarkdownWithCodeblocksProgressPart(toolInvocation);
 		} else if (toolInvocation.resultDetails?.length) {
 			this.domNode = this.createResultList(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage, toolInvocation.resultDetails);
 		} else {
@@ -211,7 +211,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		} else {
 			content = typeof this.toolInvocation.invocationMessage === 'string' ?
 				new MarkdownString().appendText(this.toolInvocation.invocationMessage + '…') :
-				new MarkdownString(this.toolInvocation.invocationMessage.value + '…');
+				MarkdownString.lift(this.toolInvocation.invocationMessage).appendText('…');
 		}
 
 		const progressMessage: IChatProgressMessage = {
@@ -226,7 +226,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		return progressPart.domNode;
 	}
 
-	private createMarkdownProgressPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): HTMLElement {
+	private createMarkdownWithCodeblocksProgressPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): HTMLElement {
 		const content = toolInvocation.isComplete ?
 			(toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage)
 			: toolInvocation.invocationMessage;
