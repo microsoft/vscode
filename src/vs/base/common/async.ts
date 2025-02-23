@@ -911,10 +911,11 @@ export class ResourceQueue implements IDisposable {
 export class TimeoutTimer implements IDisposable {
 	private _token: any;
 	private _isDisposed = false;
+	private _cts = new CancellationTokenSource();
 
 	constructor();
-	constructor(runner: () => void, timeout: number);
-	constructor(runner?: () => void, timeout?: number) {
+	constructor(runner: (token: CancellationToken) => void, timeout: number);
+	constructor(runner?: (token: CancellationToken) => void, timeout?: number) {
 		this._token = -1;
 
 		if (typeof runner === 'function' && typeof timeout === 'number') {
@@ -924,6 +925,7 @@ export class TimeoutTimer implements IDisposable {
 
 	dispose(): void {
 		this.cancel();
+		this._cts.dispose();
 		this._isDisposed = true;
 	}
 
@@ -931,10 +933,12 @@ export class TimeoutTimer implements IDisposable {
 		if (this._token !== -1) {
 			clearTimeout(this._token);
 			this._token = -1;
+			this._cts.dispose(true);
+			this._cts = new CancellationTokenSource();
 		}
 	}
 
-	cancelAndSet(runner: () => void, timeout: number): void {
+	cancelAndSet(runner: (token: CancellationToken) => void, timeout: number): void {
 		if (this._isDisposed) {
 			throw new BugIndicatingError(`Calling 'cancelAndSet' on a disposed TimeoutTimer`);
 		}
@@ -942,11 +946,11 @@ export class TimeoutTimer implements IDisposable {
 		this.cancel();
 		this._token = setTimeout(() => {
 			this._token = -1;
-			runner();
+			runner(this._cts.token);
 		}, timeout);
 	}
 
-	setIfNotSet(runner: () => void, timeout: number): void {
+	setIfNotSet(runner: (token: CancellationToken) => void, timeout: number): void {
 		if (this._isDisposed) {
 			throw new BugIndicatingError(`Calling 'setIfNotSet' on a disposed TimeoutTimer`);
 		}
@@ -957,7 +961,7 @@ export class TimeoutTimer implements IDisposable {
 		}
 		this._token = setTimeout(() => {
 			this._token = -1;
-			runner();
+			runner(this._cts.token);
 		}, timeout);
 	}
 }

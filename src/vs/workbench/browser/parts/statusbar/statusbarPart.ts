@@ -35,6 +35,7 @@ import { StatusbarEntryItem } from './statusbarItem.js';
 import { StatusBarFocused } from '../../../common/contextkeys.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
+import { isManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 
 export interface IStatusbarEntryContainer extends IDisposable {
 
@@ -148,9 +149,13 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	private readonly hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', {
 		instantHover: true,
 		dynamicDelay(content) {
-			if (typeof content === 'function' || isHTMLElement(content)) {
+			if (
+				typeof content === 'function' ||
+				isHTMLElement(content) ||
+				(isManagedHoverTooltipMarkdownString(content) && typeof content.markdown === 'function')
+			) {
 				// override the delay for content that is rich (e.g. html or long running)
-				// so that is appears more instantly. these hovers carry more important
+				// so that it appears more instantly. these hovers carry more important
 				// information and should not be delayed by preference.
 				return 500;
 			}

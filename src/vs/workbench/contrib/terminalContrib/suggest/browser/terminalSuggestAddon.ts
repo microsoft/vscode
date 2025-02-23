@@ -142,7 +142,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						r();
 					}
 				}, 50);
-				timeoutTimer.cancelAndSet(r, 5000);
+				timeoutTimer.cancelAndSet(() => r(), 5000);
 			}).then(() => {
 				this._store.delete(intervalTimer);
 				this._store.delete(timeoutTimer);

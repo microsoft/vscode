@@ -20,7 +20,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ContextViewHandler } from '../../../../platform/contextview/browser/contextViewService.js';
-import type { IHoverLifecycleOptions, IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import type { IHoverLifecycleOptions, IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContent, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import type { IHoverDelegate, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { ManagedHoverWidget } from './updatableHoverWidget.js';
 import { timeout, TimeoutTimer } from '../../../../base/common/async.js';
@@ -391,10 +391,19 @@ export class HoverService extends Disposable implements IHoverService {
 		};
 
 		const triggerShowHover = (delay: number, focus?: boolean, target?: IHoverDelegateTarget, trapFocus?: boolean) => {
-			return new TimeoutTimer(async () => {
+			return new TimeoutTimer(async token => {
 				if (!hoverWidget || hoverWidget.isDisposed) {
 					hoverWidget = new ManagedHoverWidget(hoverDelegate, target || targetElement, delay > 0);
-					await hoverWidget.update(typeof content === 'function' ? content() : content, focus, { ...options, trapFocus });
+					let actualContent: IManagedHoverContent;
+					if (typeof content === 'function') {
+						actualContent = await content(token);
+					} else {
+						actualContent = content;
+					}
+					if (token.isCancellationRequested) {
+						return;
+					}
+					await hoverWidget.update(actualContent, focus, { ...options, trapFocus });
 				}
 			}, delay);
 		};
