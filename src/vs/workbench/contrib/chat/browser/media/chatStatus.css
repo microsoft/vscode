@@ -10,6 +10,22 @@
 	margin-bottom: 8px;
 }
 
+/* Settings */
+
+.chat-status-bar-entry-tooltip .settings {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .codicon {
+	font-size: 16px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .setting-label {
+	cursor: pointer;
+}
+
 /* Shortcuts */
 
 .chat-status-bar-entry-tooltip .shortcuts {
