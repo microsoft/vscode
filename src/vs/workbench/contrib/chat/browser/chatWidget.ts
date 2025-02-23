@@ -23,6 +23,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
@@ -223,6 +224,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
@@ -300,8 +302,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
 
-		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
+		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
 
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
+				this.renderChatEditingSessionState();
+			}
+		}));
 
 		this._register(autorunWithStore((r, store) => {
 
@@ -830,6 +837,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
 				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
+				enableImplicitContext: this.viewOptions.enableImplicitContext,
 				renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit'
 			},
 			this.styles,

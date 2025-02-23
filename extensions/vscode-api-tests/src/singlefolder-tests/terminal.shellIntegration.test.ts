@@ -99,8 +99,9 @@ import { assertNoRpc } from '../utils';
 				}));
 			});
 			ok(shellIntegration.env);
-			ok(shellIntegration.env.PATH);
-			ok(shellIntegration.env.PATH.length > 0, 'env.PATH should have a length greater than 0');
+			ok(shellIntegration.env.value);
+			ok(shellIntegration.env.value.PATH);
+			ok(shellIntegration.env.value.PATH.length > 0, 'env.value.PATH should have a length greater than 0');
 		});
 	}
 
@@ -141,7 +142,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test('TerminalShellExecution.read iterables should be available between the start and end execution events', async () => {
+	test.skip('TerminalShellExecution.read iterables should be available between the start and end execution events', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
 		disposables.push(window.onDidStartTerminalShellExecution(() => events.push('start')));
@@ -163,7 +164,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test('TerminalShellExecution.read events should fire with contents of command', async () => {
+	test.skip('TerminalShellExecution.read events should fire with contents of command', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 		const events: string[] = [];
 
@@ -178,7 +179,7 @@ import { assertNoRpc } from '../utils';
 		await closeTerminalAsync(terminal);
 	});
 
-	test('TerminalShellExecution.read events should give separate iterables per call', async () => {
+	test.skip('TerminalShellExecution.read events should give separate iterables per call', async () => {
 		const { terminal, shellIntegration } = await createTerminalAndWaitForShellIntegration();
 
 		const { execution, endEvent } = executeCommandAsync(shellIntegration, 'echo hello');

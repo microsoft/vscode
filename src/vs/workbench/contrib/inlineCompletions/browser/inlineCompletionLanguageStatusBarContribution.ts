@@ -45,7 +45,7 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 			const status = state.status.read(reader);
 
 			const statusMap: Record<typeof status, { shortLabel: string; label: string; loading: boolean }> = {
-				loading: { shortLabel: '', label: 'Loading', loading: true, },
+				loading: { shortLabel: '', label: localize('inlineSuggestionLoading', "Loading..."), loading: true, },
 				ghostText: { shortLabel: '$(lightbulb)', label: '$(copilot) ' + localize('inlineCompletionAvailable', "Inline completion available"), loading: false, },
 				inlineEdit: { shortLabel: '$(lightbulb-sparkle)', label: '$(copilot) ' + localize('inlineEditAvailable', "Inline edit available"), loading: false, },
 				noSuggestion: { shortLabel: '$(circle-slash)', label: '$(copilot) ' + localize('noInlineSuggestionAvailable', "No inline suggestion available"), loading: false, },

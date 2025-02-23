@@ -8,7 +8,7 @@ import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { Command } from '../../../../editor/common/languages.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { IManagedHoverContentOrFactory } from '../../../../base/browser/ui/hover/hover.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from '../../../browser/parts/statusbar/statusbarPart.js';
 
@@ -109,10 +109,10 @@ export interface IStatusbarStyleOverride {
 	readonly border?: ColorIdentifier;
 }
 
-export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
-export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
+export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline' | 'copilot';
+export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline', 'copilot'];
 
-export type TooltipContent = string | IMarkdownString | IManagedHoverTooltipMarkdownString | HTMLElement;
+export type TooltipContent = IMarkdownString | IManagedHoverContentOrFactory;
 
 export interface ITooltipWithCommands {
 	readonly content: TooltipContent;

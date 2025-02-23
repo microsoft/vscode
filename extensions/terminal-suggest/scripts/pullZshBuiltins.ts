@@ -14,6 +14,8 @@ if (platform() === 'win32') {
 	process.exit(1);
 }
 
+const latestZshVersion = 5.9;
+
 const shortDescriptions: Map<string, string> = new Map([
 	['.', 'Source a file'],
 	[':', 'No effect'],
@@ -135,7 +137,17 @@ let zshBuiltinsCommandDescriptionsCache = new Map<string, ICommandDetails>();
 async function createCommandDescriptionsCache(): Promise<void> {
 	const cachedCommandDescriptions: Map<string, { shortDescription?: string; description: string; args: string | undefined }> = new Map();
 	let output = '';
-
+	const zshVersionOutput = await execAsync('zsh --version').then(r => r.stdout);
+	const zshVersionMatch = zshVersionOutput.match(/zsh (\d+\.\d+)/);
+	if (!zshVersionMatch) {
+		console.error('\x1b[31mFailed to determine zsh version\x1b[0m');
+		process.exit(1);
+	}
+	const zshVersion = parseFloat(zshVersionMatch[1]);
+	if (zshVersion < latestZshVersion) {
+		console.error(`\x1b[31mZsh version must be ${latestZshVersion} or higher\x1b[0m`);
+		process.exit(1);
+	}
 	try {
 		output = await execAsync('pandoc --from man --to markdown --wrap=none < $(man -w zshbuiltins)').then(r => r.stdout);
 	} catch {

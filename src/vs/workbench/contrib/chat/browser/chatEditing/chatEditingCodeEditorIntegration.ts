@@ -254,7 +254,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 	private _clear() {
 		this._diffLineDecorations.clear();
-		// this._currentChangeIndex.set(undefined, undefined);
+		this._clearDiffRendering();
 		this._currentIndex.set(-1, undefined);
 	}
 

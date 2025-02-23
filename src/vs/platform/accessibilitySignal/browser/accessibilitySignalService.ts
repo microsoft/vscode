@@ -315,6 +315,7 @@ export class Sound {
 	public static readonly voiceRecordingStarted = Sound.register({ fileName: 'voiceRecordingStarted.mp3' });
 	public static readonly voiceRecordingStopped = Sound.register({ fileName: 'voiceRecordingStopped.mp3' });
 	public static readonly progress = Sound.register({ fileName: 'progress.mp3' });
+	public static readonly chatEditModifiedFile = Sound.register({ fileName: 'chatEditModifiedFile.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -543,7 +544,7 @@ export class AccessibilitySignal {
 
 	public static readonly chatEditModifiedFile = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.chatEditModifiedFile', 'Chat Edit Modified File'),
-		sound: Sound.success,
+		sound: Sound.chatEditModifiedFile,
 		announcementMessage: localize('accessibility.signals.chatEditModifiedFile', 'File Modified from Chat Edits'),
 		settingsKey: 'accessibility.signals.chatEditModifiedFile',
 	});

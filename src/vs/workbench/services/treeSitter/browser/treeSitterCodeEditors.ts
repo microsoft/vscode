@@ -31,6 +31,10 @@ export class TreeSitterCodeEditors extends Disposable {
 		this._codeEditorService.listCodeEditors().forEach(this._onCodeEditorAdd, this);
 	}
 
+	get editors(): ICodeEditor[] {
+		return Array.from(this._editors.keys());
+	}
+
 	public async getInitialViewPorts(): Promise<IViewPortChangeEvent[]> {
 		await this._treeSitterParserService.getLanguage(this._languageId);
 		const editors = this._codeEditorService.listCodeEditors();

@@ -304,6 +304,20 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 		// Update hover image
 		hoverElement.appendChild(img);
+
+		img.onload = () => {
+			URL.revokeObjectURL(url);
+		};
+
+		img.onerror = () => {
+			// reset to original icon on error or invalid image
+			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
+			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
+			const existingPill = widget.querySelector('.chat-attached-context-pill');
+			if (existingPill) {
+				existingPill.replaceWith(pill);
+			}
+		};
 	}
 }
 

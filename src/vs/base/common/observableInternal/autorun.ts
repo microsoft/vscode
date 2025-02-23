@@ -188,7 +188,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	) {
 		this.changeSummary = this.createChangeSummary?.();
 		getLogger()?.handleAutorunCreated(this);
-		this._runIfNeeded();
+		this._run();
 
 		trackDisposable(this);
 	}
@@ -204,11 +204,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		markAsDisposed(this);
 	}
 
-	private _runIfNeeded() {
-		if (this._state === AutorunState.upToDate) {
-			return;
-		}
-
+	private _run() {
 		const emptySet = this.dependenciesToBeRemoved;
 		this.dependenciesToBeRemoved = this._dependencies;
 		this._dependencies = emptySet;
@@ -269,7 +265,9 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 						}
 					}
 
-					this._runIfNeeded(); // Warning: indirect external call!
+					if (this._state !== AutorunState.upToDate) {
+						this._run(); // Warning: indirect external call!
+					}
 				} while (this._state !== AutorunState.upToDate);
 			}
 		} finally {

@@ -50,6 +50,7 @@ export class TerminalCompletionList<ITerminalCompletion> {
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
+	fileExtensions?: string[];
 	cwd?: UriComponents;
 	pathSeparator: string;
 	env?: { [key: string]: string | null | undefined };
@@ -191,7 +192,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				}
 				return completionItems;
 			}
-			return;
+			return completionItems.length ? completionItems : undefined;
 		});
 
 		const results = await Promise.all(completionPromises);
@@ -209,6 +210,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// provide diagnostics when a folder is provided where a file is expected.
 		const foldersRequested = (resourceRequestConfig.foldersRequested || resourceRequestConfig.filesRequested) ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
+		const fileExtensions = resourceRequestConfig.fileExtensions ?? undefined;
 
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		if (!cwd || (!foldersRequested && !filesRequested)) {
@@ -378,6 +380,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label += resourceRequestConfig.pathSeparator;
 			}
 
+			if (child.isFile && fileExtensions) {
+				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
+				if (extension && !fileExtensions.includes(extension)) {
+					continue;
+				}
+			}
+
 			resourceCompletions.push({
 				label,
 				provider,
@@ -476,9 +485,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	private _getEnvVar(key: string, capabilities: ITerminalCapabilityStore): string | undefined {
-		const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env;
+		const env = capabilities.get(TerminalCapability.ShellEnvDetection)?.env?.value as { [key: string]: string | undefined };
 		if (env) {
-			return env.get(key);
+			return env[key];
 		}
 		return this._processEnv[key];
 	}

@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/824
+	// https://github.com/microsoft/vscode/issues/241449
 
 	export interface TextDocument {
 

@@ -142,7 +142,6 @@ export interface IChatCodeBlockInfo {
 	codemapperUri: URI | undefined;
 	readonly isStreaming: boolean;
 	focus(): void;
-	getContent(): string;
 }
 
 export interface IChatFileTreeInfo {
@@ -190,6 +189,7 @@ export interface IChatWidgetViewOptions {
 	};
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
+	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
 }
 

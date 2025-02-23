@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { osIsWindows } from '../../helpers/os';
-import { spawnHelper2 } from '../../shell/common';
-import { withTimeout } from '../shared/utils';
+import { osIsWindows } from '../helpers/os';
+import { spawnHelper2 } from '../shell/common';
+import { withTimeout } from './shared/utils';
 
 export const cleanOutput = (output: string) =>
 	output
@@ -54,3 +54,15 @@ export const executeCommandTimeout = async (
 		throw err;
 	}
 };
+
+
+export const executeCommand: Fig.ExecuteCommandFunction = (args) =>
+	executeCommandTimeout(args);
+
+export interface IFigExecuteExternals {
+	executeCommand: Fig.ExecuteCommandFunction;
+	executeCommandTimeout: (
+		input: Fig.ExecuteCommandInput,
+		timeout: number,
+	) => Promise<Fig.ExecuteCommandOutput>;
+}
