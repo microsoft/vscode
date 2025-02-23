@@ -3,6 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Overall */
+
+.chat-status-bar-entry-tooltip hr {
+	margin-top: 8px;
+	margin-bottom: 8px;
+}
+
+/* Shortcuts */
+
+.chat-status-bar-entry-tooltip .shortcuts {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut {
+	display: flex;
+	gap: 10px;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut .shortcut-label {
+	flex: 1;
+}
+
+/* Quota Indicator */
+
 .chat-status-bar-entry-tooltip .quota-indicator {
 	margin-top: 8px;
 	margin-bottom: 8px;
