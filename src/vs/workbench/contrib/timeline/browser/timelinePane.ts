@@ -235,6 +235,10 @@ export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('tim
 export const TimelineExcludeSources = new RawContextKey<string>('timelineExcludeSources', '[]', true);
 export const TimelineViewFocusedContext = new RawContextKey<boolean>('timelineFocused', true);
 
+interface IPendingRequest extends IDisposable {
+	readonly request: TimelineRequest;
+}
+
 export class TimelinePane extends ViewPane {
 	static readonly TITLE: ILocalizedString = localize2('timeline', "Timeline");
 
@@ -250,7 +254,7 @@ export class TimelinePane extends ViewPane {
 	private timelineExcludeSourcesContext: IContextKey<string>;
 
 	private excludedSources: Set<string>;
-	private pendingRequests = new Map<string, TimelineRequest>();
+	private pendingRequests = new Map<string, IPendingRequest>();
 	private timelinesBySource = new Map<string, TimelineAggregate>();
 
 	private uri: URI | undefined;
@@ -495,8 +499,9 @@ export class TimelinePane extends ViewPane {
 		this.timelinesBySource.clear();
 
 		if (cancelPending) {
-			for (const { tokenSource } of this.pendingRequests.values()) {
-				tokenSource.dispose(true);
+			for (const pendingRequest of this.pendingRequests.values()) {
+				pendingRequest.request.tokenSource.cancel();
+				pendingRequest.dispose();
 			}
 
 			this.pendingRequests.clear();
@@ -588,34 +593,38 @@ export class TimelinePane extends ViewPane {
 			options = { cursor: reset ? undefined : timeline?.cursor, limit: this.pageSize };
 		}
 
-		let request = this.pendingRequests.get(source);
-		if (request !== undefined) {
-			options.cursor = request.options.cursor;
+		const pendingRequest = this.pendingRequests.get(source);
+		if (pendingRequest !== undefined) {
+			options.cursor = pendingRequest.request.options.cursor;
 
 			// TODO@eamodio deal with concurrent requests better
 			if (typeof options.limit === 'number') {
-				if (typeof request.options.limit === 'number') {
-					options.limit += request.options.limit;
+				if (typeof pendingRequest.request.options.limit === 'number') {
+					options.limit += pendingRequest.request.options.limit;
 				} else {
-					options.limit = request.options.limit;
+					options.limit = pendingRequest.request.options.limit;
 				}
 			}
 		}
-		request?.tokenSource.dispose(true);
+		pendingRequest?.request?.tokenSource.cancel();
+		pendingRequest?.dispose();
+
 		options.cacheResults = true;
 		options.resetCache = reset;
-		request = this.timelineService.getTimeline(
-			source, uri, options, new CancellationTokenSource()
-		);
+		const tokenSource = new CancellationTokenSource();
+		const newRequest = this.timelineService.getTimeline(source, uri, options, tokenSource);
 
-		if (request === undefined) {
+		if (newRequest === undefined) {
+			tokenSource.dispose();
 			return false;
 		}
 
-		this.pendingRequests.set(source, request);
-		request.tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source));
+		const disposables = new DisposableStore();
+		this.pendingRequests.set(source, { request: newRequest, dispose: () => disposables.dispose() });
+		disposables.add(tokenSource);
+		disposables.add(tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source)));
 
-		this.handleRequest(request);
+		this.handleRequest(newRequest);
 
 		return true;
 	}
@@ -641,6 +650,7 @@ export class TimelinePane extends ViewPane {
 			response = await this.progressService.withProgress({ location: this.id }, () => request.result);
 		}
 		finally {
+			this.pendingRequests.get(request.source)?.dispose();
 			this.pendingRequests.delete(request.source);
 		}
 
@@ -920,11 +930,11 @@ export class TimelinePane extends ViewPane {
 		container.appendChild(this.$tree);
 
 		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands);
-		this.treeRenderer.onDidScrollToEnd(item => {
+		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
 			}
-		});
+		}));
 
 		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree<TreeElement, FuzzyScore>, 'TimelinePane',
 			this.$tree, new TimelineListVirtualDelegate(), [this.treeRenderer], {
