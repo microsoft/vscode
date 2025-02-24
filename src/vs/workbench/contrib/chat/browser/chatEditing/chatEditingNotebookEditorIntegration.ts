@@ -213,7 +213,8 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		});
 
 		this._register(autorun(r => {
-			const changes = cellChanges.read(r).filter(c => !c.diff.identical);
+			// We can have inserted cells that have been accepted, in those cases we do not wany any decorators on them.
+			const changes = cellChanges.read(r).filter(c => c.type === 'insert' ? !c.diff.identical : true);
 			const decorators = this.insertDeleteDecorators.read(r);
 			if (decorators) {
 				decorators.insertedCellDecorator.apply(changes);
@@ -492,6 +493,9 @@ export function sortCellChanges(changes: ICellDiffInfo[]): ICellDiffInfo[] {
 			return a.modifiedCellIndex - b.modifiedCellIndex;
 		}
 
+		if ((a.type === 'delete' && b.type !== 'insert') || (a.type !== 'insert' && b.type === 'delete')) {
+			return a.originalCellIndex - b.originalCellIndex;
+		}
 		// Mixed types: compare based on available indices
 		const aIndex = a.type === 'delete' ? a.originalCellIndex :
 			(a.type === 'insert' ? a.modifiedCellIndex : a.modifiedCellIndex);
