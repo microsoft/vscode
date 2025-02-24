@@ -137,9 +137,12 @@ export enum SettingMatchType {
 	None = 0,
 	LanguageTagSettingMatch = 1 << 0,
 	RemoteMatch = 1 << 1,
-	DescriptionOrValueMatch = 1 << 2,
-	KeyMatch = 1 << 3,
-	KeyIdMatch = 1 << 4,
+	NonContiguousQueryInSettingId = 1 << 2,
+	DescriptionOrValueMatch = 1 << 3,
+	NonContiguousWordsInSettingsLabel = 1 << 4,
+	ContiguousWordsInSettingsLabel = 1 << 5,
+	ContiguousQueryInSettingId = 1 << 6,
+	AllWordsInSettingsLabel = 1 << 7,
 }
 
 export interface ISettingMatch {
