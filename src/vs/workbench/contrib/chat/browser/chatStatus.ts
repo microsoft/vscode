@@ -25,6 +25,7 @@ import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from '../../../..
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Command } from '../../../../editor/common/languages.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -45,7 +46,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -234,10 +236,16 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			const shortcut = append(shortcuts, $('div.shortcut'));
 
-			append(shortcut, $('span.shortcut-label', undefined, entry.text));
+			const shortcutLabel = append(shortcut, $('span.shortcut-label', undefined, entry.text));
 
 			const shortcutKey = disposables.add(new KeybindingLabel(shortcut, OS, { ...defaultKeybindingLabelStyles }));
 			shortcutKey.set(keys);
+
+			for (const element of [shortcutLabel, shortcutKey.element]) {
+				disposables.add(addDisposableListener(element, EventType.CLICK, e => {
+					this.commandService.executeCommand(entry.id);
+				}));
+			}
 		}
 
 		return shortcuts;
