@@ -1034,7 +1034,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const chatKind = mustExist ? ChatEditKind.Created : ChatEditKind.Modified;
 		try {
 			const notebookUri = CellUri.parse(resource)?.notebook || resource;
-			if (this._notebookService.hasSupportedNotebooks(notebookUri)) {
+			// If a notebook isn't open, then use the old synchronization approach.
+			if (this._notebookService.hasSupportedNotebooks(notebookUri) && this._notebookService.getNotebookTextModel(notebookUri)) {
 				return ChatEditingModifiedNotebookEntry.create(notebookUri, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
 			} else {
 				const ref = await this._textModelService.createModelReference(resource);
