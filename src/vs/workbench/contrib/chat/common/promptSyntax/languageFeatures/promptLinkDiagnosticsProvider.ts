@@ -25,11 +25,6 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 
 /**
- * TODO: @legomushroom - list
- *  - improve error messages
- */
-
-/**
  * TODO: @legomushroom
  */
 const MARKERS_OWNER_ID = 'reusable-prompts-syntax';
@@ -124,9 +119,8 @@ const toMarker = (
 		'Error must not be of "not prompt file" type.',
 	);
 
-	// use `error` severity if the error relates to the link itself, and use
-	// the `warning` severity if the error is related to one of its children
-	const severity = (topError.isRootError)
+	// `error` severity for the link itself, `warning` for any of its children
+	const severity = (topError.errorSubject === 'root')
 		? MarkerSeverity.Error
 		: MarkerSeverity.Warning;
 

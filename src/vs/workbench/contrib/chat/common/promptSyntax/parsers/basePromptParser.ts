@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../../../nls.js';
+import { TopError } from './topError.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -21,68 +21,10 @@ import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js'
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
-import { IErrorWithLink, IPromptFileReference, IPromptReference, IResolveError } from './types.js';
+import { IPromptFileReference, IPromptReference, IResolveError, ITopError } from './types.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
-
-/**
- * TODO: @legomushroom - list
- *
- * - fix recursive reference case:
- *   - it should not be an error, but warning
- *   - [in `brokenChild`]: fix the error message
- */
-
-/**
- * Well-known localized error messages.
- */
-const errorMessages = {
-	// TODO: @legomushroom - update localization IDs
-	recursion: localize('chatPromptInstructionsRecursiveReference', 'Recursive reference'),
-	openFailed: localize('chatPromptInstructionsFileOpenFailed', 'Cannot open'),
-	streamOpenFailed: localize('chatPromptInstructionsStreamOpenFailed', 'Cannot read'),
-
-	/**
-	 * TODO: @legomushroom - add @throws tag
-	 */
-	brokenChild: (
-		error: IErrorWithLink,
-		isDirectChild: boolean,
-		moreErrorsCount: number,
-	): string => {
-		// sanity check
-		assert(
-			moreErrorsCount >= 0,
-			`Additional errors count must be non-negative, got '${moreErrorsCount}'.`,
-		);
-
-		const subjectName = (isDirectChild)
-			? localize('chatPromptInstructionsBrokenReferenceFile', "Contains")
-			: localize(
-				'chatPromptInstructionsBrokenChildReference',
-				"Indirectly referenced file '{0}' contains",
-				basename(error.link.uri),
-			);
-
-		const linkErrorType = (error.error instanceof RecursiveReference)
-			? localize('chatPromptInstructionsBrokenReferenceFileRecursive', "recursive")
-			: localize('chatPromptInstructionsBrokenChildReferenceBroken', "broken");
-
-		const moreErrorsNote = (moreErrorsCount > 0)
-			? localize('chatPromptInstructionsBrokenReferenceSuffix', " (+{0} more warnings)", moreErrorsCount)
-			: '';
-
-		return localize(
-			'chatPromptInstructionsBrokenReference',
-			"{0} a {1} link '{2}' that will be ignored.{3}",
-			subjectName,
-			linkErrorType,
-			error.link.text,
-			moreErrorsNote,
-		);
-	},
-};
+import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ResolveError } from '../../promptFileReferenceErrors.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
@@ -206,7 +148,10 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 		if (seenReferences.includes(this.uri.path)) {
 			seenReferences.push(this.uri.path);
 
-			this._errorCondition = new RecursiveReference(this.uri, seenReferences);
+			this._errorCondition = new RecursiveReference(
+				this.uri,
+				seenReferences,
+			);
 			this._onUpdate.fire();
 			this.firstParseResult.complete();
 
@@ -455,7 +400,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	/**
 	 * TODO: @legomushroom
 	 */
-	public get errors(): readonly IErrorWithLink[] {
+	public get errors(): readonly ResolveError[] {
 		// collect error conditions of direct child references
 		const childErrors = this
 			// get immediate references
@@ -468,7 +413,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 				return errorCondition && !(errorCondition instanceof NotPromptFile);
 			})
 			// map to error condition objects
-			.map((childReference): IErrorWithLink => {
+			.map((childReference): ResolveError => {
 				const { errorCondition } = childReference;
 
 				// `must` always be `true` because of the `filter` call above
@@ -477,10 +422,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 					`Error condition must be present for '${childReference.uri.path}'.`,
 				);
 
-				return {
-					link: childReference,
-					error: errorCondition,
-				};
+				return errorCondition;
 			});
 
 		return childErrors;
@@ -490,38 +432,22 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * List of all errors that occurred while resolving the current
 	 * reference including all possible errors of nested children.
 	 */
-	// TODO: @legomushroom - refactor to use `errors()` method above
-	public get allErrors(): readonly IErrorWithLink[] {
-		const result: IErrorWithLink[] = [];
+	public get allErrors(): readonly IResolveError[] {
+		const result: IResolveError[] = [];
 
-		// collect error conditions of all child references
-		const childErrorConditions = this
-			// get entire reference tree
-			.allReferences
-			// filter out children without error conditions or
-			// the ones that are non-prompt snippet files
-			.filter((childReference) => {
-				const { errorCondition } = childReference;
+		for (const reference of this.references) {
+			const { errorCondition } = reference;
 
-				return errorCondition && !(errorCondition instanceof NotPromptFile);
-			})
-			// map to error condition objects
-			.map((childReference): IErrorWithLink => {
-				const { errorCondition } = childReference;
+			if (errorCondition && (!(errorCondition instanceof NotPromptFile))) {
+				result.push({
+					originalError: errorCondition,
+					parentUri: this.uri,
+				});
+			}
 
-				// `must` always be `true` because of the `filter` call above
-				assertDefined(
-					errorCondition,
-					`Error condition must be present for '${childReference.uri.path}'.`,
-				);
-
-				return {
-					link: childReference,
-					error: errorCondition,
-				};
-			});
-
-		result.push(...childErrorConditions);
+			// recursively collect all possible errors of its children
+			result.push(...reference.allErrors);
+		}
 
 		return result;
 	}
@@ -530,30 +456,17 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * The top most error of the current reference or any of its
 	 * possible child reference errors.
 	 */
-	public get topError(): IResolveError | undefined {
+	public get topError(): ITopError | undefined {
 		if (this.errorCondition) {
-			return {
-				localizedMessage: this.getErrorMessage(this.errorCondition),
+			return new TopError({
+				errorSubject: 'root',
+				errorsCount: 1,
 				originalError: this.errorCondition,
-				isRootError: true,
-			};
-		}
-
-		const childErrors: IErrorWithLink[] = [];
-		for (const reference of this.references) {
-			const { errorCondition } = reference;
-
-			if (!errorCondition) {
-				continue;
-			}
-
-			childErrors.push({
-				link: reference,
-				error: errorCondition,
 			});
 		}
 
-		const nestedErrors: IErrorWithLink[] = [];
+		const childErrors: ResolveError[] = [...this.errors];
+		const nestedErrors: IResolveError[] = [];
 		for (const reference of this.references) {
 			nestedErrors.push(...reference.allErrors);
 		}
@@ -562,54 +475,29 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			return undefined;
 		}
 
-		const firstChildError = childErrors[0] || nestedErrors[0];
-		const isDirectChildError = (childErrors.length > 0);
+		const firstDirectChildError = childErrors[0];
+		const firstNestedChildError = nestedErrors[0];
+		const hasDirectChildError = (firstDirectChildError !== undefined);
+
+		const firstChildError = (hasDirectChildError)
+			? {
+				originalError: firstDirectChildError,
+				parentUri: this.uri,
+			}
+			: firstNestedChildError;
+
 		const totalErrorsCount = childErrors.length + nestedErrors.length;
 
-		const localizedMessage = errorMessages
-			.brokenChild(
-				firstChildError,
-				isDirectChildError,
-				totalErrorsCount - 1,
-			);
+		const subject = (hasDirectChildError)
+			? 'child'
+			: 'indirect-child';
 
-		return {
-			localizedMessage,
-			originalError: firstChildError.error,
-			isRootError: false,
-		};
-	}
-
-	/**
-	 * Get message for the provided error condition object.
-	 *
-	 * @param error Error object that extends {@link ResolveError}.
-	 * @returns Error message.
-	 */
-	protected getErrorMessage<TError extends ResolveError>(error: TError): string {
-		if (error instanceof OpenFailed) {
-			return `${errorMessages.openFailed} '${error.uri.path}'.`;
-		}
-
-		if (error instanceof FailedToResolveContentsStream) {
-			return `${errorMessages.streamOpenFailed} '${error.uri.path}'.`;
-		}
-
-		// if a recursion, provide the entire recursion path so users
-		// can use it for the debugging purposes
-		if (error instanceof RecursiveReference) {
-			const { recursivePath } = error;
-
-			const recursivePathString = recursivePath
-				.map((path) => {
-					return basename(URI.file(path));
-				})
-				.join(' -> ');
-
-			return `${errorMessages.recursion}:\n${recursivePathString}`;
-		}
-
-		return error.message;
+		return new TopError({
+			errorSubject: subject,
+			originalError: firstChildError.originalError,
+			parentUri: firstChildError.parentUri,
+			errorsCount: totalErrorsCount,
+		});
 	}
 
 	/**
@@ -715,18 +603,6 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 	 */
 	public override toString() {
 		return `prompt-reference/${this.token}`;
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	protected override getErrorMessage(error: ResolveError): string {
-		// if failed to open a file, return appropriate message and the file path
-		if (error instanceof OpenFailed) {
-			return `${errorMessages.openFailed} '${error.uri.path}'.`;
-		}
-
-		return super.getErrorMessage(error);
 	}
 }
 
