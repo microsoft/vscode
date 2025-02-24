@@ -1013,7 +1013,7 @@ export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISe
 		return {
 			...raw,
 			version: 3,
-			customTitle: raw.computedTitle,
+			customTitle: raw.computedTitle
 		};
 	}
 
