@@ -1290,7 +1290,7 @@ export const posix: IPath = {
 
 	basename(path: string, suffix?: string): string {
 		if (suffix !== undefined) {
-			validateString(suffix, 'ext');
+			validateString(suffix, 'suffix');
 		}
 		validateString(path, 'path');
 
