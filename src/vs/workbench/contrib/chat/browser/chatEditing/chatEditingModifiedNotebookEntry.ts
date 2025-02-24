@@ -60,6 +60,7 @@ const noopKeep = () => Promise.resolve(true);
 const noopUndo = () => Promise.resolve(true);
 
 export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifiedFileEntry {
+	static NewModelCounter: number = 0;
 	private readonly modifiedModel: NotebookTextModel;
 	private readonly originalModel: NotebookTextModel;
 	override originalURI: URI;
@@ -332,7 +333,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				// & to also display undo/redo and decorations.
 				// However that needs a modified and original model.
 				// For inserted cells there's no original model, so we create a new empty text model and pass that as the original.
-				const originalModel = this._register(this.modelService.createModel('', null, URI.parse('vscode-chat:///empty')));
+				const originalModelUri = this.modifiedModel.uri.with({ query: (ChatEditingModifiedNotebookEntry.NewModelCounter++).toString(), scheme: 'emptyCell' });
+				const originalModel = this.modelService.getModel(originalModelUri) || this._register(this.modelService.createModel('', null, originalModelUri));
 				this.modifiedCellModels.set(cell.uri, modifiedModel);
 				this.modifiedToOriginalCellMap.set(cell.uri, originalModel);
 				const keep = async () => {
@@ -373,7 +375,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					const modifiedRange = new Range(1, 0, 1, 0);
 					const innerChanges = new RangeMapping(modifiedRange, originalRange);
 					const changes = [new DetailedLineRangeMapping(new LineRange(1, lines.length), new LineRange(1, 1), [innerChanges])];
-					const modifiedModel = this._register(this.modelService.createModel('', null, URI.parse(`vscode-chat:///empty${d.originalCellIndex}`)));
+					const modifiedModelUri = this.modifiedModel.uri.with({ query: (ChatEditingModifiedNotebookEntry.NewModelCounter++).toString(), scheme: 'emptyCell' });
+					const modifiedModel = this.modelService.getModel(modifiedModelUri) || this._register(this.modelService.createModel('', null, modifiedModelUri));
 					const originalModel = this.originalModel.cells[d.originalCellIndex];
 					const keep = async () => {
 						await this._applyEdits(async () => this.keepPreviouslyDeletedCell(d.originalCellIndex));
