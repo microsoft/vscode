@@ -197,6 +197,9 @@ class ImagePreview extends MediaPreview {
 	}
 
 	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string> {
+		if (resource.scheme === 'data') {
+			return decodeURIComponent(resource.toString());
+		}
 		if (resource.scheme === 'git') {
 			const stat = await vscode.workspace.fs.stat(resource);
 			if (stat.size === 0) {
