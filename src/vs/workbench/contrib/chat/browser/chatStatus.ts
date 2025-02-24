@@ -69,7 +69,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private registerListeners(): void {
 		const contextKeysSet = new Set([
-			ChatContextKeys.Setup.hidden.key,
 			ChatContextKeys.Setup.limited.key,
 			ChatContextKeys.Setup.installed.key,
 			ChatContextKeys.Setup.canSignUp.key,
@@ -83,8 +82,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			if (e.affectsSome(contextKeysSet)) {
 				this.entry.update(this.getEntryProps());
 			}
-
-			this.statusbarService.updateEntryVisibility(ChatStatusBarEntry.ID, !this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key));
 		}));
 
 		this._register(this.chatQuotasService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
@@ -254,7 +251,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			const setting = append(settings, $('div.setting'));
 
-			const checkbox = this._register(new Checkbox(entry.text, checked, defaultCheckboxStyles));
+			const checkbox = disposables.add(new Checkbox(entry.text, checked, defaultCheckboxStyles));
 			setting.appendChild(checkbox.domNode);
 
 			const settingLabel = append(setting, $('span.setting-label', undefined, entry.text));
