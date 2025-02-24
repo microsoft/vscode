@@ -120,7 +120,12 @@ declare module 'vscode' {
 
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
-		tooltip?: string | MarkdownString;
+		presentation?: 'withCodeblocks' | 'hidden' | undefined;
+	}
+
+	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+		toolResultMessage?: string | MarkdownString;
+		toolResultDetails?: Array<Uri | Location>;
 	}
 
 	// #region Chat participant detection

@@ -17,6 +17,7 @@ const allOptions = [
 	'-r',
 	'-t',
 ];
+const expectedCompletions = [{ label: 'touch', description: (touchSpec as any).description }];
 
 export const touchTestSuiteSpec: ISuiteSpec = {
 	name: 'touch',
@@ -24,11 +25,11 @@ export const touchTestSuiteSpec: ISuiteSpec = {
 	availableCommands: 'touch',
 	testSpecs: [
 		// Empty input
-		{ input: '|', expectedCompletions: ['touch'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: '|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Typing the command
-		{ input: 't|', expectedCompletions: ['touch'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: 'touch|', expectedCompletions: ['touch'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 't|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'touch|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Basic options
 		{ input: 'touch |', expectedCompletions: allOptions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },

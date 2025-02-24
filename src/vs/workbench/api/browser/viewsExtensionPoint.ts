@@ -109,8 +109,8 @@ enum InitialVisibility {
 
 const viewDescriptor: IJSONSchema = {
 	type: 'object',
-	required: ['id', 'name'],
-	defaultSnippets: [{ body: { id: '${1:id}', name: '${2:name}' } }],
+	required: ['id', 'name', 'icon'],
+	defaultSnippets: [{ body: { id: '${1:id}', name: '${2:name}', icon: '${3:icon}' } }],
 	properties: {
 		type: {
 			markdownDescription: localize('vscode.extension.contributes.view.type', "Type of the view. This can either be `tree` for a tree view based view or `webview` for a webview based view. The default is `tree`."),

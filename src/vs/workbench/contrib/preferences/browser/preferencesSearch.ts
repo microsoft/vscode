@@ -98,8 +98,16 @@ export class LocalSearchProvider implements ISearchProvider {
 		}
 
 		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
+		const useNewKeyMatchingSearch = this.configurationService.getValue('workbench.settings.useWeightedKeySearch') === true;
 		const settingMatcher = (setting: ISetting) => {
-			const { matches, matchType, keyMatchScore } = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting), this.configurationService);
+			const { matches, matchType, keyMatchScore } = new SettingMatches(
+				this._filter,
+				setting,
+				true,
+				(filter, setting) => preferencesModel.findValueMatches(filter, setting),
+				useNewKeyMatchingSearch,
+				this.configurationService
+			);
 			const score = strings.equalsIgnoreCase(this._filter, setting.key) ?
 				LocalSearchProvider.EXACT_MATCH_SCORE :
 				orderedScore--;
@@ -123,7 +131,8 @@ export class LocalSearchProvider implements ISearchProvider {
 			});
 		} else {
 			return Promise.resolve({
-				filterMatches
+				filterMatches: filterMatches,
+				exactMatch: false
 			});
 		}
 	}
@@ -138,8 +147,6 @@ export class LocalSearchProvider implements ISearchProvider {
 
 export class SettingMatches {
 	readonly matches: IRange[];
-	/** Whether to use the new key matching search algorithm that calculates more weights for each result */
-	useNewKeyMatchingSearch: boolean = false;
 	matchType: SettingMatchType = SettingMatchType.None;
 	/**
 	 * A match score for key matches to allow comparing key matches against each other.
@@ -150,12 +157,11 @@ export class SettingMatches {
 	constructor(
 		searchString: string,
 		setting: ISetting,
-		requireFullQueryMatch: boolean,
 		private searchDescription: boolean,
 		valuesMatcher: (filter: string, setting: ISetting) => IRange[],
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		private useNewKeyMatchingSearch: boolean,
+		private readonly configurationService: IConfigurationService
 	) {
-		this.useNewKeyMatchingSearch = this.configurationService.getValue('workbench.settings.useWeightedKeySearch') === true;
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
 	}
 
@@ -226,7 +232,7 @@ export class SettingMatches {
 
 		// Check if the match was for a language tag group setting such as [markdown].
 		// In such a case, move that setting to be last.
-		if (setting.overrides?.length && (this.matchType & SettingMatchType.KeyMatch)) {
+		if (setting.overrides?.length && (this.matchType !== SettingMatchType.None)) {
 			this.matchType = SettingMatchType.LanguageTagSettingMatch;
 			const keyRanges = keyMatchingWords.size ?
 				Array.from(keyMatchingWords.values()).flat() : [];
@@ -234,14 +240,14 @@ export class SettingMatches {
 		}
 
 		// New algorithm only: exit early if the key already matched.
-		if (this.useNewKeyMatchingSearch && (this.matchType & SettingMatchType.KeyMatch)) {
+		if (this.useNewKeyMatchingSearch && (this.matchType !== SettingMatchType.None)) {
 			const keyRanges = keyMatchingWords.size ?
 				Array.from(keyMatchingWords.values()).flat() : [];
 			return [...keyRanges];
 		}
 
 		// Description search
-		if (this.searchDescription && this.matchType !== SettingMatchType.None) {
+		if (this.searchDescription && this.matchType === SettingMatchType.None) {
 			for (const word of queryWords) {
 				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
@@ -430,7 +436,11 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 		const settingsRecord = this._keysProvider.getSettingsRecord();
 
 		const filterMatches: ISettingMatch[] = [];
-		const relatedInformation = await this.aiRelatedInformationService.getRelatedInformation(this._filter, [RelatedInformationType.SettingInformation], token ?? CancellationToken.None) as SettingInformationResult[];
+		const relatedInformation = await this.aiRelatedInformationService.getRelatedInformation(
+			this._filter,
+			[RelatedInformationType.SettingInformation],
+			token ?? CancellationToken.None
+		) as SettingInformationResult[];
 		relatedInformation.sort((a, b) => b.weight - a.weight);
 
 		for (const info of relatedInformation) {

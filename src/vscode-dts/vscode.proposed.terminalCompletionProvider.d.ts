@@ -19,11 +19,12 @@ declare module 'vscode' {
 		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | TerminalCompletionList<T>>;
 	}
 
+
 	export interface TerminalCompletionItem {
 		/**
 		 * The label of the completion.
 		 */
-		label: string;
+		label: string | CompletionItemLabel;
 
 		/**
 		 * The index of the start of the range to replace.
@@ -71,10 +72,14 @@ declare module 'vscode' {
 		 */
 		commandLine: string;
 		/**
-		 * The index of the
-		 * cursor in the command line.
+		 * The index of the cursor in the command line.
 		 */
 		cursorPosition: number;
+		/**
+		 * Whether completions should be provided when it is not clear to what type of completion is
+		 * well known.
+		 */
+		allowFallbackCompletions: boolean;
 	}
 
 	export namespace window {
@@ -121,6 +126,10 @@ declare module 'vscode' {
 		 * Show folders as completion items.
 		 */
 		foldersRequested?: boolean;
+		/**
+		 * File extensions to filter by.
+		 */
+		fileExtensions?: string[];
 		/**
 		 * If no cwd is provided, no resources will be shown as completions.
 		 */

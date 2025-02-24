@@ -14,7 +14,7 @@ import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, IPasteEvent } from './editorBrowser.js';
 import { Point } from './point.js';
 
 /**
@@ -233,6 +233,7 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
 	public readonly layoutInfoWidth = this.layoutInfo.map(l => l.width);
 	public readonly layoutInfoMinimap = this.layoutInfo.map(l => l.minimap);
+	public readonly layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
 
 	public readonly contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 
@@ -354,6 +355,19 @@ export class ObservableCodeEditor extends Disposable {
 	}
 
 	public readonly openedPeekWidgets = observableValue(this, 0);
+
+	isTargetHovered(predicate: (target: IEditorMouseEvent) => boolean, store: DisposableStore): IObservable<boolean> {
+		const isHovered = observableValue('isInjectedTextHovered', false);
+		store.add(this.editor.onMouseMove(e => {
+			const val = predicate(e);
+			isHovered.set(val, undefined);
+		}));
+
+		store.add(this.editor.onMouseLeave(E => {
+			isHovered.set(false, undefined);
+		}));
+		return isHovered;
+	}
 }
 
 interface IObservableOverlayWidget {

@@ -327,6 +327,7 @@ export class InlineCompletionItem {
 			insertText,
 			inlineCompletion.command,
 			inlineCompletion.shownCommand,
+			inlineCompletion.action,
 			range,
 			insertText,
 			snippetInfo,
@@ -344,7 +345,9 @@ export class InlineCompletionItem {
 	constructor(
 		readonly filterText: string,
 		readonly command: Command | undefined,
+		/** @deprecated. Use handleItemDidShow */
 		readonly shownCommand: Command | undefined,
+		readonly action: Command | undefined,
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
@@ -384,6 +387,7 @@ export class InlineCompletionItem {
 			this.filterText,
 			this.command,
 			this.shownCommand,
+			this.action,
 			updatedRange,
 			this.insertText,
 			this.snippetInfo,
@@ -400,6 +404,7 @@ export class InlineCompletionItem {
 			updatedFilterText,
 			this.command,
 			this.shownCommand,
+			this.action,
 			updatedRange,
 			updatedInsertText,
 			this.snippetInfo,

@@ -1934,6 +1934,22 @@ class EffectiveCursorStyle extends ComputedEditorOption<EditorOption.effectiveCu
 
 //#endregion
 
+//#region effectiveExperimentalEditContext
+
+class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<EditorOption.effectiveExperimentalEditContextEnabled, boolean> {
+
+	constructor() {
+		super(EditorOption.effectiveExperimentalEditContextEnabled);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
+		const editContextSupported = typeof (globalThis as any).EditContext === 'function';
+		return editContextSupported && env.accessibilitySupport !== AccessibilitySupport.Enabled && options.get(EditorOption.experimentalEditContextEnabled);
+	}
+}
+
+//#endregion
+
 //#region fontSize
 
 class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
@@ -3200,6 +3216,17 @@ export interface IEditorMinimapOptions {
 	 */
 	showMarkSectionHeaders?: boolean;
 	/**
+	 * When specified, is used to create a custom section header parser regexp.
+	 * Must contain a match group named 'label' (written as (?<label>.+)) that encapsulates the section header.
+	 * Optionally can include another match group named 'separator'.
+	 * To match multi-line headers like:
+	 *   // ==========
+	 *   // My Section
+	 *   // ==========
+	 * Use a pattern like: ^={3,}\n^\/\/ *(?<label>[^\n]*?)\n^={3,}$
+	 */
+	markSectionHeaderRegex?: string;
+	/**
 	 * Font size of section headers. Defaults to 9.
 	 */
 	sectionHeaderFontSize?: number;
@@ -3228,6 +3255,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			scale: 1,
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
+			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>\-?)\\s*(?<label>.*)$',
 			sectionHeaderFontSize: 9,
 			sectionHeaderLetterSpacing: 1,
 		};
@@ -3295,6 +3323,11 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					default: defaults.showMarkSectionHeaders,
 					description: nls.localize('minimap.showMarkSectionHeaders', "Controls whether MARK: comments are shown as section headers in the minimap.")
 				},
+				'editor.minimap.markSectionHeaderRegex': {
+					type: 'string',
+					default: defaults.markSectionHeaderRegex,
+					description: nls.localize('minimap.markSectionHeaderRegex', "Defines the regular expression used to find section headers in comments. The regex must contain a named match group `label` (written as `(?<label>.+)`) that encapsulates the section header, otherwise it will not work. Optionally you can include another match group named `separator`. Use \\n in the pattern to match multi-line headers."),
+				},
 				'editor.minimap.sectionHeaderFontSize': {
 					type: 'number',
 					default: defaults.sectionHeaderFontSize,
@@ -3314,6 +3347,17 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			return this.defaultValue;
 		}
 		const input = _input as IEditorMinimapOptions;
+
+		// Validate mark section header regex
+		let markSectionHeaderRegex = this.defaultValue.markSectionHeaderRegex;
+		const inputRegex = _input.markSectionHeaderRegex;
+		if (typeof inputRegex === 'string') {
+			try {
+				new RegExp(inputRegex, 'd');
+				markSectionHeaderRegex = inputRegex;
+			} catch { }
+		}
+
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			autohide: boolean(input.autohide, this.defaultValue.autohide),
@@ -3325,6 +3369,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
 			showRegionSectionHeaders: boolean(input.showRegionSectionHeaders, this.defaultValue.showRegionSectionHeaders),
 			showMarkSectionHeaders: boolean(input.showMarkSectionHeaders, this.defaultValue.showMarkSectionHeaders),
+			markSectionHeaderRegex: markSectionHeaderRegex,
 			sectionHeaderFontSize: EditorFloatOption.clamp(input.sectionHeaderFontSize ?? this.defaultValue.sectionHeaderFontSize, 4, 32),
 			sectionHeaderLetterSpacing: EditorFloatOption.clamp(input.sectionHeaderLetterSpacing ?? this.defaultValue.sectionHeaderLetterSpacing, 0, 5),
 		};
@@ -4215,6 +4260,8 @@ export interface IInlineSuggestOptions {
 
 		renderSideBySide?: 'never' | 'auto';
 
+		showCollapsed?: boolean;
+
 		/**
 		* @internal
 		*/
@@ -4262,6 +4309,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			syntaxHighlightingEnabled: false,
 			edits: {
 				enabled: true,
+				showCollapsed: false,
 				useMixedLinesDiff: 'forStableInsertions',
 				useInterleavedLinesDiff: 'never',
 				renderSideBySide: 'auto',
@@ -4328,6 +4376,12 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					],
 					tags: ['nextEditSuggestions']
 				},
+				'editor.inlineSuggest.edits.showCollapsed': {
+					type: 'boolean',
+					default: defaults.edits.showCollapsed,
+					description: nls.localize('inlineSuggest.edits.showCollapsed', "Controls whether the suggestion will show as collapsed until jumping to it."),
+					tags: ['nextEditSuggestions']
+				},
 				/* 'editor.inlineSuggest.edits.useMultiLineGhostText': {
 					type: 'boolean',
 					default: defaults.edits.useMultiLineGhostText,
@@ -4363,6 +4417,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 			edits: {
 				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
+				showCollapsed: boolean(input.edits?.showCollapsed, this.defaultValue.edits.showCollapsed),
 				useMixedLinesDiff: stringSet(input.edits?.useMixedLinesDiff, this.defaultValue.edits.useMixedLinesDiff, ['never', 'whenPossible', 'forStableInsertions', 'afterJumpWhenPossible']),
 				codeShifting: boolean(input.edits?.codeShifting, this.defaultValue.edits.codeShifting),
 				renderSideBySide: stringSet(input.edits?.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
@@ -5586,7 +5641,8 @@ export const enum EditorOption {
 	wrappingInfo,
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
-	inlineCompletionsAccessibilityVerbose
+	inlineCompletionsAccessibilityVerbose,
+	effectiveExperimentalEditContextEnabled
 }
 
 export const EditorOptions = {
@@ -6060,7 +6116,7 @@ export const EditorOptions = {
 	)),
 	occurrencesHighlightDelay: register(new EditorIntOption(
 		EditorOption.occurrencesHighlightDelay, 'occurrencesHighlightDelay',
-		250, 0, 2000,
+		0, 0, 2000,
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
@@ -6415,7 +6471,8 @@ export const EditorOptions = {
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
-	wrappingStrategy: register(new WrappingStrategy())
+	wrappingStrategy: register(new WrappingStrategy()),
+	effectiveExperimentalEditContextEnabled: register(new EffectiveExperimentalEditContextEnabled())
 };
 
 type EditorOptionsType = typeof EditorOptions;

@@ -2148,19 +2148,21 @@ export enum TerminalCompletionItemKind {
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
-	label: string;
+	label: string | CompletionItemLabel;
 	icon?: ThemeIcon | undefined;
 	detail?: string | undefined;
+	documentation?: string | vscode.MarkdownString | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
 	replacementIndex: number;
 	replacementLength: number;
 
-	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
 		this.label = label;
 		this.icon = icon;
 		this.detail = detail;
+		this.documentation = documentation;
 		this.isFile = isFile;
 		this.isDirectory = isDirectory;
 		this.isKeyword = isKeyword;
@@ -2200,6 +2202,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
+	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
 
@@ -4639,6 +4642,22 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 	}
 }
 
+export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebookEditPart {
+	uri: vscode.Uri;
+	edits: vscode.NotebookEdit[];
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
+		this.uri = uri;
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+
+		}
+	}
+}
+
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
@@ -4696,6 +4715,10 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 		this.data = data;
 		this.reference = reference;
 	}
+}
+
+export class ChatReferenceDiagnostic implements vscode.ChatReferenceDiagnostic {
+	constructor(public readonly diagnostics: [vscode.Uri, vscode.Diagnostic[]][]) { }
 }
 
 export enum LanguageModelChatMessageRole {
@@ -4897,6 +4920,9 @@ export class LanguageModelToolResult {
 			content: this.content,
 		};
 	}
+}
+
+export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 }
 
 export enum LanguageModelChatToolMode {

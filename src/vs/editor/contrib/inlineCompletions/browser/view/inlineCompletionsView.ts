@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheetFromObservable } from '../../../../../base/browser/domObservable.js';
+import { createStyleSheetFromObservable } from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { derived, mapObservableArrayCached, derivedDisposable, constObservable, derivedObservableWithCache, IObservable, ISettableObservable } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -39,12 +39,13 @@ export class InlineCompletionsView extends Disposable {
 		},
 		this._editorObs.getOption(EditorOption.inlineSuggest).map(v => ({ syntaxHighlightingEnabled: v.syntaxHighlightingEnabled })),
 		false,
+		false
 	)
 	).recomputeInitiallyAndOnChange(store)
 	).recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _inlineEdit = derived(this, reader => this._model.read(reader)?.inlineEditState.read(reader)?.inlineEdit);
-	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this, (reader, last) => last || !!this._inlineEdit.read(reader));
+	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this, (reader, last) => last || !!this._inlineEdit.read(reader) || !!this._model.read(reader)?.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.showInlineEditMenu);
 	protected readonly _inlineEditWidget = derivedDisposable(reader => {
 		if (!this._everHadInlineEdit.read(reader)) {
 			return undefined;

@@ -71,7 +71,6 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 2,
-		when: TerminalChatContextKeys.responseContainsCodeBlock
 	}],
 	icon: Codicon.close,
 	f1: true,

@@ -11,6 +11,10 @@ import { IRemoteExtensionsScannerService } from '../../../../platform/remote/com
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
+/**
+ * Checks and attempts to install extensions that remote server has 'relayed' to workbench.
+ * The server would 'relay' an extension for installation if it was unable to install it by itself.
+ */
 export class InstallFailedExtensions extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IRemoteExtensionsScannerService remoteExtensionsScannerService: IRemoteExtensionsScannerService,
@@ -19,10 +23,11 @@ export class InstallFailedExtensions extends Disposable implements IWorkbenchCon
 		@ILogService logService: ILogService
 	) {
 		super();
+		logService.info('Checking for extensions relayed from server');
 		remoteExtensionsScannerService.whenExtensionsReady()
 			.then(async ({ failed }) => {
 				if (failed.length === 0) {
-					logService.trace('No failed extensions relayed from server');
+					logService.trace('No extensions relayed from server');
 					return;
 				}
 
@@ -31,6 +36,7 @@ export class InstallFailedExtensions extends Disposable implements IWorkbenchCon
 					return;
 				}
 
+				logService.trace(`Retrieved gallery information for '${failed.length}' extensions relayed from server`);
 				const extensionManagementService = this._extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService;
 				const galleryExtensions = await this._extensionGalleryService.getExtensions(failed, CancellationToken.None);
 				// Join back with its installOptions
@@ -41,8 +47,15 @@ export class InstallFailedExtensions extends Disposable implements IWorkbenchCon
 					};
 				});
 
-				await extensionManagementService.installGalleryExtensions(installExtensionInfo);
+				logService.trace(`Retrieved gallery information for '${installExtensionInfo.length}' extensions relayed from server`);
+				const settled = await Promise.allSettled(
+					installExtensionInfo.map(info => extensionManagementService.installFromGallery(info.extension, info.options))
+				);
+
+				const installedCount = settled.filter(result => result.status === 'fulfilled').length;
+				logService.info(`Installed '${installedCount}' of '${failed.length}' extensions relayed from server`);
 			}).catch(e => {
+				logService.error('Unexpected failure installing extensions relayed from server');
 				logService.error(e);
 			});
 	}

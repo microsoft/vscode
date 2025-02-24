@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Promises } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -50,12 +51,11 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
+	private readonly _contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 
 	constructor(
 		private readonly variables: IChatRequestVariableEntry[],
 		private readonly contentReferences: ReadonlyArray<IChatContentReference> = [],
-		private readonly workingSet: ReadonlyArray<URI> = [],
 		public readonly domNode: HTMLElement | undefined = dom.$('.chat-attached-context'),
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -64,7 +64,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IThemeService private readonly themeService: IThemeService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 
@@ -83,16 +83,12 @@ export class ChatAttachmentsContentPart extends Disposable {
 		this.variables.forEach(async (attachment) => {
 			let resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			let range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
-			if (resource && attachment.isFile && this.workingSet.find(entry => entry.toString() === resource?.toString())) {
-				// Don't render attachment if it's in the working set
-				return;
-			}
 
 			const widget = dom.append(container, dom.$('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverride: widget });
 			this.attachedContextDisposables.add(label);
 
-			const correspondingContentReference = this.contentReferences.find((ref) => typeof ref.reference === 'object' && 'variableName' in ref.reference && ref.reference.variableName === attachment.name);
+			const correspondingContentReference = this.contentReferences.find((ref) => (typeof ref.reference === 'object' && 'variableName' in ref.reference && ref.reference.variableName === attachment.name) || (URI.isUri(ref.reference) && basename(ref.reference.path) === attachment.name));
 			const isAttachmentOmitted = correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted;
 			const isAttachmentPartialOrOmitted = isAttachmentOmitted || correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial;
 
@@ -111,19 +107,23 @@ export class ChatAttachmentsContentPart extends Disposable {
 					ariaLabel = range ? localize('chat.fileAttachmentWithRange3', "Attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment3', "Attached: {0}.", friendlyName);
 				}
 
-				const fileOptions = {
-					hidePath: true,
-					title: correspondingContentReference?.options?.status?.description
-				};
-				label.setFile(resource, attachment.isFile ? {
-					...fileOptions,
-					fileKind: FileKind.FILE,
-					range,
-				} : {
-					...fileOptions,
-					fileKind: FileKind.FOLDER,
-					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
-				});
+				if (attachment.isOmitted) {
+					this.customAttachment(widget, friendlyName, hoverDelegate, ariaLabel, isAttachmentOmitted);
+				} else {
+					const fileOptions = {
+						hidePath: true,
+						title: correspondingContentReference?.options?.status?.description
+					};
+					label.setFile(resource, attachment.isFile ? {
+						...fileOptions,
+						fileKind: FileKind.FILE,
+						range,
+					} : {
+						...fileOptions,
+						fileKind: FileKind.FOLDER,
+						icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
+					});
+				}
 
 				this.instantiationService.invokeFunction(accessor => {
 					if (resource) {
@@ -132,14 +132,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 				});
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
-				const hoverElement = dom.$('div.chat-attached-context-hover');
-				hoverElement.setAttribute('aria-label', ariaLabel);
 
-				// Custom label
-				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(isAttachmentOmitted ? 'span.codicon.codicon-warning' : 'span.codicon.codicon-file-media'));
-				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
-				widget.appendChild(pillIcon);
-				widget.appendChild(textLabel);
+				const hoverElement = this.customAttachment(widget, attachment.name, hoverDelegate, ariaLabel, isAttachmentOmitted, attachment.isImage);
 
 				if (attachment.references) {
 					widget.style.cursor = 'pointer';
@@ -151,11 +145,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'click', clickHandler));
 				}
 
-				if (isAttachmentPartialOrOmitted) {
-					hoverElement.textContent = localize('chat.imageAttachmentHover', "Selected model does not support images.");
-					textLabel.style.textDecoration = 'line-through';
-					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
-				} else {
+				if (!isAttachmentPartialOrOmitted) {
 					attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
 						let buffer: Uint8Array;
 						try {
@@ -263,6 +253,24 @@ export class ChatAttachmentsContentPart extends Disposable {
 		});
 	}
 
+	private customAttachment(widget: HTMLElement, friendlyName: string, hoverDelegate: IHoverDelegate, ariaLabel: string, isAttachmentOmitted: boolean, isImage?: boolean): HTMLElement {
+		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(isAttachmentOmitted ? 'span.codicon.codicon-warning' : 'span.codicon.codicon-file-media'));
+		const textLabel = dom.$('span.chat-attached-context-custom-text', {}, friendlyName);
+		widget.appendChild(pillIcon);
+		widget.appendChild(textLabel);
+
+		const hoverElement = dom.$('div.chat-attached-context-hover');
+		hoverElement.setAttribute('aria-label', ariaLabel);
+
+		if (isAttachmentOmitted) {
+			widget.classList.add('warning');
+			hoverElement.textContent = localize('chat.fileAttachmentHover', "Selected model does not support this {0} type.", isImage ? 'image' : 'file');
+			this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
+		}
+
+		return hoverElement;
+	}
+
 	private openResource(resource: URI, isDirectory: true): void;
 	private openResource(resource: URI, isDirectory: false, range: IRange | undefined): void;
 	private openResource(resource: URI, isDirectory?: boolean, range?: IRange): void {
@@ -296,6 +304,20 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 		// Update hover image
 		hoverElement.appendChild(img);
+
+		img.onload = () => {
+			URL.revokeObjectURL(url);
+		};
+
+		img.onerror = () => {
+			// reset to original icon on error or invalid image
+			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
+			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
+			const existingPill = widget.querySelector('.chat-attached-context-pill');
+			if (existingPill) {
+				existingPill.replaceWith(pill);
+			}
+		};
 	}
 }
 
