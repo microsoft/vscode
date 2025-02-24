@@ -25,16 +25,16 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 
 /**
- * TODO: @legomushroom
+ * Unique ID of the markers provider class.
  */
 const MARKERS_OWNER_ID = 'reusable-prompts-syntax';
 
 /**
- * TODO: @legomushroom
+ * Prompt links diagnostics provider for a single text model.
  */
 class PromptLinkDiagnosticsProvider extends ObservableDisposable {
 	/**
-	 * TODO: @legomushroom
+	 * Reference to the current prompt syntax parser instance.
 	 */
 	private readonly parser: TextModelPromptParser;
 
@@ -56,7 +56,7 @@ class PromptLinkDiagnosticsProvider extends ObservableDisposable {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Update diagnostic markers for the current editor.
 	 */
 	private async updateMarkers() {
 		// ensure that parsing process is settled
@@ -94,9 +94,14 @@ class PromptLinkDiagnosticsProvider extends ObservableDisposable {
 }
 
 /**
- * TODO: @legomushroom
+ * Convert a prompt link with an issue to a marker data.
+ *
+ * @throws
+ *  - if there is no link issue (e.g., `topError` undefined)
+ *  - if there is no link range to highlight (e.g., `linkRange` undefined)
+ *  - if the original error is of `NotPromptFile` type - we don't want to
+ *    show diagnostic markers for non-prompt file links in the prompts
  */
-// TODO: @legomushroom - add @throws info
 const toMarker = (
 	link: IPromptFileReference,
 ): IMarkerData => {
@@ -132,11 +137,12 @@ const toMarker = (
 };
 
 /**
- * TODO: @legomushroom
+ * The class that manages creation and disposal of {@link PromptLinkDiagnosticsProvider}
+ * classes for each specific editor text model.
  */
-export class PromptsLinkDiagnosticsProvider extends Disposable {
+export class PromptLinkDiagnosticsInstanceManager extends Disposable {
 	/**
-	 * TODO: @legomushroom
+	 * Currently available {@link PromptLinkDiagnosticsProvider} instances.
 	 */
 	private readonly providers: ObjectCache<PromptLinkDiagnosticsProvider, ITextModel>;
 
@@ -187,7 +193,7 @@ export class PromptsLinkDiagnosticsProvider extends Disposable {
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Initialize a new {@link PromptLinkDiagnosticsProvider} for the given editor.
 	 */
 	private handleNewEditor(editor: IEditor): this {
 		const model = editor.getModel();
@@ -215,4 +221,4 @@ export class PromptsLinkDiagnosticsProvider extends Disposable {
 
 // register the provider as a workbench contribution
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
-	.registerWorkbenchContribution(PromptsLinkDiagnosticsProvider, LifecyclePhase.Eventually);
+	.registerWorkbenchContribution(PromptLinkDiagnosticsInstanceManager, LifecyclePhase.Eventually);
