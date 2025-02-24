@@ -162,14 +162,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					this._promptInputModel = commandDetection.promptInputModel;
 					this._promptInputModelSubscriptions.value = combinedDisposable(
 						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
-						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget(true)),
+						this._promptInputModel.onDidFinishInput(() => {
+							this._mostRecentPromptInputState = undefined;
+							this.hideSuggestWidget(true);
+						}),
 					);
 					if (this._shouldSyncWhenReady) {
 						this._sync(this._promptInputModel);
 						this._shouldSyncWhenReady = false;
 					}
 				}
-				this._register(commandDetection.onCommandExecuted(() => this.hideSuggestWidget(true)));
 			} else {
 				this._promptInputModel = undefined;
 			}
