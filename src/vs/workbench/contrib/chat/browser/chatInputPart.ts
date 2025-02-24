@@ -579,7 +579,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					try {
 						const buffer = await this.fileService.readFile(attachment.references[0].reference);
 						const newAttachment = { ...attachment };
-						newAttachment.value = await resizeImage(buffer.value.buffer);
+						newAttachment.value = attachment.name.includes('Pasted') ? buffer.value.buffer : await resizeImage(buffer.value.buffer); // if pasted image, we do not need to resize.
 						return newAttachment;
 					} catch (error) {
 						this.logService.error('Failed to restore image from history', error);

@@ -33,6 +33,7 @@ interface SerializedCopyData {
 }
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
+	private readonly imagesFolder: URI;
 
 	public readonly kind = new HierarchicalKind('chat.attach.image');
 	public readonly providedPasteEditKinds = [this.kind];
@@ -45,7 +46,10 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		private readonly extensionService: IExtensionService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-	) { }
+	) {
+		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
+		this.cleanupOldImages();
+	}
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
 		if (!this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
@@ -125,20 +129,51 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		dataTransfer: Uint8Array,
 		mimeType: string,
 	): Promise<URI | undefined> {
-		const imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
-		const exists = await this.fileService.exists(imagesFolder);
+		const exists = await this.fileService.exists(this.imagesFolder);
 		if (!exists) {
-			await this.fileService.createFolder(imagesFolder);
+			await this.fileService.createFolder(this.imagesFolder);
 		}
 
 		const ext = mimeType.split('/')[1] || 'png';
 		const filename = `image-${Date.now()}.${ext}`;
-		const fileUri = joinPath(imagesFolder, filename);
+		const fileUri = joinPath(this.imagesFolder, filename);
 
 		const buffer = VSBuffer.wrap(dataTransfer);
 		await this.fileService.writeFile(fileUri, buffer);
 
 		return fileUri;
+	}
+
+	private async cleanupOldImages(): Promise<void> {
+		const exists = await this.fileService.exists(this.imagesFolder);
+		if (!exists) {
+			return;
+		}
+
+		const duration = 7 * 24 * 60 * 60 * 1000; // 7 days
+		const files = await this.fileService.resolve(this.imagesFolder);
+		if (!files.children) {
+			return;
+		}
+
+		await Promise.all(files.children.map(async (file) => {
+			try {
+				const timestamp = this.getTimestampFromFilename(file.name);
+				if (timestamp && (Date.now() - timestamp > duration)) {
+					await this.fileService.del(file.resource);
+				}
+			} catch (err) {
+				console.error(`Failed to cleanup image ${file.name}:`, err);
+			}
+		}));
+	}
+
+	private getTimestampFromFilename(filename: string): number | undefined {
+		const match = filename.match(/image-(\d+)\./);
+		if (match) {
+			return parseInt(match[1], 10);
+		}
+		return undefined;
 	}
 }
 
