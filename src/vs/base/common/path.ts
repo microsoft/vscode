@@ -1199,22 +1199,21 @@ export const posix: IPath = {
 		if (paths.length === 0) {
 			return '.';
 		}
-		let joined;
+
+		const path = [];
 		for (let i = 0; i < paths.length; ++i) {
 			const arg = paths[i];
 			validateString(arg, 'path');
 			if (arg.length > 0) {
-				if (joined === undefined) {
-					joined = arg;
-				} else {
-					joined += `/${arg}`;
-				}
+				path.push(arg);
 			}
 		}
-		if (joined === undefined) {
+
+		if (path.length === 0) {
 			return '.';
 		}
-		return posix.normalize(joined);
+
+		return posix.normalize(path.join('/'));
 	},
 
 	relative(from: string, to: string): string {
