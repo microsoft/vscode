@@ -40,7 +40,7 @@ const messaging = createPosterForVsCode(vscode, settings);
 
 window.cspAlerter.setPoster(messaging);
 window.styleLoadingMonitor.setPoster(messaging);
-
+window.codeBlockManager.setPoster(messaging);
 
 function doAfterImagesLoaded(cb: () => void) {
 	const imgElements = document.getElementsByTagName('img');
@@ -73,6 +73,7 @@ onceDocumentLoaded(() => {
 	// Restore
 	const scrollProgress = state.scrollProgress;
 	addImageContexts();
+	window.codeBlockManager.initializeCodeBlocks();
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount += 1;
@@ -302,6 +303,7 @@ window.addEventListener('message', async event => {
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			addImageContexts();
+			window.codeBlockManager.initializeCodeBlocks();
 			break;
 		}
 	}
@@ -382,4 +384,6 @@ function updateScrollProgress() {
 	state.scrollProgress = window.scrollY / document.body.clientHeight;
 	vscode.setState(state);
 }
+
+
 
