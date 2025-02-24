@@ -574,11 +574,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Check for images in history to restore the value.
 		if (historyAttachments.length > 0) {
 			historyAttachments = await Promise.all(historyAttachments.map(async (attachment) => {
-				if (attachment.isImage && attachment.references?.length) {
+				if (attachment.isImage && attachment.references?.length && URI.isUri(attachment.references[0].reference)) {
 					try {
-						const reference = attachment.references[0].reference;
-						const uri = URI.isUri(reference) ? reference : URI.parse(reference.toString());
-						const buffer = await this.fileService.readFile(uri);
+						const buffer = await this.fileService.readFile(attachment.references[0].reference);
 						const newAttachment = { ...attachment };
 						newAttachment.value = buffer.value.buffer;
 						return newAttachment;
@@ -673,7 +671,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				newAttachment.value = undefined;
 				return newAttachment;
 			}
-
 			return attachment;
 		});
 
