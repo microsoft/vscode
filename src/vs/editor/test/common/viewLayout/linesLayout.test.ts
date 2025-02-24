@@ -208,7 +208,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		// Insert two lines at the beginning
 		// 10 lines
 		// whitespace: - a(6,10)
-		linesLayout.onLinesInserted(1, 2);
+		linesLayout.onLinesInserted(1, 2, 1);
 		assert.strictEqual(linesLayout.getLinesTotalHeight(), 20);
 		assert.strictEqual(linesLayout.getVerticalOffsetForLineNumber(1), 0);
 		assert.strictEqual(linesLayout.getVerticalOffsetForLineNumber(2), 1);
@@ -909,7 +909,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.strictEqual(linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(5), 50);
 
 		// Insert a line before line 1
-		linesLayout.onLinesInserted(1, 1);
+		linesLayout.onLinesInserted(1, 1, 1);
 		// whitespaces: d(3, 30), c(4, 20)
 		assert.strictEqual(linesLayout.getWhitespacesCount(), 2);
 		assert.strictEqual(linesLayout.getAfterLineNumberForWhitespaceIndex(0), 3);

@@ -630,9 +630,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}
 		this._endLineNumbers = endLineNumbers;
-		console.log('startLineNumbers : ', startLineNumbers);
-		console.log('endLineNumbers : ', endLineNumbers);
-		console.log('lastLineRelativePosition : ', lastLineRelativePosition);
 		return new StickyScrollWidgetState(startLineNumbers, endLineNumbers, lastLineRelativePosition, this._showEndForLine);
 	}
 

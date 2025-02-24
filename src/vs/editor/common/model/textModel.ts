@@ -1436,6 +1436,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean): void | model.IValidEditOperation[] {
+		console.log('_doApplyEdits');
 
 		const oldLineCount = this._buffer.getLineCount();
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
@@ -1512,6 +1513,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				if (editingLinesCnt < insertingLinesCnt) {
 					const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 					// Must insert some lines
+					console.log('startLineNumber', startLineNumber);
+					console.log('editingLinesCnt', editingLinesCnt);
+					console.log('insertingLinesCnt : ', insertingLinesCnt);
 					const spliceLineNumber = startLineNumber + editingLinesCnt;
 					const cnt = insertingLinesCnt - editingLinesCnt;
 					const fromLineNumber = newLineCount - lineCount - cnt + spliceLineNumber + 1;
@@ -1529,6 +1533,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
 							startLineNumber + insertingLinesCnt,
+							startLineNumber,
 							newLines,
 							injectedTexts
 						)

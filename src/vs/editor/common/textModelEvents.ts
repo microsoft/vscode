@@ -298,6 +298,10 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly toLineNumber: number;
 	/**
+	 * The line number where the insertion started
+	 */
+	public readonly startLineNumber: number;
+	/**
 	 * The text that was inserted
 	 */
 	public readonly detail: string[];
@@ -306,10 +310,11 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly injectedTexts: (LineInjectedText[] | null)[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
+	constructor(fromLineNumber: number, toLineNumber: number, startLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
 		this.injectedTexts = injectedTexts;
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
+		this.startLineNumber = startLineNumber;
 		this.detail = detail;
 	}
 }

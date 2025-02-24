@@ -242,8 +242,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
 		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
 	}
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
-		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number, startLineNumber: number): void {
+		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber, startLineNumber);
 	}
 
 	// ---- end view event handlers
