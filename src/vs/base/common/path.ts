@@ -427,6 +427,23 @@ export const win32: IPath = {
 		if (tail.length > 0 && isPathSeparator(path.charCodeAt(len - 1))) {
 			tail += '\\';
 		}
+		if (!isAbsolute && device === undefined && path.includes(':')) {
+			// If the original path was not absolute and if we have not been able to
+			// resolve it relative to a particular device, we need to ensure that the
+			// `tail` has not become something that Windows might interpret as an
+			// absolute path. See CVE-2024-36139.
+			if (tail.length >= 2 &&
+				isWindowsDeviceRoot(tail.charCodeAt(0)) &&
+				tail.charCodeAt(1) === CHAR_COLON) {
+				return `.\\${tail}`;
+			}
+			let index = path.indexOf(':');
+			do {
+				if (index === len - 1 || isPathSeparator(path.charCodeAt(index + 1))) {
+					return `.\\${tail}`;
+				}
+			} while ((index = path.indexOf(':', index + 1)) !== -1);
+		}
 		if (device === undefined) {
 			return isAbsolute ? `\\${tail}` : tail;
 		}
