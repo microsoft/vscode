@@ -135,7 +135,6 @@ export interface TimelineRequest {
 	readonly source: string;
 	readonly tokenSource: CancellationTokenSource;
 	readonly uri: URI;
-	readonly disposables: DisposableStore;
 }
 
 export interface ITimelineService {
