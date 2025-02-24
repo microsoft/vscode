@@ -535,12 +535,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.container;
 	}
 
-	showPreviousValue(): void {
+	async showPreviousValue(): Promise<void> {
 		const inputState = this.getInputState();
 		if (this.history.isAtEnd()) {
 			this.saveCurrentValue(inputState);
 		} else {
-			if (!this.history.has({ text: this._inputEditor.getValue(), state: inputState })) {
+			const currentEntry = this.getFilteredEntry(this._inputEditor.getValue(), inputState);
+			if (!this.history.has(currentEntry)) {
 				this.saveCurrentValue(inputState);
 				this.history.resetCursor();
 			}
@@ -549,12 +550,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.navigateHistory(true);
 	}
 
-	showNextValue(): void {
+	async showNextValue(): Promise<void> {
 		const inputState = this.getInputState();
 		if (this.history.isAtEnd()) {
 			return;
 		} else {
-			if (!this.history.has({ text: this._inputEditor.getValue(), state: inputState })) {
+			const currentEntry = this.getFilteredEntry(this._inputEditor.getValue(), inputState);
+			if (!this.history.has(currentEntry)) {
 				this.saveCurrentValue(inputState);
 				this.history.resetCursor();
 			}
@@ -563,11 +565,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.navigateHistory(false);
 	}
 
-	private navigateHistory(previous: boolean): void {
+	private async navigateHistory(previous: boolean): Promise<void> {
 		const historyEntry = previous ?
 			this.history.previous() : this.history.next();
 
-		const historyAttachments = historyEntry.state?.chatContextAttachments ?? [];
+		let historyAttachments = historyEntry.state?.chatContextAttachments ?? [];
+
+		// Check for images in history to restore the value.
+		if (historyAttachments.length > 0) {
+			historyAttachments = await Promise.all(historyAttachments.map(async (attachment) => {
+				if (attachment.isImage && attachment.references?.length) {
+					try {
+						const reference = attachment.references[0].reference;
+						const uri = URI.isUri(reference) ? reference : URI.parse(reference.toString());
+						const buffer = await this.fileService.readFile(uri);
+						const newAttachment = { ...attachment };
+						newAttachment.value = buffer.value.buffer;
+						return newAttachment;
+					} catch (error) {
+						this.logService.error('Failed to restore image from history', error);
+					}
+				}
+				return attachment;
+			}));
+		}
+
 		this._attachmentModel.clearAndSetContext(...historyAttachments);
 
 		aria.status(historyEntry.text);
@@ -607,8 +629,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private saveCurrentValue(inputState: IChatInputState): void {
-		inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
-		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
+		const newEntry = this.getFilteredEntry(this._inputEditor.getValue(), inputState);
 		this.history.replaceLast(newEntry);
 	}
 
@@ -628,8 +649,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isUserQuery) {
 			const userQuery = this._inputEditor.getValue();
 			const inputState = this.getInputState();
-			inputState.chatContextAttachments = inputState.chatContextAttachments?.filter(attachment => !attachment.isImage);
-			const entry: IChatHistoryEntry = { text: userQuery, state: inputState };
+			const entry = this.getFilteredEntry(userQuery, inputState);
 			this.history.replaceLast(entry);
 			this.history.add({ text: '' });
 		}
@@ -643,6 +663,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._inputEditor.focus();
 			this._inputEditor.setValue('');
 		}
+	}
+
+	// A funtion that filters out specifically the `value` property of the attachment.
+	private getFilteredEntry(query: string, inputState: IChatInputState): IChatHistoryEntry {
+		const attachmentsWithoutImageValues = inputState.chatContextAttachments?.map(attachment => {
+			if (attachment.isImage && attachment.references?.length && attachment.value) {
+				const newAttachment = { ...attachment };
+				newAttachment.value = undefined;
+				return newAttachment;
+			}
+
+			return attachment;
+		});
+
+		inputState.chatContextAttachments = attachmentsWithoutImageValues;
+		const newEntry = {
+			text: query,
+			state: inputState,
+		};
+
+		return newEntry;
 	}
 
 	private _acceptInputForVoiceover(): void {
