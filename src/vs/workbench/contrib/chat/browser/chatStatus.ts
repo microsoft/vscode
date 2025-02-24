@@ -140,8 +140,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 				container.appendChild($('div', undefined, localize('limitTitle', "You are currently using Copilot Free:")));
 
-				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chat Messages"));
-				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code Completions"));
+				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats Used"));
+				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Completions Used"));
 
 				this.chatEntitlementsService.resolve(CancellationToken.None).then(() => {
 					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
@@ -150,7 +150,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 					completionsQuotaIndicator(completionsTotal, completionsRemaining);
 				});
 
-				container.appendChild($('div', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
+				container.appendChild($('div', undefined, localize('limitQuota', "Usage will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
 
 				// Settings
 				container.appendChild(document.createElement('hr'));
@@ -209,8 +209,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		const update = (total: number | undefined, remaining: number | undefined) => {
 			if (typeof total === 'number' && typeof remaining === 'number') {
-				quotaText.textContent = localize('quotaDisplay', "{0} / {1}", remaining, total);
-				quotaBit.style.width = `${(remaining / total) * 100}%`;
+				quotaText.textContent = localize('quotaDisplay', "{0} / {1}", total - remaining, total);
+				quotaBit.style.width = `${((total - remaining) / total) * 100}%`;
 			}
 		};
 
