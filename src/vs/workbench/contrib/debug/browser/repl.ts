@@ -173,9 +173,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
-			if (this.isVisible()) {
-				this.onDidFocusSession(session);
-			}
+			this.onDidFocusSession(session);
 		}));
 		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable && this.tree?.hasNode(e)) {
@@ -213,8 +211,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			const focusedSession = this.debugService.getViewModel().focusedSession;
 			if (this.tree && this.tree.getInput() !== focusedSession) {
 				this.onDidFocusSession(focusedSession);
-			} else {
-				this.selectSession();
 			}
 
 			this.setMode();
