@@ -1136,9 +1136,8 @@ export const posix: IPath = {
 		let resolvedPath = '';
 		let resolvedAbsolute = false;
 
-		for (let i = pathSegments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
-			const path = i >= 0 ? pathSegments[i] : posixCwd();
-
+		for (let i = pathSegments.length - 1; i >= 0 && !resolvedAbsolute; i--) {
+			const path = pathSegments[i];
 			validateString(path, `paths[${i}]`);
 
 			// Skip empty entries
@@ -1148,6 +1147,13 @@ export const posix: IPath = {
 
 			resolvedPath = `${path}/${resolvedPath}`;
 			resolvedAbsolute = path.charCodeAt(0) === CHAR_FORWARD_SLASH;
+		}
+
+		if (!resolvedAbsolute) {
+			const cwd = posixCwd();
+			resolvedPath = `${cwd}/${resolvedPath}`;
+			resolvedAbsolute =
+				cwd.charCodeAt(0) === CHAR_FORWARD_SLASH;
 		}
 
 		// At this point the path should be resolved to a full absolute path, but
