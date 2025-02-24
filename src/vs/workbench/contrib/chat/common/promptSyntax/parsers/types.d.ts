@@ -11,37 +11,41 @@ import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 /**
  * TODO: @legomushroom
  */
-export interface IErrorWithLink {
+export interface IResolveError {
 	/**
-	 * TODO: @legomushroom
+	 * Original error instance.
 	 */
-	readonly error: ResolveError;
+	readonly originalError: ResolveError;
 
 	/**
-	 * TODO: @legomushroom
+	 * URI of the parent that references this error.
 	 */
-	readonly link: IPromptReference;
+	readonly parentUri?: URI;
 }
 
 /**
- * Interface for a resolve error.
+ * Top most error of the reference tree.
  */
-export interface IResolveError {
+export interface ITopError extends IResolveError {
+	/**
+	 * Where does the error belong to:
+	 *
+	 *  - `root` - the error is the top most error of the entire tree
+	 *  - `child` - the error is a child of the root error
+	 *  - `indirect-child` - the error is a child of a child of the root error
+	 */
+	readonly errorSubject: 'root' | 'child' | 'indirect-child';
+
+	/**
+	 * Total number of all errors in the references tree, including the error
+	 * of the current reference and all possible errors of its children.
+	 */
+	readonly errorsCount: number;
+
 	/**
 	 * Localized error message.
 	 */
-	localizedMessage: string;
-
-	/**
-	 * Original error object.
-	 */
-	originalError: ResolveError;
-
-	/**
-	 * Whether this error is for the root reference
-	 * object, or for one of its possible children.
-	 */
-	isRootError: boolean;
+	readonly localizedMessage: string;
 }
 
 /**
@@ -110,19 +114,19 @@ export interface IPromptReference extends IDisposable {
 	/**
 	 * TODO: @legomushroom
 	 */
-	readonly errors: readonly IErrorWithLink[];
+	readonly errors: readonly ResolveError[];
 
 	/**
 	 * List of all errors that occurred while resolving the current
 	 * reference including all possible errors of nested children.
 	 */
-	readonly allErrors: readonly IErrorWithLink[];
+	readonly allErrors: readonly IResolveError[];
 
 	/**
 	 * The top most error of the current reference or any of its
 	 * possible child reference errors.
 	 */
-	readonly topError: IResolveError | undefined;
+	readonly topError: ITopError | undefined;
 
 	/**
 	 * Direct references of the current reference.
