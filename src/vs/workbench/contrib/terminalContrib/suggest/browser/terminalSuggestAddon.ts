@@ -169,6 +169,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						this._shouldSyncWhenReady = false;
 					}
 				}
+				this._register(commandDetection.onCommandExecuted(() => this.hideSuggestWidget(true)));
 			} else {
 				this._promptInputModel = undefined;
 			}
