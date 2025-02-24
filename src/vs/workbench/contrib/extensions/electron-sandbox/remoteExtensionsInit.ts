@@ -59,14 +59,19 @@ export class InstallFailedRemoteExtensionsContribution implements IWorkbenchCont
 		for (const { id, installOptions } of failed) {
 			const extension = galleryExtensions.find(e => areSameExtensions(e.identifier, { id }));
 			if (extension) {
-				installExtensionInfo.push({ extension, options: installOptions });
+				installExtensionInfo.push({
+					extension, options: {
+						...installOptions,
+						downloadExtensionsLocally: true,
+					}
+				});
 			} else {
 				this.logService.warn(`Relayed failed extension '${id}' from server is not found in the gallery`);
 			}
 		}
 
 		if (installExtensionInfo.length) {
-			await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installGalleryExtensions(installExtensionInfo);
+			await Promise.allSettled(installExtensionInfo.map(e => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(e.extension, e.options)));
 		}
 	}
 }
