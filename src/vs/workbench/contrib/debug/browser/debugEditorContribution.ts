@@ -75,14 +75,44 @@ class InlineSegment {
 }
 
 export function formatHoverContent(contentText: string): MarkdownString {
-	if (contentText.includes('\n') || contentText.includes('\r')) {
-		// Split by commas in case of multiple variables
-		const pairs = contentText.split(/,\s*/);
+	if (contentText.includes(',') && contentText.includes('=')) {
+		// Custom split: for each equals sign after the first, backtrack to the nearest comma
+		const customSplit = (text: string): string[] => {
+			const splits: number[] = [];
+			let equalsFound = 0;
+			let start = 0;
+			for (let i = 0; i < text.length; i++) {
+				if (text[i] === '=') {
+					if (equalsFound === 0) {
+						equalsFound++;
+						continue;
+					}
+					const commaIndex = text.lastIndexOf(',', i);
+					if (commaIndex !== -1 && commaIndex >= start) {
+						splits.push(commaIndex);
+						start = commaIndex + 1;
+					}
+					equalsFound++;
+				}
+			}
+			const result: string[] = [];
+			let s = 0;
+			for (const index of splits) {
+				result.push(text.substring(s, index).trim());
+				s = index + 1;
+			}
+			if (s < text.length) {
+				result.push(text.substring(s).trim());
+			}
+			return result;
+		};
+
+		const pairs = customSplit(contentText);
 		const formattedPairs = pairs.map(pair => {
 			const equalsIndex = pair.indexOf('=');
 			if (equalsIndex !== -1) {
 				const indent = ' '.repeat(equalsIndex + 2);
-				const [firstLine, ...restLines] = pair.trim().split(/\r?\n/);
+				const [firstLine, ...restLines] = pair.split(/\r?\n/);
 				return [firstLine, ...restLines.map(line => indent + line)].join('\n');
 			}
 			return pair;
