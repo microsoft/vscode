@@ -1147,7 +1147,7 @@ export const posix: IPath = {
 			}
 
 			resolvedPath = `${path}/${resolvedPath}`;
-			resolvedAbsolute = path.charCodeAt(0) === CHAR_FORWARD_SLASH;
+			resolvedAbsolute = path[0] === '/';
 		}
 
 		// At this point the path should be resolved to a full absolute path, but
@@ -1170,9 +1170,8 @@ export const posix: IPath = {
 			return '.';
 		}
 
-		const isAbsolute = path.charCodeAt(0) === CHAR_FORWARD_SLASH;
-		const trailingSeparator =
-			path.charCodeAt(path.length - 1) === CHAR_FORWARD_SLASH;
+		const isAbsolute = path[0] === '/';
+		const trailingSeparator = path[path.length - 1] === '/';
 
 		// Normalize the path
 		path = normalizeString(path, !isAbsolute, '/', isPosixPathSeparator);
@@ -1199,22 +1198,21 @@ export const posix: IPath = {
 		if (paths.length === 0) {
 			return '.';
 		}
-		let joined;
+
+		const path = [];
 		for (let i = 0; i < paths.length; ++i) {
 			const arg = paths[i];
 			validateString(arg, 'path');
 			if (arg.length > 0) {
-				if (joined === undefined) {
-					joined = arg;
-				} else {
-					joined += `/${arg}`;
-				}
+				path.push(arg);
 			}
 		}
-		if (joined === undefined) {
+
+		if (path.length === 0) {
 			return '.';
 		}
-		return posix.normalize(joined);
+
+		return posix.normalize(path.join('/'));
 	},
 
 	relative(from: string, to: string): string {
@@ -1487,8 +1485,8 @@ export const posix: IPath = {
 
 		// Get non-dir info
 		for (; i >= start; --i) {
-			const code = path.charCodeAt(i);
-			if (code === CHAR_FORWARD_SLASH) {
+			const char = path[i];
+			if (char === '/') {
 				// If we reached a path separator that was not part of a set of path
 				// separators at the end of the string, stop now
 				if (!matchedSlash) {
@@ -1503,7 +1501,7 @@ export const posix: IPath = {
 				matchedSlash = false;
 				end = i + 1;
 			}
-			if (code === CHAR_DOT) {
+			if (char === '.') {
 				// If this is our first dot, mark it as the start of our extension
 				if (startDot === -1) {
 					startDot = i;
