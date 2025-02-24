@@ -157,15 +157,15 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 
 export class NotebookDeletedCellWidget extends Disposable {
 	private readonly container: HTMLElement;
-	private readonly toolbar?: HTMLElement;
+	// private readonly toolbar: HTMLElement;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		toolbar: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
+		private readonly _toolbarOptions: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
 		private readonly code: string,
 		private readonly language: string,
 		container: HTMLElement,
-		originalIndex: number,
+		private readonly _originalIndex: number,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -174,25 +174,6 @@ export class NotebookDeletedCellWidget extends Disposable {
 		this._register(toDisposable(() => {
 			container.removeChild(this.container);
 		}));
-
-		if (toolbar) {
-			this.toolbar = document.createElement('div');
-			this.toolbar.className = toolbar.className;
-			container.appendChild(this.toolbar);
-
-			const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this._notebookEditor.scopedContextKeyService])));
-			const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, this.toolbar, toolbar.menuId, {
-				telemetrySource: toolbar.telemetrySource,
-				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				toolbarOptions: { primaryGroup: () => true },
-				menuOptions: {
-					renderShortTitle: true,
-					arg: toolbar.argFactory(originalIndex),
-				},
-			});
-
-			this._store.add(toolbarWidget);
-		}
 	}
 
 	public async render() {
@@ -217,20 +198,36 @@ export class NotebookDeletedCellWidget extends Disposable {
 				+ layoutInfo?.contentLeft ? `margin-left: ${layoutInfo}px;` : ''
 		+ `white-space: pre;`;
 
-
-
 		const rootContainer = this.container;
 		rootContainer.classList.add('code-cell-row');
+
+		if (this._toolbarOptions) {
+			const toolbar = document.createElement('div');
+			toolbar.className = this._toolbarOptions?.className;
+			rootContainer.appendChild(toolbar);
+
+			const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this._notebookEditor.scopedContextKeyService])));
+			const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, toolbar, this._toolbarOptions.menuId, {
+				telemetrySource: this._toolbarOptions.telemetrySource,
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: { primaryGroup: () => true },
+				menuOptions: {
+					renderShortTitle: true,
+					arg: this._toolbarOptions.argFactory(this._originalIndex),
+				},
+			});
+
+			this._store.add(toolbarWidget);
+
+			toolbar.style.position = 'absolute';
+			toolbar.style.right = '40px';
+			toolbar.style.zIndex = '10';
+			toolbar.classList.add('hover'); // Show by default
+		}
+
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		container.style.position = 'relative'; // Add this line
 
-		// Position toolbar at top right
-		if (this.toolbar) {
-			this.toolbar.style.position = 'absolute';
-			this.toolbar.style.top = '0';
-			this.toolbar.style.right = '40px';
-			this.toolbar.classList.add('hover'); // Show by default
-		}
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		const cellContainer = DOM.append(container, DOM.$('.cell.code'));
 		DOM.append(focusIndicatorLeft, DOM.$('div.execution-count-label'));
