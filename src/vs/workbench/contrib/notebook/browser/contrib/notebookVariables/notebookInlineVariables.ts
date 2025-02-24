@@ -200,9 +200,18 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			// sort line segments and concatenate them into a decoration
 			lineDecorations.forEach((segments, line) => {
 				if (segments.length > 0) {
-					segments = segments.sort((a, b) => a.column - b.column);
+					segments.sort((a, b) => a.column - b.column);
 					const text = segments.map(s => s.text).join(', ');
-					inlineDecorations.push(...createInlineValueDecoration(line, text, 'nb'));
+					const editorWidth = cell.layoutInfo.editorWidth;
+					const fontInfo = cell.layoutInfo.fontInfo;
+					if (fontInfo && cell.textModel) {
+						const base = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+						const lineLength = cell.textModel.getLineLength(line);
+						const available = Math.max(0, base - lineLength);
+						inlineDecorations.push(...createInlineValueDecoration(line, text, 'nb', undefined, available));
+					} else {
+						inlineDecorations.push(...createInlineValueDecoration(line, text, 'nb'));
+					}
 				}
 			});
 
@@ -231,6 +240,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			const processedVars = new Set<string>();
 
 			const functionRanges = this.getFunctionRanges(document);
+			const lineDecorations = new Map<number, InlineSegment[]>();
 
 			// For each variable name found in the kernel results
 			for (const varName of varNames) {
@@ -270,11 +280,37 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 				if (lastMatchOutsideFunction) {
 					const inlineVal = varName + ' = ' + vars.find(v => v.name === varName)?.value;
-					inlineDecorations.push(...createInlineValueDecoration(lastMatchOutsideFunction.line, inlineVal, 'nb'));
+
+					let lineSegments = lineDecorations.get(lastMatchOutsideFunction.line);
+					if (!lineSegments) {
+						lineSegments = [];
+						lineDecorations.set(lastMatchOutsideFunction.line, lineSegments);
+					}
+					if (!lineSegments.some(iv => iv.text === inlineVal)) { // de-dupe
+						lineSegments.push(new InlineSegment(lastMatchOutsideFunction.column, inlineVal));
+					}
 				}
 
 				processedVars.add(varName);
 			}
+
+			// sort line segments and concatenate them into a decoration
+			lineDecorations.forEach((segments, line) => {
+				if (segments.length > 0) {
+					segments.sort((a, b) => a.column - b.column);
+					const text = segments.map(s => s.text).join(', ');
+					const editorWidth = cell.layoutInfo.editorWidth;
+					const fontInfo = cell.layoutInfo.fontInfo;
+					if (fontInfo && cell.textModel) {
+						const base = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+						const lineLength = cell.textModel.getLineLength(line);
+						const available = Math.max(0, base - lineLength);
+						inlineDecorations.push(...createInlineValueDecoration(line, text, 'nb', undefined, available));
+					} else {
+						inlineDecorations.push(...createInlineValueDecoration(line, text, 'nb'));
+					}
+				}
+			});
 
 			if (inlineDecorations.length > 0) {
 				this.updateCellInlineDecorations(cell, inlineDecorations);
