@@ -44,6 +44,8 @@ interface IChatTransfer {
 	timestampInMilliseconds: number;
 	chat: ISerializableChatData;
 	inputValue: string;
+	location: ChatAgentLocation;
+	toolsAgentModeEnabled: boolean;
 }
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
@@ -168,8 +170,8 @@ export class ChatService extends Disposable implements IChatService {
 			this._transferredSessionData = {
 				sessionId: transferredChat.sessionId,
 				inputValue: transferredData.inputValue,
-				location: transferredChat.initialLocation ?? ChatAgentLocation.Panel,
-				toolsAgentModeEnabled: transferredChat.isToolsAgentModeEnabled ?? false,
+				location: transferredData.location,
+				toolsAgentModeEnabled: transferredData.toolsAgentModeEnabled,
 			};
 		}
 
@@ -1009,6 +1011,8 @@ export class ChatService extends Disposable implements IChatService {
 			timestampInMilliseconds: Date.now(),
 			toWorkspace: toWorkspace,
 			inputValue: transferredSessionData.inputValue,
+			location: transferredSessionData.location,
+			toolsAgentModeEnabled: transferredSessionData.toolsAgentModeEnabled,
 		});
 
 		this.storageService.store(globalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);

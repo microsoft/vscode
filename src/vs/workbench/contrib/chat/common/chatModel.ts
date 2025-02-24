@@ -980,7 +980,6 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
-	isToolsAgentModeEnabled?: boolean;
 }
 
 /**
@@ -1257,10 +1256,6 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get initialLocation() {
 		return this._initialLocation;
-	}
-
-	get toolsAgentModeEnabled() {
-		return this.chatAgentService.toolsAgentModeEnabled;
 	}
 
 	constructor(
@@ -1616,7 +1611,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
 			customTitle: this._customTitle,
-			isToolsAgentModeEnabled: this.toolsAgentModeEnabled,
 		};
 	}
 
