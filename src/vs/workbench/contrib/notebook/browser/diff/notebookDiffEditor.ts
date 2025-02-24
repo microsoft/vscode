@@ -669,8 +669,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.updateElementHeight2(cell, height);
 		};
 
-		if (this.pendingLayouts.has(cell)) {
-			this.pendingLayouts.get(cell)!.dispose();
+		let disposable = this.pendingLayouts.get(cell);
+		if (disposable) {
+			this._localStore.delete(disposable);
 		}
 
 		let r: () => void;
@@ -680,11 +681,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			relayout(cell, height);
 			r();
 		});
-
-		this.pendingLayouts.set(cell, toDisposable(() => {
+		disposable = toDisposable(() => {
 			layoutDisposable.dispose();
 			r();
-		}));
+		});
+		this._localStore.add(disposable);
+
+		this.pendingLayouts.set(cell, disposable);
 
 		return new Promise<void>(resolve => { r = resolve; });
 	}
