@@ -144,6 +144,11 @@ export enum SettingMatchType {
 	ContiguousQueryInSettingId = 1 << 6,
 	AllWordsInSettingsLabel = 1 << 7,
 }
+export const SettingKeyMatchTypes = (SettingMatchType.AllWordsInSettingsLabel
+	| SettingMatchType.ContiguousWordsInSettingsLabel
+	| SettingMatchType.NonContiguousWordsInSettingsLabel
+	| SettingMatchType.NonContiguousQueryInSettingId
+	| SettingMatchType.ContiguousQueryInSettingId);
 
 export interface ISettingMatch {
 	setting: ISetting;

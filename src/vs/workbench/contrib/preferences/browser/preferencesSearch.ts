@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch } from '../../../services/preferences/common/preferences.js';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch, SettingKeyMatchTypes } from '../../../services/preferences/common/preferences.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import * as strings from '../../../../base/common/strings.js';
@@ -131,9 +131,11 @@ export class LocalSearchProvider implements ISearchProvider {
 				exactMatch: true
 			});
 		} else if (useNewKeyMatchAlgorithm) {
-			// Filter by the top match type.
-			const topMatchType = Math.max(...filterMatches.map(m => m.matchType));
-			const filteredMatches = filterMatches.filter(m => m.matchType === topMatchType);
+			// Check the top key match type.
+			const topKeyMatchType = Math.max(...filterMatches.map(m => (m.matchType & SettingKeyMatchTypes)));
+			// Always allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
+			const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
+			const filteredMatches = filterMatches.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes));
 			return Promise.resolve({
 				filterMatches: filteredMatches,
 				exactMatch: false
