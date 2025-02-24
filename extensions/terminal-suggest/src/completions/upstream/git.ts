@@ -259,7 +259,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 	// remote branches if '-r' flag is used. See branch -d for use
 	localOrRemoteBranches: {
 		custom: async (tokens, executeShellCommand) => {
-			const pp = postProcessBranches({ insertWithoutRemotes: true });
+			const pp = postProcessBranches();
 			if (tokens.includes("-r")) {
 				return pp?.(
 					(
