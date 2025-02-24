@@ -130,7 +130,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const imagesFolder = joinPath(workspaceFolder.uri, '.chat-images');
+		const imagesFolder = joinPath(workspaceFolder.uri, '.vscode-chat-images');
 		const exists = await this.fileService.exists(imagesFolder);
 		if (!exists) {
 			await this.fileService.createFolder(imagesFolder);
