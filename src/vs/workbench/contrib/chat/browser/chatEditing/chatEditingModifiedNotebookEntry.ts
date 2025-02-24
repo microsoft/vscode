@@ -129,6 +129,19 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		});
 	}
 
+	public static canHandleSnapshot(initialContent: string | undefined): boolean {
+		if (!initialContent) {
+			return false;
+		}
+
+		try {
+			deserializeSnapshot(initialContent);
+			return true;
+		} catch (ex) {
+			// not a valid snapshot
+			return false;
+		}
+	}
 
 	constructor(
 		private readonly modifiedResourceRef: IReference<IResolvedNotebookEditorModel>,
