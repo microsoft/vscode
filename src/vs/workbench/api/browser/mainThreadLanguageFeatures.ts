@@ -1051,7 +1051,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 
 				const dataTransferOut = new VSDataTransfer();
 				for (const [type, item] of newDataTransfer.items) {
-					dataTransferOut.replace(type, createStringDataTransferItem(item.asString));
+					dataTransferOut.replace(type, createStringDataTransferItem(item.asString, item.id));
 				}
 				return dataTransferOut;
 			};
