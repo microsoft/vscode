@@ -165,7 +165,12 @@ export class ChatService extends Disposable implements IChatService {
 		if (transferredChat) {
 			this.trace('constructor', `Transferred session ${transferredChat.sessionId}`);
 			this._persistedSessions[transferredChat.sessionId] = transferredChat;
-			this._transferredSessionData = { sessionId: transferredChat.sessionId, inputValue: transferredData.inputValue, location: transferredChat.initialLocation ?? ChatAgentLocation.Panel };
+			this._transferredSessionData = {
+				sessionId: transferredChat.sessionId,
+				inputValue: transferredData.inputValue,
+				location: transferredChat.initialLocation ?? ChatAgentLocation.Panel,
+				toolsAgentModeEnabled: transferredChat.isToolsAgentModeEnabled ?? false,
+			};
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
@@ -395,12 +400,6 @@ export class ChatService extends Disposable implements IChatService {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
 		this._sessionModels.set(model.sessionId, model);
 		this.initializeSession(model, token);
-
-		if (someSessionHistory) {
-			if ('isToolsAgentModeEnabled' in someSessionHistory) {
-				this.chatAgentService.toggleToolsAgentMode(someSessionHistory.isToolsAgentModeEnabled);
-			}
-		}
 		return model;
 	}
 
@@ -449,11 +448,15 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		if (sessionId === this.transferredSessionData?.sessionId) {
+		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, CancellationToken.None);
+
+		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
+		if (isTransferred) {
+			this.chatAgentService.toggleToolsAgentMode(this.transferredSessionData.toolsAgentModeEnabled);
 			this._transferredSessionData = undefined;
 		}
 
-		return this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, CancellationToken.None);
+		return session;
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
