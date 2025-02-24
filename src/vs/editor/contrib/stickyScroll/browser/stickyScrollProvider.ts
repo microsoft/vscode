@@ -168,9 +168,8 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			}
 		}
 		const lowerBound = this.updateIndex(binarySearch(childrenStartLines, range.startLineNumber, (a: number, b: number) => { return a - b; }));
-		const upperBound = this.updateIndex(binarySearch(childrenStartLines, range.startLineNumber + depth, (a: number, b: number) => { return a - b; }));
 
-		for (let i = lowerBound; i <= upperBound; i++) {
+		for (let i = lowerBound; i < childrenStartLines.length; i++) {
 			const child = outlineModel.children[i];
 			if (!child) {
 				return;
