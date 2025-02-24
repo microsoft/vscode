@@ -5,6 +5,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditorWhitespace, LinesLayout } from '../../../common/viewLayout/linesLayout.js';
+import { ModelLineEdit } from '../../../common/textModelEvents.js';
 
 suite('Editor ViewLayout - LinesLayout', () => {
 
@@ -194,7 +195,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		// Pretend that lines 5 and 6 were deleted
 		// 8 lines
 		// whitespace: - a(4,10)
-		linesLayout.onLinesDeleted(5, 6, 5, 8);
+		linesLayout.onLinesDeleted(5, 6, new ModelLineEdit(5, 8, ''));
 		assert.strictEqual(linesLayout.getLinesTotalHeight(), 18);
 		assert.strictEqual(linesLayout.getVerticalOffsetForLineNumber(1), 0);
 		assert.strictEqual(linesLayout.getVerticalOffsetForLineNumber(2), 1);
@@ -208,7 +209,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		// Insert two lines at the beginning
 		// 10 lines
 		// whitespace: - a(6,10)
-		linesLayout.onLinesInserted(1, 2, 1, 10);
+		linesLayout.onLinesInserted(1, 2, new ModelLineEdit(1, 2, ''));
 		assert.strictEqual(linesLayout.getLinesTotalHeight(), 20);
 		assert.strictEqual(linesLayout.getVerticalOffsetForLineNumber(1), 0);
 		assert.strictEqual(linesLayout.getVerticalOffsetForLineNumber(2), 1);
@@ -892,7 +893,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.strictEqual(linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(5), 50);
 
 		// Delete line 1
-		linesLayout.onLinesDeleted(1, 1, 1, 1);
+		linesLayout.onLinesDeleted(1, 1, new ModelLineEdit(1, 1, ''));
 		// whitespaces: d(2, 30), c(3, 20)
 		assert.strictEqual(linesLayout.getWhitespacesCount(), 2);
 		assert.strictEqual(linesLayout.getAfterLineNumberForWhitespaceIndex(0), 2);
@@ -909,7 +910,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.strictEqual(linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(5), 50);
 
 		// Insert a line before line 1
-		linesLayout.onLinesInserted(1, 1, 1, 10);
+		linesLayout.onLinesInserted(1, 1, new ModelLineEdit(1, 1, '0'));
 		// whitespaces: d(3, 30), c(4, 20)
 		assert.strictEqual(linesLayout.getWhitespacesCount(), 2);
 		assert.strictEqual(linesLayout.getAfterLineNumberForWhitespaceIndex(0), 3);
@@ -926,7 +927,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.strictEqual(linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(5), 50);
 
 		// Delete line 4
-		linesLayout.onLinesDeleted(4, 4, 1, 1);
+		linesLayout.onLinesDeleted(4, 4, new ModelLineEdit(1, 1, ''));
 		// whitespaces: d(3, 30), c(3, 20)
 		assert.strictEqual(linesLayout.getWhitespacesCount(), 2);
 		assert.strictEqual(linesLayout.getAfterLineNumberForWhitespaceIndex(0), 3);

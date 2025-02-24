@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { countEOL } from './core/eolCounter.js';
 import { IRange } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
@@ -232,6 +233,10 @@ export class ModelRawLineChanged {
 		this.detail = detail;
 		this.injectedText = injectedText;
 	}
+
+	public get edit(): ModelLineEdit {
+		return new ModelLineEdit(this.lineNumber, this.lineNumber, this.detail);
+	}
 }
 
 
@@ -263,6 +268,36 @@ export class ModelLineHeightChanged {
 }
 
 /**
+ * An object describing the initial edit on a model
+ * @internal
+ */
+export class ModelLineEdit {
+
+	constructor(
+		public readonly startLineNumber: number,
+		public readonly endLineNumber: number,
+		public readonly text: string,
+	) { }
+
+	public get deletingLinesCnt(): number {
+		return this.endLineNumber - this.startLineNumber;
+	}
+
+	public get insertingLinesCnt(): number {
+		const [eolCount] = countEOL(this.text);
+		return eolCount;
+	}
+
+	public get editingLinesCnt(): number {
+		return Math.min(this.deletingLinesCnt, this.insertingLinesCnt);
+	}
+
+	public get changeLinesCnt(): number {
+		return this.insertingLinesCnt - this.deletingLinesCnt;
+	}
+}
+
+/**
  * An event describing that line(s) have been deleted in a model.
  * @internal
  */
@@ -277,19 +312,14 @@ export class ModelRawLinesDeleted {
 	 */
 	public readonly toLineNumber: number;
 	/**
-	 * The line number where the deletion started
+	 * The initial edit
 	 */
-	public readonly startLineNumber: number;
-	/**
-	 * The number of lines deleted
-	 */
-	public readonly deleteCount: number;
+	public readonly edit: ModelLineEdit;
 
-	constructor(fromLineNumber: number, toLineNumber: number, startLineNumber: number, deleteCount: number) {
+	constructor(fromLineNumber: number, toLineNumber: number, edit: ModelLineEdit) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
-		this.startLineNumber = startLineNumber;
-		this.deleteCount = deleteCount;
+		this.edit = edit;
 	}
 }
 
@@ -308,13 +338,9 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly toLineNumber: number;
 	/**
-	 * The line number where the insertion started
+	 * The initial edit
 	 */
-	public readonly startLineNumber: number;
-	/**
-	 * The number of lines inserted
-	 */
-	public readonly insertCount: number;
+	public readonly edit: ModelLineEdit;
 	/**
 	 * The text that was inserted
 	 */
@@ -324,12 +350,11 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly injectedTexts: (LineInjectedText[] | null)[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, startLineNumber: number, insertCount: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
+	constructor(fromLineNumber: number, toLineNumber: number, edit: ModelLineEdit, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
 		this.injectedTexts = injectedTexts;
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
-		this.startLineNumber = startLineNumber;
-		this.insertCount = insertCount;
+		this.edit = edit;
 		this.detail = detail;
 	}
 }

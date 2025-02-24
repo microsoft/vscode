@@ -335,7 +335,7 @@ export class ViewModel extends Disposable implements IViewModel {
 								eventsCollector.emitViewEvent(linesDeletedEvent);
 								console.log('linesDeletedEvent.fromLineNumber', linesDeletedEvent.fromLineNumber);
 								console.log('linesDeletedEvent.toLineNumber', linesDeletedEvent.toLineNumber);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber, change.startLineNumber, change.deleteCount);
+								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber, change.edit);
 							}
 							hadOtherModelChange = true;
 							break;
@@ -347,7 +347,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, change.startLineNumber, change.insertCount);
+								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, change.edit);
 							}
 							hadOtherModelChange = true;
 							break;
@@ -362,11 +362,11 @@ export class ViewModel extends Disposable implements IViewModel {
 							}
 							if (linesInsertedEvent) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber - linesInsertedEvent.fromLineNumber + 1);
+								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, change.edit);
 							}
 							if (linesDeletedEvent) {
 								eventsCollector.emitViewEvent(linesDeletedEvent);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber, linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber - linesDeletedEvent.fromLineNumber + 1);
+								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber, change.edit);
 							}
 							break;
 						}

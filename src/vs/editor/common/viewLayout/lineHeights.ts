@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch2 } from '../../../base/common/arrays.js';
+import { ModelLineEdit } from '../textModelEvents.js';
 
 
 export class SpecialLine {
@@ -124,7 +125,9 @@ export class LineHeightManager {
 		});
 	}
 
-	public onLinesDeleted(startLineNumber: number, deleteCount: number): void {
+	public onLinesDeleted(edit: ModelLineEdit): void {
+		const startLineNumber = edit.startLineNumber;
+		const deleteCount = edit.deletingLinesCnt;
 		console.log('onLinesDeleted', startLineNumber, deleteCount);
 		console.log('this._decorationIDToSpecialLine : ', JSON.stringify(this._decorationIDToSpecialLine));
 		console.log('this._orderedSpecialLines : ', JSON.stringify(this._orderedSpecialLines));
@@ -190,7 +193,9 @@ export class LineHeightManager {
 		console.log('end of onLinesDeleted');
 	}
 
-	public onLinesInserted(startLineNumber: number, insertCount: number): void {
+	public onLinesInserted(edit: ModelLineEdit): void {
+		const startLineNumber = edit.startLineNumber;
+		const insertCount = edit.insertingLinesCnt;
 		console.log('onLinesInserted', startLineNumber, insertCount);
 		console.log('this._decorationIDToSpecialLine : ', JSON.stringify(this._decorationIDToSpecialLine));
 		console.log('this._orderedSpecialLines : ', JSON.stringify(this._orderedSpecialLines));

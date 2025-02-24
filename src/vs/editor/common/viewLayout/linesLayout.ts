@@ -6,6 +6,7 @@
 import { IEditorWhitespace, IPartialViewLinesViewportData, ISpecialLineHeightChangeAccessor, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
 import * as strings from '../../../base/common/strings.js';
 import { LineHeightManager } from './lineHeights.js';
+import { ModelLineEdit } from '../textModelEvents.js';
 
 interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number }
 interface IPendingRemove { id: string }
@@ -344,7 +345,7 @@ export class LinesLayout {
 	 * @param fromLineNumber The line number at which the deletion started, inclusive
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
 	 */
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, startLineNumber: number, deleteCount: number): void {
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, edit: ModelLineEdit): void {
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
@@ -363,7 +364,7 @@ export class LinesLayout {
 				this._arr[i].afterLineNumber -= (toLineNumber - fromLineNumber + 1);
 			}
 		}
-		this._specialLineHeightsManager.onLinesDeleted(startLineNumber, deleteCount);
+		this._specialLineHeightsManager.onLinesDeleted(edit);
 	}
 
 	/**
@@ -372,7 +373,7 @@ export class LinesLayout {
 	 * @param fromLineNumber The line number at which the insertion started, inclusive
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 */
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, startLineNumber: number, insertCount: number): void {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number, edit: ModelLineEdit): void {
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
@@ -385,7 +386,7 @@ export class LinesLayout {
 				this._arr[i].afterLineNumber += (toLineNumber - fromLineNumber + 1);
 			}
 		}
-		this._specialLineHeightsManager.onLinesInserted(startLineNumber, insertCount);
+		this._specialLineHeightsManager.onLinesInserted(edit);
 	}
 
 	/**

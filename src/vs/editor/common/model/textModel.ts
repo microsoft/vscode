@@ -16,7 +16,6 @@ import { ThemeColor } from '../../../base/common/themables.js';
 import { Constants } from '../../../base/common/uint.js';
 import { URI } from '../../../base/common/uri.js';
 import { ISingleEditOperation } from '../core/editOperation.js';
-import { countEOL } from '../core/eolCounter.js';
 import { normalizeIndentation } from '../core/indentation.js';
 import { IPosition, Position } from '../core/position.js';
 import { IRange, Range } from '../core/range.js';
@@ -40,7 +39,7 @@ import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { TokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { AttachedViews } from './tokens.js';
 import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged } from '../textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelLineEdit } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';
 import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -1462,17 +1461,16 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
-				const [eolCount] = countEOL(change.text);
 				this._onDidChangeDecorations.fire();
 
 				const startLineNumber = change.range.startLineNumber;
 				const endLineNumber = change.range.endLineNumber;
 
-				const deletingLinesCnt = endLineNumber - startLineNumber;
-				const insertingLinesCnt = eolCount;
-				const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
-
-				const changeLineCountDelta = (insertingLinesCnt - deletingLinesCnt);
+				const edit = new ModelLineEdit(startLineNumber, endLineNumber, change.text);
+				const deletingLinesCnt = edit.deletingLinesCnt;
+				const insertingLinesCnt = edit.insertingLinesCnt;
+				const editingLinesCnt = edit.editingLinesCnt;
+				const changeLineCountDelta = edit.changeLinesCnt;
 
 				const currentEditStartLineNumber = newLineCount - lineCount - changeLineCountDelta + startLineNumber;
 				const firstEditLineNumber = currentEditStartLineNumber;
@@ -1510,7 +1508,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					console.log('startLineNumber', startLineNumber);
 					console.log('editingLinesCnt', editingLinesCnt);
 					console.log('deletingLinesCnt : ', deletingLinesCnt);
-					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber, startLineNumber, deletingLinesCnt - editingLinesCnt));
+					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber, edit));
 				}
 
 				if (editingLinesCnt < insertingLinesCnt) {
@@ -1536,8 +1534,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
 							startLineNumber + insertingLinesCnt,
-							startLineNumber,
-							cnt,
+							edit,
 							newLines,
 							injectedTexts
 						)

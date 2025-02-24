@@ -15,7 +15,7 @@ import { ILanguageService } from '../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../common/languages/nullTokenize.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { InternalModelContentChangeEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../../../common/textModelEvents.js';
+import { InternalModelContentChangeEvent, ModelLineEdit, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../../../common/textModelEvents.js';
 import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
 
 // --------- utils
@@ -138,7 +138,7 @@ suite('Editor Model - Model', () => {
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
 				new ModelRawLineChanged(1, 'My new line', null),
-				new ModelRawLinesInserted(2, 2, 2, 1, ['No longer First Line'], [null]),
+				new ModelRawLinesInserted(2, 2, new ModelLineEdit(2, 2, 'No longer First Line'), ['No longer First Line'], [null]),
 			],
 			2,
 			false,
@@ -257,7 +257,7 @@ suite('Editor Model - Model', () => {
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
 				new ModelRawLineChanged(1, 'My Second Line', null),
-				new ModelRawLinesDeleted(2, 2, 2, 1),
+				new ModelRawLinesDeleted(2, 2, new ModelLineEdit(2, 2, 'My Third Line')),
 			],
 			2,
 			false,
@@ -278,7 +278,7 @@ suite('Editor Model - Model', () => {
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
 				new ModelRawLineChanged(1, 'My Third Line', null),
-				new ModelRawLinesDeleted(2, 3, 2, 1),
+				new ModelRawLinesDeleted(2, 3, new ModelLineEdit(2, 3, 'My Fourth Line')),
 			],
 			2,
 			false,
