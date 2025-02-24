@@ -16,7 +16,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification, UpdateNotAvailableClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -125,7 +125,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		if (this.state.type !== StateType.CheckingForUpdates) {
 			return;
 		}
-		this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: this.state.explicit });
 
 		this.setState(State.Idle(UpdateType.Archive));
 	}

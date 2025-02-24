@@ -44,7 +44,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { UnmanagedProgress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
@@ -115,14 +114,13 @@ export class TestingExplorerView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITestService private readonly testService: ITestService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		const relayout = this._register(new RunOnceScheduler(() => this.layoutBody(), 1));
 		this._register(this.onDidChangeViewWelcomeState(() => {

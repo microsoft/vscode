@@ -56,7 +56,6 @@ import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listSe
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorForeground, resolveColorValue } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
@@ -139,7 +138,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService protected override readonly keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
@@ -153,7 +151,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				text: filterText,
 				history: JSON.parse(storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[],
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);
