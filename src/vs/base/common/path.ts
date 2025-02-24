@@ -1413,8 +1413,8 @@ export const posix: IPath = {
 		// after any path separator we find
 		let preDotState = 0;
 		for (let i = path.length - 1; i >= 0; --i) {
-			const code = path.charCodeAt(i);
-			if (code === CHAR_FORWARD_SLASH) {
+			const char = path[i];
+			if (char === '/') {
 				// If we reached a path separator that was not part of a set of path
 				// separators at the end of the string, stop now
 				if (!matchedSlash) {
@@ -1429,7 +1429,7 @@ export const posix: IPath = {
 				matchedSlash = false;
 				end = i + 1;
 			}
-			if (code === CHAR_DOT) {
+			if (char === '.') {
 				// If this is our first dot, mark it as the start of our extension
 				if (startDot === -1) {
 					startDot = i;
