@@ -398,32 +398,18 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get list of errors for the direct links of the current reference.
 	 */
 	public get errors(): readonly ResolveError[] {
-		// collect error conditions of direct child references
-		const childErrors = this
-			// get immediate references
-			.references
-			// filter out children without error conditions or
-			// the ones that are non-prompt snippet files
-			.filter((childReference) => {
-				const { errorCondition } = childReference;
+		const childErrors: ResolveError[] = [];
 
-				return errorCondition && !(errorCondition instanceof NotPromptFile);
-			})
-			// map to error condition objects
-			.map((childReference): ResolveError => {
-				const { errorCondition } = childReference;
+		for (const reference of this.references) {
+			const { errorCondition } = reference;
 
-				// `must` always be `true` because of the `filter` call above
-				assertDefined(
-					errorCondition,
-					`Error condition must be present for '${childReference.uri.path}'.`,
-				);
-
-				return errorCondition;
-			});
+			if (errorCondition && (!(errorCondition instanceof NotPromptFile))) {
+				childErrors.push(errorCondition);
+			}
+		}
 
 		return childErrors;
 	}

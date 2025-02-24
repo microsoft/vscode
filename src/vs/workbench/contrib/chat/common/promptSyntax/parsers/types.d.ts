@@ -9,7 +9,7 @@ import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 
 /**
- * TODO: @legomushroom
+ * A resolve error with a parent prompt URI, if any.
  */
 export interface IResolveError {
 	/**
@@ -113,7 +113,7 @@ interface IPromptReferenceBase extends IDisposable {
 	readonly errorCondition: ResolveError | undefined;
 
 	/**
-	 * TODO: @legomushroom
+	 * Get list of errors for the direct links of the current reference.
 	 */
 	readonly errors: readonly ResolveError[];
 

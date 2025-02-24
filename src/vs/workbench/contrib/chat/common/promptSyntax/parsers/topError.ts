@@ -10,11 +10,11 @@ import { assertDefined } from '../../../../../../base/common/types.js';
 import { OpenFailed, RecursiveReference, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
 
 /**
- * TODO: @lego
+ * The top-most error of the reference tree.
  */
 export class TopError implements ITopError {
-	public readonly errorSubject = this.options.errorSubject;
 	public readonly originalError = this.options.originalError;
+	public readonly errorSubject = this.options.errorSubject;
 	public readonly errorsCount = this.options.errorsCount;
 	public readonly parentUri = this.options.parentUri;
 
@@ -24,7 +24,6 @@ export class TopError implements ITopError {
 
 
 	public get localizedMessage(): string {
-		// TODO: @legomushroom - update localization IDs
 		const { originalError, parentUri, errorSubject: subject, errorsCount } = this;
 
 		assert(
@@ -33,37 +32,37 @@ export class TopError implements ITopError {
 		);
 
 		// a note about how many more link issues are there
-		const moreIssuesNote = (errorsCount > 1)
-			? localize('chatPromptInstructionsBrokenReferenceSuffix222222', "\n(+{0} more issues)", errorsCount - 1)
+		const moreIssuesLabel = (errorsCount > 1)
+			? localize('workbench.reusable-prompts.top-error.more-issues-label', "\n(+{0} more issues)", errorsCount - 1)
 			: '';
 
 		if (subject === 'root') {
 			if (originalError instanceof OpenFailed) {
 				return localize(
-					'chatPromptInstructionsFileOpenFailed111',
+					'workbench.reusable-prompts.top-error.open-failed',
 					"Cannot open '{0}'.{1}",
 					originalError.uri.path,
-					moreIssuesNote,
+					moreIssuesLabel,
 				);
 			}
 
 			if (originalError instanceof FailedToResolveContentsStream) {
 				return localize(
-					'chatPromptInstructionsStreamOpenFailed1111',
+					'workbench.reusable-prompts.top-error.cannot-read',
 					"Cannot read '{0}'.{1}",
 					originalError.uri.path,
-					moreIssuesNote,
+					moreIssuesLabel,
 				);
 			}
 
 			if (originalError instanceof RecursiveReference) {
 				return localize(
-					'chatPromptInstructionsSelfRecursion4444',
+					'workbench.reusable-prompts.top-error.recursive-reference',
 					"Recursion to itself.",
 				);
 			}
 
-			return originalError.message + moreIssuesNote;
+			return originalError.message + moreIssuesLabel;
 		}
 
 		// a sanity check - because the error subject is not `root`, the parent must set
@@ -73,24 +72,27 @@ export class TopError implements ITopError {
 		);
 
 		const errorMessageStart = (subject === 'child')
-			? localize('chatPromptInstructionsBrokenReferenceFile', "Contains")
+			? localize(
+				'workbench.reusable-prompts.top-error.child.direct',
+				"Contains",
+			)
 			: localize(
-				'chatPromptInstructionsBrokenChildReference',
+				'workbench.reusable-prompts.top-error.child.indirect',
 				"Indirectly referenced prompt '{0}' contains",
 				parentUri.path,
 			);
 
 		const linkIssueName = (originalError instanceof RecursiveReference)
-			? localize('chatPromptInstructionsBrokenChildRecursiveLink', "recursive")
-			: localize('chatPromptInstructionsBrokenChildBrokenLink', "broken");
+			? localize('recursive', "recursive")
+			: localize('broken', "broken");
 
 		return localize(
-			'chatPromptInstructionsBrokenReference111',
+			'workbench.reusable-prompts.top-error.child.final-message',
 			"{0} a {1} link to '{2}' that will be ignored.{3}",
 			errorMessageStart,
 			linkIssueName,
 			originalError.uri.path,
-			moreIssuesNote,
+			moreIssuesLabel,
 		);
 	}
 }
