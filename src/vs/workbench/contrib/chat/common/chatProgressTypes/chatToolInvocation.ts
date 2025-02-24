@@ -6,7 +6,7 @@
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
+import { IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolResult } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
@@ -42,6 +42,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	private _confirmationMessages: IToolConfirmationMessages | undefined;
 	public readonly presentation: IPreparedToolInvocation['presentation'];
 
+	public readonly toolSpecificData?: IChatTerminalToolInvocationData;
+
 	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData) {
 		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
 		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
@@ -49,6 +51,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.pastTenseMessage = preparedInvocation?.pastTenseMessage;
 		this._confirmationMessages = preparedInvocation?.confirmationMessages;
 		this.presentation = preparedInvocation?.presentation;
+		this.toolSpecificData = preparedInvocation?.toolSpecificData;
 
 		if (!this._confirmationMessages) {
 			// No confirmation needed
@@ -87,7 +90,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			pastTenseMessage: this.pastTenseMessage,
 			isConfirmed: this._isConfirmed,
 			isComplete: this._isComplete,
-			resultDetails: this._resultDetails
+			resultDetails: this._resultDetails,
+			toolSpecificData: this.toolSpecificData,
 		};
 	}
 }
