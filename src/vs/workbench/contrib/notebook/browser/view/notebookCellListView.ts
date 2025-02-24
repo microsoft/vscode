@@ -189,9 +189,7 @@ export class NotebookCellsLayout implements IRangeMap {
 		const index = afterPosition - 1;
 		const previousItemPosition = this._prefixSumComputer.getPrefixSum(index);
 		const previousItemSize = this._items[index].size;
-		const previousWhitespace = this._whitespace.filter(ws => (ws.afterPosition <= afterPosition - 1 && ws.afterPosition > 0));
-		const whitespaceBefore = previousWhitespace.reduce((acc, ws) => acc + ws.size, 0);
-		return previousItemPosition + previousItemSize + whitespaceBeforeFirstItem + this.paddingTop + whitespaceBefore;
+		return previousItemPosition + previousItemSize + whitespaceBeforeFirstItem + this.paddingTop;
 	}
 
 	indexAt(position: number): number {
