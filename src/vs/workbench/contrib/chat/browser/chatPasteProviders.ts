@@ -17,8 +17,8 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatWidgetService } from './chat.js';
@@ -44,7 +44,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		private readonly chatWidgetService: IChatWidgetService,
 		private readonly extensionService: IExtensionService,
 		@IFileService private readonly fileService: IFileService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) { }
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
@@ -125,12 +125,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		dataTransfer: Uint8Array,
 		mimeType: string,
 	): Promise<URI | undefined> {
-		const workspaceFolder = this.workspaceService.getWorkspace().folders[0];
-		if (!workspaceFolder) {
-			return;
-		}
-
-		const imagesFolder = joinPath(workspaceFolder.uri, '.vscode-chat-images');
+		const imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
 		const exists = await this.fileService.exists(imagesFolder);
 		if (!exists) {
 			await this.fileService.createFolder(imagesFolder);
@@ -139,7 +134,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		const ext = mimeType.split('/')[1] || 'png';
 		const filename = `image-${Date.now()}.${ext}`;
 		const fileUri = joinPath(imagesFolder, filename);
-
 
 		const buffer = VSBuffer.wrap(dataTransfer);
 		await this.fileService.writeFile(fileUri, buffer);
@@ -344,12 +338,12 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@IFileService fileService: IFileService,
-		@IModelService modelService: IModelService
+		@IModelService modelService: IModelService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 		super();
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, workspaceService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 	}
