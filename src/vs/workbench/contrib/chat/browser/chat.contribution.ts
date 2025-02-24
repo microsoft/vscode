@@ -137,6 +137,25 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control Copilot (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
+		'chat.implicitContext.enabled': {
+			type: 'object',
+			tags: ['experimental'],
+			description: nls.localize('chat.implicitContext.enabled', "Enables the implicit context widget for specified chat locations."),
+			additionalProperties: {
+				type: 'string',
+				enum: ['never', 'first', 'always'],
+				description: nls.localize('chat.implicitContext.value', "The value for the implicit context."),
+				enumDescriptions: [
+					nls.localize('chat.implicitContext.value.never', "Implicit context is never enabled."),
+					nls.localize('chat.implicitContext.value.first', "Implicit context is enabled for the first interaction."),
+					nls.localize('chat.implicitContext.value.always', "Implicit context is always enabled.")
+				]
+			},
+			default: {
+				'panel': 'always',
+				'editing-session': 'first'
+			}
+		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
 			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `0` means disabled and `100` seconds is the maximum."),
