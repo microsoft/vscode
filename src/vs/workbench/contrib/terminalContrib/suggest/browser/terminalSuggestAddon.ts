@@ -91,11 +91,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _kindToIconMap = new Map<number, ThemeIcon>([
 		[TerminalCompletionItemKind.File, Codicon.file],
 		[TerminalCompletionItemKind.Folder, Codicon.folder],
-		[TerminalCompletionItemKind.Flag, Codicon.symbolProperty],
 		[TerminalCompletionItemKind.Method, Codicon.symbolMethod],
+		[TerminalCompletionItemKind.Alias, Codicon.symbolMethodArrow],
 		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable],
-		[TerminalCompletionItemKind.Alias, Codicon.replace],
+		[TerminalCompletionItemKind.Option, Codicon.symbolEnum],
+		[TerminalCompletionItemKind.OptionValue, Codicon.symbolEnumMember],
+		[TerminalCompletionItemKind.Flag, Codicon.flag],
 		[TerminalCompletionItemKind.InlineSuggestion, Codicon.star],
+		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, Codicon.star],
 	]);
 
 	private readonly _inlineCompletion: ITerminalCompletion = {
@@ -521,11 +524,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._inlineCompletionItem.idx = x.idx;
 			this._inlineCompletionItem.score = x.score;
 			this._inlineCompletionItem.labelLow = x.labelLow;
+			this._inlineCompletionItem.textLabel = x.textLabel;
 			this._inlineCompletionItem.fileExtLow = x.fileExtLow;
 			this._inlineCompletionItem.labelLowExcludeFileExt = x.labelLowExcludeFileExt;
 			this._inlineCompletionItem.labelLowNormalizedPath = x.labelLowNormalizedPath;
 			this._inlineCompletionItem.underscorePenalty = x.underscorePenalty;
 			this._inlineCompletionItem.word = x.word;
+			this._model?.forceRefilterAll();
 		}
 
 		// Force a filter all in order to re-evaluate the inline completion

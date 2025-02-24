@@ -166,7 +166,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 				return undefined;
 			}
-			const completions: ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined = await provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token);
+			const completions = await provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token);
 			if (!completions) {
 				return undefined;
 			}
@@ -190,9 +190,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (resourceCompletions) {
 					completionItems.push(...resourceCompletions);
 				}
-				return completionItems;
 			}
-			return completionItems.length ? completionItems : undefined;
+			return completionItems;
 		});
 
 		const results = await Promise.all(completionPromises);
