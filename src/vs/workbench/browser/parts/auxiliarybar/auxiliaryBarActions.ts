@@ -15,7 +15,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyCode, KeyCodeUtils, KeyMod, KeyModUtils } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -280,20 +280,6 @@ class FocusPearAIExtensionAction extends Action2 {
 }
 
 registerAction2(FocusPearAIExtensionAction);
-
-MenuRegistry.appendMenuItems([
-	{
-		id: MenuId.LayoutControlMenu,
-		item: {
-			group: '0_workbench_toggles',
-			command: {
-				id: FocusPearAIExtensionAction.ID,
-				title: `New Chat (${KeyModUtils.keyModToString(KeyMod.CtrlCmd)} + ${KeyCodeUtils.toString(KeyCode.KeyL)})`,
-			},
-			order: -1,
-		},
-	},
-]);
 
 // Following is a only PearAI related action, need to refactor these type of actions to separate file
 

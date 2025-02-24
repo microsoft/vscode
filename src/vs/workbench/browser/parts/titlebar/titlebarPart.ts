@@ -57,6 +57,8 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
+import { CONTEXT_UPDATE_STATE } from '../../../contrib/update/browser/update.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -475,6 +477,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
+			this.createUpdateButton();
 		}
 
 		// Window Controls Container
@@ -707,6 +710,72 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		updateToolBarActions();
 	}
+
+	private createUpdateButton() {
+		const updateButton = append(this.actionToolBarElement, $('.update-button'));
+		const span = append(updateButton, $('span'));
+
+		updateButton.style.display = 'none';
+
+		this._register(addDisposableListener(updateButton, EventType.CLICK, async () => {
+			const updateState = CONTEXT_UPDATE_STATE.getValue(this.contextKeyService);
+
+			switch (updateState) {
+				case StateType.AvailableForDownload:
+					await this.instantiationService.invokeFunction(accessor => {
+						const updateService = accessor.get(IUpdateService);
+						return updateService.downloadUpdate();
+					});
+					break;
+				case StateType.Downloaded:
+					await this.instantiationService.invokeFunction(accessor => {
+						const updateService = accessor.get(IUpdateService);
+						return updateService.applyUpdate();
+					});
+					break;
+				case StateType.Ready:
+					await this.instantiationService.invokeFunction(accessor => {
+						const updateService = accessor.get(IUpdateService);
+						return updateService.quitAndInstall();
+					});
+					break;
+				default:
+					break;
+			}
+		}));
+
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			const updateState = CONTEXT_UPDATE_STATE.getValue(this.contextKeyService);
+
+			if (e.affectsSome(new Set([CONTEXT_UPDATE_STATE.key]))) {
+				switch (updateState) {
+					case StateType.AvailableForDownload:
+						updateButton.style.display = 'flex';
+						span.innerText = "Download Update";
+						break;
+					case StateType.Downloaded:
+						updateButton.style.display = 'flex';
+						span.innerText = "Install Update";
+						break;
+					case StateType.Downloading:
+						updateButton.style.display = 'flex';
+						span.innerText = "Downloading...";
+						break;
+					case StateType.Updating:
+						updateButton.style.display = 'flex';
+						span.innerText = "Installing..."
+						break;
+					case StateType.Ready:
+						updateButton.style.display = 'flex';
+						span.innerText = "Restart to Update";
+						break;
+					default:
+						updateButton.style.display = 'none';
+				}
+			}
+		}));
+	}
+
 
 	override updateStyles(): void {
 		super.updateStyles();

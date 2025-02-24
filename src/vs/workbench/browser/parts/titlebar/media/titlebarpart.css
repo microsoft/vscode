@@ -474,3 +474,19 @@
 	border-radius: 16px;
 	text-align: center;
 }
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container > .update-button {
+	display: flex;
+	text-align: center;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	border-radius: 16px;
+	padding: 6px 8px;
+	margin: 5px 6px;
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	&:hover {
+		background-color: var(--vscode-button-hoverBackground);
+	}
+}
