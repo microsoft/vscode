@@ -27,10 +27,6 @@ export interface INotebookDeletedCellDecorator {
 	getTop(deletedIndex: number): number | undefined;
 }
 
-export interface INotebookCellChangeHunk {
-	accept(): Promise<boolean>;
-	reject(): Promise<boolean>;
-}
 
 export class NotebookDeletedCellDecorator extends Disposable implements INotebookDeletedCellDecorator {
 	private readonly zoneRemover = this._register(new DisposableStore());
@@ -38,6 +34,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 	private readonly deletedCellInfos = new Map<number, { height: number; previousIndex: number; offset: number }>();
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
+		private readonly toolbar: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -113,7 +110,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 		const rootContainer = document.createElement('div');
 		const widgets: NotebookDeletedCellWidget[] = [];
 		const heights = await Promise.all(cells.map(async cell => {
-			const widget = new NotebookDeletedCellWidget(this._notebookEditor, cell.cell.getValue(), cell.cell.language, rootContainer, cell.originalIndex, this.languageService, this.instantiationService);
+			const widget = new NotebookDeletedCellWidget(this._notebookEditor, this.toolbar, cell.cell.getValue(), cell.cell.language, rootContainer, cell.originalIndex, this.languageService, this.instantiationService);
 			widgets.push(widget);
 			const height = await widget.render();
 			this.deletedCellInfos.set(cell.originalIndex, { height, previousIndex: cell.previousIndex, offset: 0 });
@@ -160,14 +157,15 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 
 export class NotebookDeletedCellWidget extends Disposable {
 	private readonly container: HTMLElement;
-	private readonly toolbar: HTMLElement;
+	private readonly toolbar?: HTMLElement;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
+		toolbar: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
 		private readonly code: string,
 		private readonly language: string,
 		container: HTMLElement,
-		public readonly originalIndex: number,
+		originalIndex: number,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -177,32 +175,24 @@ export class NotebookDeletedCellWidget extends Disposable {
 			container.removeChild(this.container);
 		}));
 
-		this.toolbar = document.createElement('div');
-		this.toolbar.className = 'chat-diff-change-content-widget';
-		container.appendChild(this.toolbar);
+		if (toolbar) {
+			this.toolbar = document.createElement('div');
+			this.toolbar.className = toolbar.className;
+			container.appendChild(this.toolbar);
 
-		const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this._notebookEditor.scopedContextKeyService])));
-		const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, this.toolbar, MenuId.ChatEditingEditorHunk, {
-			telemetrySource: 'chatEditingNotebookHunk',
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			toolbarOptions: { primaryGroup: () => true },
-			menuOptions: {
-				renderShortTitle: true,
-				arg: {
-					reject: async (): Promise<boolean> => {
-						return true;
-					},
-					accept: async (): Promise<boolean> => {
-						return true;
-					},
-					toggleDiff: async (): Promise<boolean> => {
-						return true;
-					}
-				}
-			},
-		});
+			const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this._notebookEditor.scopedContextKeyService])));
+			const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, this.toolbar, toolbar.menuId, {
+				telemetrySource: toolbar.telemetrySource,
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: { primaryGroup: () => true },
+				menuOptions: {
+					renderShortTitle: true,
+					arg: toolbar.argFactory(originalIndex),
+				},
+			});
 
-		this._store.add(toolbarWidget);
+			this._store.add(toolbarWidget);
+		}
 	}
 
 	public async render() {
@@ -235,11 +225,12 @@ export class NotebookDeletedCellWidget extends Disposable {
 		container.style.position = 'relative'; // Add this line
 
 		// Position toolbar at top right
-		this.toolbar.style.position = 'absolute';
-		this.toolbar.style.top = '0';
-		this.toolbar.style.right = '40px';
-		this.toolbar.classList.add('hover'); // Show by default
-
+		if (this.toolbar) {
+			this.toolbar.style.position = 'absolute';
+			this.toolbar.style.top = '0';
+			this.toolbar.style.right = '40px';
+			this.toolbar.classList.add('hover'); // Show by default
+		}
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		const cellContainer = DOM.append(container, DOM.$('.cell.code'));
 		DOM.append(focusIndicatorLeft, DOM.$('div.execution-count-label'));
