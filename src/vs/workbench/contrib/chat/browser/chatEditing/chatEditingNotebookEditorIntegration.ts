@@ -7,8 +7,9 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { debouncedObservable } from '../../../../../base/common/observableInternal/utils.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IResourceDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -41,7 +42,7 @@ export type ICellDiffInfo = {
 	modifiedCellIndex: undefined;
 	originalCellIndex: number;
 	type: 'delete';
-	diff: IDocumentDiff; // List of all the lines deleted.
+	diff: IDocumentDiff2; // List of all the lines deleted.
 } |
 {
 	modifiedCellIndex: number;
@@ -88,11 +89,12 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 			if (!_entry.isCurrentlyBeingModifiedBy.read(r)
 				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
-				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && c.type !== 'delete')
+				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.identical && !c.diff.identical)
 			) {
 				lastModifyingRequestId = _entry.lastModifyingRequestId;
 				const firstModifiedCell = cellChanges.read(r).
 					filter(c => c.type !== 'unchanged' && c.type !== 'delete').
+					filter(c => !c.diff.identical).
 					reduce((prev, curr) => curr.modifiedCellIndex < prev ? curr.modifiedCellIndex : prev, Number.MAX_SAFE_INTEGER);
 				if (typeof firstModifiedCell !== 'number' || firstModifiedCell === Number.MAX_SAFE_INTEGER) {
 					return;
@@ -106,7 +108,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		this._register(autorun(r => {
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
-			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete');
+			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.identical);
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
@@ -117,6 +119,9 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 			const validCells = new Set<NotebookCellTextModel>();
 			changes.forEach((diff) => {
+				if (diff.modifiedCellIndex === undefined) {
+					return;
+				}
 				const cell = notebookModel.cells[diff.modifiedCellIndex];
 				const editor = notebookEditor.codeEditors.find(([vm,]) => vm.handle === notebookModel.cells[diff.modifiedCellIndex].handle)?.[1];
 				if (!editor || !cell) {
@@ -160,7 +165,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 				if (currentChange) {
 					const change = currentChange.change;
 					const indexInChange = currentChange.index;
-					const diffChangeIndex = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged')).findIndex(c => c === change);
+					const diffChangeIndex = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged' && !c.diff.identical)).findIndex(c => c === change);
 
 					if (diffChangeIndex !== -1) {
 						this._currentIndex.set(diffChangeIndex + indexInChange, undefined);
@@ -171,14 +176,35 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			}));
 		}));
 
-
 		this.insertDeleteDecorators = derivedWithStore((r, store) => {
 			if (!notebookEdotirViewModelAttached.read(r)) {
 				return;
 			}
 
 			const insertedCellDecorator = store.add(this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor));
-			const deletedCellDecorator = store.add(this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor));
+			const deletedCellDecorator = store.add(this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor, {
+				className: 'chat-diff-change-content-widget',
+				telemetrySource: 'chatEditingNotebookHunk',
+				menuId: MenuId.ChatEditingEditorHunk,
+				argFactory: (deletedCellIndex: number) => {
+					return {
+						accept() {
+							const entry = cellChanges.get().find(c => c.type === 'delete' && c.originalCellIndex === deletedCellIndex)?.diff;
+							if (entry) {
+								return entry.keep(entry.changes[0]);
+							}
+							return Promise.resolve(true);
+						},
+						reject() {
+							const entry = cellChanges.get().find(c => c.type === 'delete' && c.originalCellIndex === deletedCellIndex)?.diff;
+							if (entry) {
+								return entry.undo(entry.changes[0]);
+							}
+							return Promise.resolve(true);
+						},
+					} satisfies IModifiedFileEntryChangeHunk;
+				}
+			}));
 
 			return {
 				insertedCellDecorator,
@@ -187,7 +213,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		});
 
 		this._register(autorun(r => {
-			const changes = cellChanges.read(r);
+			const changes = cellChanges.read(r).filter(c => !c.diff.identical);
 			const decorators = this.insertDeleteDecorators.read(r);
 			if (decorators) {
 				decorators.insertedCellDecorator.apply(changes);
@@ -430,6 +456,10 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 export function countChanges(changes: ICellDiffInfo[]): number {
 	return changes.reduce((count, diff) => {
+		// When we accept some of the cell insert/delete the items might still be in the list.
+		if (diff.diff.identical) {
+			return count;
+		}
 		switch (diff.type) {
 			case 'delete':
 				return count + 1; // We want to see 1 deleted entry in the pill for navigation
