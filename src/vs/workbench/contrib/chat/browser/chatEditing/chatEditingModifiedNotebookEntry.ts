@@ -218,6 +218,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				await this.modifiedResourceRef.object.revert({ soft: true });
 				await this._fileService.del(this.modifiedURI);
 			});
+			this.createEmptyDiffs();
 			this._onDidDelete.fire();
 		} else {
 			await this._applyEdits(async () => {
@@ -230,6 +231,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					await this.modifiedResourceRef.object.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
 				}
 			});
+			this.createEmptyDiffs();
 			await this._collapse(tx);
 		}
 
