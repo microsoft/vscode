@@ -546,6 +546,42 @@ export const win32: IPath = {
 			return '';
 		}
 
+		if (fromOrig.length !== from.length || toOrig.length !== to.length) {
+			const fromSplit = fromOrig.split('\\');
+			const toSplit = toOrig.split('\\');
+			if (fromSplit[fromSplit.length - 1] === '') {
+				fromSplit.pop();
+			}
+			if (toSplit[toSplit.length - 1] === '') {
+				toSplit.pop();
+			}
+
+			const fromLen = fromSplit.length;
+			const toLen = toSplit.length;
+			const length = fromLen < toLen ? fromLen : toLen;
+
+			let i;
+			for (i = 0; i < length; i++) {
+				if (fromSplit[i].toLowerCase() !== toSplit[i].toLowerCase()) {
+					break;
+				}
+			}
+
+			if (i === 0) {
+				return toOrig;
+			} else if (i === length) {
+				if (toLen > length) {
+					return toSplit.slice(i).join('\\');
+				}
+				if (fromLen > length) {
+					return '..\\'.repeat(fromLen - 1 - i) + '..';
+				}
+				return '';
+			}
+
+			return '..\\'.repeat(fromLen - i) + toSplit.slice(i).join('\\');
+		}
+
 		// Trim any leading backslashes
 		let fromStart = 0;
 		while (fromStart < from.length &&
