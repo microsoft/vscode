@@ -269,7 +269,6 @@ export class AcceptNextInlineEditPart extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineEditVisible),
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
-				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineEditVisible),
 			},
 		});
