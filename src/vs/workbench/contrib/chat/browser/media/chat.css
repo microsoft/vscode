@@ -720,6 +720,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 4px;
 	height: 18px;
 	border: 1px solid var(--vscode-input-border);
+	border-style: dashed;
 	align-items: center;
 	overflow: hidden;
 	padding: 0 0 0 2px;
