@@ -718,6 +718,11 @@ const configuration: IConfigurationNode = {
 			'description': localize('accessibility.debugWatchVariableAnnouncements', "Controls whether variable changes should be announced in the debug watch view."),
 			'default': true,
 		},
+		'accessibility.notebookInlineValueAnnouncements': {
+			'type': 'boolean',
+			'description': localize('accessibility.notebookInlineValueAnnouncements', "Controls whether inline values in notebooks should be announced upon cell execution."),
+			'default': true,
+		},
 		'accessibility.replEditor.readLastExecutionOutput': {
 			'type': 'boolean',
 			'description': localize('accessibility.replEditor.readLastExecutedOutput', "Controls whether the output from an execution in the native REPL will be announced."),
