@@ -51,7 +51,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		renderer: MarkdownRenderer,
 		listPool: CollapsibleListPool,
 		editorPool: EditorPool,
-		currentWidth: number,
+		currentWidthDelegate: () => number,
 		codeBlockModelCollection: CodeBlockModelCollection,
 		codeBlockStartIndex: number,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -71,7 +71,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			dom.clearNode(this.domNode);
 			partStore.clear();
 
-			this.subPart = partStore.add(instantiationService.createInstance(ChatToolInvocationSubPart, toolInvocation, context, renderer, listPool, editorPool, currentWidth, codeBlockModelCollection, codeBlockStartIndex));
+			this.subPart = partStore.add(instantiationService.createInstance(ChatToolInvocationSubPart, toolInvocation, context, renderer, listPool, editorPool, currentWidthDelegate, codeBlockModelCollection, codeBlockStartIndex));
 			this.domNode.appendChild(this.subPart.domNode);
 			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			partStore.add(this.subPart.onNeedsRerender(() => {
@@ -92,6 +92,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 }
 
 class ChatToolInvocationSubPart extends Disposable {
+	private static idPool = 0;
+	private readonly _codeblocksPartId = 'tool-' + (ChatToolInvocationSubPart.idPool++);
+
 	public readonly domNode: HTMLElement;
 
 	private _onNeedsRerender = this._register(new Emitter<void>());
@@ -101,12 +104,14 @@ class ChatToolInvocationSubPart extends Disposable {
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
+	private _codeblocks: IChatCodeBlockInfo[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
-		return this.markdownPart?.codeblocks ?? [];
+		// TODO this is weird, the separate cases should maybe be their own "subparts"
+		return this.markdownPart?.codeblocks ?? this._codeblocks;
 	}
 
-	public get codeblocksPartId(): string | undefined {
-		return this.markdownPart?.codeblocksPartId;
+	public get codeblocksPartId(): string {
+		return this.markdownPart?.codeblocksPartId ?? this._codeblocksPartId;
 	}
 
 	constructor(
@@ -115,7 +120,7 @@ class ChatToolInvocationSubPart extends Disposable {
 		private readonly renderer: MarkdownRenderer,
 		private readonly listPool: CollapsibleListPool,
 		private readonly editorPool: EditorPool,
-		private readonly currentWidth: number,
+		private readonly currentWidthDelegate: () => number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -190,7 +195,7 @@ class ChatToolInvocationSubPart extends Disposable {
 					wordWrap: 'on'
 				}
 			};
-			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidth, this.codeBlockModelCollection, { codeBlockRenderOptions }));
+			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
 			this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
@@ -252,16 +257,25 @@ class ChatToolInvocationSubPart extends Disposable {
 		const model = this.modelService.createModel(terminalData.command, this.languageService.createById(langId));
 		const editor = this._register(this.editorPool.get());
 		editor.object.render({
-			codeBlockIndex: 0,
+			codeBlockIndex: this.codeBlockStartIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			languageId: langId,
 			renderOptions: codeBlockRenderOptions,
 			textModel: Promise.resolve(model)
-		}, this.currentWidth);
+		}, this.currentWidthDelegate());
+		this._codeblocks.push({
+			codeBlockIndex: this.codeBlockStartIndex,
+			codemapperUri: undefined,
+			elementId: this.context.element.id,
+			focus: () => editor.object.focus(),
+			isStreaming: false,
+			ownerMarkdownPartId: this.codeblocksPartId,
+			uri: model.uri,
+			uriPromise: Promise.resolve(model.uri)
+		});
 		this._register(editor.object.onDidChangeContentHeight(() => {
-			// width seems wrong TODO
-			editor.object.layout(this.currentWidth);
+			editor.object.layout(this.currentWidthDelegate());
 			this._onDidChangeHeight.fire();
 		}));
 		this._register(model.onDidChangeContent(e => {
@@ -326,7 +340,7 @@ class ChatToolInvocationSubPart extends Disposable {
 				wordWrap: 'on'
 			}
 		};
-		this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidth, this.codeBlockModelCollection, { codeBlockRenderOptions }));
+		this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		const icon = !this.toolInvocation.isConfirmed ?
 			Codicon.error :

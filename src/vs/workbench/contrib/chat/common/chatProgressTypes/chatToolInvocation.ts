@@ -90,7 +90,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			pastTenseMessage: this.pastTenseMessage,
 			isConfirmed: this._isConfirmed,
 			isComplete: this._isComplete,
-			resultDetails: this._resultDetails
+			resultDetails: this._resultDetails,
+			toolSpecificData: this.toolSpecificData,
 		};
 	}
 }
