@@ -131,9 +131,11 @@ export class LocalSearchProvider implements ISearchProvider {
 				exactMatch: true
 			});
 		} else if (useNewKeyMatchAlgorithm) {
-			// Filter by the top match type.
+			// Check the top match type.
 			const topMatchType = Math.max(...filterMatches.map(m => m.matchType));
-			const filteredMatches = filterMatches.filter(m => m.matchType === topMatchType);
+			// Still allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
+			const alwaysAllowedTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
+			const filteredMatches = filterMatches.filter(m => (m.matchType === topMatchType) || (m.matchType & alwaysAllowedTypes));
 			return Promise.resolve({
 				filterMatches: filteredMatches,
 				exactMatch: false
