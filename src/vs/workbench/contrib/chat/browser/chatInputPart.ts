@@ -100,6 +100,7 @@ import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatFileReference } from './contrib/chatDynamicVariables/chatFileReference.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
+import { resizeImage } from './imageUtils.js';
 
 const $ = dom.$;
 
@@ -578,7 +579,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					try {
 						const buffer = await this.fileService.readFile(attachment.references[0].reference);
 						const newAttachment = { ...attachment };
-						newAttachment.value = buffer.value.buffer;
+						newAttachment.value = await resizeImage(buffer.value.buffer);
 						return newAttachment;
 					} catch (error) {
 						this.logService.error('Failed to restore image from history', error);
