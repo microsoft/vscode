@@ -672,7 +672,7 @@ export const win32: IPath = {
 			return `\\\\?\\${resolvedPath}`;
 		}
 
-		return path;
+		return resolvedPath;
 	},
 
 	dirname(path: string): string {
