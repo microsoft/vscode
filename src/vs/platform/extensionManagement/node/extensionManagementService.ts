@@ -53,6 +53,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { isLinux } from '../../../base/common/platform.js';
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
 export interface INativeServerExtensionManagementService extends IExtensionManagementService {
@@ -328,7 +329,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
 
-		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verificationStatus !== ExtensionSignatureVerificationCode.NotSigned && verifySignature && this.environmentService.isBuilt) {
+		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verificationStatus !== ExtensionSignatureVerificationCode.NotSigned && verifySignature && this.environmentService.isBuilt && !(isLinux && this.productService.quality === 'stable')) {
 			try {
 				await this.extensionsDownloader.delete(location);
 			} catch (e) {
