@@ -1,10 +1,11 @@
 import { filepaths } from '../../helpers/filepaths';
 
 const completionSpec: Fig.Spec = {
-	name: "python",
+	name: "python3",
 	description: "Run the python interpreter",
 	generateSpec: async (tokens, executeShellCommand) => {
 		const isDjangoManagePyFilePresentCommand = "cat manage.py | grep -q django";
+
 		if (
 			(
 				await executeShellCommand({
@@ -14,13 +15,14 @@ const completionSpec: Fig.Spec = {
 			).status === 0
 		) {
 			return {
-				name: "python",
+				name: "python3",
 				subcommands: [{ name: "manage.py", loadSpec: "django-admin" }],
 			};
 		}
 	},
 	args: {
 		name: "python script",
+		isScript: true,
 		generators: filepaths({
 			extensions: ["py"],
 			editFileSuggestions: { priority: 76 },
@@ -39,11 +41,12 @@ const completionSpec: Fig.Spec = {
 		},
 		{
 			name: "-m",
-			description: "Module",
+			insertValue: "-m '{cursor}'",
+			description:
+				"Search sys.path for the named module and execute its contents as the __main__ module",
 			args: {
-				name: "python module",
-				isModule: "python/",
-				suggestions: ["http.server"],
+				name: "command",
+				isCommand: true,
 			},
 		},
 		{
