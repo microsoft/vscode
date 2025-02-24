@@ -1610,7 +1610,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._creationDate,
 			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
-			customTitle: this._customTitle,
+			customTitle: this._customTitle
 		};
 	}
 
