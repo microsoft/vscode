@@ -15,6 +15,7 @@ import { IResourceDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { NotebookDeletedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
 import { NotebookInsertedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookInsertedCellDecorator.js';
+import { INotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
@@ -452,6 +453,76 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		} satisfies IResourceDiffEditorInput;
 		await this._editorService.openEditor(diffInput);
 
+	}
+}
+export class ChatEditingNotebookDiffEditorIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
+	private readonly _currentIndex = observableValue(this, -1);
+	readonly currentIndex: IObservable<number> = this._currentIndex;
+
+	constructor(
+		private readonly notebookDiffEditor: INotebookTextDiffEditor,
+		private readonly cellChanges: IObservable<ICellDiffInfo[]>
+	) {
+		super();
+
+		this._store.add(autorun(r => {
+			const index = notebookDiffEditor.currentChangedIndex.read(r);
+			const numberOfCellChanges = cellChanges.read(r).filter(c => !c.diff.identical);
+			if (numberOfCellChanges.length && index >= 0 && index < numberOfCellChanges.length) {
+				// Notebook Diff editor only supports navigating through changes to cells.
+				// However in chat we take changes to lines in the cells into account.
+				// So if we're on the second cell and first cell has 3 changes, then we're on the 4th change.
+				const changesSoFar = countChanges(numberOfCellChanges.slice(0, index + 1));
+				this._currentIndex.set(changesSoFar - 1, undefined);
+			} else {
+				this._currentIndex.set(-1, undefined);
+			}
+		}));
+	}
+
+	reveal(firstOrLast: boolean): void {
+		const changes = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged'));
+		if (!changes.length) {
+			return undefined;
+		}
+		if (firstOrLast) {
+			this.notebookDiffEditor.firstChange();
+		} else {
+			this.notebookDiffEditor.lastChange();
+		}
+	}
+
+	next(_wrap: boolean): boolean {
+		const changes = this.cellChanges.get().filter(c => !c.diff.identical).length;
+		if (this.notebookDiffEditor.currentChangedIndex.get() === changes - 1) {
+			return false;
+		}
+		this.notebookDiffEditor.nextChange();
+		return true;
+	}
+
+	previous(_wrap: boolean): boolean {
+		const changes = this.cellChanges.get().filter(c => !c.diff.identical).length;
+		if (this.notebookDiffEditor.currentChangedIndex.get() === changes - 1) {
+			return false;
+		}
+		this.notebookDiffEditor.nextChange();
+		return true;
+	}
+
+	enableAccessibleDiffView(): void {
+		//
+	}
+	acceptNearestChange(change: IModifiedFileEntryChangeHunk): void {
+		change.accept();
+		this.next(true);
+	}
+	rejectNearestChange(change: IModifiedFileEntryChangeHunk): void {
+		change.reject();
+		this.next(true);
+	}
+	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
+		//
 	}
 }
 
