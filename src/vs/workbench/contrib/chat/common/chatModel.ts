@@ -88,6 +88,11 @@ export interface ILinkVariableEntry extends Omit<IBaseChatRequestVariableEntry, 
 	readonly value: URI;
 }
 
+export interface IImageVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'image';
+	readonly isPasted?: boolean;
+}
+
 export interface IDiagnosticVariableEntryFilterData {
 	readonly filterUri?: URI;
 	readonly filterSeverity?: MarkerSeverity;
@@ -120,7 +125,7 @@ export interface IDiagnosticVariableEntry extends Omit<IBaseChatRequestVariableE
 	readonly kind: 'diagnostic';
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | ILinkVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry;
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | ILinkVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -132,6 +137,10 @@ export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is ICh
 
 export function isLinkVariableEntry(obj: IChatRequestVariableEntry): obj is ILinkVariableEntry {
 	return obj.kind === 'link';
+}
+
+export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
+	return obj.kind === 'image';
 }
 
 export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {

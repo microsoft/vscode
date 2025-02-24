@@ -19,6 +19,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatWidgetService } from './chat.js';
@@ -46,6 +47,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		private readonly extensionService: IExtensionService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
 		this.cleanupOldImages();
@@ -163,7 +165,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 					await this.fileService.del(file.resource);
 				}
 			} catch (err) {
-				console.error(`Failed to cleanup image ${file.name}:`, err);
+				this.logService.error('Failed to clean up old images', err);
 			}
 		}));
 	}
@@ -184,12 +186,14 @@ async function getImageAttachContext(data: Uint8Array, mimeType: string, token: 
 	}
 
 	return {
+		kind: 'image',
 		value: data,
 		id: imageHash,
 		name: displayName,
 		isImage: true,
 		icon: Codicon.fileMedia,
 		mimeType,
+		isPasted: true,
 		references: [{ reference: resource, kind: 'reference' }]
 	};
 }
@@ -376,9 +380,10 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILogService logService: ILogService,
 	) {
 		super();
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 	}

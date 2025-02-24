@@ -79,7 +79,7 @@ import { revealInSideBarCommand } from '../../files/browser/fileActions.contribu
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { IChatRequestVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, isImageVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -574,19 +574,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Check for images in history to restore the value.
 		if (historyAttachments.length > 0) {
-			historyAttachments = await Promise.all(historyAttachments.map(async (attachment) => {
+			historyAttachments = (await Promise.all(historyAttachments.map(async (attachment) => {
 				if (attachment.isImage && attachment.references?.length && URI.isUri(attachment.references[0].reference)) {
 					try {
 						const buffer = await this.fileService.readFile(attachment.references[0].reference);
 						const newAttachment = { ...attachment };
-						newAttachment.value = attachment.name.includes('Pasted') ? buffer.value.buffer : await resizeImage(buffer.value.buffer); // if pasted image, we do not need to resize.
+						newAttachment.value = (isImageVariableEntry(attachment) && attachment.isPasted) ? buffer.value.buffer : await resizeImage(buffer.value.buffer); // if pasted image, we do not need to resize.
 						return newAttachment;
-					} catch (error) {
-						this.logService.error('Failed to restore image from history', error);
+					} catch (err) {
+						this.logService.error('Failed to restore image from history', err);
+						return undefined;
 					}
 				}
 				return attachment;
-			}));
+			}))).filter(attachment => attachment !== undefined);
 		}
 
 		this._attachmentModel.clearAndSetContext(...historyAttachments);
