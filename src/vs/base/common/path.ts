@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 // NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
-// Copied from: https://github.com/nodejs/node/commits/v20.9.0/lib/path.js
+// Copied from: https://github.com/nodejs/node/commits/v20.18.2/lib/path.js
 // Excluding: the change that adds primordials
 // (https://github.com/nodejs/node/commit/187a862d221dec42fa9a5c4214e7034d9092792f and others)
+// Excluding: the change that adds glob matching
+// (https://github.com/nodejs/node/commit/57b8b8e18e5e2007114c63b71bf0baedc01936a6)
 
 /**
  * Copyright Joyent, Inc. and other Node contributors.
@@ -1288,7 +1290,7 @@ export const posix: IPath = {
 
 	basename(path: string, suffix?: string): string {
 		if (suffix !== undefined) {
-			validateString(suffix, 'ext');
+			validateString(suffix, 'suffix');
 		}
 		validateString(path, 'path');
 
