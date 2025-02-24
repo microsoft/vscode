@@ -344,7 +344,7 @@ export class LinesLayout {
 	 * @param fromLineNumber The line number at which the deletion started, inclusive
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
 	 */
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, startLineNumber: number, deleteCount: number): void {
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
@@ -363,7 +363,7 @@ export class LinesLayout {
 				this._arr[i].afterLineNumber -= (toLineNumber - fromLineNumber + 1);
 			}
 		}
-		this._specialLineHeightsManager.onLinesDeleted(fromLineNumber, toLineNumber);
+		this._specialLineHeightsManager.onLinesDeleted(startLineNumber, deleteCount);
 	}
 
 	/**
@@ -372,7 +372,7 @@ export class LinesLayout {
 	 * @param fromLineNumber The line number at which the insertion started, inclusive
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 */
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, startLineNumber: number): void {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number, startLineNumber: number, insertCount: number): void {
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
@@ -385,7 +385,7 @@ export class LinesLayout {
 				this._arr[i].afterLineNumber += (toLineNumber - fromLineNumber + 1);
 			}
 		}
-		this._specialLineHeightsManager.onLinesInserted(fromLineNumber, toLineNumber, startLineNumber);
+		this._specialLineHeightsManager.onLinesInserted(startLineNumber, insertCount);
 	}
 
 	/**

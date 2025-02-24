@@ -276,10 +276,20 @@ export class ModelRawLinesDeleted {
 	 * At what line the deletion stopped (inclusive).
 	 */
 	public readonly toLineNumber: number;
+	/**
+	 * The line number where the deletion started
+	 */
+	public readonly startLineNumber: number;
+	/**
+	 * The number of lines deleted
+	 */
+	public readonly deleteCount: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
+	constructor(fromLineNumber: number, toLineNumber: number, startLineNumber: number, deleteCount: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
+		this.startLineNumber = startLineNumber;
+		this.deleteCount = deleteCount;
 	}
 }
 
@@ -302,6 +312,10 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly startLineNumber: number;
 	/**
+	 * The number of lines inserted
+	 */
+	public readonly insertCount: number;
+	/**
 	 * The text that was inserted
 	 */
 	public readonly detail: string[];
@@ -310,11 +324,12 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly injectedTexts: (LineInjectedText[] | null)[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, startLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
+	constructor(fromLineNumber: number, toLineNumber: number, startLineNumber: number, insertCount: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
 		this.injectedTexts = injectedTexts;
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 		this.startLineNumber = startLineNumber;
+		this.insertCount = insertCount;
 		this.detail = detail;
 	}
 }

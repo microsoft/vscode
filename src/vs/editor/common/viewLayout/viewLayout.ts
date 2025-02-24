@@ -239,11 +239,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public onFlushed(lineCount: number): void {
 		this._linesLayout.onFlushed(lineCount);
 	}
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
-		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, startLineNumber: number, deleteCount: number): void {
+		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber, startLineNumber, deleteCount);
 	}
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, startLineNumber: number): void {
-		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber, startLineNumber);
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number, startLineNumber: number, insertCount: number): void {
+		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber, startLineNumber, insertCount);
 	}
 
 	// ---- end view event handlers

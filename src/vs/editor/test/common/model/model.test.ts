@@ -138,7 +138,7 @@ suite('Editor Model - Model', () => {
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
 				new ModelRawLineChanged(1, 'My new line', null),
-				new ModelRawLinesInserted(2, 2, 2, ['No longer First Line'], [null]),
+				new ModelRawLinesInserted(2, 2, 2, 1, ['No longer First Line'], [null]),
 			],
 			2,
 			false,
@@ -257,7 +257,7 @@ suite('Editor Model - Model', () => {
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
 				new ModelRawLineChanged(1, 'My Second Line', null),
-				new ModelRawLinesDeleted(2, 2),
+				new ModelRawLinesDeleted(2, 2, 2, 1),
 			],
 			2,
 			false,
@@ -278,7 +278,7 @@ suite('Editor Model - Model', () => {
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
 				new ModelRawLineChanged(1, 'My Third Line', null),
-				new ModelRawLinesDeleted(2, 3),
+				new ModelRawLinesDeleted(2, 3, 2, 1),
 			],
 			2,
 			false,
