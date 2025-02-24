@@ -531,8 +531,11 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
+			// If the progress.uri is a cell Uri, its possible its part of the inline chat.
+			// Old approach of notebook inline chat would not start and end with notebook Uri, so we need to check for old approach.
+			const useOldApproachForInlineNotebook = progress.uri.scheme === Schemas.vscodeNotebookCell && !this._responseParts.find(part => part.kind === 'notebookEditGroup');
 			// merge edits for the same file no matter when they come in
-			const notebookUri = CellUri.parse(progress.uri)?.notebook;
+			const notebookUri = useOldApproachForInlineNotebook ? undefined : CellUri.parse(progress.uri)?.notebook;
 			const uri = notebookUri ?? progress.uri;
 			let found = false;
 			const groupKind = progress.kind === 'textEdit' && !notebookUri ? 'textEditGroup' : 'notebookEditGroup';
