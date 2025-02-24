@@ -54,7 +54,6 @@ interface PostProcessBranchesOptions {
 const postProcessBranches =
 	(options: PostProcessBranchesOptions = {}): Fig.Generator["postProcess"] =>
 		(out): (Fig.Suggestion | null)[] => {
-			const { insertWithoutRemotes = false } = options;
 
 			const output = filterMessages(out);
 
@@ -93,8 +92,8 @@ const postProcessBranches =
 
 					let description = "Branch";
 
-					if (insertWithoutRemotes && name.startsWith("remotes/")) {
-						name = name.slice(name.indexOf("/", 8) + 1);
+					if (name.startsWith("remotes/")) {
+						name = name.substring(8);
 						description = "Remote branch";
 					}
 
@@ -242,7 +241,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 			"--no-color",
 			"--sort=-committerdate",
 		],
-		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
+		postProcess: postProcessBranches(),
 	},
 
 	localBranches: {
@@ -253,7 +252,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 			"--no-color",
 			"--sort=-committerdate",
 		],
-		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
+		postProcess: postProcessBranches(),
 	},
 
 	// custom generator to display local branches by default or
