@@ -302,8 +302,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._linearHistory.get().find(s => s.requestId === requestId);
 	}
 
-	private _findEditStop(requestId: string, undoStop: string | undefined): IChatEditingSessionStop | undefined {
-		return this._findSnapshot(requestId)?.stops.find(s => s.stopId === undoStop);
+	private _findEditStop(requestId: string, undoStop: string | undefined) {
+		const snapshot = this._findSnapshot(requestId);
+		if (!snapshot) {
+			return undefined;
+		}
+		const idx = snapshot.stops.findIndex(s => s.stopId === undoStop);
+		return idx === -1 ? undefined : { stop: snapshot.stops[idx], snapshot, historyIndex: snapshot.startIndex + idx };
 	}
 
 	private _ensurePendingSnapshot() {
@@ -467,7 +472,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public async getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null> {
 		const entries = undoStop === POST_EDIT_STOP_ID
 			? this._findSnapshot(requestId)?.postEdit
-			: this._findEditStop(requestId, undoStop)?.entries;
+			: this._findEditStop(requestId, undoStop)?.stop.entries;
 		if (!entries) {
 			return null;
 		}
@@ -491,10 +496,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	private _pendingSnapshot: IChatEditingSessionStop | undefined;
 	public async restoreSnapshot(requestId: string | undefined, stopId: string | undefined): Promise<void> {
 		if (requestId !== undefined) {
-			const snapshot = this._findEditStop(requestId, stopId);
-			if (snapshot) {
+			const stopRef = this._findEditStop(requestId, stopId);
+			if (stopRef) {
 				this._ensurePendingSnapshot();
-				await this._restoreSnapshot(snapshot, undefined);
+				await asyncTransaction(async tx => {
+					this._linearHistoryIndex.set(stopRef.historyIndex, tx);
+					await this._restoreSnapshot(stopRef.stop, tx);
+				});
+				this._updateRequestHiddenState();
 			}
 		} else {
 			const pendingSnapshot = this._pendingSnapshot;
@@ -1035,7 +1044,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		try {
 			const notebookUri = CellUri.parse(resource)?.notebook || resource;
 			// If a notebook isn't open, then use the old synchronization approach.
-			if (this._notebookService.hasSupportedNotebooks(notebookUri) && this._notebookService.getNotebookTextModel(notebookUri)) {
+			if (this._notebookService.hasSupportedNotebooks(notebookUri) && (this._notebookService.getNotebookTextModel(notebookUri) || ChatEditingModifiedNotebookEntry.canHandleSnapshot(initialContent))) {
 				return ChatEditingModifiedNotebookEntry.create(notebookUri, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
 			} else {
 				const ref = await this._textModelService.createModelReference(resource);

@@ -13,7 +13,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
@@ -24,6 +24,8 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Command } from '../../../../editor/common/languages.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -44,7 +46,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -69,7 +72,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private registerListeners(): void {
 		const contextKeysSet = new Set([
-			ChatContextKeys.Setup.hidden.key,
 			ChatContextKeys.Setup.limited.key,
 			ChatContextKeys.Setup.installed.key,
 			ChatContextKeys.Setup.canSignUp.key,
@@ -83,8 +85,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			if (e.affectsSome(contextKeysSet)) {
 				this.entry.update(this.getEntryProps());
 			}
-
-			this.statusbarService.updateEntryVisibility(ChatStatusBarEntry.ID, !this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.hidden.key));
 		}));
 
 		this._register(this.chatQuotasService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
@@ -96,7 +96,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
-		let command = TOGGLE_CHAT_ACTION_ID;
+		let command: string | Command = TOGGLE_CHAT_ACTION_ID;
 		let tooltip: TooltipContent = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
 
 		// Quota Exceeded
@@ -108,7 +108,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
 				quotaWarning = localize('completionsQuotaExceededStatus', "Completions limit reached");
 			} else {
-				quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Copilot limit reached");
+				quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Limit reached");
 			}
 
 			text = `$(copilot-warning) ${quotaWarning}`;
@@ -142,8 +142,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 				container.appendChild($('div', undefined, localize('limitTitle', "You are currently using Copilot Free:")));
 
-				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chat Messages"));
-				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code Completions"));
+				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats Used"));
+				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Completions Used"));
 
 				this.chatEntitlementsService.resolve(CancellationToken.None).then(() => {
 					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
@@ -152,7 +152,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 					completionsQuotaIndicator(completionsTotal, completionsRemaining);
 				});
 
-				container.appendChild($('div', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
+				container.appendChild($('div', undefined, localize('limitQuota', "Usage will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
 
 				// Settings
 				container.appendChild(document.createElement('hr'));
@@ -164,6 +164,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 				return container;
 			};
+			command = ShowTooltipCommand;
 		}
 
 		// Any other User
@@ -180,6 +181,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 				return container;
 			};
+			command = ShowTooltipCommand;
 		}
 
 		return {
@@ -209,8 +211,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		const update = (total: number | undefined, remaining: number | undefined) => {
 			if (typeof total === 'number' && typeof remaining === 'number') {
-				quotaText.textContent = localize('quotaDisplay', "{0} / {1}", remaining, total);
-				quotaBit.style.width = `${(remaining / total) * 100}%`;
+				quotaText.textContent = localize('quotaDisplay', "{0} / {1}", total - remaining, total);
+				quotaBit.style.width = `${((total - remaining) / total) * 100}%`;
 			}
 		};
 
@@ -234,10 +236,16 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			const shortcut = append(shortcuts, $('div.shortcut'));
 
-			append(shortcut, $('span.shortcut-label', undefined, entry.text));
+			const shortcutLabel = append(shortcut, $('span.shortcut-label', undefined, entry.text));
 
 			const shortcutKey = disposables.add(new KeybindingLabel(shortcut, OS, { ...defaultKeybindingLabelStyles }));
 			shortcutKey.set(keys);
+
+			for (const element of [shortcutLabel, shortcutKey.element]) {
+				disposables.add(addDisposableListener(element, EventType.CLICK, e => {
+					this.commandService.executeCommand(entry.id);
+				}));
+			}
 		}
 
 		return shortcuts;
@@ -254,7 +262,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			const setting = append(settings, $('div.setting'));
 
-			const checkbox = this._register(new Checkbox(entry.text, checked, defaultCheckboxStyles));
+			const checkbox = disposables.add(new Checkbox(entry.text, checked, defaultCheckboxStyles));
 			setting.appendChild(checkbox.domNode);
 
 			const settingLabel = append(setting, $('span.setting-label', undefined, entry.text));

@@ -537,6 +537,7 @@ export type InstallOptions = {
 	installOnlyNewlyAddedFromExtensionPack?: boolean;
 	productVersion?: IProductVersion;
 	keepExisting?: boolean;
+	downloadExtensionsLocally?: boolean;
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */

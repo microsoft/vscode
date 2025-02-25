@@ -235,8 +235,17 @@ class InternalTerminalShellIntegration extends Disposable {
 	endShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine | undefined, exitCode: number | undefined): void {
 		if (this._currentExecution) {
 			this._currentExecution.endExecution(commandLine);
-			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode });
-			this._currentExecution = undefined;
+			const currentExecution = this._currentExecution;
+			// IMPORTANT: Ensure the current execution's data events are flushed in order to
+			// prevent data events firing after the end event fires.
+			currentExecution.flush().then(() => {
+				// Only fire if it's still the same execution, if it's changed it would have already
+				// been fired.
+				if (this._currentExecution === currentExecution) {
+					this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: currentExecution.value, exitCode });
+					this._currentExecution = undefined;
+				}
+			});
 		}
 	}
 
@@ -314,10 +323,15 @@ class InternalTerminalShellExecution {
 		this._dataStream = undefined;
 		this._ended = true;
 	}
+
+	async flush(): Promise<void> {
+		await this._dataStream?.flush();
+	}
 }
 
 class ShellExecutionDataStream extends Disposable {
 	private _barrier: Barrier | undefined;
+	private _iterables: AsyncIterableObject<string>[] = [];
 	private _emitters: AsyncIterableEmitter<string>[] = [];
 
 	createIterable(): AsyncIterable<string> {
@@ -329,6 +343,7 @@ class ShellExecutionDataStream extends Disposable {
 			this._emitters.push(emitter);
 			await barrier.wait();
 		});
+		this._iterables.push(iterable);
 		return iterable;
 	}
 
@@ -341,5 +356,9 @@ class ShellExecutionDataStream extends Disposable {
 	endExecution(): void {
 		this._barrier?.open();
 		this._barrier = undefined;
+	}
+
+	async flush(): Promise<void> {
+		await Promise.all(this._iterables.map(e => e.toPromise()));
 	}
 }
