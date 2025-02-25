@@ -137,3 +137,29 @@ export interface ITaskSystemInfoDTO {
 	authority: string;
 	platform: string;
 }
+
+export interface ITaskTerminalStatus {
+	terminalId: number;
+	status: string;
+}
+
+export interface ITaskTerminalStatusDTO {
+	terminalId: number;
+	status: string;
+}
+
+export namespace TaskTerminalStatusDTO {
+	export function from(value: ITaskTerminalStatus): ITaskTerminalStatusDTO {
+		return {
+			terminalId: value.terminalId,
+			status: value.status
+		};
+	}
+
+	export function to(value: ITaskTerminalStatusDTO): ITaskTerminalStatus {
+		return {
+			terminalId: value.terminalId,
+			status: value.status
+		};
+	}
+}

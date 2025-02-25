@@ -29,6 +29,7 @@ import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js
 import { USER_TASKS_GROUP_KEY } from '../../contrib/tasks/common/tasks.js';
 import { ErrorNoTelemetry, NotSupportedError } from '../../../base/common/errors.js';
 import { asArray } from '../../../base/common/arrays.js';
+import { ITaskTerminalStatusDTO } from './shared/tasks.js';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -39,6 +40,7 @@ export interface IExtHostTask extends ExtHostTaskShape {
 	onDidEndTask: Event<vscode.TaskEndEvent>;
 	onDidStartTaskProcess: Event<vscode.TaskProcessStartEvent>;
 	onDidEndTaskProcess: Event<vscode.TaskProcessEndEvent>;
+	onDidChangeTaskTerminalStatus: Event<vscode.TaskTerminalStatus>;  // Fixed the event type back to Event<TaskTerminalStatus>
 
 	registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable;
 	registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void;
@@ -406,6 +408,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 
 	protected readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
 	protected readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
+	protected readonly _onDidChangeTaskTerminalStatus: Emitter<vscode.TaskTerminalStatus> = new Emitter<vscode.TaskTerminalStatus>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -537,6 +540,17 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		this._onDidTaskProcessEnded.fire({
 			execution: execution,
 			exitCode: value.exitCode
+		});
+	}
+
+	public get onDidChangeTaskTerminalStatus(): Event<vscode.TaskTerminalStatus> {
+		return this._onDidChangeTaskTerminalStatus.event;
+	}
+
+	public async $onDidChangeTaskTerminalStatus(value: ITaskTerminalStatusDTO): Promise<void> {
+		this._onDidChangeTaskTerminalStatus.fire({
+			terminalId: value.terminalId,
+			status: value.status
 		});
 	}
 

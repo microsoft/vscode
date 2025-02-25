@@ -29,7 +29,8 @@ import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext } fr
 import {
 	ITaskDefinitionDTO, ITaskExecutionDTO, IProcessExecutionOptionsDTO, ITaskPresentationOptionsDTO,
 	IProcessExecutionDTO, IShellExecutionDTO, IShellExecutionOptionsDTO, ICustomExecutionDTO, ITaskDTO, ITaskSourceDTO, ITaskHandleDTO, ITaskFilterDTO, ITaskProcessStartedDTO, ITaskProcessEndedDTO, ITaskSystemInfoDTO,
-	IRunOptionsDTO, ITaskGroupDTO
+	IRunOptionsDTO, ITaskGroupDTO,
+	TaskTerminalStatusDTO
 } from '../common/shared/tasks.js';
 import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
@@ -455,6 +456,8 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
+			//TODO@meganrogge fix
+			this._proxy.$onDidChangeTaskTerminalStatus(TaskTerminalStatusDTO.from({ terminalId: 1, status: event.kind.toString() }));
 		}));
 	}
 
@@ -735,5 +738,4 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 	async $registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void> {
 		return this._taskService.registerSupportedExecutions(custom, shell, process);
 	}
-
 }

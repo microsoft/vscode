@@ -1355,6 +1355,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidEndTaskProcess: (listeners, thisArgs?, disposables?) => {
 				return _asExtensionEvent(extHostTask.onDidEndTaskProcess)(listeners, thisArgs, disposables);
+			},
+			onDidChangeTaskStatus: (listeners, thisArgs?, disposables?) => {
+				// TODO@meganrogge
+				// checkProposedApiEnabled(extension, 'taskTerminalStatus');
+				return _asExtensionEvent(extHostTask.onDidChangeTaskTerminalStatus)(listeners, thisArgs, disposables);
 			}
 		};
 
