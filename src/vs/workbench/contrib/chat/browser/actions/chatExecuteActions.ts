@@ -45,6 +45,8 @@ abstract class SubmitAction extends Action2 {
 	}
 }
 
+const whenNotInProgressOrPaused = ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate());
+
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
 
@@ -53,7 +55,7 @@ export class ChatSubmitAction extends SubmitAction {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
-			ChatContextKeys.requestInProgress.negate(),
+			whenNotInProgressOrPaused,
 			ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
 		);
 
@@ -79,7 +81,7 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()),
+						whenNotInProgressOrPaused,
 						ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
 					),
 					group: 'navigation',
@@ -215,7 +217,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
-			ChatContextKeys.requestInProgress.negate(),
+			whenNotInProgressOrPaused,
 			ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
 		);
 
@@ -235,13 +237,13 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+					when: ContextKeyExpr.and(whenNotInProgressOrPaused, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
 					order: 1
 				},
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
-					when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+					when: ContextKeyExpr.and(whenNotInProgressOrPaused, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
 					group: 'navigation',
 				},
 			]
@@ -257,7 +259,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
-			ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()),
+			whenNotInProgressOrPaused,
 			ContextKeyExpr.and(ContextKeyExpr.or(
 				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
 				ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
@@ -323,7 +325,7 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			ChatContextKeys.inputHasAgent.negate(),
-			ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()),
+			whenNotInProgressOrPaused,
 		);
 
 		super({
@@ -374,7 +376,7 @@ class SendToChatEditingAction extends EditingSessionAction {
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
 			ChatContextKeys.inputHasAgent.negate(),
-			ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()),
+			whenNotInProgressOrPaused,
 		);
 
 		super({
@@ -464,7 +466,7 @@ class SendToNewChatAction extends Action2 {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.instructionsAttached),
-			ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate()),
+			whenNotInProgressOrPaused,
 		);
 
 		super({
