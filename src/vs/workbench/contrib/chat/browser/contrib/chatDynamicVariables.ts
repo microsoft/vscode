@@ -673,7 +673,7 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, onBackg
 			resource: marker.resource,
 			label: marker.message,
 			description: localize('markers.panel.at.ln.col.number', "[Ln {0}, Col {1}]", '' + marker.startLineNumber, '' + marker.startColumn),
-			entry: { filterUri: marker.resource, filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn } }
+			entry: IDiagnosticVariableEntryFilterData.fromMarker(marker),
 		});
 	}
 

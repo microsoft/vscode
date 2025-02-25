@@ -11,7 +11,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
-import { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
@@ -375,19 +374,11 @@ export class ChatDragAndDrop extends Themable {
 
 	private resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[] {
 		return markers.map((marker): IDiagnosticVariableEntry => {
-			const filter: Mutable<IDiagnosticVariableEntryFilterData> = {};
+			let filter: IDiagnosticVariableEntryFilterData;
 			if (!('severity' in marker)) {
-				filter.filterUri = URI.revive(marker.uri);
-				filter.filterSeverity = MarkerSeverity.Warning;
+				filter = { filterUri: URI.revive(marker.uri), filterSeverity: MarkerSeverity.Warning };
 			} else {
-				filter.filterUri = URI.revive(marker.resource);
-				filter.filterSeverity = marker.severity;
-				filter.filterRange = {
-					startLineNumber: marker.startLineNumber,
-					startColumn: marker.startColumn,
-					endLineNumber: marker.endLineNumber,
-					endColumn: marker.endColumn
-				};
+				filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
 			}
 
 			return {
