@@ -679,6 +679,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return {
 			resource: this.modifiedURI,
 			languageId: 'notebook',
+			notebookType: this.modifiedModel.notebookType,
 			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path),
 			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
 			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),

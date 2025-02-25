@@ -1140,6 +1140,7 @@ class ChatEditingSessionStorage {
 			return {
 				resource: URI.parse(entry.resource),
 				languageId: entry.languageId,
+				notebookType: entry.notebookType,
 				original: await getFileContent(entry.originalHash),
 				current: await getFileContent(entry.currentHash),
 				originalToCurrentEdit: OffsetEdit.fromJson(entry.originalToCurrentEdit),
@@ -1242,6 +1243,7 @@ class ChatEditingSessionStorage {
 		const serializeSnapshotEntry = (entry: ISnapshotEntry): ISnapshotEntryDTO => {
 			return {
 				resource: entry.resource.toString(),
+				notebookType: entry.notebookType,
 				languageId: entry.languageId,
 				originalHash: addFileContent(entry.original),
 				currentHash: addFileContent(entry.current),
@@ -1338,6 +1340,7 @@ interface IChatEditingSessionSnapshotDTO2 {
 interface ISnapshotEntryDTO {
 	readonly resource: string;
 	readonly languageId: string;
+	readonly notebookType: string | undefined;
 	readonly originalHash: string;
 	readonly currentHash: string;
 	readonly originalToCurrentEdit: IOffsetEdit;
