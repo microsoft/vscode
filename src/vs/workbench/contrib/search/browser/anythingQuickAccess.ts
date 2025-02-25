@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastA
 import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from '../../../../base/common/fuzzyScorer.js';
 import { IFileQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSearchConfiguration } from '../common/search.js';
+import { getOutOfWorkspaceEditorResources, extractRangeFromFileUrl, extractRangeFromFilter, IWorkbenchSearchConfiguration } from '../common/search.js';
 import { ISearchService, ISearchComplete } from '../../../services/search/common/search.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { untildify } from '../../../../base/common/labels.js';
@@ -251,7 +251,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Find a suitable range from the pattern looking for ":", "#" or ","
 		// unless we have the `@` editor symbol character inside the filter
-		const filterWithRange = extractRangeFromFilter(originalFilter, [GotoSymbolQuickAccessProvider.PREFIX]);
+		const filterWithRange =
+			// Treat "file://" url as file path with selection
+			extractRangeFromFileUrl(originalFilter) ??
+			extractRangeFromFilter(originalFilter, [GotoSymbolQuickAccessProvider.PREFIX]);
 
 		// Update filter with normalized values
 		let filter: string;

@@ -19,6 +19,7 @@ import { isNumber } from '../../../../base/common/types.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { compare } from '../../../../base/common/strings.js';
 import { groupBy } from '../../../../base/common/arrays.js';
+import { extractSelection } from '../../../../platform/opener/common/opener.js';
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -154,6 +155,31 @@ const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?\)?:?\s*$/;
 export interface IFilterAndRange {
 	filter: string;
 	range: IRange;
+}
+
+export function extractRangeFromFileUrl(filter: string): IFilterAndRange | undefined {
+	if (!filter.startsWith('file://')) {
+		return undefined;
+	}
+	const { uri, selection } = extractSelection(URI.parse(filter));
+	let range: IRange;
+	if (selection) {
+		const { startLineNumber, startColumn, endLineNumber, endColumn } = selection;
+		range = {
+			startLineNumber,
+			startColumn,
+			endLineNumber: endLineNumber ?? startLineNumber,
+			endColumn: endColumn ?? startColumn
+		};
+	} else {
+		range = {
+			startLineNumber: 1,
+			startColumn: 1,
+			endLineNumber: 1,
+			endColumn: 1
+		};
+	}
+	return { filter: uri.fsPath, range };
 }
 
 export function extractRangeFromFilter(filter: string, unless?: string[]): IFilterAndRange | undefined {
