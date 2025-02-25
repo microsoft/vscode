@@ -46,7 +46,7 @@ import { ChatAgentLocation, IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -565,14 +565,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						&& isRequestVM(element) && element.agentOrSlashCommandDetected && element.slashCommand
 						&& data.kind === 'markdownContent' // TODO this is fishy but I didn't find a better way to render on the same inline as the MD request part
 					) {
-						newPart.domNode.style.display = 'inline-flex';
+						if (newPart.domNode) {
+							newPart.domNode.style.display = 'inline-flex';
+						}
 						const cmdPart = this.instantiationService.createInstance(ChatAgentCommandContentPart, element.slashCommand, () => this._onDidClickRerunWithAgentOrCommandDetection.fire({ sessionId: element.sessionId, requestId: element.id }));
 						templateData.value.appendChild(cmdPart.domNode);
 						parts.push(cmdPart);
 						inlineSlashCommandRendered = true;
 					}
 
-					templateData.value.appendChild(newPart.domNode);
+					if (newPart.domNode) {
+						templateData.value.appendChild(newPart.domNode);
+					}
 					parts.push(newPart);
 				}
 			});
@@ -715,21 +719,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			};
 			const newPart = this.renderChatContentPart(partToRender, templateData, context);
 			if (newPart) {
-				// Maybe the part can't be rendered in this context, but this shouldn't really happen
-				if (alreadyRenderedPart) {
-					try {
-						// This method can throw HierarchyRequestError
-						alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
-					} catch (err) {
-						this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
-					}
-				} else {
-					templateData.value.appendChild(newPart.domNode);
-				}
-
 				renderedParts[index] = newPart;
-			} else if (alreadyRenderedPart) {
-				alreadyRenderedPart.domNode.remove();
+				// Maybe the part can't be rendered in this context, but this shouldn't really happen
+				try {
+					if (alreadyRenderedPart?.domNode) {
+						if (newPart.domNode) {
+							// This method can throw HierarchyRequestError
+							alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+						} else {
+							alreadyRenderedPart.domNode.remove();
+						}
+					} else if (newPart.domNode) {
+						templateData.value.appendChild(newPart.domNode);
+					}
+				} catch (err) {
+					this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
+				}
+			} else {
+				alreadyRenderedPart?.domNode?.remove();
 			}
 		});
 	}
@@ -744,7 +751,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
-		const typesToSkip = new Set<string>(['undoStop']);
 		const partsToRender: IChatRendererContent[] = [];
 		if (element.contentReferences.length) {
 			partsToRender.push({ kind: 'references', references: element.contentReferences });
@@ -763,7 +769,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 					// Consumed full markdown chunk- need to ensure that all following non-markdown parts are rendered
 					for (const nextPart of renderableResponse.slice(i + 1)) {
-						if (nextPart.kind !== 'markdownContent' && !typesToSkip.has(nextPart.kind)) {
+						if (nextPart.kind !== 'markdownContent') {
 							i++;
 							partsToRender.push(nextPart);
 						} else {
@@ -783,7 +789,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 					break;
 				}
-			} else if (!typesToSkip.has(part.kind)) {
+			} else {
 				partsToRender.push(part);
 			}
 		}
@@ -877,9 +883,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderToolInvocation(content, context, templateData);
 		} else if (content.kind === 'working') {
 			return this.renderWorkingProgress(content, context);
+		} else if (content.kind === 'undoStop') {
+			return this.renderUndoStop(content);
 		}
 
+		// todo@connor4312/roblourens: should this throw or renderNoContent to avoid progressive render thrashing?
 		return undefined;
+	}
+
+	private renderUndoStop(content: IChatUndoStop) {
+		return this.renderNoContent(other => other.kind === 'undoStop' && other.id === content.id);
+	}
+
+	private renderNoContent(equals: (otherContent: IChatRendererContent) => boolean): IChatContentPart {
+		return {
+			dispose: () => { },
+			domNode: undefined,
+			hasSameContent: equals,
+		};
 	}
 
 	private renderTreeData(content: IChatTreeData, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
