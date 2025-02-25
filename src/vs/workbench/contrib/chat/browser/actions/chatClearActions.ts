@@ -9,7 +9,6 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -26,7 +25,6 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
-import { ChatEditingSessionSubmitActionId } from './chatExecuteActions.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
@@ -183,7 +181,6 @@ export function registerNewChatActions() {
 			const dialogService = accessor.get(IDialogService);
 			const viewsService = accessor.get(IViewsService);
 			const agentService = accessor.get(IChatAgentService);
-			const commandService = accessor.get(ICommandService);
 
 			if (!(await this._handleCurrentEditingSession(editingSession, dialogService))) {
 				return;
@@ -210,8 +207,7 @@ export function registerNewChatActions() {
 
 				if (context?.inputValue) {
 					// An input value was provided, so write it to the chat and submit automatically
-					widget.setInput(context.inputValue);
-					await commandService.executeCommand(ChatEditingSessionSubmitActionId);
+					widget.acceptInput(context.inputValue);
 				}
 			}
 		}
