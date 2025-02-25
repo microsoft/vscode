@@ -101,6 +101,8 @@ export interface IDiagnosticVariableEntryFilterData {
 }
 
 export namespace IDiagnosticVariableEntryFilterData {
+	export const icon = Codicon.warning;
+
 	export function toEntry(data: IDiagnosticVariableEntryFilterData) {
 		return {
 			id: id(data),
@@ -108,15 +110,13 @@ export namespace IDiagnosticVariableEntryFilterData {
 			icon,
 			value: data,
 			kind: 'diagnostic' as const,
-			range: data.filterRange ? new OffsetRange(data.filterRange.startColumn, data.filterRange.endLineNumber) : undefined,
+			range: data.filterRange ? new OffsetRange(data.filterRange.startLineNumber, data.filterRange.endLineNumber) : undefined,
 		};
 	}
 
 	export function id(data: IDiagnosticVariableEntryFilterData) {
 		return [data.filterUri, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
 	}
-
-	export const icon = Codicon.warning;
 
 	export function label(data: IDiagnosticVariableEntryFilterData) {
 		let labelStr = localize('chat.attachment.problems.all', "All Problems");

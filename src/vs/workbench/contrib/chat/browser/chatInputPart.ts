@@ -1120,6 +1120,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+
+				if (attachment.kind === 'diagnostic') {
+					if (attachment.filterUri) {
+						resource = attachment.filterUri ? URI.revive(attachment.filterUri) : undefined;
+						range = attachment.filterRange;
+					} else {
+						widget.style.cursor = 'pointer';
+						store.add(dom.addDisposableListener(widget, dom.EventType.CLICK, () => {
+							this.commandService.executeCommand('workbench.panel.markers.view.focus');
+						}));
+					}
+				}
 			}
 
 			if (attachment.kind === 'symbol') {

@@ -507,6 +507,7 @@ export class AttachContextAction extends Action2 {
 					name: pick.label,
 					value: pick.filter,
 					kind: 'diagnostic',
+					icon: pick.icon,
 					...pick.filter,
 				});
 			} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
