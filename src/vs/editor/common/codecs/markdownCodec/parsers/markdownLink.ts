@@ -20,7 +20,7 @@ import { LeftParenthesis, RightParenthesis } from '../../simpleCodec/tokens/pare
 export type TMarkdownToken = MarkdownLink | TSimpleToken;
 
 /**
- * List of characters that stop a markdown link sequence.
+ * List of characters that are not allowed in links so stop a markdown link sequence abruptly.
  */
 const MARKDOWN_LINK_STOP_CHARACTERS: readonly string[] = [CarriageReturn, NewLine, VerticalTab, FormFeed]
 	.map((token) => { return token.symbol; });
