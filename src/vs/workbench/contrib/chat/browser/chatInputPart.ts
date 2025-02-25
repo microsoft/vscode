@@ -184,7 +184,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			});
 		}
 
-		// factor in nested file references into the implicit context
+		// factor in nested file links of a prompt into the implicit context
 		const variables = this.variableService.getDynamicVariables(sessionId);
 		for (const variable of variables) {
 			if (!(variable instanceof ChatFileReference)) {
@@ -197,10 +197,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				...variable.allValidReferences.map((link) => {
 					return toChatVariable(link, false);
 				}),
-			);
-			// then add the root reference itself
-			contextArr.push(
-				toChatVariable(variable, true),
 			);
 		}
 
