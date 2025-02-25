@@ -92,6 +92,7 @@ import './contrib/undoRedo/notebookUndoRedo.js';
 import './contrib/cellCommands/cellCommands.js';
 import './contrib/viewportWarmup/viewportWarmup.js';
 import './contrib/troubleshoot/layout.js';
+import './contrib/troubleshoot/chatEdits.js';
 import './contrib/debug/notebookBreakpoints.js';
 import './contrib/debug/notebookCellPausing.js';
 import './contrib/debug/notebookDebugDecorations.js';
