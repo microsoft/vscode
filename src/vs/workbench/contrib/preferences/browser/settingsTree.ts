@@ -29,7 +29,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, dispose, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isIOS } from '../../../../base/common/platform.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
@@ -492,11 +492,14 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 		const extension = await extensionService.getExtension(extensionId);
 		const extensionName = extension?.displayName ?? extension?.name ?? extensionId;
 
-		// Each group represents a single category of settings.
-		// If the extension author forgets to specify an id for the group,
-		// fall back to the title given to the group.
+		// There could be multiple groups with the same extension id that all belong to the same extension.
+		// To avoid highlighting all groups upon expanding the extension's ToC entry,
+		// use the group ID only if it is non-empty and isn't the extension ID.
+		// Ref https://github.com/microsoft/vscode/issues/241521.
+		const settingGroupId = (group.id && group.id !== extensionId) ? group.id : group.title;
+
 		const childEntry: ITOCEntry<ISetting> = {
-			id: group.id || group.title,
+			id: settingGroupId,
 			label: group.title,
 			order: group.order,
 			settings: flatSettings
@@ -867,8 +870,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = toDispose.add(new SimpleIconLabel(labelElementContainer));
-		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
-		toDispose.add(indicatorsLabel);
+		const indicatorsLabel = toDispose.add(this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement));
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
@@ -908,19 +910,19 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected addSettingElementFocusHandler(template: ISettingItemTemplate): void {
 		const focusTracker = DOM.trackFocus(template.containerElement);
 		template.toDispose.add(focusTracker);
-		focusTracker.onDidBlur(() => {
+		template.toDispose.add(focusTracker.onDidBlur(() => {
 			if (template.containerElement.classList.contains('focused')) {
 				template.containerElement.classList.remove('focused');
 			}
-		});
+		}));
 
-		focusTracker.onDidFocus(() => {
+		template.toDispose.add(focusTracker.onDidFocus(() => {
 			template.containerElement.classList.add('focused');
 
 			if (template.context) {
 				this._onDidFocusSetting.fire(template.context);
 			}
-		});
+		}));
 	}
 
 	protected renderSettingToolbar(container: HTMLElement): ToolBar {
@@ -1090,6 +1092,7 @@ class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElement, ne
 	}
 
 	disposeTemplate(templateData: IGroupTitleTemplate): void {
+		templateData.toDispose.dispose();
 	}
 }
 
@@ -1129,7 +1132,7 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 	}
 
 	disposeTemplate(template: IDisposableTemplate): void {
-		dispose(template.toDispose);
+		template.toDispose.dispose();
 	}
 }
 

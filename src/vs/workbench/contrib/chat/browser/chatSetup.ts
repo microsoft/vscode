@@ -48,11 +48,11 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { CHAT_CATEGORY } from './actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { IChatQuotasService } from './chatQuotasService.js';
+import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -69,6 +69,8 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { ChatEntitlement, IChatEntitlements, IChatEntitlementsService } from '../common/chatEntitlementsService.js';
+import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -91,25 +93,41 @@ const defaultChat = {
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 };
 
-enum ChatEntitlement {
-	/** Signed out */
-	Unknown = 1,
-	/** Signed in but not yet resolved */
-	Unresolved,
-	/** Signed in and entitled to Limited */
-	Available,
-	/** Signed in but not entitled to Limited */
-	Unavailable,
-	/** Signed-up to Limited */
-	Limited,
-	/** Signed-up to Pro */
-	Pro
+//#region Service
+
+export class ChatEntitlementsService extends Disposable implements IChatEntitlementsService {
+
+	declare _serviceBrand: undefined;
+
+	readonly context: ChatSetupContext | undefined;
+	readonly requests: ChatSetupRequests | undefined;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IProductService productService: IProductService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+	) {
+		super();
+
+		if (
+			!productService.defaultChatAgent ||				// needs product config
+			(isWeb && !environmentService.remoteAuthority)	// only enabled locally or a remote backend
+		) {
+			return;
+		}
+
+		this.context = this._register(instantiationService.createInstance(ChatSetupContext));
+		this.requests = this._register(instantiationService.createInstance(ChatSetupRequests, this.context));
+	}
+
+	async resolve(token: CancellationToken): Promise<IChatEntitlements | undefined> {
+		return this.requests?.forceResolveEntitlement(undefined, token);
+	}
 }
 
-//#region Contribution
+//#endregion
 
-const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
-const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
+//#region Contribution
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
@@ -118,22 +136,19 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
+		@IChatEntitlementsService chatEntitlementsService: ChatEntitlementsService,
 	) {
 		super();
 
-		if (
-			!this.productService.defaultChatAgent ||			// needs product config
-			(isWeb && !this.environmentService.remoteAuthority)	// only enabled locally or a remote backend
-		) {
-			return;
+		const context = chatEntitlementsService.context;
+		const requests = chatEntitlementsService.requests;
+		if (!context || !requests) {
+			return; // disabled
 		}
 
-		const context = this._register(this.instantiationService.createInstance(ChatSetupContext));
-		const requests = this._register(this.instantiationService.createInstance(ChatSetupRequests, context));
 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
 
 		this.registerChatWelcome(controller, context);
@@ -161,13 +176,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			constructor() {
 				super({
-					id: TRIGGER_SETUP_COMMAND_ID,
-					title: TRIGGER_SETUP_COMMAND_LABEL,
+					id: CHAT_SETUP_ACTION_ID,
+					title: CHAT_SETUP_ACTION_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
 					precondition: chatSetupTriggerContext,
 					menu: {
-						id: MenuId.ChatCommandCenter,
+						id: MenuId.ChatTitleBarMenu,
 						group: 'a_last',
 						order: 1,
 						when: chatSetupTriggerContext
@@ -180,12 +195,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const configurationService = accessor.get(IConfigurationService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
+				const statusbarService = accessor.get(IStatusbarService);
 
 				await context.update({ hidden: false });
 
 				showCopilotView(viewsService, layoutService);
 				ensureSideBarChatViewSize(viewDescriptorService, layoutService, viewsService);
 
+				statusbarService.updateEntryVisibility('chat.statusBarEntry', true);
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 			}
 		}
@@ -203,7 +220,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					category: CHAT_CATEGORY,
 					precondition: ChatContextKeys.Setup.installed.negate(),
 					menu: {
-						id: MenuId.ChatCommandCenter,
+						id: MenuId.ChatTitleBarMenu,
 						group: 'z_hide',
 						order: 1,
 						when: ChatContextKeys.Setup.installed.negate()
@@ -216,10 +233,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
+				const statusbarService = accessor.get(IStatusbarService);
 
 				const { confirmed } = await dialogService.confirm({
 					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
-					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", TRIGGER_SETUP_COMMAND_LABEL.value),
+					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
 					primaryButton: localize('hideChatSetupButton', "Hide Copilot")
 				});
 
@@ -227,8 +245,18 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					return;
 				}
 
-				await hideSetupView(viewsDescriptorService, layoutService);
+				const location = viewsDescriptorService.getViewLocationById(ChatViewId);
 
+				await context.update({ hidden: true });
+
+				if (location === ViewContainerLocation.AuxiliaryBar) {
+					const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+					if (activeContainers.length === 0) {
+						layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
+					}
+				}
+
+				statusbarService.updateEntryVisibility('chat.statusBarEntry', false);
 				configurationService.updateValue('chat.commandCenter.enabled', false);
 			}
 		}
@@ -246,7 +274,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ChatContextKeys.Setup.limited,
 					),
 					menu: {
-						id: MenuId.ChatCommandCenter,
+						id: MenuId.ChatTitleBarMenu,
 						group: 'a_first',
 						order: 1,
 						when: ContextKeyExpr.or(
@@ -279,23 +307,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (focus) {
 					windowFocusListener.clear();
 
-					const entitlement = await requests.forceResolveEntitlement(undefined);
-					if (entitlement === ChatEntitlement.Pro) {
+					const entitlements = await requests.forceResolveEntitlement(undefined);
+					if (entitlements?.entitlement === ChatEntitlement.Pro) {
 						refreshTokens(commandService);
 					}
-				}
-			}
-		}
-
-		async function hideSetupView(viewsDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService): Promise<void> {
-			const location = viewsDescriptorService.getViewLocationById(ChatViewId);
-
-			await context.update({ hidden: true });
-
-			if (location === ViewContainerLocation.AuxiliaryBar) {
-				const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
-				if (activeContainers.length === 0) {
-					layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
 				}
 			}
 		}
@@ -312,9 +327,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			},
 			handleURL: async url => {
 				const params = new URLSearchParams(url.query);
-				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: TRIGGER_SETUP_COMMAND_ID, from: 'url', detail: params.get('referrer') ?? undefined });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
-				await this.commandService.executeCommand(TRIGGER_SETUP_COMMAND_ID);
+				await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 
 				return true;
 			}
@@ -384,18 +399,11 @@ interface IEntitlementsResponse {
 		readonly chat: number;
 		readonly completions: number;
 	};
+	readonly monthly_quotas?: {
+		readonly chat: number;
+		readonly completions: number;
+	};
 	readonly limited_user_reset_date: string;
-}
-
-interface IQuotas {
-	readonly chat?: number;
-	readonly completions?: number;
-	readonly resetDate?: string;
-}
-
-interface IChatEntitlements {
-	readonly entitlement: ChatEntitlement;
-	readonly quotas?: IQuotas;
 }
 
 class ChatSetupRequests extends Disposable {
@@ -524,14 +532,14 @@ class ChatSetupRequests extends Disposable {
 		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async resolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<ChatEntitlement | undefined> {
+	private async resolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IChatEntitlements | undefined> {
 		const entitlements = await this.doResolveEntitlement(session, token);
 		if (typeof entitlements?.entitlement === 'number' && !token.isCancellationRequested) {
 			this.didResolveEntitlements = true;
 			this.update(entitlements);
 		}
 
-		return entitlements?.entitlement;
+		return entitlements;
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IChatEntitlements | undefined> {
@@ -597,8 +605,10 @@ class ChatSetupRequests extends Disposable {
 		const entitlements: IChatEntitlements = {
 			entitlement,
 			quotas: {
-				chat: entitlementsResponse.limited_user_quotas?.chat,
-				completions: entitlementsResponse.limited_user_quotas?.completions,
+				chatTotal: entitlementsResponse.monthly_quotas?.chat,
+				completionsTotal: entitlementsResponse.monthly_quotas?.completions,
+				chatRemaining: entitlementsResponse.limited_user_quotas?.chat,
+				completionsRemaining: entitlementsResponse.limited_user_quotas?.completions,
 				resetDate: entitlementsResponse.limited_user_reset_date
 			}
 		};
@@ -642,23 +652,27 @@ class ChatSetupRequests extends Disposable {
 
 		if (state.quotas) {
 			this.chatQuotasService.acceptQuotas({
-				chatQuotaExceeded: typeof state.quotas.chat === 'number' ? state.quotas.chat <= 0 : false,
-				completionsQuotaExceeded: typeof state.quotas.completions === 'number' ? state.quotas.completions <= 0 : false,
-				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined
+				chatQuotaExceeded: typeof state.quotas.chatRemaining === 'number' ? state.quotas.chatRemaining <= 0 : false,
+				completionsQuotaExceeded: typeof state.quotas.completionsRemaining === 'number' ? state.quotas.completionsRemaining <= 0 : false,
+				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined,
+				chatTotal: state.quotas.chatTotal,
+				completionsTotal: state.quotas.completionsTotal,
+				chatRemaining: state.quotas.chatRemaining,
+				completionsRemaining: state.quotas.completionsRemaining
 			});
 		}
 	}
 
-	async forceResolveEntitlement(session: AuthenticationSession | undefined): Promise<ChatEntitlement | undefined> {
+	async forceResolveEntitlement(session: AuthenticationSession | undefined, token = CancellationToken.None): Promise<IChatEntitlements | undefined> {
 		if (!session) {
-			session = await this.findMatchingProviderSession(CancellationToken.None);
+			session = await this.findMatchingProviderSession(token);
 		}
 
 		if (!session) {
 			return undefined;
 		}
 
-		return this.resolveEntitlement(session, CancellationToken.None);
+		return this.resolveEntitlement(session, token);
 	}
 
 	async signUpLimited(session: AuthenticationSession): Promise<true /* signed up */ | false /* already signed up */ | { errorCode: number } /* error */> {
@@ -842,7 +856,7 @@ class ChatSetupController extends Disposable {
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
-				command: TRIGGER_SETUP_COMMAND_ID,
+				command: CHAT_SETUP_ACTION_ID,
 				title,
 			}, () => this.doSetup(options?.forceSignIn ?? false, watch));
 		} finally {
@@ -900,7 +914,7 @@ class ChatSetupController extends Disposable {
 
 	private async signIn(providerId: string): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
 		let session: AuthenticationSession | undefined;
-		let entitlement: ChatEntitlement | undefined;
+		let entitlements: IChatEntitlements | undefined;
 		try {
 			showCopilotView(this.viewsService, this.layoutService);
 
@@ -909,7 +923,7 @@ class ChatSetupController extends Disposable {
 			this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
 			this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);
 
-			entitlement = await this.requests.forceResolveEntitlement(session);
+			entitlements = await this.requests.forceResolveEntitlement(session);
 		} catch (e) {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
 		}
@@ -927,7 +941,7 @@ class ChatSetupController extends Disposable {
 			}
 		}
 
-		return { session, entitlement };
+		return { session, entitlement: entitlements?.entitlement };
 	}
 
 	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch,): Promise<void> {
@@ -1158,11 +1172,11 @@ class ChatSetupWelcomeContent extends Disposable {
 		});
 
 		if (useEnterpriseProvider) {
-			await this.configurationService.updateValue(defaultChat.providerSetting, defaultChat.enterpriseProviderId, ConfigurationTarget.USER);
 			const success = await this.handleEnterpriseInstance();
 			if (!success) {
 				return; // not properly configured, abort
 			}
+			await this.configurationService.updateValue(defaultChat.providerSetting, defaultChat.enterpriseProviderId, ConfigurationTarget.USER);
 		} else {
 			await this.configurationService.updateValue(defaultChat.providerSetting, undefined, ConfigurationTarget.USER);
 			await this.configurationService.updateValue(defaultChat.providerUriSetting, undefined, ConfigurationTarget.USER);

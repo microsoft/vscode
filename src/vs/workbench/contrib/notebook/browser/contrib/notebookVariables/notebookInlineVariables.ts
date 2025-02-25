@@ -3,38 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
-import { format, noBreakWhitespace } from '../../../../../../base/common/strings.js';
-import { Constants } from '../../../../../../base/common/uint.js';
+import { format } from '../../../../../../base/common/strings.js';
+import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { InlineValueContext, InlineValueText, InlineValueVariableLookup } from '../../../../../../editor/common/languages.js';
-import { IModelDeltaDecoration, InjectedTextCursorStops } from '../../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../../nls.js';
 import { registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { createInlineValueDecoration } from '../../../../debug/browser/debugEditorContribution.js';
 import { IDebugService, State } from '../../../../debug/common/debug.js';
 import { NotebookSetting } from '../../../common/notebookCommon.js';
 import { ICellExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
-import { INotebookKernelMatchResult, INotebookKernelService, VariablesResult } from '../../../common/notebookKernelService.js';
+import { INotebookKernelService, VariablesResult } from '../../../common/notebookKernelService.js';
 import { INotebookActionContext, NotebookAction } from '../../controller/coreActions.js';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
-
-// value from debug, may need to keep an eye on and shorter to account for cells having a narrower viewport width
-const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator. If exceeded ... is added
-
-const variableRegex = new RegExp(
-	'(?:[a-zA-Z_][a-zA-Z0-9_]*\\.)*' + //match any number of variable names separated by '.'
-	'[a-zA-Z_][a-zA-Z0-9_]*', //math variable name
-	'g',
-);
 
 class InlineSegment {
 	constructor(public column: number, public text: string) {
@@ -61,7 +53,8 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		super();
 
 		this._register(this.notebookExecutionStateService.onDidChangeExecution(async e => {
-			if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineValues)) {
+			const inlineValuesSetting = this.configurationService.getValue<'on' | 'auto' | 'off'>(NotebookSetting.notebookInlineValues);
+			if (inlineValuesSetting === 'off') {
 				return;
 			}
 
@@ -72,7 +65,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 
 		this._register(Event.runAndSubscribe(this.configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(NotebookSetting.notebookInlineValues)) {
-				if (!this.configurationService.getValue<boolean>(NotebookSetting.notebookInlineValues)) {
+				if (this.configurationService.getValue<'on' | 'auto' | 'off'>(NotebookSetting.notebookInlineValues) === 'off') {
 					this.clearNotebookInlineDecorations();
 				}
 			}
@@ -113,11 +106,19 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			return;
 		}
 
+		const inlineValuesSetting = this.configurationService.getValue<'on' | 'auto' | 'off'>(NotebookSetting.notebookInlineValues);
+		const hasInlineValueProvider = this.languageFeaturesService.inlineValuesProvider.has(model);
+
+		// Skip if setting is off or if auto and no provider is registered
+		if (inlineValuesSetting === 'off' || (inlineValuesSetting === 'auto' && !hasInlineValueProvider)) {
+			return;
+		}
+
 		this.clearCellInlineDecorations(cell);
 
 		const inlineDecorations: IModelDeltaDecoration[] = [];
 
-		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
+		if (hasInlineValueProvider) {
 			// use extension based provider, borrowed from https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/debug/browser/debugEditorContribution.ts#L679
 			const lastLine = model.getLineCount();
 			const lastColumn = model.getLineMaxColumn(lastLine);
@@ -132,57 +133,61 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			const fullCellRange = new Range(1, 1, lastLine, lastColumn);
 
 			const promises = providers.flatMap(provider => Promise.resolve(provider.provideInlineValues(model, fullCellRange, ctx, token)).then(async (result) => {
-				if (result) {
+				if (!result) {
+					return;
+				}
 
-					let kernel: INotebookKernelMatchResult;
-					const kernelVars: VariablesResult[] = [];
-					if (result.some(iv => iv.type === 'variable')) { // if anyone will need a lookup, get vars now to avoid needing to do it multiple times
-						if (!this.notebookEditor.hasModel()) {
-							return; // should not happen, a cell will be executed
-						}
-						kernel = this.notebookKernelService.getMatchingKernel(this.notebookEditor.textModel);
-						const variables = kernel.selected?.provideVariables(event.notebook, undefined, 'named', 0, token);
-						if (!variables) {
-							return;
-						}
+				const notebook = this.notebookEditor.textModel;
+				if (!notebook) {
+					return;
+				}
+
+				const kernel = this.notebookKernelService.getMatchingKernel(notebook);
+				const kernelVars: VariablesResult[] = [];
+				if (result.some(iv => iv.type === 'variable')) { // if anyone will need a lookup, get vars now to avoid needing to do it multiple times
+					if (!this.notebookEditor.hasModel()) {
+						return; // should not happen, a cell will be executed
+					}
+					const variables = kernel.selected?.provideVariables(event.notebook, undefined, 'named', 0, token);
+					if (variables) {
 						for await (const v of variables) {
 							kernelVars.push(v);
 						}
 					}
+				}
 
-					for (const iv of result) {
-						let text: string | undefined = undefined;
-						switch (iv.type) {
-							case 'text':
-								text = (iv as InlineValueText).text;
-								break;
-							case 'variable': {
-								const name = (iv as InlineValueVariableLookup).variableName;
-								if (!name) {
-									continue; // skip to next var, no valid name to lookup with
-								}
-								const value = kernelVars.find(v => v.name === name)?.value;
-								if (!value) {
-									continue;
-								}
-								text = format('{0} = {1}', name, value);
-								break;
+				for (const iv of result) {
+					let text: string | undefined = undefined;
+					switch (iv.type) {
+						case 'text':
+							text = (iv as InlineValueText).text;
+							break;
+						case 'variable': {
+							const name = (iv as InlineValueVariableLookup).variableName;
+							if (!name) {
+								continue; // skip to next var, no valid name to lookup with
 							}
-							case 'expression': {
-								continue; // no active debug session, so evaluate would break
+							const value = kernelVars.find(v => v.name === name)?.value;
+							if (!value) {
+								continue;
 							}
+							text = format('{0} = {1}', name, value);
+							break;
 						}
+						case 'expression': {
+							continue; // no active debug session, so evaluate would break
+						}
+					}
 
-						if (text) {
-							const line = iv.range.startLineNumber;
-							let lineSegments = lineDecorations.get(line);
-							if (!lineSegments) {
-								lineSegments = [];
-								lineDecorations.set(line, lineSegments);
-							}
-							if (!lineSegments.some(iv => iv.text === text)) { // de-dupe
-								lineSegments.push(new InlineSegment(iv.range.startColumn, text));
-							}
+					if (text) {
+						const line = iv.range.startLineNumber;
+						let lineSegments = lineDecorations.get(line);
+						if (!lineSegments) {
+							lineSegments = [];
+							lineDecorations.set(line, lineSegments);
+						}
+						if (!lineSegments.some(iv => iv.text === text)) { // de-dupe
+							lineSegments.push(new InlineSegment(iv.range.startColumn, text));
 						}
 					}
 				}
@@ -195,19 +200,27 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			// sort line segments and concatenate them into a decoration
 			lineDecorations.forEach((segments, line) => {
 				if (segments.length > 0) {
-					segments = segments.sort((a, b) => a.column - b.column);
+					segments.sort((a, b) => a.column - b.column);
 					const text = segments.map(s => s.text).join(', ');
-					inlineDecorations.push(...this.createNotebookInlineValueDecoration(line, text));
-
+					const editorWidth = cell.layoutInfo.editorWidth;
+					const fontInfo = cell.layoutInfo.fontInfo;
+					if (fontInfo && cell.textModel) {
+						const base = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+						const lineLength = cell.textModel.getLineLength(line);
+						const available = Math.max(0, base - lineLength);
+						inlineDecorations.push(...createInlineValueDecoration(line, text, 'nb', undefined, available));
+					} else {
+						inlineDecorations.push(...createInlineValueDecoration(line, text, 'nb'));
+					}
 				}
 			});
 
-		} else { // generic regex matching approach
+		} else if (inlineValuesSetting === 'on') { // fallback approach only when setting is 'on'
 			if (!this.notebookEditor.hasModel()) {
 				return; // should not happen, a cell will be executed
 			}
 			const kernel = this.notebookKernelService.getMatchingKernel(this.notebookEditor.textModel);
-			const variables = kernel?.selected?.provideVariables(event.notebook, undefined, 'named', 0, CancellationToken.None);
+			const variables = kernel?.selected?.provideVariables(event.notebook, undefined, 'named', 0, token);
 			if (!variables) {
 				return;
 			}
@@ -223,26 +236,182 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 				return;
 			}
 
-			for (let i = 1; i <= document.getLineCount(); i++) {
-				const line = document.getLineContent(i);
+			const inlineDecorations: IModelDeltaDecoration[] = [];
+			const processedVars = new Set<string>();
 
-				if (line.trimStart().startsWith('#')) {
+			const functionRanges = this.getFunctionRanges(document);
+			const lineDecorations = new Map<number, InlineSegment[]>();
+
+			// For each variable name found in the kernel results
+			for (const varName of varNames) {
+				if (processedVars.has(varName)) {
 					continue;
 				}
-				for (let match = variableRegex.exec(line); match; match = variableRegex.exec(line)) {
-					const name = match[0];
-					if (varNames.includes(name)) {
-						const inlineVal = name + ' = ' + vars.find(v => v.name === name)?.value;
-						inlineDecorations.push(...this.createNotebookInlineValueDecoration(i, inlineVal));
+
+				// Look for variable usage globally
+				const regex = new RegExp(`\\b${varName}\\b`, 'g');
+				let lastMatchOutsideFunction: { line: number; column: number } | null = null;
+
+				const lines = document.getValue().split('\n');
+				for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
+					const line = lines[lineNumber];
+					let match: RegExpExecArray | null;
+
+					while ((match = regex.exec(line)) !== null) {
+						const pos = new Position(lineNumber + 1, match.index + 1);
+						let isInFunction = false;
+
+						// Check if this usage is within any function range
+						for (const range of functionRanges) {
+							if (range.containsPosition(pos)) {
+								isInFunction = true;
+								break;
+							}
+						}
+
+						if (!isInFunction) {
+							lastMatchOutsideFunction = {
+								line: lineNumber + 1,
+								column: match.index + 1
+							};
+						}
+					}
+				}
+
+				if (lastMatchOutsideFunction) {
+					const inlineVal = varName + ' = ' + vars.find(v => v.name === varName)?.value;
+
+					let lineSegments = lineDecorations.get(lastMatchOutsideFunction.line);
+					if (!lineSegments) {
+						lineSegments = [];
+						lineDecorations.set(lastMatchOutsideFunction.line, lineSegments);
+					}
+					if (!lineSegments.some(iv => iv.text === inlineVal)) { // de-dupe
+						lineSegments.push(new InlineSegment(lastMatchOutsideFunction.column, inlineVal));
+					}
+				}
+
+				processedVars.add(varName);
+			}
+
+			// sort line segments and concatenate them into a decoration
+			lineDecorations.forEach((segments, line) => {
+				if (segments.length > 0) {
+					segments.sort((a, b) => a.column - b.column);
+					const text = segments.map(s => s.text).join(', ');
+					const editorWidth = cell.layoutInfo.editorWidth;
+					const fontInfo = cell.layoutInfo.fontInfo;
+					if (fontInfo && cell.textModel) {
+						const base = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+						const lineLength = cell.textModel.getLineLength(line);
+						const available = Math.max(0, base - lineLength);
+						inlineDecorations.push(...createInlineValueDecoration(line, text, 'nb', undefined, available));
+					} else {
+						inlineDecorations.push(...createInlineValueDecoration(line, text, 'nb'));
+					}
+				}
+			});
+
+			if (inlineDecorations.length > 0) {
+				this.updateCellInlineDecorations(cell, inlineDecorations);
+				this.initCellContentListener(cell);
+			}
+		}
+	}
+
+	private getFunctionRanges(document: ITextModel): Range[] {
+		return document.getLanguageId() === 'python'
+			? this.getPythonFunctionRanges(document.getValue())
+			: this.getBracedFunctionRanges(document.getValue());
+	}
+
+	private getPythonFunctionRanges(code: string): Range[] {
+		const functionRanges: Range[] = [];
+		const lines = code.split('\n');
+		let functionStartLine = -1;
+		let inFunction = false;
+		let pythonIndentLevel = -1;
+		const pythonFunctionDeclRegex = /^(\s*)(async\s+)?(?:def\s+\w+|class\s+\w+)\s*\([^)]*\)\s*:/;
+
+		for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
+			const line = lines[lineNumber];
+
+			// Check for Python function/class declarations
+			const pythonMatch = line.match(pythonFunctionDeclRegex);
+			if (pythonMatch) {
+				if (inFunction) {
+					// If we're already in a function and find another at the same or lower indent, close the current one
+					const currentIndent = pythonMatch[1].length;
+					if (currentIndent <= pythonIndentLevel) {
+						functionRanges.push(new Range(functionStartLine + 1, 1, lineNumber, line.length + 1));
+						inFunction = false;
+					}
+				}
+
+				if (!inFunction) {
+					inFunction = true;
+					functionStartLine = lineNumber;
+					pythonIndentLevel = pythonMatch[1].length;
+				}
+				continue;
+			}
+
+			// Check indentation for Python functions
+			if (inFunction) {
+				// Skip empty lines
+				if (line.trim() === '') {
+					continue;
+				}
+
+				// Get the indentation of the current line
+				const currentIndent = line.match(/^\s*/)?.[0].length ?? 0;
+
+				// If we hit a line with same or lower indentation than where the function started,
+				// we've exited the function
+				if (currentIndent <= pythonIndentLevel) {
+					functionRanges.push(new Range(functionStartLine + 1, 1, lineNumber, line.length + 1));
+					inFunction = false;
+					pythonIndentLevel = -1;
+				}
+			}
+		}
+
+		// Handle case where Python function is at the end of the document
+		if (inFunction) {
+			functionRanges.push(new Range(functionStartLine + 1, 1, lines.length, lines[lines.length - 1].length + 1));
+		}
+
+		return functionRanges;
+	}
+
+	private getBracedFunctionRanges(code: string): Range[] {
+		const functionRanges: Range[] = [];
+		const lines = code.split('\n');
+		let braceDepth = 0;
+		let functionStartLine = -1;
+		let inFunction = false;
+		const functionDeclRegex = /\b(?:function\s+\w+|(?:async\s+)?(?:\w+\s*=\s*)?\([^)]*\)\s*=>|class\s+\w+|(?:public|private|protected|static)?\s*\w+\s*\([^)]*\)\s*{)/;
+
+		for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
+			const line = lines[lineNumber];
+			for (const char of line) {
+				if (char === '{') {
+					if (!inFunction && functionDeclRegex.test(line)) {
+						inFunction = true;
+						functionStartLine = lineNumber;
+					}
+					braceDepth++;
+				} else if (char === '}') {
+					braceDepth--;
+					if (braceDepth === 0 && inFunction) {
+						functionRanges.push(new Range(functionStartLine + 1, 1, lineNumber + 1, line.length + 1));
+						inFunction = false;
 					}
 				}
 			}
 		}
 
-		if (inlineDecorations.length > 0) {
-			this.updateCellInlineDecorations(cell, inlineDecorations);
-			this.initCellContentListener(cell);
-		}
+		return functionRanges;
 	}
 
 	private updateCellInlineDecorations(cell: ICellViewModel, decorations: IModelDeltaDecoration[]) {
@@ -288,55 +457,6 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		this._clearNotebookInlineDecorations();
 	}
 
-	// taken from /src/vs/workbench/contrib/debug/browser/debugEditorContribution.ts
-	private createNotebookInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration[] {
-		// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
-		if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
-			contentText = contentText.substring(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
-		}
-
-		return [
-			{
-				range: {
-					startLineNumber: lineNumber,
-					endLineNumber: lineNumber,
-					startColumn: column,
-					endColumn: column
-				},
-				options: {
-					description: 'nb-inline-value-decoration-spacer',
-					after: {
-						content: noBreakWhitespace,
-						cursorStops: InjectedTextCursorStops.None
-					},
-					showIfCollapsed: true,
-				}
-			},
-			{
-				range: {
-					startLineNumber: lineNumber,
-					endLineNumber: lineNumber,
-					startColumn: column,
-					endColumn: column
-				},
-				options: {
-					description: 'nb-inline-value-decoration',
-					after: {
-						content: this.replaceWsWithNoBreakWs(contentText),
-						inlineClassName: 'nb-inline-value',
-						inlineClassNameAffectsLetterSpacing: true,
-						cursorStops: InjectedTextCursorStops.None
-					},
-					showIfCollapsed: true,
-				}
-			},
-		];
-	}
-
-	private replaceWsWithNoBreakWs(str: string): string {
-		return str.replace(/[ \t]/g, noBreakWhitespace);
-	}
-
 	override dispose(): void {
 		super.dispose();
 		this._clearNotebookInlineDecorations();
@@ -344,7 +464,6 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		this.currentCancellationTokenSources.clear();
 	}
 }
-
 
 registerNotebookContribution(NotebookInlineVariablesController.id, NotebookInlineVariablesController);
 

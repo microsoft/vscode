@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
+// version: 4
 
 declare module 'vscode' {
 
@@ -116,11 +116,33 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
+		terminalCommand?: string;
 	}
 
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
-		tooltip?: string | MarkdownString;
+		presentation?: 'hidden' | undefined;
+	}
+
+	export interface LanguageModelTool<T> {
+		prepareInvocation2?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedTerminalToolInvocation>;
+	}
+
+	export class PreparedTerminalToolInvocation {
+		readonly command: string;
+		readonly language: string;
+		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
+
+		constructor(
+			command: string,
+			language: string,
+			confirmationMessages?: LanguageModelToolConfirmationMessages,
+		);
+	}
+
+	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+		toolResultMessage?: string | MarkdownString;
+		toolResultDetails?: Array<Uri | Location>;
 	}
 
 	// #region Chat participant detection

@@ -16,18 +16,18 @@ const allOptions = [
 	'-r',
 	'-v',
 ];
-
+const expectedCompletions = [{ label: 'rm', description: (rmSpec as any).description }];
 export const rmTestSuiteSpec: ISuiteSpec = {
 	name: 'rm',
 	completionSpecs: rmSpec,
 	availableCommands: 'rm',
 	testSpecs: [
 		// Empty input
-		{ input: '|', expectedCompletions: ['rm'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: '|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Typing the command
-		{ input: 'r|', expectedCompletions: ['rm'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
-		{ input: 'rm|', expectedCompletions: ['rm'], expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'r|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		{ input: 'rm|', expectedCompletions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Basic options
 		{ input: 'rm |', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },

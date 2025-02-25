@@ -8,6 +8,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { SaveReason } from '../../../../common/editor.js';
@@ -17,7 +18,7 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
 import { IToolInputProcessor } from './tools.js';
 
 const codeInstructions = `
@@ -40,10 +41,10 @@ class Person {
 }
 `;
 
-export const EditToolId = 'vscode_editFile';
+export const ExtensionEditToolId = 'vscode_editFile';
+export const InternalEditToolId = 'vscode_editFile_internal';
 export const EditToolData: IToolData = {
-	id: EditToolId,
-	tags: ['vscode_editing'],
+	id: InternalEditToolId,
 	displayName: localize('chat.tools.editFile', "Edit File"),
 	modelDescription: `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`,
 	inputSchema: {
@@ -95,6 +96,16 @@ export class EditTool implements IToolImpl {
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
 
+		// Undo stops mark groups of response data in the output. Operations, such
+		// as text edits, that happen between undo stops are all done or undone together.
+		if (request.response?.response.getMarkdown().length) {
+			// slightly hacky way to avoid an extra 'no-op' undo stop at the start of responses that are just edits
+			model.acceptResponseProgress(request, {
+				kind: 'undoStop',
+				id: generateUuid(),
+			});
+		}
+
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString('\n````\n')
@@ -106,6 +117,11 @@ export class EditTool implements IToolImpl {
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````\n')
+		});
+		model.acceptResponseProgress(request, {
+			kind: 'textEdit',
+			edits: [],
+			uri
 		});
 
 		const editSession = this.chatEditingService.getEditingSession(model.sessionId);
@@ -120,7 +136,10 @@ export class EditTool implements IToolImpl {
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });
-			}
+			},
+			notebookEdit(target, edits) {
+				model.acceptResponseProgress(request, { kind: 'notebookEdit', uri: target, edits });
+			},
 		}, token);
 
 		model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
@@ -158,6 +177,12 @@ export class EditTool implements IToolImpl {
 
 		return {
 			content: [{ kind: 'text', value: 'The file was edited successfully' }]
+		};
+	}
+
+	async prepareToolInvocation(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		return {
+			presentation: 'hidden'
 		};
 	}
 }

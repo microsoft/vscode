@@ -22,6 +22,7 @@ import { gitTestSuiteSpec } from './completions/upstream/git.test';
 import { osIsWindows } from '../helpers/os';
 import codeCompletionSpec from '../completions/code';
 import { figGenericTestSuites } from './fig.test';
+import { IFigExecuteExternals } from '../fig/execute';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -92,7 +93,7 @@ suite('Terminal Suggest', () => {
 					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const terminalContext = { commandLine, cursorPosition };
+					const terminalContext = { commandLine, cursorPosition, allowFallbackCompletions: true };
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
 						terminalContext,
@@ -101,7 +102,9 @@ suite('Terminal Suggest', () => {
 						getTokenType(terminalContext, undefined),
 						testPaths.cwd,
 						{},
-						'testName'
+						'testName',
+						undefined,
+						new MockFigExecuteExternals()
 					);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
@@ -114,3 +117,24 @@ suite('Terminal Suggest', () => {
 		});
 	}
 });
+
+
+class MockFigExecuteExternals implements IFigExecuteExternals {
+	public async executeCommand(input: Fig.ExecuteCommandInput): Promise<Fig.ExecuteCommandOutput> {
+		return this.executeCommandTimeout(input);
+	}
+	async executeCommandTimeout(input: Fig.ExecuteCommandInput): Promise<Fig.ExecuteCommandOutput> {
+		const command = [input.command, ...input.args].join(' ');
+		try {
+			return {
+				status: 0,
+				stdout: input.command,
+				stderr: '',
+			};
+		} catch (err) {
+			console.error(`Error running shell command '${command}'`, { err });
+			throw err;
+		}
+	}
+}
+

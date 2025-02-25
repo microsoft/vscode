@@ -8,6 +8,8 @@ import { splitLines } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit, TextEdit } from '../../../../common/core/textEdit.js';
+import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
+import { InlineDecoration } from '../../../../common/viewModel.js';
 import { ColumnRange } from '../utils.js';
 
 export class GhostText {
@@ -30,7 +32,7 @@ export class GhostText {
 		return new TextEdit([
 			...this.parts.map(p => new SingleTextEdit(
 				Range.fromPositions(new Position(this.lineNumber, p.column)),
-				debug ? `[${p.lines.join('\n')}]` : p.lines.join('\n')
+				debug ? `[${p.lines.map(line => line.line).join('\n')}]` : p.lines.map(line => line.line).join('\n')
 			)),
 		]).applyToString(documentText);
 	}
@@ -45,7 +47,7 @@ export class GhostText {
 		const text = new TextEdit([
 			...this.parts.map(p => new SingleTextEdit(
 				Range.fromPositions(new Position(1, p.column)),
-				p.lines.join('\n')
+				p.lines.map(line => line.line).join('\n')
 			)),
 		]).applyToString(cappedLineText);
 
@@ -61,6 +63,11 @@ export class GhostText {
 	}
 }
 
+export interface IGhostTextLine {
+	line: string;
+	lineDecorations: LineDecoration[];
+}
+
 export class GhostTextPart {
 	constructor(
 		readonly column: number,
@@ -69,15 +76,22 @@ export class GhostTextPart {
 		 * Indicates if this part is a preview of an inline suggestion when a suggestion is previewed.
 		*/
 		readonly preview: boolean,
+		private _inlineDecorations: InlineDecoration[] = [],
 	) {
 	}
 
-	readonly lines = splitLines(this.text);
+	readonly lines: IGhostTextLine[] = splitLines(this.text).map((line, i) => ({
+		line,
+		lineDecorations: LineDecoration.filter(this._inlineDecorations, i + 1, 1, line.length + 1)
+	}));
 
 	equals(other: GhostTextPart): boolean {
 		return this.column === other.column &&
 			this.lines.length === other.lines.length &&
-			this.lines.every((line, index) => line === other.lines[index]);
+			this.lines.every((line, index) =>
+				line.line === other.lines[index].line &&
+				LineDecoration.equalsArr(line.lineDecorations, other.lines[index].lineDecorations)
+			);
 	}
 }
 

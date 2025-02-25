@@ -94,7 +94,8 @@ class ESRPReleaseService {
     requestSigningCertificates;
     requestSigningKey;
     containerClient;
-    static async create(log, tenantId, clientId, authCertificatePfx, requestSigningCertificatePfx, containerClient) {
+    stagingSasToken;
+    static async create(log, tenantId, clientId, authCertificatePfx, requestSigningCertificatePfx, containerClient, stagingSasToken) {
         const authKey = getKeyFromPFX(authCertificatePfx);
         const authCertificate = getCertificatesFromPFX(authCertificatePfx)[0];
         const requestSigningKey = getKeyFromPFX(requestSigningCertificatePfx);
@@ -113,16 +114,17 @@ class ESRPReleaseService {
         const response = await app.acquireTokenByClientCredential({
             scopes: ['https://api.esrp.microsoft.com/.default']
         });
-        return new ESRPReleaseService(log, clientId, response.accessToken, requestSigningCertificates, requestSigningKey, containerClient);
+        return new ESRPReleaseService(log, clientId, response.accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken);
     }
     static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
-    constructor(log, clientId, accessToken, requestSigningCertificates, requestSigningKey, containerClient) {
+    constructor(log, clientId, accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken) {
         this.log = log;
         this.clientId = clientId;
         this.accessToken = accessToken;
         this.requestSigningCertificates = requestSigningCertificates;
         this.requestSigningKey = requestSigningKey;
         this.containerClient = containerClient;
+        this.stagingSasToken = stagingSasToken;
     }
     async createRelease(version, filePath, friendlyFileName) {
         const correlationId = crypto_1.default.randomUUID();
@@ -166,6 +168,7 @@ class ESRPReleaseService {
     async submitRelease(version, filePath, friendlyFileName, correlationId, blobClient) {
         const size = fs_1.default.statSync(filePath).size;
         const hash = await hashStream('sha256', fs_1.default.createReadStream(filePath));
+        const blobUrl = `${blobClient.url}?${this.stagingSasToken}`;
         const message = {
             customerCorrelationId: correlationId,
             esrpCorrelationId: correlationId,
@@ -197,11 +200,11 @@ class ESRPReleaseService {
             files: [{
                     name: path_1.default.basename(filePath),
                     friendlyFileName,
-                    tenantFileLocation: blobClient.url,
+                    tenantFileLocation: blobUrl,
                     tenantFileLocationType: 'AzureBlob',
                     sourceLocation: {
                         type: 'azureBlob',
-                        blobUrl: blobClient.url
+                        blobUrl
                     },
                     hashType: 'sha256',
                     hash: Array.from(hash),
@@ -542,7 +545,14 @@ async function processArtifact(artifact, filePath) {
         else {
             const stagingContainerClient = blobServiceClient.getContainerClient('staging');
             await stagingContainerClient.createIfNotExists();
-            const releaseService = await ESRPReleaseService.create(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT'), e('RELEASE_REQUEST_SIGNING_CERT'), stagingContainerClient);
+            const now = new Date().valueOf();
+            const oneHour = 60 * 60 * 1000;
+            const oneHourAgo = new Date(now - oneHour);
+            const oneHourFromNow = new Date(now + oneHour);
+            const userDelegationKey = await blobServiceClient.getUserDelegationKey(oneHourAgo, oneHourFromNow);
+            const sasOptions = { containerName: 'staging', permissions: storage_blob_1.ContainerSASPermissions.from({ read: true }), startsOn: oneHourAgo, expiresOn: oneHourFromNow };
+            const stagingSasToken = (0, storage_blob_1.generateBlobSASQueryParameters)(sasOptions, userDelegationKey, e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')).toString();
+            const releaseService = await ESRPReleaseService.create(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT'), e('RELEASE_REQUEST_SIGNING_CERT'), stagingContainerClient, stagingSasToken);
             await releaseService.createRelease(version, filePath, friendlyFileName);
         }
         const { product, os, arch, unprocessedType } = match.groups;
@@ -587,7 +597,13 @@ async function main() {
     for (const name of done) {
         console.log(`\u2705 ${name}`);
     }
-    const stages = new Set(['Compile', 'CompileCLI']);
+    const stages = new Set(['Compile']);
+    if (e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
+        e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
+        e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
+        e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') {
+        stages.add('CompileCLI');
+    }
     if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') {
         stages.add('Windows');
     }
