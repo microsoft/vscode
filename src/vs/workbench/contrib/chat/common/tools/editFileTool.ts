@@ -41,10 +41,10 @@ class Person {
 }
 `;
 
-export const EditToolId = 'vscode_editFile';
+export const ExtensionEditToolId = 'vscode_editFile';
+export const InternalEditToolId = 'vscode_editFile_internal';
 export const EditToolData: IToolData = {
-	id: EditToolId,
-	tags: ['vscode_editing'],
+	id: InternalEditToolId,
 	displayName: localize('chat.tools.editFile', "Edit File"),
 	modelDescription: `Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the "explanation" property first. ${codeInstructions}`,
 	inputSchema: {

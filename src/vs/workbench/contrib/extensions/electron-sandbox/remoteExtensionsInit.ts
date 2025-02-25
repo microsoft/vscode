@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryService, IExtensionManagementService, InstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT, IExtensionGalleryService, IExtensionManagementService, InstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -59,14 +59,19 @@ export class InstallFailedRemoteExtensionsContribution implements IWorkbenchCont
 		for (const { id, installOptions } of failed) {
 			const extension = galleryExtensions.find(e => areSameExtensions(e.identifier, { id }));
 			if (extension) {
-				installExtensionInfo.push({ extension, options: installOptions });
+				installExtensionInfo.push({
+					extension, options: {
+						...installOptions,
+						downloadExtensionsLocally: true,
+					}
+				});
 			} else {
 				this.logService.warn(`Relayed failed extension '${id}' from server is not found in the gallery`);
 			}
 		}
 
 		if (installExtensionInfo.length) {
-			await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installGalleryExtensions(installExtensionInfo);
+			await Promise.allSettled(installExtensionInfo.map(e => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(e.extension, e.options)));
 		}
 	}
 }
@@ -181,7 +186,7 @@ class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 				const manifest = await this.extensionGalleryService.getManifest(e, CancellationToken.None);
 				if (manifest && this.extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
 					const syncedExtension = remoteExtensions.find(e => areSameExtensions(e.identifier, e.identifier));
-					await this.extensionManagementService.installFromGallery(e, { installPreReleaseVersion: syncedExtension?.preRelease, donotIncludePackAndDependencies: true });
+					await this.extensionManagementService.installFromGallery(e, { installPreReleaseVersion: syncedExtension?.preRelease, donotIncludePackAndDependencies: true, context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true } });
 				}
 			}));
 		}

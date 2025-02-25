@@ -41,6 +41,11 @@
 
 .chat-status-bar-entry-tooltip .shortcuts .shortcut .shortcut-label {
 	flex: 1;
+	cursor: pointer;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut .monaco-keybinding {
+	cursor: pointer;
 }
 
 /* Quota Indicator */

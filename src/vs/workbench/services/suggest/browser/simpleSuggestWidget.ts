@@ -749,7 +749,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 		this._listElement.style.width = `${width}px`;
 		this.element.layout(height, width);
-		if (this._cursorPosition) {
+		if (this._cursorPosition && this._preference === WidgetPositionPreference.Above) {
 			this.element.domNode.style.top = `${this._cursorPosition.top - height}px`;
 		}
 		this._positionDetails();

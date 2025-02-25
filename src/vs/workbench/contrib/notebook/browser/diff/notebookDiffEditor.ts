@@ -49,6 +49,7 @@ import { INotebookService } from '../../common/notebookService.js';
 import { DiffEditorHeightCalculatorService, IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { NotebookInlineDiffWidget } from './inlineDiff/notebookInlineDiffWidget.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 
 const $ = DOM.$;
 
@@ -153,6 +154,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	get isDisposed() {
 		return this._isDisposed;
 	}
+	private readonly _currentChangedIndex = observableValue(this, -1);
+	readonly currentChangedIndex: IObservable<number> = this._currentChangedIndex;
 
 	constructor(
 		group: IEditorGroup,
@@ -561,6 +564,17 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			updateInsets();
 		}));
 
+		this._localStore.add(this._list.onDidChangeFocus((e) => {
+			if (e.indexes.length && this.notebookDiffViewModel && e.indexes[0] < this.notebookDiffViewModel.items.length) {
+				const selectedItem = this.notebookDiffViewModel.items[e.indexes[0]];
+				const changedItems = this.notebookDiffViewModel.items.filter(item => item.type !== 'unchanged' && item.type !== 'unchangedMetadata' && item.type !== 'placeholder');
+				if (selectedItem && selectedItem?.type !== 'placeholder' && selectedItem?.type !== 'unchanged' && selectedItem?.type !== 'unchangedMetadata') {
+					return this._currentChangedIndex.set(changedItems.indexOf(selectedItem), undefined);
+				}
+			}
+			return this._currentChangedIndex.set(-1, undefined);
+		}));
+
 		this._localStore.add(this._eventDispatcher.onDidChangeCellLayout(() => {
 			updateInsets();
 		}));
@@ -669,8 +683,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.updateElementHeight2(cell, height);
 		};
 
-		if (this.pendingLayouts.has(cell)) {
-			this.pendingLayouts.get(cell)!.dispose();
+		let disposable = this.pendingLayouts.get(cell);
+		if (disposable) {
+			this._localStore.delete(disposable);
 		}
 
 		let r: () => void;
@@ -680,11 +695,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			relayout(cell, height);
 			r();
 		});
-
-		this.pendingLayouts.set(cell, toDisposable(() => {
+		disposable = toDisposable(() => {
 			layoutDisposable.dispose();
 			r();
-		}));
+		});
+		this._localStore.add(disposable);
+
+		this.pendingLayouts.set(cell, disposable);
 
 		return new Promise<void>(resolve => { r = resolve; });
 	}
@@ -695,6 +712,33 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	triggerScroll(event: IMouseWheelEvent) {
 		this._list.triggerScrollFromMouseWheelEvent(event);
+	}
+
+	firstChange(): void {
+		if (!this.notebookDiffViewModel) {
+			return;
+		}
+		// go to the first one
+		const currentViewModels = this.notebookDiffViewModel.items;
+		const index = currentViewModels.findIndex(vm => vm.type !== 'unchanged' && vm.type !== 'unchangedMetadata' && vm.type !== 'placeholder');
+		if (index >= 0) {
+			this._list.setFocus([index]);
+			this._list.reveal(index);
+		}
+	}
+
+	lastChange(): void {
+		if (!this.notebookDiffViewModel) {
+			return;
+		}
+		// go to the first one
+		const currentViewModels = this.notebookDiffViewModel.items;
+		const item = currentViewModels.slice().reverse().find(vm => vm.type !== 'unchanged' && vm.type !== 'unchangedMetadata' && vm.type !== 'placeholder');
+		const index = item ? currentViewModels.indexOf(item) : -1;
+		if (index >= 0) {
+			this._list.setFocus([index]);
+			this._list.reveal(index);
+		}
 	}
 
 	previousChange(): void {
@@ -712,7 +756,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const currentViewModels = this.notebookDiffViewModel.items;
 		while (prevChangeIndex >= 0) {
 			const vm = currentViewModels[prevChangeIndex];
-			if (vm.type !== 'unchanged' && vm.type !== 'placeholder') {
+			if (vm.type !== 'unchanged' && vm.type !== 'unchangedMetadata' && vm.type !== 'placeholder') {
 				break;
 			}
 
@@ -724,7 +768,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.reveal(prevChangeIndex);
 		} else {
 			// go to the last one
-			const index = findLastIdx(currentViewModels, vm => vm.type !== 'unchanged' && vm.type !== 'placeholder');
+			const index = findLastIdx(currentViewModels, vm => vm.type !== 'unchanged' && vm.type !== 'unchangedMetadata' && vm.type !== 'placeholder');
 			if (index >= 0) {
 				this._list.setFocus([index]);
 				this._list.reveal(index);
@@ -747,7 +791,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const currentViewModels = this.notebookDiffViewModel.items;
 		while (nextChangeIndex < currentViewModels.length) {
 			const vm = currentViewModels[nextChangeIndex];
-			if (vm.type !== 'unchanged' && vm.type !== 'placeholder') {
+			if (vm.type !== 'unchanged' && vm.type !== 'unchangedMetadata' && vm.type !== 'placeholder') {
 				break;
 			}
 
@@ -759,7 +803,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.reveal(nextChangeIndex);
 		} else {
 			// go to the first one
-			const index = currentViewModels.findIndex(vm => vm.type !== 'unchanged' && vm.type !== 'placeholder');
+			const index = currentViewModels.findIndex(vm => vm.type !== 'unchanged' && vm.type !== 'unchangedMetadata' && vm.type !== 'placeholder');
 			if (index >= 0) {
 				this._list.setFocus([index]);
 				this._list.reveal(index);

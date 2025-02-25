@@ -65,6 +65,7 @@ export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 export const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
 
 export const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
+export const TOGGLE_CHAT_ACTION_LABEL = localize('toggleChat', "Toggle Chat");
 
 export interface IChatViewOpenOptions {
 	/**
@@ -728,7 +729,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				primaryActionIcon = Codicon.copilot;
 			} else {
 				if (signedOut) {
-					primaryActionId = CHAT_OPEN_ACTION_ID;
+					primaryActionId = TOGGLE_CHAT_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to Use Copilot...");
 					primaryActionIcon = Codicon.copilotNotConnected;
 				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
@@ -736,8 +737,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionTitle = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
 					primaryActionIcon = Codicon.copilotWarning;
 				} else {
-					primaryActionId = CHAT_OPEN_ACTION_ID;
-					primaryActionTitle = CHAT_OPEN_ACTION_LABEL.value;
+					primaryActionId = TOGGLE_CHAT_ACTION_ID;
+					primaryActionTitle = TOGGLE_CHAT_ACTION_LABEL;
 					primaryActionIcon = Codicon.copilot;
 				}
 			}

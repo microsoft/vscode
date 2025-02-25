@@ -14,6 +14,7 @@ import { ContextKeyExpression } from '../../../../platform/contextkey/common/con
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { IChatTerminalToolInvocationData } from './chatService.js';
 
 export interface IToolData {
 	id: string;
@@ -36,6 +37,7 @@ export interface IToolInvocation {
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
+	toolSpecificData?: IChatTerminalToolInvocationData;
 }
 
 export interface IToolInvocationContext {
@@ -71,7 +73,8 @@ export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
-	presentation?: 'withCodeblocks' | 'hidden' | undefined;
+	presentation?: 'hidden' | undefined;
+	toolSpecificData?: IChatTerminalToolInvocationData;
 }
 
 export interface IToolImpl {

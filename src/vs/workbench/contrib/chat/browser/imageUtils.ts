@@ -27,7 +27,7 @@ export async function resizeImage(data: Uint8Array | string): Promise<Uint8Array
 			URL.revokeObjectURL(url);
 			let { width, height } = img;
 
-			if (width < 768 || height < 768) {
+			if (width <= 768 || height <= 768) {
 				resolve(data);
 				return;
 			}

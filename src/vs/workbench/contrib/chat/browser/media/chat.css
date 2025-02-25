@@ -708,6 +708,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 	padding: 0px;
 	border: none;
+	height: 18px;
 }
 
 .chat-related-files .monaco-button-dropdown .monaco-text-button span {
@@ -720,18 +721,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 4px;
 	height: 18px;
 	border: 1px solid var(--vscode-input-border);
+	border-style: dashed;
 	align-items: center;
 	overflow: hidden;
 	padding: 0 0 0 2px;
+	gap: 2px;
 }
 
 .chat-related-files .monaco-button.codicon.codicon-add {
 	display: flex;
+	flex-direction: column;
 	color: var(--vscode-descriptionForeground);
-	padding-right: 4px;
-	padding-left: 4px;
 	padding-top: 3px;
-	height: 100%;
+	font-size: 14px; /* The + codicon is large, make it look more like the x codicon */
+	height: calc(100% - 3px);
+	width: 20px;
+	outline-offset: -2px !important;
 }
 
 .interactive-session .chat-related-files .monaco-icon-label::before {
@@ -1593,7 +1598,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 4px 8px;
 }
 
-.interactive-item-container .chat-confirmation-widget .rendered-markdown [data-code] {
+.interactive-item-container .chat-confirmation-widget .interactive-result-code-block {
 	margin-bottom: 8px;
 }
 

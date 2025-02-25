@@ -41,18 +41,23 @@ import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { ChatEditingNotebookFileSystemProvider } from '../../../notebook/browser/contrib/chatEdit/chatEditingNotebookFileSystemProvider.js';
+import { NotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditor.js';
+import { INotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
+import { CellDiffInfo, computeDiff } from '../../../notebook/browser/diff/notebookDiffViewModel.js';
 import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookData, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
+import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
+import { INotebookEditorWorkerService } from '../../../notebook/common/services/notebookWorkerService.js';
 import { ChatEditKind, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry, pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
-import { ChatEditingNotebookEditorIntegration, countChanges, ICellDiffInfo, sortCellChanges } from './chatEditingNotebookEditorIntegration.js';
+import { ChatEditingNotebookDiffEditorIntegration, ChatEditingNotebookEditorIntegration, countChanges, ICellDiffInfo, sortCellChanges } from './chatEditingNotebookEditorIntegration.js';
 import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 
@@ -112,6 +117,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			const disposables = new DisposableStore();
 			disposables.add(ChatEditingNotebookFileSystemProvider.registerFile(originalUri, buffer));
 			const originalRef = await resolver.resolve(originalUri, notebook.viewType);
+			const loadedFromSnapshot = !!initialContent;
 			if (initialContent) {
 				restoreSnapshot(originalRef.object.notebook, initialContent);
 			}
@@ -124,7 +130,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				originalCells.set(cell.uri, disposables.add(await textModelService.createModelReference(cell.uri)).object.textEditorModel);
 			})));
 
-			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, modifiedCells, originalCells, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
+			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, modifiedCells, originalCells, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent, loadedFromSnapshot);
 			instance._register(disposables);
 			return instance;
 		});
@@ -154,6 +160,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		initialContent: string,
+		loadedFromSnapshot: boolean = false,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@IChatService chatService: IChatService,
@@ -161,6 +168,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
+		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
+		@INotebookLoggingService private readonly notebookLoggingService: INotebookLoggingService,
 	) {
 		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, instantiationService);
 		this._register(modifiedResourceRef);
@@ -177,12 +186,58 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			this.modifiedToOriginalCellMap.set(cell.uri, originalModel);
 			this.getOrCreateModifiedTextFileEntryForCell(cell);
 		});
+		if (loadedFromSnapshot) {
+			this.computeDiff();
+		}
 	}
 
+	private async computeDiff() {
+		const cellDiffInfo: CellDiffInfo[] = [];
+		try {
+			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.originalURI, this.modifiedURI);
+			const result = computeDiff(this.originalModel, this.modifiedModel, notebookDiff);
+			if (result.cellDiffInfo.length) {
+				cellDiffInfo.push(...result.cellDiffInfo);
+			} else {
+				return;
+			}
+		} catch (e) {
+			this.notebookLoggingService.error('Notebook Chat', 'Error computing diff:\n' + e);
+			return;
+		}
+		const diffs = await Promise.all(cellDiffInfo.map(async (diff, i) => {
+			switch (diff.type) {
+				case 'unchanged':
+					return this.createUnchangedCellDiffInfo(diff.originalCellIndex, diff.modifiedCellIndex);
+				case 'delete':
+					return this.createDeleteCellDiffInfo(diff.originalCellIndex);
+				case 'insert':
+					return this.createInsertedCellDiffInfo(diff.modifiedCellIndex);
+				default: {
+					const cell = this.modifiedModel.cells[diff.modifiedCellIndex]!;
+					const entry = this.cellEntryMap.get(cell);
+					const originalCell = this.originalModel.cells[diff.originalCellIndex]!;
+					const diff2: IDocumentDiff2 = {
+						...(entry?.diffInfo.get() ?? nullDocumentDiff),
+						keep: noopKeep,
+						undo: noopUndo,
+						modifiedModel: this.modifiedCellModels.get(cell.uri)!,
+						originalModel: this.originalCellModels.get(originalCell.uri)!,
+					};
+					return {
+						modifiedCellIndex: diff.modifiedCellIndex,
+						originalCellIndex: diff.originalCellIndex,
+						diff: diff2,
+						type: 'modified'
+					} satisfies ICellDiffInfo;
+				}
+			}
+		}));
+		this._cellDiffInfo.set(diffs, undefined);
+		this._changesCount.set(countChanges(diffs), undefined);
+	}
 	createEmptyDiffs() {
-		this._cellDiffInfo.set(this.modifiedModel.cells.map((cell, i) => {
-			return { modifiedCellIndex: i, originalCellIndex: i, diff: this.getDiffForUnchangedCell(cell), type: 'unchanged' };
-		}), undefined);
+		this._cellDiffInfo.set(this.modifiedModel.cells.map((_, i) => this.createUnchangedCellDiffInfo(i, i)), undefined);
 	}
 
 	getDiffForUnchangedCell(cell: NotebookCellTextModel): IDocumentDiff2 {
@@ -255,6 +310,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	protected override _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
 		const notebookEditor = getNotebookEditorFromEditorPane(editor);
+		if (!notebookEditor && editor.getId() === NotebookTextDiffEditor.ID) {
+			const diffEditor = (editor.getControl() as INotebookTextDiffEditor);
+			return this._instantiationService.createInstance(ChatEditingNotebookDiffEditorIntegration, diffEditor, this._cellDiffInfo);
+		}
 		assertType(notebookEditor);
 		return this._instantiationService.createInstance(ChatEditingNotebookEditorIntegration, this, notebookEditor, this.modifiedModel, this.originalModel, this._cellDiffInfo);
 	}
@@ -335,45 +394,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				}
 			});
 			const diffInsert = await Promise.all(edit.cells.map(async (c, i) => {
-				const lines = c.source.split(/\r?\n/);
-				const originalRange = new Range(1, 0, 1, 0);
-				const modifiedRange = new Range(1, 0, lines.length, lines[lines.length - 1].length);
-				const innerChanges = new RangeMapping(originalRange, modifiedRange);
-				const changes = [new DetailedLineRangeMapping(new LineRange(1, 1), new LineRange(1, lines.length), [innerChanges])];
-				const cell = this.modifiedModel.cells[edit.index + i];
-				const modifiedModel: ITextModel = cell.textModel ?? this._register((await this.textModelService.createModelReference(cell.uri))).object.textEditorModel;
-				// When a new cell is inserted, we use the ChatEditingCodeEditorIntegration to handle the edits.
-				// & to also display undo/redo and decorations.
-				// However that needs a modified and original model.
-				// For inserted cells there's no original model, so we create a new empty text model and pass that as the original.
-				const originalModelUri = this.modifiedModel.uri.with({ query: (ChatEditingModifiedNotebookEntry.NewModelCounter++).toString(), scheme: 'emptyCell' });
-				const originalModel = this.modelService.getModel(originalModelUri) || this._register(this.modelService.createModel('', null, originalModelUri));
-				this.modifiedCellModels.set(cell.uri, modifiedModel);
-				this.modifiedToOriginalCellMap.set(cell.uri, originalModel);
-				const keep = async () => {
-					await this._applyEdits(async () => this.keepPreviouslyInsertedCell(cell));
-					return true;
-				};
-				const undo = async () => {
-					await this._applyEdits(async () => this.undoPreviouslyInsertedCell(cell));
-					return true;
-				};
-				this.getOrCreateModifiedTextFileEntryForCell(cell, keep, undo);
-				return {
-					type: 'insert' as const,
-					originalCellIndex: undefined,
-					modifiedCellIndex: edit.index + i,
-					diff: {
-						changes,
-						identical: false,
-						moves: [],
-						quitEarly: false,
-						keep,
-						undo,
-						modifiedModel,
-						originalModel,
-					}
-				} satisfies ICellDiffInfo;
+				return this.createInsertedCellDiffInfo(edit.index + i);
 			}));
 			diff.splice(edit.index + 1, 0, ...diffInsert);
 			this._cellDiffInfo.set(sortCellChanges(diff), undefined);
@@ -382,40 +403,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			// And unchanged cells should be converted to deleted cells.
 			const diff = sortCellChanges(this._cellDiffInfo.get()).slice().map(d => {
 				if (d.type === 'unchanged' && d.modifiedCellIndex >= edit.index && d.modifiedCellIndex <= (edit.index + edit.count - 1)) {
-					const originalCell = this.originalModel.cells[d.originalCellIndex];
-					const lines = new Array(originalCell.textBuffer.getLineCount()).fill(0).map((_, i) => originalCell.textBuffer.getLineContent(i + 1));
-					const originalRange = new Range(1, 0, lines.length, lines[lines.length - 1].length);
-					const modifiedRange = new Range(1, 0, 1, 0);
-					const innerChanges = new RangeMapping(modifiedRange, originalRange);
-					const changes = [new DetailedLineRangeMapping(new LineRange(1, lines.length), new LineRange(1, 1), [innerChanges])];
-					const modifiedModelUri = this.modifiedModel.uri.with({ query: (ChatEditingModifiedNotebookEntry.NewModelCounter++).toString(), scheme: 'emptyCell' });
-					const modifiedModel = this.modelService.getModel(modifiedModelUri) || this._register(this.modelService.createModel('', null, modifiedModelUri));
-					const originalModel = this.originalModel.cells[d.originalCellIndex];
-					const keep = async () => {
-						await this._applyEdits(async () => this.keepPreviouslyDeletedCell(d.originalCellIndex));
-						return true;
-					};
-					const undo = async () => {
-						await this._applyEdits(async () => this.undoPreviouslyDeletedCell(d.originalCellIndex, originalModel));
-						return true;
-					};
-
-					// This will be deleted.
-					return {
-						type: 'delete' as const,
-						modifiedCellIndex: undefined,
-						originalCellIndex: d.originalCellIndex,
-						diff: {
-							changes,
-							identical: false,
-							moves: [],
-							quitEarly: false,
-							originalModel: originalModel.textModel!,
-							modifiedModel: modifiedModel,
-							keep,
-							undo,
-						}
-					} satisfies ICellDiffInfo;
+					return this.createDeleteCellDiffInfo(d.originalCellIndex);
 				}
 				if (d.type !== 'delete' && d.modifiedCellIndex >= (edit.index + edit.count)) {
 					d.modifiedCellIndex -= edit.count;
@@ -428,6 +416,98 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 	}
 
+	createUnchangedCellDiffInfo(originalCellIndex: number, modifiedCellIndex: number): ICellDiffInfo {
+		const cell = this.modifiedModel.cells[modifiedCellIndex];
+		return { modifiedCellIndex, originalCellIndex, diff: this.getDiffForUnchangedCell(cell), type: 'unchanged' };
+	}
+	async createInsertedCellDiffInfo(modifiedCellIndex: number): Promise<ICellDiffInfo> {
+		const cell = this.modifiedModel.cells[modifiedCellIndex];
+		const lines = cell.getValue().split(/\r?\n/);
+		const originalRange = new Range(1, 0, 1, 0);
+		const modifiedRange = new Range(1, 0, lines.length, lines[lines.length - 1].length);
+		const innerChanges = new RangeMapping(originalRange, modifiedRange);
+		const changes = [new DetailedLineRangeMapping(new LineRange(1, 1), new LineRange(1, lines.length), [innerChanges])];
+		const modifiedModel: ITextModel = cell.textModel ?? this._register((await this.textModelService.createModelReference(cell.uri))).object.textEditorModel;
+		// When a new cell is inserted, we use the ChatEditingCodeEditorIntegration to handle the edits.
+		// & to also display undo/redo and decorations.
+		// However that needs a modified and original model.
+		// For inserted cells there's no original model, so we create a new empty text model and pass that as the original.
+		const originalModelUri = this.modifiedModel.uri.with({ query: (ChatEditingModifiedNotebookEntry.NewModelCounter++).toString(), scheme: 'emptyCell' });
+		const originalModel = this.modelService.getModel(originalModelUri) || this._register(this.modelService.createModel('', null, originalModelUri));
+		this.modifiedCellModels.set(cell.uri, modifiedModel);
+		this.modifiedToOriginalCellMap.set(cell.uri, originalModel);
+		const keep = async () => {
+			await this._applyEdits(async () => this.keepPreviouslyInsertedCell(cell));
+			this.computeStateAfterAcceptingRejectingChanges(true);
+			return true;
+		};
+		const undo = async () => {
+			await this._applyEdits(async () => this.undoPreviouslyInsertedCell(cell));
+			this.computeStateAfterAcceptingRejectingChanges(false);
+			return true;
+		};
+		this.getOrCreateModifiedTextFileEntryForCell(cell, keep, undo);
+		return {
+			type: 'insert' as const,
+			originalCellIndex: undefined,
+			modifiedCellIndex: modifiedCellIndex,
+			diff: {
+				changes,
+				identical: false,
+				moves: [],
+				quitEarly: false,
+				keep,
+				undo,
+				modifiedModel,
+				originalModel,
+			}
+		} satisfies ICellDiffInfo;
+	}
+	private computeStateAfterAcceptingRejectingChanges(accepted: boolean) {
+		const currentSnapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
+		const originalSnapshot = createSnapshot(this.originalModel, this.transientOptions, this.configurationService);
+		if (currentSnapshot === originalSnapshot) {
+			const state = accepted ? WorkingSetEntryState.Accepted : WorkingSetEntryState.Rejected;
+			this._stateObs.set(state, undefined);
+		}
+	}
+	createDeleteCellDiffInfo(originalCellIndex: number): ICellDiffInfo {
+		const originalCell = this.originalModel.cells[originalCellIndex];
+		const lines = new Array(originalCell.textBuffer.getLineCount()).fill(0).map((_, i) => originalCell.textBuffer.getLineContent(i + 1));
+		const originalRange = new Range(1, 0, lines.length, lines[lines.length - 1].length);
+		const modifiedRange = new Range(1, 0, 1, 0);
+		const innerChanges = new RangeMapping(modifiedRange, originalRange);
+		const changes = [new DetailedLineRangeMapping(new LineRange(1, lines.length), new LineRange(1, 1), [innerChanges])];
+		const modifiedModelUri = this.modifiedModel.uri.with({ query: (ChatEditingModifiedNotebookEntry.NewModelCounter++).toString(), scheme: 'emptyCell' });
+		const modifiedModel = this.modelService.getModel(modifiedModelUri) || this._register(this.modelService.createModel('', null, modifiedModelUri));
+		const keep = async () => {
+			await this._applyEdits(async () => this.keepPreviouslyDeletedCell(this.originalModel.cells.indexOf(originalCell)));
+			this.computeStateAfterAcceptingRejectingChanges(true);
+			return true;
+		};
+		const undo = async () => {
+			await this._applyEdits(async () => this.undoPreviouslyDeletedCell(this.originalModel.cells.indexOf(originalCell), originalCell));
+			this.computeStateAfterAcceptingRejectingChanges(false);
+			return true;
+		};
+
+		// This will be deleted.
+		return {
+			type: 'delete' as const,
+			modifiedCellIndex: undefined,
+			originalCellIndex,
+			diff: {
+				changes,
+				identical: false,
+				moves: [],
+				quitEarly: false,
+				originalModel: originalCell.textModel!,
+				modifiedModel: modifiedModel,
+				keep,
+				undo,
+			}
+		} satisfies ICellDiffInfo;
+	}
 	private undoPreviouslyInsertedCell(cell: NotebookCellTextModel) {
 		const index = this.modifiedModel.cells.indexOf(cell);
 		const diff = sortCellChanges(this._cellDiffInfo.get()).slice().map(d => {
@@ -448,26 +528,43 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this._changesCount.set(countChanges(this._cellDiffInfo.get()), undefined);
 	}
 
-	private keepPreviouslyInsertedCell(cell: NotebookCellTextModel) {
-		const index = this.modifiedModel.cells.indexOf(cell);
-		const diff = sortCellChanges(this._cellDiffInfo.get()).slice().map(d => {
-			if (d.type === 'insert' && d.modifiedCellIndex === index) {
-				return {
-					type: 'insert',
-					modifiedCellIndex: index,
-					originalCellIndex: undefined,
-					diff: {
-						...nullDocumentDiff,
-						keep: async () => true,
-						undo: async () => true,
-						modifiedModel: d.diff.modifiedModel,
-						originalModel: d.diff.originalModel
-					}
-				} satisfies ICellDiffInfo;
-			}
-			return d;
-		}).filter(d => !(d.type === 'insert' && d.modifiedCellIndex === index));
-		this._cellDiffInfo.set(diff, undefined);
+	private async keepPreviouslyInsertedCell(cell: NotebookCellTextModel) {
+		const modifiedCellIndex = this.modifiedModel.cells.indexOf(cell);
+		if (modifiedCellIndex === -1) {
+			// Not possible.
+			return;
+		}
+		// Find where we should insert this cell in the original notebook.
+		let diff = sortCellChanges(this._cellDiffInfo.get()).slice();
+		const entryIndex = diff.findIndex(d => d.type === 'insert' && d.modifiedCellIndex === modifiedCellIndex);
+		if (entryIndex === -1) {
+			// Not possible.
+			return;
+		}
+		diff = diff.slice(0, entryIndex);
+		const index = diff.reduce((prev, d) => Math.max(prev, d.type === 'insert' ? -1 : d.originalCellIndex), 0);
+		const cellToInsert: ICellDto2 = {
+			cellKind: cell.cellKind,
+			language: cell.language,
+			metadata: cell.metadata,
+			outputs: cell.outputs,
+			source: cell.getValue(),
+			mime: cell.mime
+		};
+		const edit: ICellReplaceEdit = { cells: [cellToInsert], count: 0, editType: CellEditType.Replace, index, };
+		this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+		const originalCell = this.originalModel.cells[index];
+		const originalModel = originalCell.textModel ?? this._register((await this.textModelService.createModelReference(originalCell.uri))).object.textEditorModel;
+		this.originalCellModels.set(originalCell.uri, originalModel);
+		this.modifiedToOriginalCellMap.set(cell.uri, originalCell.textModel!);
+		const unchangedCell: ICellDiffInfo = {
+			type: 'unchanged',
+			modifiedCellIndex,
+			originalCellIndex: index,
+			diff: this.getDiffForUnchangedCell(cell)
+		};
+		diff.push(unchangedCell);
+		this._cellDiffInfo.set(sortCellChanges(diff), undefined);
 		this._changesCount.set(countChanges(this._cellDiffInfo.get()), undefined);
 	}
 
@@ -507,7 +604,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		};
 		const edit: ICellReplaceEdit = { cells: [cellToInsert], count: 0, editType: CellEditType.Replace, index, };
 		this.modifiedModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
-		const newCell = this.modifiedModel.cells[index + 1];
+		const newCell = this.modifiedModel.cells[index];
 		const modifiedModel = newCell.textModel ?? this._register((await this.textModelService.createModelReference(newCell.uri))).object.textEditorModel;
 		this.modifiedCellModels.set(newCell.uri, modifiedModel);
 		this.modifiedToOriginalCellMap.set(newCell.uri, originalCell.textModel!);
@@ -524,8 +621,21 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 
 	private keepPreviouslyDeletedCell(deletedOriginalIndex: number) {
-		const diff = sortCellChanges(this._cellDiffInfo.get()).slice().filter(d => !(d.type === 'delete' && d.originalCellIndex === deletedOriginalIndex));
-		this._cellDiffInfo.set(diff, undefined);
+		// Delete this cell from original as well.
+		const edit: ICellReplaceEdit = { cells: [], count: 1, editType: CellEditType.Replace, index: deletedOriginalIndex, };
+		this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
+		const diffs = sortCellChanges(this._cellDiffInfo.get()).slice()
+			.filter(d => !(d.type === 'delete' && d.originalCellIndex === deletedOriginalIndex))
+			.map(diff => {
+				if (diff.type !== 'insert' && diff.originalCellIndex > deletedOriginalIndex) {
+					return {
+						...diff,
+						originalCellIndex: diff.originalCellIndex - 1,
+					};
+				}
+				return diff;
+			});
+		this._cellDiffInfo.set(diffs, undefined);
 		this._changesCount.set(countChanges(this._cellDiffInfo.get()), undefined);
 	}
 
@@ -570,7 +680,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			resource: this.modifiedURI,
 			languageId: 'notebook',
 			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path),
-			original: this.initialContent,
+			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
 			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
 			originalToCurrentEdit: OffsetEdit.empty,
 			state: this.state.get(),
@@ -591,9 +701,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this._stateObs.set(snapshot.state, undefined);
 		restoreSnapshot(this.originalModel, snapshot.original);
 		restoreSnapshot(this.modifiedModel, snapshot.current);
-		// this._edit = snapshot.originalToCurrentEdit;
-		// this._updateDiffInfoSeq();
-
 	}
 
 	override resetToInitialContent(): void {
@@ -610,8 +717,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (!modifiedCellModel || !originalCellModel) {
 			return;
 		}
-		const originalText = originalCellModel.getValue();
-		cellEntry = this._register(this._instantiationService.createInstance(ChatEditingNotebookCellEntry, cell, modifiedCellModel, originalCellModel, originalText, this._telemetryInfo, accept, reject));
+		cellEntry = this._register(this._instantiationService.createInstance(ChatEditingNotebookCellEntry, cell, modifiedCellModel, originalCellModel, this._telemetryInfo, accept, reject));
 		this.cellEntryMap.set(cell, cellEntry);
 
 		this._register(autorun(r => {
@@ -643,6 +749,15 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			});
 		}));
 
+		this._register(autorun(r => {
+			const cellState = cellEntry.state.read(r);
+			if (cellState === WorkingSetEntryState.Accepted) {
+				this.computeStateAfterAcceptingRejectingChanges(true);
+			} else if (cellState === WorkingSetEntryState.Rejected) {
+				this.computeStateAfterAcceptingRejectingChanges(false);
+			}
+		}));
+
 		const entries = this.modifiedModel.cells.map(cell => this.cellEntryMap.get(cell)).filter(entry => !!entry);
 		this._entries.set(entries, undefined);
 
@@ -666,7 +781,10 @@ function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): void {
 	}
 }
 
-function serializeSnapshot(data: NotebookData, transientOptions: TransientOptions | undefined): string {
+export function serializeSnapshot(data: NotebookData, transientOptions: TransientOptions | undefined): string {
+	// No need to store the internal metadata, as this can contain unique information such as cell ids.
+	// Also its not something that can be persisted, hence no need to try to restore that either.
+	data.cells.forEach(cell => cell.internalMetadata = undefined);
 	return JSON.stringify([
 		JSON.stringify(transientOptions)
 		, JSON.stringify(data, (_key, value) => {
@@ -755,7 +873,6 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		public readonly cell: NotebookCellTextModel,
 		private readonly modifiedModel: ITextModel,
 		private readonly originalModel: ITextModel,
-		private readonly initialContent: string,
 		private readonly _telemetryInfo: IModifiedEntryTelemetryInfo,
 		acceptChange: (() => Promise<boolean>) | undefined,
 		undoChange: (() => Promise<boolean>) | undefined,
@@ -843,16 +960,6 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 
 			this._allEditsAreFromUs = false;
 			this._updateDiffInfoSeq();
-
-			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
-			const currentState = this._stateObs.get();
-			switch (currentState) {
-				case WorkingSetEntryState.Modified:
-					if (didResetToOriginalContent) {
-						this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
-						break;
-					}
-			}
 		}
 	}
 
@@ -1012,28 +1119,6 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 			const diff2 = diff ?? nullDocumentDiff;
 			this._diffInfo.set(diff2, undefined);
 			this._edit = OffsetEdits.fromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
-		}
-	}
-
-	async _doAccept(tx: ITransaction | undefined): Promise<void> {
-		this.originalModel.setValue(this.modifiedModel.createSnapshot());
-		this._diffInfo.set(nullDocumentDiff, tx);
-		this._edit = OffsetEdit.empty;
-	}
-
-	async _doReject(tx: ITransaction | undefined): Promise<void> {
-		this._setDocValue(this.originalModel.getValue());
-	}
-
-	private _setDocValue(value: string): void {
-		if (this.modifiedModel.getValue() !== value) {
-
-			this.modifiedModel.pushStackElement();
-			const edit = EditOperation.replace(this.modifiedModel.getFullModelRange(), value);
-
-			this._applyEdits([edit]);
-			this._updateDiffInfoSeq();
-			this.modifiedModel.pushStackElement();
 		}
 	}
 }

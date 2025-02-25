@@ -4742,6 +4742,14 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 	}
 }
 
+export class PreparedTerminalToolInvocation {
+	constructor(
+		public readonly command: string,
+		public readonly language: string,
+		public readonly confirmationMessages?: vscode.LanguageModelToolConfirmationMessages,
+	) { }
+}
+
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
 	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {

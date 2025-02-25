@@ -88,6 +88,11 @@ export interface ILinkVariableEntry extends Omit<IBaseChatRequestVariableEntry, 
 	readonly value: URI;
 }
 
+export interface IImageVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'image';
+	readonly isPasted?: boolean;
+}
+
 export interface IDiagnosticVariableEntryFilterData {
 	readonly filterUri?: URI;
 	readonly filterSeverity?: MarkerSeverity;
@@ -120,7 +125,7 @@ export interface IDiagnosticVariableEntry extends Omit<IBaseChatRequestVariableE
 	readonly kind: 'diagnostic';
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | ILinkVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry;
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | ILinkVariableEntry | IBaseChatRequestVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -132,6 +137,10 @@ export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is ICh
 
 export function isLinkVariableEntry(obj: IChatRequestVariableEntry): obj is ILinkVariableEntry {
 	return obj.kind === 'link';
+}
+
+export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
+	return obj.kind === 'image';
 }
 
 export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {
@@ -531,8 +540,11 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
+			// If the progress.uri is a cell Uri, its possible its part of the inline chat.
+			// Old approach of notebook inline chat would not start and end with notebook Uri, so we need to check for old approach.
+			const useOldApproachForInlineNotebook = progress.uri.scheme === Schemas.vscodeNotebookCell && !this._responseParts.find(part => part.kind === 'notebookEditGroup');
 			// merge edits for the same file no matter when they come in
-			const notebookUri = CellUri.parse(progress.uri)?.notebook;
+			const notebookUri = useOldApproachForInlineNotebook ? undefined : CellUri.parse(progress.uri)?.notebook;
 			const uri = notebookUri ?? progress.uri;
 			let found = false;
 			const groupKind = progress.kind === 'textEdit' && !notebookUri ? 'textEditGroup' : 'notebookEditGroup';
