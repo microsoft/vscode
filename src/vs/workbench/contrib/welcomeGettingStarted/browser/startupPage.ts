@@ -129,6 +129,14 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
 				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
 
+				this.logService.debug('Startup Editor Values:', {
+					value: startupEditorSetting.value,
+					userRemoteValue: startupEditorSetting.userRemoteValue,
+					userValue: startupEditorSetting.userValue,
+					workspaceValue: startupEditorSetting.workspaceValue,
+					defaultValue: startupEditorSetting.defaultValue
+				});
+
 				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
@@ -214,6 +222,15 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 	}
 
 	const startupEditor = configurationService.inspect<string>(configurationKey);
+
+	logService.debug('Startup Editor Values:', {
+		value: startupEditor.value,
+		userRemoteValue: startupEditor.userRemoteValue,
+		userValue: startupEditor.userValue,
+		workspaceValue: startupEditor.workspaceValue,
+		defaultValue: startupEditor.defaultValue
+	});
+
 	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
 		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
@@ -221,7 +238,13 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 		}
 	}
 
-	if (startupEditor.value !== startupEditor.userRemoteValue) {
+	const validStartupEditorValues = ['welcomePage', 'readme', 'welcomePageInEmptyWorkbench', 'terminal', 'none', 'newUntitledFile'];
+
+	if (startupEditor.value !== startupEditor.userRemoteValue &&
+		startupEditor.userRemoteValue &&
+		startupEditor.userRemoteValue !== 'undefined' &&
+		typeof startupEditor.userRemoteValue === 'string' &&
+		validStartupEditorValues.includes(startupEditor.userRemoteValue)) {
 		logService.info(`Startup editor is configured to be "${startupEditor.value}". This setting will be overridden by "${startupEditor.userRemoteValue}".`);
 	}
 
