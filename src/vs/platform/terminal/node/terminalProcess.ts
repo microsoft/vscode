@@ -78,6 +78,7 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 
 const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['pwsh', GeneralShellType.PowerShell],
+	['powershell', GeneralShellType.PowerShell],
 	['python', GeneralShellType.Python],
 	['julia', GeneralShellType.Julia],
 	['nu', GeneralShellType.NuShell],
