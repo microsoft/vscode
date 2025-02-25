@@ -9,20 +9,20 @@ import { Position } from '../../../core/position.js';
 import { Line } from '../../linesCodec/tokens/line.js';
 
 /**
- * A token that represent a `:` with a `range`. The `range`
+ * A token that represent a `-` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class Colon extends BaseToken {
+export class Dash extends BaseToken {
 	/**
 	 * The underlying symbol of the token.
 	 */
-	public static readonly symbol: string = ':';
+	public static readonly symbol: string = '-';
 
 	/**
 	 * Return text representation of the token.
 	 */
 	public get text(): string {
-		return Colon.symbol;
+		return Dash.symbol;
 	}
 
 	/**
@@ -32,13 +32,13 @@ export class Colon extends BaseToken {
 	public static newOnLine(
 		line: Line,
 		atColumnNumber: number,
-	): Colon {
+	): Dash {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
-		return new Colon(Range.fromPositions(
+		return new Dash(Range.fromPositions(
 			startPosition,
 			endPosition,
 		));
@@ -48,6 +48,6 @@ export class Colon extends BaseToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `colon${this.range}`;
+		return `dash${this.range}`;
 	}
 }
