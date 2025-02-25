@@ -115,7 +115,7 @@ suite('Ternary Search Tree', () => {
 		assert.strictEqual(iter.hasNext(), false);
 	});
 
-	test('URIIterator - ignore query/fragment', function () {
+	test('URIIterator - prioritize query/fragment', function () {
 		const iter = new UriIterator(() => false, () => true);
 		iter.reset(URI.parse('file:///usr/bin/file.txt'));
 
@@ -137,7 +137,7 @@ suite('Ternary Search Tree', () => {
 		assert.strictEqual(iter.hasNext(), false);
 
 
-		iter.reset(URI.parse('file://share/usr/bin/file.txt?foo'));
+		iter.reset(URI.parse('file://share/usr/bin/file.txt?foo#bar'));
 
 		// scheme
 		assert.strictEqual(iter.value(), 'file');
@@ -149,6 +149,16 @@ suite('Ternary Search Tree', () => {
 		// authority
 		assert.strictEqual(iter.value(), 'share');
 		assert.strictEqual(iter.cmp('SHARe'), 0);
+		assert.strictEqual(iter.hasNext(), true);
+		iter.next();
+
+		// query
+		assert.strictEqual(iter.value(), 'foo');
+		assert.strictEqual(iter.hasNext(), true);
+		iter.next();
+
+		// fragment
+		assert.strictEqual(iter.value(), 'bar');
 		assert.strictEqual(iter.hasNext(), true);
 		iter.next();
 
