@@ -287,7 +287,12 @@ export class ViewModel extends Disposable implements IViewModel {
 				let hadModelLineChangeThatChangedLineMapping = false;
 
 				const changes = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
+				const edits = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.contentChangedEvent.edits : null);
 				const versionId = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.versionId : null);
+
+				// if (edits) {
+				// 	this.viewLayout.onEdits(edits);
+				// }
 
 				// Do a first pass to compute line mappings, and a second pass to actually interpret them
 				const lineBreaksComputer = this._lines.createLineBreaksComputer();

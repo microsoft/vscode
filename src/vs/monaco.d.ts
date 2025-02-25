@@ -2933,6 +2933,10 @@ declare namespace monaco.editor {
 		 */
 		readonly changes: IModelContentChange[];
 		/**
+		 * Raw edit operations
+		 */
+		readonly edits: ISingleEditOperation[];
+		/**
 		 * The (new) end-of-line character.
 		 */
 		readonly eol: string;

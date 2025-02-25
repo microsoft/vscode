@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ISingleEditOperation } from './core/editOperation.js';
 import { IRange } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
@@ -59,6 +60,10 @@ export interface IModelContentChangedEvent {
 	 * The changes are ordered from the end of the document to the beginning, so they should be safe to apply in sequence.
 	 */
 	readonly changes: IModelContentChange[];
+	/**
+	 * Raw edit operations
+	 */
+	readonly edits: ISingleEditOperation[];
 	/**
 	 * The (new) end-of-line character.
 	 */
@@ -420,6 +425,7 @@ export class InternalModelContentChangeEvent {
 	private static _mergeChangeEvents(a: IModelContentChangedEvent, b: IModelContentChangedEvent): IModelContentChangedEvent {
 		const changes = ([] as IModelContentChange[]).concat(a.changes).concat(b.changes);
 		const eol = b.eol;
+		const edits = a.edits.concat(b.edits);
 		const versionId = b.versionId;
 		const isUndoing = (a.isUndoing || b.isUndoing);
 		const isRedoing = (a.isRedoing || b.isRedoing);
@@ -428,6 +434,7 @@ export class InternalModelContentChangeEvent {
 		return {
 			changes: changes,
 			eol: eol,
+			edits: edits,
 			isEolChange: isEolChange,
 			versionId: versionId,
 			isUndoing: isUndoing,
