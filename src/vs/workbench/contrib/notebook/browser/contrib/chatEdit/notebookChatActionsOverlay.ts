@@ -18,6 +18,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from '../../../../chat/browser/chatEditing/chatEditingEditorActions.js';
 import { INotebookDeletedCellDecorator } from '../../diff/inlineDiff/notebookDeletedCellDecorator.js';
+import { ChatEditingModifiedDocumentEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(
@@ -38,7 +39,8 @@ export class NotebookChatActionsOverlayController extends Disposable {
 			}
 			const sessions = this._chatEditingService.editingSessionsObs.read(r);
 			const session = sessions.find(s => s.readEntry(model.uri, r));
-			if (!session) {
+			const entry = session?.readEntry(model.uri, r);
+			if (!session || !entry || !(entry instanceof ChatEditingModifiedDocumentEntry)) {
 				return;
 			}
 
