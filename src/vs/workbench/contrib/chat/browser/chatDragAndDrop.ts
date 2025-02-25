@@ -525,6 +525,10 @@ async function getResourceAttachContext(resource: URI, isDirectory: boolean, tex
 		isOmitted = true;
 	}
 
+	if (/\.(svg)$/i.test(resource.path)) {
+		isOmitted = true;
+	}
+
 	return {
 		value: resource,
 		id: resource.toString(),
