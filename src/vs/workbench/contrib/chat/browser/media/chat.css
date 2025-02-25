@@ -708,6 +708,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 	padding: 0px;
 	border: none;
+	height: 18px;
 }
 
 .chat-related-files .monaco-button-dropdown .monaco-text-button span {
@@ -724,16 +725,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	overflow: hidden;
 	padding: 0 0 0 2px;
+	gap: 2px;
 }
 
 .chat-related-files .monaco-button.codicon.codicon-add {
 	display: flex;
+	flex-direction: column;
 	color: var(--vscode-descriptionForeground);
-	padding-right: 4px;
-	padding-left: 4px;
-	padding-top: 5px;
+	padding-top: 3px;
 	font-size: 14px; /* The + codicon is large, make it look more like the x codicon */
-	height: 100%;
+	height: calc(100% - 3px);
+	width: 20px;
+	outline-offset: -2px !important;
 }
 
 .interactive-session .chat-related-files .monaco-icon-label::before {
