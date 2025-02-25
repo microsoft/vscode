@@ -125,12 +125,12 @@ export class LineHeightManager {
 	}
 
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
-		const deleteCount = toLineNumber - fromLineNumber + 1;
 		console.log('onLinesDeleted', fromLineNumber, toLineNumber);
-		console.log('deleteCount', deleteCount);
 		console.log('this._decorationIDToSpecialLine : ', JSON.stringify(this._decorationIDToSpecialLine));
 		console.log('this._orderedSpecialLines : ', JSON.stringify(this._orderedSpecialLines));
 		this.commit();
+		const deleteCount = toLineNumber - fromLineNumber + 1;
+		console.log('deleteCount', deleteCount);
 		const startIndexOfDeletion = this._binarySearchOverSpecialLinesArray(fromLineNumber);
 		console.log('startIndexOfDeletion', startIndexOfDeletion);
 		let modifiedStartIndexOfDeletion: number;
@@ -207,12 +207,13 @@ export class LineHeightManager {
 		console.log('this._orderedSpecialLines : ', JSON.stringify(this._orderedSpecialLines));
 		this.commit();
 		const insertCount = toLineNumber - fromLineNumber + 1;
-		const searchIndex = this._binarySearchOverSpecialLinesArray(toLineNumber);
+		const searchIndex = this._binarySearchOverSpecialLinesArray(fromLineNumber);
+		console.log('searchIndex : ', searchIndex);
 		let startIndex: number;
 		if (searchIndex >= 0) {
 			startIndex = searchIndex;
 			for (let i = searchIndex - 1; i >= 0; i--) {
-				if (this._orderedSpecialLines[i].lineNumber === toLineNumber) {
+				if (this._orderedSpecialLines[i].lineNumber === fromLineNumber) {
 					startIndex--;
 				} else {
 					break;
