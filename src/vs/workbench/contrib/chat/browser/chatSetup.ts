@@ -1186,35 +1186,36 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private async handleEnterpriseInstance(): Promise<boolean /* success */> {
+		const domainRegEx = /^[a-zA-Z\-_]+$/;
+		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
+
 		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
-		if (uri) {
-			return true; // already setup
+		if (typeof uri === 'string' && fullUriRegEx.test(uri)) {
+			return true; // already setup with a valid URI
 		}
 
 		let isSingleWord = false;
 		const result = await this.quickInputService.input({
 			prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.enterpriseProviderName),
 			placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			value: uri,
 			validateInput: async value => {
 				isSingleWord = false;
 				if (!value) {
 					return undefined;
 				}
 
-				if (/^[a-zA-Z\-_]+$/.test(value)) {
+				if (domainRegEx.test(value)) {
 					isSingleWord = true;
 					return {
 						content: localize('willResolveTo', "Will resolve to {0}", `https://${value}.ghe.com`),
 						severity: Severity.Info
 					};
-				} else {
-					const regex = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
-					if (!regex.test(value)) {
-						return {
-							content: localize('invalidEnterpriseInstance', 'Please enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.enterpriseProviderName),
-							severity: Severity.Error
-						};
-					}
+				} if (!fullUriRegEx.test(value)) {
+					return {
+						content: localize('invalidEnterpriseInstance', 'Please enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.enterpriseProviderName),
+						severity: Severity.Error
+					};
 				}
 
 				return undefined;
