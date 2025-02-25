@@ -851,6 +851,7 @@ export class AttachContextAction extends Action2 {
 			kind: 'diagnostic-filter',
 			id: IDiagnosticVariableEntryFilterData.id(filter),
 			label: IDiagnosticVariableEntryFilterData.label(filter),
+			icon: IDiagnosticVariableEntryFilterData.icon,
 			filter,
 		};
 	}
