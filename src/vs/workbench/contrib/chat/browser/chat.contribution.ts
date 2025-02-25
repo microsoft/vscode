@@ -140,7 +140,7 @@ configurationRegistry.registerConfiguration({
 		'chat.implicitContext.enabled': {
 			type: 'object',
 			tags: ['experimental'],
-			description: nls.localize('chat.implicitContext.enabled', "Enables the implicit context widget for specified chat locations."),
+			description: nls.localize('chat.implicitContext.enabled.1', "Enables automatically using the active editor as chat context for specified chat locations."),
 			additionalProperties: {
 				type: 'string',
 				enum: ['never', 'first', 'always'],
