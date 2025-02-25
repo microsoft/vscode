@@ -1124,13 +1124,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 
-				// Then take any attachments that are not files
-				for (const attachment of this.attachmentModel.attachments) {
-					if (!URI.isUri(attachment.value)) {
-						editingSessionAttachedContext.push(attachment);
-					}
-				}
-
 				// add prompt instruction references to the attached context, if enabled
 				const promptInstructionUris = new ResourceSet(promptInstructions.chatAttachments.map((v) => v.value) as URI[]);
 				if (instructionsEnabled) {
