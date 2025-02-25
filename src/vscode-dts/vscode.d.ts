@@ -20121,7 +20121,7 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the input this tool accepts.
 		 */
-		inputSchema?: object;
+		inputSchema?: object | undefined;
 	}
 
 	/**
