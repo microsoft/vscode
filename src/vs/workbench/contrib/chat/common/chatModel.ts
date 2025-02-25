@@ -5,6 +5,7 @@
 
 import { asArray } from '../../../../base/common/arrays.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -103,6 +104,8 @@ export namespace IDiagnosticVariableEntryFilterData {
 	export function id(data: IDiagnosticVariableEntryFilterData) {
 		return [data.filterUri, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
 	}
+
+	export const icon = Codicon.warning;
 
 	export function label(data: IDiagnosticVariableEntryFilterData) {
 		let labelStr = localize('chat.attachment.problems.all', "All Problems");
