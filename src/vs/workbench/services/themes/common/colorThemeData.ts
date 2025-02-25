@@ -823,10 +823,10 @@ function nameMatcher(identifiers: string[], scopes: ProbeScope): number {
 
 	let lastIndex = 0;
 	let score: number | undefined = undefined;
-	const every = identifiers.every((identifier, identifierIndex) => {
+	const every = identifiers.every((identifier) => {
 		for (let i = lastIndex; i < scopes.length; i++) {
 			if (scopesAreMatching(scopes[i], identifier)) {
-				score = (identifierIndex + 1) * 0x10000 + identifier.length;
+				score = (i + 1) * 0x10000 + identifier.length;
 				lastIndex = i + 1;
 				return true;
 			}
