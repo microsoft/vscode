@@ -105,16 +105,9 @@ export namespace IDiagnosticVariableEntryFilterData {
 	}
 
 	export function label(data: IDiagnosticVariableEntryFilterData) {
-		let labelStr: string;
-		if (data.filterSeverity) {
-			const sev = data.filterRange ? MarkerSeverity.toString(data.filterSeverity) : MarkerSeverity.toStringPlural(data.filterSeverity);
-			labelStr = data.filterUri
-				? localize('chat.attachment.problems.severity', "{0} in {1}", sev, basename(data.filterUri))
-				: localize('chat.attachment.problems.severity2', "All {0}", sev);
-		} else {
-			labelStr = data.filterUri
-				? localize('chat.attachment.problems.severity3', "Problems in {0}", basename(data.filterUri))
-				: localize('chat.attachment.problems.severity4', "All Problems");
+		let labelStr = localize('chat.attachment.problems.all', "All Problems");
+		if (data.filterUri) {
+			labelStr = localize('chat.attachment.problems.inFile', "Problems in {0}", basename(data.filterUri));
 		}
 
 		return labelStr;
