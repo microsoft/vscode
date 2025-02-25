@@ -194,6 +194,7 @@ export class ToggleRequestPausedAction extends Action2 {
 						ChatContextKeys.canRequestBePaused,
 						ChatContextKeys.Editing.agentMode,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
 					),
 					group: 'navigation',
 				},
@@ -243,7 +244,13 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
-					when: ContextKeyExpr.and(whenNotInProgressOrPaused, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
+							ChatContextKeys.requestInProgress.negate(),
+						),
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession),
+					),
 					group: 'navigation',
 				},
 			]
