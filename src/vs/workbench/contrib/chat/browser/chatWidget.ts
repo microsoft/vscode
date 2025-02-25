@@ -1124,13 +1124,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 
-				// add prompt instruction references to the attached context, if enabled
-				const promptInstructionUris = new ResourceSet(promptInstructions.chatAttachments.map((v) => v.value) as URI[]);
-				if (instructionsEnabled) {
-					editingSessionAttachedContext
-						.push(...promptInstructions.chatAttachments);
-				}
-
 				for (const file of uniqueWorkingSetEntries) {
 					// Make sure that any files that we sent are part of the working set
 					// but do not permanently add file variables from previous requests to the working set
@@ -1144,7 +1137,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					for (const variable of request.variableData.variables) {
 						if (URI.isUri(variable.value) && variable.isFile) {
 							const uri = variable.value;
-							if (!uniqueWorkingSetEntries.has(uri) && !promptInstructionUris.has(uri)) {
+							if (!uniqueWorkingSetEntries.has(uri)) {
 								editingSessionAttachedContext.push(variable);
 								uniqueWorkingSetEntries.add(variable.value);
 							}
