@@ -391,11 +391,7 @@ export class ChatDragAndDrop extends Themable {
 			}
 
 			return {
-				kind: 'diagnostic',
-				id: IDiagnosticVariableEntryFilterData.id(filter),
-				name: IDiagnosticVariableEntryFilterData.label(filter),
-				icon: IDiagnosticVariableEntryFilterData.icon,
-				value: filter,
+				...IDiagnosticVariableEntryFilterData.toEntry(filter),
 				...filter,
 			};
 		});
