@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch2 } from '../../../base/common/arrays.js';
-import { ModelLineEdit } from '../textModelEvents.js';
 
 
 export class SpecialLine {
@@ -125,87 +124,95 @@ export class LineHeightManager {
 		});
 	}
 
-	public onLinesDeleted(edit: ModelLineEdit): void {
-		const startLineNumber = edit.startLineNumber;
-		const deleteCount = edit.deletingLinesCnt;
-		console.log('onLinesDeleted', startLineNumber, deleteCount);
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+		const deleteCount = toLineNumber - fromLineNumber + 1;
+		console.log('onLinesDeleted', fromLineNumber, toLineNumber);
+		console.log('deleteCount', deleteCount);
 		console.log('this._decorationIDToSpecialLine : ', JSON.stringify(this._decorationIDToSpecialLine));
 		console.log('this._orderedSpecialLines : ', JSON.stringify(this._orderedSpecialLines));
 		this.commit();
-		const startIndexOfDeletion = this._binarySearchOverSpecialLinesArray(startLineNumber);
+		const startIndexOfDeletion = this._binarySearchOverSpecialLinesArray(fromLineNumber);
 		console.log('startIndexOfDeletion', startIndexOfDeletion);
 		let modifiedStartIndexOfDeletion: number;
 		if (startIndexOfDeletion >= 0) {
 			modifiedStartIndexOfDeletion = startIndexOfDeletion;
 			for (let i = startIndexOfDeletion - 1; i >= 0; i--) {
-				if (this._orderedSpecialLines[i].lineNumber === startLineNumber) {
+				console.log('i : ', i);
+				console.log('this._orderedSpecialLines[i].lineNumber : ', this._orderedSpecialLines[i].lineNumber);
+				console.log('fromLineNumber : ', fromLineNumber);
+				if (this._orderedSpecialLines[i].lineNumber === fromLineNumber) {
 					modifiedStartIndexOfDeletion--;
 				} else {
 					break;
 				}
 			}
-			modifiedStartIndexOfDeletion--;
 		} else {
 			modifiedStartIndexOfDeletion = -(startIndexOfDeletion + 1);
 		}
-		const endLineNumber = startLineNumber + deleteCount - 1;
-		const endIndexOfDeletion = this._binarySearchOverSpecialLinesArray(endLineNumber);
+		const endIndexOfDeletion = this._binarySearchOverSpecialLinesArray(toLineNumber);
 		console.log('endIndexOfDeletion', endIndexOfDeletion);
-		let modifiedEndIndexOfDeletion: number;
+		let modifiedEndIndexOfDeletionExclusive: number;
 		if (endIndexOfDeletion >= 0) {
-			modifiedEndIndexOfDeletion = endIndexOfDeletion;
+			modifiedEndIndexOfDeletionExclusive = endIndexOfDeletion;
 			for (let i = endIndexOfDeletion + 1; i < this._orderedSpecialLines.length; i++) {
-				if (this._orderedSpecialLines[i].lineNumber === startLineNumber) {
-					modifiedEndIndexOfDeletion++;
+				if (this._orderedSpecialLines[i].lineNumber === toLineNumber) {
+					modifiedEndIndexOfDeletionExclusive++;
 				} else {
 					break;
 				}
 			}
-			modifiedEndIndexOfDeletion++;
 		} else {
-			modifiedEndIndexOfDeletion = -(endIndexOfDeletion + 1);
+			modifiedEndIndexOfDeletionExclusive = -(endIndexOfDeletion + 1);
 		}
-		console.log('modifiedStartIndexOfDeletion', modifiedStartIndexOfDeletion);
-		console.log('modifiedEndIndexOfDeletion', modifiedEndIndexOfDeletion);
-		const deletedSpecialLines = this._orderedSpecialLines.splice(modifiedStartIndexOfDeletion, modifiedEndIndexOfDeletion - modifiedStartIndexOfDeletion);
 
-		let totalHeightDeleted: number;
-		if (deletedSpecialLines.length > 0) {
-			deletedSpecialLines.forEach((specialLine) => {
-				this._decorationIDToSpecialLine.delete(specialLine.decorationId);
-			});
-			const lastSpecialLine = deletedSpecialLines[deletedSpecialLines.length - 1];
-			const remainingDefaultHeight = this._defaultLineHeight * (deleteCount - lastSpecialLine.lineNumber);
-			totalHeightDeleted = lastSpecialLine.prefixSum
-				+ lastSpecialLine.maximumSpecialHeight
-				- deletedSpecialLines[0].prefixSum
-				+ remainingDefaultHeight;
+		console.log('modifiedStartIndexOfDeletion', modifiedStartIndexOfDeletion);
+		console.log('modifiedEndIndexOfDeletion', modifiedEndIndexOfDeletionExclusive);
+
+		let totalHeightDeleted: number = 0;
+		if (modifiedEndIndexOfDeletionExclusive > modifiedStartIndexOfDeletion) {
+			const firstSpecialLineDeleted = this._orderedSpecialLines[modifiedStartIndexOfDeletion];
+			const lastSpecialLineDeleted = this._orderedSpecialLines[modifiedEndIndexOfDeletionExclusive - 1];
+			console.log('firstSpecialLineDeleted : ', firstSpecialLineDeleted);
+			console.log('lastSpecialLineDeleted : ', lastSpecialLineDeleted);
+			totalHeightDeleted = lastSpecialLineDeleted.prefixSum
+				+ lastSpecialLineDeleted.maximumSpecialHeight
+				- firstSpecialLineDeleted.prefixSum
+				+ this._defaultLineHeight * (toLineNumber - lastSpecialLineDeleted.lineNumber)
+				+ this._defaultLineHeight * (firstSpecialLineDeleted.lineNumber - fromLineNumber);
 		} else {
 			totalHeightDeleted = deleteCount * this._defaultLineHeight;
 		}
 
-		for (let i = modifiedStartIndexOfDeletion; i < this._orderedSpecialLines.length; i++) {
-			this._orderedSpecialLines[i].lineNumber -= deleteCount;
-			this._orderedSpecialLines[i].prefixSum -= totalHeightDeleted;
+		const newOrderedSpecialLines: SpecialLine[] = [];
+		for (let i = 0; i < this._orderedSpecialLines.length; i++) {
+			if (i < modifiedStartIndexOfDeletion) {
+				newOrderedSpecialLines.push(this._orderedSpecialLines[i]);
+			} else if (i >= modifiedEndIndexOfDeletionExclusive) {
+				const specialLine = this._orderedSpecialLines[i];
+				specialLine.lineNumber -= deleteCount;
+				specialLine.prefixSum -= totalHeightDeleted;
+				newOrderedSpecialLines.push(specialLine);
+			}
 		}
+		this._orderedSpecialLines = newOrderedSpecialLines;
+
 		console.log('this._decorationIDToSpecialLine : ', JSON.stringify(this._decorationIDToSpecialLine));
 		console.log('this._orderedSpecialLines : ', JSON.stringify(this._orderedSpecialLines));
 		console.log('end of onLinesDeleted');
 	}
 
-	public onLinesInserted(edit: ModelLineEdit): void {
-		const startLineNumber = edit.startLineNumber;
-		const insertCount = edit.insertingLinesCnt;
-		console.log('onLinesInserted', startLineNumber, insertCount);
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+		console.log('onLinesInserted', fromLineNumber, toLineNumber);
 		console.log('this._decorationIDToSpecialLine : ', JSON.stringify(this._decorationIDToSpecialLine));
 		console.log('this._orderedSpecialLines : ', JSON.stringify(this._orderedSpecialLines));
 		this.commit();
-		const searchIndex = this._binarySearchOverSpecialLinesArray(startLineNumber);
+		const insertCount = toLineNumber - fromLineNumber + 1;
+		const searchIndex = this._binarySearchOverSpecialLinesArray(toLineNumber);
 		let startIndex: number;
 		if (searchIndex >= 0) {
 			startIndex = searchIndex;
 			for (let i = searchIndex - 1; i >= 0; i--) {
-				if (this._orderedSpecialLines[i].lineNumber === startLineNumber) {
+				if (this._orderedSpecialLines[i].lineNumber === toLineNumber) {
 					startIndex--;
 				} else {
 					break;
@@ -214,7 +221,6 @@ export class LineHeightManager {
 		} else {
 			startIndex = -(searchIndex + 1);
 		}
-		console.log('insertCount', insertCount);
 		console.log('startIndex', startIndex);
 		console.log('this._orderedSpecialLines.length : ', this._orderedSpecialLines.length);
 		for (let i = startIndex; i < this._orderedSpecialLines.length; i++) {

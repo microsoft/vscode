@@ -6,7 +6,6 @@
 import { IEditorWhitespace, IPartialViewLinesViewportData, ISpecialLineHeightChangeAccessor, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
 import * as strings from '../../../base/common/strings.js';
 import { LineHeightManager } from './lineHeights.js';
-import { ModelLineEdit } from '../textModelEvents.js';
 
 interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number }
 interface IPendingRemove { id: string }
@@ -345,7 +344,8 @@ export class LinesLayout {
 	 * @param fromLineNumber The line number at which the deletion started, inclusive
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
 	 */
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, edit: ModelLineEdit): void {
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+		console.log('onLinesDeleted', fromLineNumber, toLineNumber);
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
@@ -364,7 +364,7 @@ export class LinesLayout {
 				this._arr[i].afterLineNumber -= (toLineNumber - fromLineNumber + 1);
 			}
 		}
-		this._specialLineHeightsManager.onLinesDeleted(edit);
+		this._specialLineHeightsManager.onLinesDeleted(fromLineNumber, toLineNumber);
 	}
 
 	/**
@@ -373,7 +373,8 @@ export class LinesLayout {
 	 * @param fromLineNumber The line number at which the insertion started, inclusive
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 */
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, edit: ModelLineEdit): void {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+		console.log('onLinesInserted', fromLineNumber, toLineNumber);
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
@@ -386,7 +387,7 @@ export class LinesLayout {
 				this._arr[i].afterLineNumber += (toLineNumber - fromLineNumber + 1);
 			}
 		}
-		this._specialLineHeightsManager.onLinesInserted(edit);
+		this._specialLineHeightsManager.onLinesInserted(fromLineNumber, toLineNumber);
 	}
 
 	/**

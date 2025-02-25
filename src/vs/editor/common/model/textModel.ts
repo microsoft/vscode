@@ -39,13 +39,14 @@ import { SearchParams, TextModelSearch } from './textModelSearch.js';
 import { TokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { AttachedViews } from './tokens.js';
 import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged, ModelLineEdit } from '../textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, ModelLineHeightChangedEvent, ModelLineHeightChanged } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';
 import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
 import { TokenArray } from '../tokens/tokenArray.js';
+import { countEOL } from '../core/eolCounter.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -1461,16 +1462,17 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
+				const [eolCount] = countEOL(change.text);
 				this._onDidChangeDecorations.fire();
 
 				const startLineNumber = change.range.startLineNumber;
 				const endLineNumber = change.range.endLineNumber;
 
-				const edit = new ModelLineEdit(startLineNumber, endLineNumber, change.text);
-				const deletingLinesCnt = edit.deletingLinesCnt;
-				const insertingLinesCnt = edit.insertingLinesCnt;
-				const editingLinesCnt = edit.editingLinesCnt;
-				const changeLineCountDelta = edit.changeLinesCnt;
+				const deletingLinesCnt = endLineNumber - startLineNumber;
+				const insertingLinesCnt = eolCount;
+				const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+
+				const changeLineCountDelta = (insertingLinesCnt - deletingLinesCnt);
 
 				const currentEditStartLineNumber = newLineCount - lineCount - changeLineCountDelta + startLineNumber;
 				const firstEditLineNumber = currentEditStartLineNumber;
@@ -1494,6 +1496,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
 					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
 
+					console.log('pushing change for line', editLineNumber);
 					rawContentChanges.push(
 						new ModelRawLineChanged(
 							editLineNumber,
@@ -1504,14 +1507,16 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 				if (editingLinesCnt < deletingLinesCnt) {
 					// Must delete some lines
+					console.log('pushing deletion');
 					const spliceStartLineNumber = startLineNumber + editingLinesCnt;
 					console.log('startLineNumber', startLineNumber);
 					console.log('editingLinesCnt', editingLinesCnt);
 					console.log('deletingLinesCnt : ', deletingLinesCnt);
-					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber, edit));
+					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber));
 				}
 
 				if (editingLinesCnt < insertingLinesCnt) {
+					console.log('pushing insertion');
 					const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 					// Must insert some lines
 					console.log('startLineNumber', startLineNumber);
@@ -1534,7 +1539,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
 							startLineNumber + insertingLinesCnt,
-							edit,
 							newLines,
 							injectedTexts
 						)

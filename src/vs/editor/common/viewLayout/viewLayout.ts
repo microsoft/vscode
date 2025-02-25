@@ -12,7 +12,6 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { LinesLayout } from './linesLayout.js';
 import { IEditorWhitespace, IPartialViewLinesViewportData, ISpecialLineHeightChangeAccessor, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
-import { ModelLineEdit } from '../textModelEvents.js';
 
 const SMOOTH_SCROLLING_TIME = 125;
 
@@ -240,11 +239,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public onFlushed(lineCount: number): void {
 		this._linesLayout.onFlushed(lineCount);
 	}
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, edit: ModelLineEdit): void {
-		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber, edit);
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
 	}
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, edit: ModelLineEdit): void {
-		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber, edit);
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
 	}
 
 	// ---- end view event handlers

@@ -328,6 +328,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LinesDeleted: {
+							console.log('LinesDeleted event');
 							console.log('change.fromLineNumber', change.fromLineNumber);
 							console.log('change.toLineNumber', change.toLineNumber);
 							const linesDeletedEvent = this._lines.onModelLinesDeleted(versionId, change.fromLineNumber, change.toLineNumber);
@@ -335,24 +336,27 @@ export class ViewModel extends Disposable implements IViewModel {
 								eventsCollector.emitViewEvent(linesDeletedEvent);
 								console.log('linesDeletedEvent.fromLineNumber', linesDeletedEvent.fromLineNumber);
 								console.log('linesDeletedEvent.toLineNumber', linesDeletedEvent.toLineNumber);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber, change.edit);
+								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
 							}
 							hadOtherModelChange = true;
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LinesInserted: {
+							console.log('LinesInserted event');
 							const insertedLineBreaks = lineBreakQueue.takeCount(change.detail.length);
 							console.log('change.fromLineNumber', change.fromLineNumber);
 							console.log('change.toLineNumber', change.toLineNumber);
 							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, change.edit);
+								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
 							}
 							hadOtherModelChange = true;
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
+							console.log('LineChanged event');
+							console.log('change.lineNumber : ', change.lineNumber);
 							const changedLineBreakData = lineBreakQueue.dequeue()!;
 							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
 								this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
@@ -360,13 +364,15 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (linesChangedEvent) {
 								eventsCollector.emitViewEvent(linesChangedEvent);
 							}
+							console.log('linesInsertedEvent : ', linesInsertedEvent);
+							console.log('linesDeletedEvent : ', linesDeletedEvent);
 							if (linesInsertedEvent) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, change.edit);
+								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
 							}
 							if (linesDeletedEvent) {
 								eventsCollector.emitViewEvent(linesDeletedEvent);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber, change.edit);
+								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
 							}
 							break;
 						}
