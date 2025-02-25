@@ -151,17 +151,19 @@ if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
     if [ -n "$WAYLAND_DISPLAY" ]; then
         wdisplay="$WAYLAND_DISPLAY"
     fi
-    wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
-    wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
+    wayland_sockpath="$XDG_RUNTIME_DIR/$wdisplay"
+    snap_paths=("$XDG_RUNTIME_DIR/snap."*/"$wdisplay") 
     if [ -S "$wayland_sockpath" ]; then
         # if running under wayland, use it
         #export WAYLAND_DEBUG=1
         # shellcheck disable=SC2034
         wayland_available=true
-        # create the compat symlink for now
-        if [ ! -e "$wayland_snappath" ]; then
-            ln -s "$wayland_sockpath" "$wayland_snappath"
-        fi
+        for wayland_snappath in "${snap_paths[@]}"; do
+          # create the compat symlink for now
+          if [ ! -e "$wayland_snappath" ]; then
+              ln -s "$wayland_sockpath" "$wayland_snappath"
+          fi
+        done
     fi
 fi
 
