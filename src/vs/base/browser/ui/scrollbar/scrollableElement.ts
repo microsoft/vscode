@@ -387,6 +387,18 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardWheelEvent): void {
+
+		// Detect pinch-to-zoom gesture
+		const isPinchGesture = e.browserEvent?.ctrlKey ?? false;
+
+		if (isPinchGesture) {
+			// Prevent default scrolling behavior during pinch
+			if (e.browserEvent) {
+				e.browserEvent.preventDefault();
+			}
+			return;
+		}
+
 		if (e.browserEvent?.defaultPrevented) {
 			return;
 		}
