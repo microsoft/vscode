@@ -129,6 +129,8 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 						receivedTokens.push(token);
 					});
 
+					this.decoder.start();
+
 					// in this case we also test the `settled` promise of the decoder
 					await this.decoder.settled;
 
@@ -158,6 +160,8 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 			// add the tokens consume method to the error message so we
 			// would know which method of consuming the tokens failed exactly
 			error.message = `[${tokensConsumeMethod}] ${error.message}`;
+
+			throw error;
 		}
 	}
 

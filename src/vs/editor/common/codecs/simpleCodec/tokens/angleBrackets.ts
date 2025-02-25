@@ -9,20 +9,20 @@ import { Position } from '../../../core/position.js';
 import { Line } from '../../linesCodec/tokens/line.js';
 
 /**
- * A token that represent a `[` with a `range`. The `range`
+ * A token that represent a `<` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class LeftBracket extends BaseToken {
+export class LeftAngleBracket extends BaseToken {
 	/**
-	 * The underlying symbol of the `LeftBracket` token.
+	 * The underlying symbol of the token.
 	 */
-	public static readonly symbol: string = '[';
+	public static readonly symbol: string = '<';
 
 	/**
 	 * Return text representation of the token.
 	 */
 	public get text(): string {
-		return LeftBracket.symbol;
+		return LeftAngleBracket.symbol;
 	}
 
 	/**
@@ -32,13 +32,13 @@ export class LeftBracket extends BaseToken {
 	public static newOnLine(
 		line: Line,
 		atColumnNumber: number,
-	): LeftBracket {
+	): LeftAngleBracket {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
-		return new LeftBracket(Range.fromPositions(
+		return new LeftAngleBracket(Range.fromPositions(
 			startPosition,
 			endPosition,
 		));
@@ -48,41 +48,41 @@ export class LeftBracket extends BaseToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `left-bracket${this.range}`;
+		return `left-angle-bracket${this.range}`;
 	}
 }
 
 /**
- * A token that represent a `]` with a `range`. The `range`
+ * A token that represent a `>` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class RightBracket extends BaseToken {
+export class RightAngleBracket extends BaseToken {
 	/**
-	 * The underlying symbol of the `RightBracket` token.
+	 * The underlying symbol of the token.
 	 */
-	public static readonly symbol: string = ']';
+	public static readonly symbol: string = '>';
 
 	/**
 	 * Return text representation of the token.
 	 */
 	public get text(): string {
-		return RightBracket.symbol;
+		return RightAngleBracket.symbol;
 	}
 
 	/**
-	 * Create new `RightBracket` token with range inside
+	 * Create new `RightAngleBracket` token with range inside
 	 * the given `Line` at the given `column number`.
 	 */
 	public static newOnLine(
 		line: Line,
 		atColumnNumber: number,
-	): RightBracket {
+	): RightAngleBracket {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
-		return new RightBracket(Range.fromPositions(
+		return new RightAngleBracket(Range.fromPositions(
 			startPosition,
 			endPosition,
 		));
@@ -92,11 +92,11 @@ export class RightBracket extends BaseToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `right-bracket${this.range}`;
+		return `right-angle-bracket${this.range}`;
 	}
 }
 
 /**
- * General bracket token type.
+ * General angle bracket token type.
  */
-export type TBracket = LeftBracket | RightBracket;
+export type TAngleBracket = LeftAngleBracket | RightAngleBracket;
