@@ -227,7 +227,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
 
-	async acceptStreamingEditsEnd(tx: ITransaction) {
+	acceptStreamingEditsEnd(tx: ITransaction) {
 		this._resetEditsState(tx);
 
 		// AUTO accept mode

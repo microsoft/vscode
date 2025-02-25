@@ -711,7 +711,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 			startPromise.complete();
 			return completePromise.p;
-		});
+		}).then(() => this._onStreamingEditDequeued());
 
 
 		let didComplete = false;
@@ -747,12 +747,25 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
 						await this._acceptEdits(resource, [], true, responseModel);
-						await this._resolve(responseModel.requestId, inUndoStop, resource);
+						this._resolve(responseModel.requestId, inUndoStop, resource);
 						completePromise.complete();
 					}
 				});
 			},
 		};
+	}
+
+	private _onStreamingEditDequeued() {
+		const state = this._state.get();
+		if (state === ChatEditingSessionState.Disposed) {
+			return;
+		}
+
+		const isStreamingEdits = !Iterable.isEmpty(this._streamingEditLocks.keys());
+		const targetState = isStreamingEdits ? ChatEditingSessionState.StreamingEdits : ChatEditingSessionState.Idle;
+		if (state !== targetState) {
+			this._state.set(targetState, undefined);
+		}
 	}
 
 	private _trackUntitledWorkingSetEntry(resource: URI) {
@@ -963,20 +976,15 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 	}
 
-	private async _resolve(requestId: string, undoStop: string | undefined, resource: URI): Promise<void> {
-		await asyncTransaction(async (tx) => {
-			const hasOtherTasks = Iterable.some(this._streamingEditLocks.keys(), k => k !== resource.toString());
-			if (!hasOtherTasks) {
-				this._state.set(ChatEditingSessionState.Idle, tx);
-			}
-
+	private _resolve(requestId: string, undoStop: string | undefined, resource: URI): void {
+		transaction((tx) => {
 			const entry = this._getEntry(resource);
 			if (!entry) {
 				return;
 			}
 
 			this.ensureEditInUndoStopMatches(requestId, undoStop, entry, /* next= */ true, tx);
-			return entry.acceptStreamingEditsEnd(tx);
+			entry.acceptStreamingEditsEnd(tx);
 		});
 
 		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
