@@ -13,16 +13,17 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { parse } from '../../../base/common/marshalling.js';
 import { Schemas } from '../../../base/common/network.js';
 import { isNative, isWeb } from '../../../base/common/platform.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../dialogs/common/dialogs.js';
-import { IBaseTextResourceEditorInput } from '../../editor/common/editor.js';
+import { IBaseTextResourceEditorInput, ITextEditorSelection } from '../../editor/common/editor.js';
 import { HTMLFileSystemProvider } from '../../files/browser/htmlFileSystemProvider.js';
 import { WebFileSystemAccess } from '../../files/browser/webFileSystemAccess.js';
 import { ByteSize, IFileService } from '../../files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { extractSelection } from '../../opener/common/opener.js';
 import { Registry } from '../../registry/common/platform.js';
+import { IMarker } from '../../markers/common/markers.js';
 
 
 //#region Editor / Resources DND
@@ -30,7 +31,8 @@ import { Registry } from '../../registry/common/platform.js';
 export const CodeDataTransfers = {
 	EDITORS: 'CodeEditors',
 	FILES: 'CodeFiles',
-	SYMBOLS: 'application/vnd.code.symbols'
+	SYMBOLS: 'application/vnd.code.symbols',
+	MARKERS: 'application/vnd.code.diagnostics',
 };
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
@@ -309,8 +311,9 @@ export function containsDragType(event: DragEvent, ...dragTypesToFind: string[])
 //#region DND contributions
 
 export interface IResourceStat {
-	resource: URI;
-	isDirectory?: boolean;
+	readonly resource: URI;
+	readonly isDirectory?: boolean;
+	readonly selection?: ITextEditorSelection;
 }
 
 export interface IDragAndDropContributionRegistry {
@@ -413,8 +416,12 @@ export interface DocumentSymbolTransferData {
 	kind: number;
 }
 
-export function extractSymbolDropData(e: DragEvent): DocumentSymbolTransferData[] {
-	const rawSymbolsData = e.dataTransfer?.getData(CodeDataTransfers.SYMBOLS);
+function setDataAsJSON(e: DragEvent, kind: string, data: unknown) {
+	e.dataTransfer?.setData(kind, JSON.stringify(data));
+}
+
+function getDataAsJSON<T>(e: DragEvent, kind: string, defaultValue: T): T {
+	const rawSymbolsData = e.dataTransfer?.getData(kind);
 	if (rawSymbolsData) {
 		try {
 			return JSON.parse(rawSymbolsData);
@@ -423,7 +430,25 @@ export function extractSymbolDropData(e: DragEvent): DocumentSymbolTransferData[
 		}
 	}
 
-	return [];
+	return defaultValue;
+}
+
+export function extractSymbolDropData(e: DragEvent): DocumentSymbolTransferData[] {
+	return getDataAsJSON(e, CodeDataTransfers.SYMBOLS, []);
+}
+
+export function fillInSymbolsDragData(symbolsData: readonly DocumentSymbolTransferData[], e: DragEvent): void {
+	setDataAsJSON(e, CodeDataTransfers.SYMBOLS, symbolsData);
+}
+
+export type MarkerTransferData = IMarker | { uri: UriComponents };
+
+export function extractMarkerDropData(e: DragEvent): MarkerTransferData[] | undefined {
+	return getDataAsJSON(e, CodeDataTransfers.MARKERS, undefined);
+}
+
+export function fillInMarkersDragData(markerData: MarkerTransferData[], e: DragEvent): void {
+	setDataAsJSON(e, CodeDataTransfers.MARKERS, markerData);
 }
 
 /**

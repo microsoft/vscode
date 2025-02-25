@@ -365,7 +365,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
 			recordEnter: true,
 			quoteRecordedKeys: true,
-			history: this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] || [],
+			history: new Set<string>(this.getMemento(StorageScope.PROFILE, StorageTarget.USER)['searchHistory'] ?? []),
 			inputBoxStyles: getInputBoxStyle({
 				inputBorder: settingsTextInputBorder
 			})

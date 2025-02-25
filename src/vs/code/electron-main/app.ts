@@ -167,11 +167,17 @@ export class CodeApplication extends Disposable {
 		const allowedPermissionsInWebview = new Set([
 			'clipboard-read',
 			'clipboard-sanitized-write',
+			// TODO(deepak1556): Should be removed once migration is complete
+			// https://github.com/microsoft/vscode/issues/239228
+			'deprecated-sync-clipboard-read',
 		]);
 
 		const allowedPermissionsInCore = new Set([
 			'media',
 			'local-fonts',
+			// TODO(deepak1556): Should be removed once migration is complete
+			// https://github.com/microsoft/vscode/issues/239228
+			'deprecated-sync-clipboard-read',
 		]);
 
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
@@ -202,7 +208,7 @@ export class CodeApplication extends Disposable {
 		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeManagedRemoteResource, 'devtools']);
 
 		// But allow them if they are made from inside an webview
-		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
+		const isSafeFrame = (requestFrame: WebFrameMain | null | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
 					return true;
@@ -605,7 +611,7 @@ export class CodeApplication extends Disposable {
 		// Setup Protocol URL Handlers
 		const initialProtocolUrls = await appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
 
-		// Setup vscode-remote-resource protocol handler.
+		// Setup vscode-remote-resource protocol handler
 		this.setupManagedRemoteResourceUrlHandler(mainProcessElectronServer);
 
 		// Signal phase: ready - before opening first window

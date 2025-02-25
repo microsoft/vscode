@@ -71,6 +71,12 @@ npm run test-extension -- -l vscode-colorize-tests
 kill_app
 
 echo
+echo "### Terminal Suggest tests" 
+echo
+npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests
+kill_app
+
+echo
 echo "### TypeScript tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/typescript-language-features/test-workspace --extensionDevelopmentPath=$ROOT/extensions/typescript-language-features --extensionTestsPath=$ROOT/extensions/typescript-language-features/out/test/unit $API_TESTS_EXTRA_ARGS

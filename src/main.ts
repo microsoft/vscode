@@ -149,10 +149,35 @@ if (process.platform === 'win32' || process.platform === 'linux') {
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
-		const traceOptions = {
-			categoryFilter: args['trace-category-filter'] || '*',
-			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
-		};
+		let traceOptions: Electron.TraceConfig | Electron.TraceCategoriesAndOptions;
+		if (args['trace-memory-infra']) {
+			const customCategories = args['trace-category-filter']?.split(',') || [];
+			customCategories.push('disabled-by-default-memory-infra', 'disabled-by-default-memory-infra.v8.code_stats');
+			traceOptions = {
+				included_categories: customCategories,
+				excluded_categories: ['*'],
+				memory_dump_config: {
+					allowed_dump_modes: ['light', 'detailed'],
+					triggers: [
+						{
+							type: 'periodic_interval',
+							mode: 'detailed',
+							min_time_between_dumps_ms: 10000
+						},
+						{
+							type: 'periodic_interval',
+							mode: 'light',
+							min_time_between_dumps_ms: 1000
+						}
+					]
+				}
+			};
+		} else {
+			traceOptions = {
+				categoryFilter: args['trace-category-filter'] || '*',
+				traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
+			};
+		}
 
 		contentTracing.startRecording(traceOptions).finally(() => onReady());
 	} else {
@@ -288,14 +313,16 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
+	// `PlzDedicatedWorker` - Refs https://github.com/microsoft/vscode/issues/233060#issuecomment-2523212427
 	const featuresToDisable =
-		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
+		`CalculateNativeWinOcclusion,PlzDedicatedWorker,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
 	// `FontMatchingCTMigration` - Siwtch font matching on macOS to Appkit (Refs https://github.com/microsoft/vscode/issues/224496#issuecomment-2270418470).
+	// `StandardizedBrowserZoom` - Disable zoom adjustment for bounding box (https://github.com/microsoft/vscode/issues/232750#issuecomment-2459495394)
 	const blinkFeaturesToDisable =
-		`FontMatchingCTMigration,${app.commandLine.getSwitchValue('disable-blink-features')}`;
+		`FontMatchingCTMigration,StandardizedBrowserZoom,${app.commandLine.getSwitchValue('disable-blink-features')}`;
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
 	// Support JS Flags
@@ -303,6 +330,11 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
+
+	// Use portal version 4 that supports current_folder option
+	// to address https://github.com/microsoft/vscode/issues/213780
+	// Runtime sets the default version to 3, refs https://github.com/electron/electron/pull/44426
+	app.commandLine.appendSwitch('xdg-portal-required-version', '4');
 
 	return argvConfig;
 }

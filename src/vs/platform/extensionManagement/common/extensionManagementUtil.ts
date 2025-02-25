@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from '../../../base/common/strings.js';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from './extensionManagement.js';
+import { IExtensionIdentifier, IExtensionsControlManifest, IGalleryExtension, ILocalExtension, getTargetPlatform } from './extensionManagement.js';
 import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
 import { IFileService } from '../../files/common/files.js';
 import { isLinux, platform } from '../../../base/common/platform.js';
@@ -13,6 +13,7 @@ import { getErrorMessage } from '../../../base/common/errors.js';
 import { ILogService } from '../../log/common/log.js';
 import { arch } from '../../../base/common/process.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
+import { isString } from '../../../base/common/types.js';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -120,7 +121,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension) {
 	"GalleryExtensionTelemetryData" : {
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"extensionVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -137,7 +138,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension) {
 	return {
 		id: new TelemetryTrustedValue(extension.identifier.id),
 		name: new TelemetryTrustedValue(extension.name),
-		version: extension.version,
+		extensionVersion: extension.version,
 		galleryId: extension.identifier.uuid,
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
@@ -195,4 +196,13 @@ export async function computeTargetPlatform(fileService: IFileService, logServic
 	const targetPlatform = getTargetPlatform(alpineLinux ? 'alpine' : platform, arch);
 	logService.debug('ComputeTargetPlatform:', targetPlatform);
 	return targetPlatform;
+}
+
+export function isMalicious(identifier: IExtensionIdentifier, controlManifest: IExtensionsControlManifest): boolean {
+	return controlManifest.malicious.some(publisherOrIdentifier => {
+		if (isString(publisherOrIdentifier)) {
+			return compareIgnoreCase(identifier.id.split('.')[0], publisherOrIdentifier) === 0;
+		}
+		return areSameExtensions(identifier, publisherOrIdentifier);
+	});
 }

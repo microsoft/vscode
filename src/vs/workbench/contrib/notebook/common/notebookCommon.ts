@@ -22,7 +22,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { ILineChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import * as editorCommon from '../../../../editor/common/editorCommon.js';
 import { Command, WorkspaceEditMetadata } from '../../../../editor/common/languages.js';
-import { IReadonlyTextBuffer } from '../../../../editor/common/model.js';
+import { IReadonlyTextBuffer, ITextModel } from '../../../../editor/common/model.js';
 import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -121,6 +121,7 @@ export interface NotebookCellMetadata {
 }
 
 export interface NotebookCellInternalMetadata {
+	cellId?: string;
 	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
@@ -270,6 +271,9 @@ export interface ICell {
 	internalMetadata: NotebookCellInternalMetadata;
 	getHashValue(): number;
 	textBuffer: IReadonlyTextBuffer;
+	textModel?: ITextModel;
+	onDidChangeTextModel: Event<void>;
+	getValue(): string;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
 	onDidChangeOutputItems?: Event<void>;
 	onDidChangeLanguage: Event<string>;
@@ -978,6 +982,7 @@ export const NotebookSetting = {
 	cellToolbarLocation: 'notebook.cellToolbarLocation',
 	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
 	showCellStatusBar: 'notebook.showCellStatusBar',
+	cellExecutionTimeVerbosity: 'notebook.cellExecutionTimeVerbosity',
 	textDiffEditorPreview: 'notebook.diff.enablePreview',
 	diffOverviewRuler: 'notebook.diff.overviewRuler',
 	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
@@ -1028,10 +1033,12 @@ export const NotebookSetting = {
 	cellChat: 'notebook.experimental.cellChat',
 	cellGenerate: 'notebook.experimental.generate',
 	notebookVariablesView: 'notebook.variablesView',
+	notebookInlineValues: 'notebook.inlineValues',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
 	multiCursor: 'notebook.multiCursor.enabled',
+	markupFontFamily: 'notebook.markup.fontFamily',
 } as const;
 
 export const enum CellStatusbarAlignment {

@@ -32,7 +32,7 @@ import { CompletionModel } from './completionModel.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu } from './suggest.js';
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails.js';
-import { getAriaId, ItemRenderer } from './suggestWidgetRenderer.js';
+import { ItemRenderer } from './suggestWidgetRenderer.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 
@@ -270,7 +270,7 @@ export class SuggestWidget implements IDisposable {
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
 		applyStatusBarStyle();
 
-		this._disposables.add(_themeService.onDidColorThemeChange(t => this._onThemeChange(t)));
+		this._disposables.add(_themeService.onDidColorThemeChange(t => this._onThemeChange(t.theme)));
 		this._onThemeChange(_themeService.getColorTheme());
 
 		this._disposables.add(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
@@ -434,7 +434,7 @@ export class SuggestWidget implements IDisposable {
 					this.element.domNode.classList.remove('docs-side');
 				}
 
-				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
+				this.editor.setAriaOptions({ activeDescendant: this._list.getElementID(index) });
 			}).catch(onUnexpectedError);
 		}
 
@@ -570,7 +570,7 @@ export class SuggestWidget implements IDisposable {
 		try {
 			this._list.splice(0, this._list.length, this._completionModel.items);
 			this._setState(isFrozen ? State.Frozen : State.Open);
-			this._list.reveal(selectionIndex, 0);
+			this._list.reveal(selectionIndex, 0, selectionIndex === 0 ? 0 : this.getLayoutInfo().itemHeight * 0.33);
 			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			this._onDidFocus.resume();
@@ -928,7 +928,7 @@ export class SuggestWidget implements IDisposable {
 			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
 			verticalPadding: 22,
 			horizontalPadding: 14,
-			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight + borderHeight)
+			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight)
 		};
 	}
 

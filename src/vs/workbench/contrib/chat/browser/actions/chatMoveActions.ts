@@ -18,6 +18,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -99,7 +100,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 
 	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
 		?? widgetService.lastFocusedWidget;
-	if (!widget || !('viewId' in widget.viewContext)) {
+	if (!widget || widget.location !== ChatAgentLocation.Panel) {
 		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}

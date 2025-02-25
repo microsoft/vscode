@@ -101,6 +101,11 @@ export class Editor {
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}
 
+	async waitForEditorSelection(filename: string, accept: (selection: { selectionStart: number; selectionEnd: number }) => boolean): Promise<void> {
+		const selector = `${EDITOR(filename)} ${this._editContextSelector()}`;
+		await this.code.waitForEditorSelection(selector, accept);
+	}
+
 	private _editContextSelector() {
 		return this.code.quality === Quality.Stable ? 'textarea' : '.native-edit-context';
 	}

@@ -15,7 +15,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "variable entity.name.function",
+		"t": "entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -29,7 +29,7 @@
 	},
 	{
 		"c": "(",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": "isAll",
-		"t": "variable",
+		"t": "variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -71,7 +71,7 @@
 	},
 	{
 		"c": "startTime",
-		"t": "variable",
+		"t": "variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "endTime",
-		"t": "variable",
+		"t": "variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": ")",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": "{",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -197,7 +197,7 @@
 	},
 	{
 		"c": "?",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -253,7 +253,7 @@
 	},
 	{
 		"c": ":",
-		"t": "punctuation.delimiter keyword.operator.optional keyword.operator.ternary",
+		"t": "keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -281,7 +281,7 @@
 	},
 	{
 		"c": "${",
-		"t": "string punctuation.definition.template-expression.begin",
+		"t": "punctuation.definition.template-expression.begin",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.begin: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.begin: #0000FF",
@@ -295,12 +295,12 @@
 	},
 	{
 		"c": "startTime",
-		"t": "string variable",
+		"t": "variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string punctuation.definition.template-expression.end",
+		"t": "punctuation.definition.template-expression.end",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -337,7 +337,7 @@
 	},
 	{
 		"c": "${",
-		"t": "string punctuation.definition.template-expression.begin",
+		"t": "punctuation.definition.template-expression.begin",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.begin: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.begin: #0000FF",
@@ -351,12 +351,12 @@
 	},
 	{
 		"c": "endTime",
-		"t": "string variable",
+		"t": "variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
@@ -365,7 +365,7 @@
 	},
 	{
 		"c": "}",
-		"t": "string punctuation.definition.template-expression.end",
+		"t": "punctuation.definition.template-expression.end",
 		"r": {
 			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
 			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
@@ -421,7 +421,7 @@
 	},
 	{
 		"c": "true",
-		"t": "constant.language",
+		"t": "constant.language.boolean.true",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -449,7 +449,7 @@
 	},
 	{
 		"c": "}",
-		"t": "",
+		"t": "punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

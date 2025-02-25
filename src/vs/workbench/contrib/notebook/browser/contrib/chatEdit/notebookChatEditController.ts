@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../../base/common/resources.js';
 import { Disposable, dispose, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
@@ -12,19 +11,17 @@ import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrow
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { NotebookDeletedCellDecorator, NotebookInsertedCellDecorator, NotebookCellDiffDecorator } from './notebookCellDecorators.js';
-import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer, NotebookModelSynchronizerFactory } from './notebookSynchronizer.js';
-import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
-import { debouncedObservable2 } from '../../../../../../base/common/observableInternal/utils.js';
+import { NotebookCellDiffDecorator } from './notebookCellDecorators.js';
+import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer } from './notebookSynchronizer.js';
+import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
+import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { NotebookChatActionsOverlayController } from './notebookChatActionsOverlay.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { localize } from '../../../../../../nls.js';
-import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
-import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
-import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
-
-export const ctxNotebookHasEditorModification = new RawContextKey<boolean>('chat.hasNotebookEditorModifications', undefined, localize('chat.hasNotebookEditorModifications', "The current Notebook editor contains chat modifications"));
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { ctxNotebookHasEditorModification } from './notebookChatEditContext.js';
+import { NotebookDeletedCellDecorator } from '../../diff/inlineDiff/notebookDeletedCellDecorator.js';
+import { NotebookInsertedCellDecorator } from '../../diff/inlineDiff/notebookInsertedCellDecorator.js';
 
 export class NotebookChatEditorControllerContrib extends Disposable implements INotebookEditorContribution {
 
@@ -37,9 +34,7 @@ export class NotebookChatEditorControllerContrib extends Disposable implements I
 
 	) {
 		super();
-		if (configurationService.getValue<boolean>('notebook.experimental.chatEdits')) {
-			this._register(instantiationService.createInstance(NotebookChatEditorController, notebookEditor));
-		}
+		this._register(instantiationService.createInstance(NotebookChatEditorController, notebookEditor));
 	}
 }
 
@@ -58,12 +53,15 @@ class NotebookChatEditorController extends Disposable {
 	) {
 		super();
 		this._ctxHasEditorModification = ctxNotebookHasEditorModification.bindTo(contextKeyService);
-		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor));
+		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor, undefined));
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
-		const viewModelAttached = observableFromEvent(this.notebookEditor.onDidAttachViewModel, () => !!this.notebookEditor.getViewModel());
-		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
+		// We need to render viewzones only when the viewmodel is attached (i.e. list view is ready).
+		// https://github.com/microsoft/vscode/issues/234718
+		const readyToRenderViewzones = observableValue<boolean>('viewModelAttached', false);
+		this._register(Event.once(this.notebookEditor.onDidAttachViewModel)(() => readyToRenderViewzones.set(true, undefined)));
+		const onDidChangeVisibleRanges = debouncedObservable(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
 		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
 
 		let updatedCellDecoratorsOnceBefore = false;
@@ -81,12 +79,12 @@ class NotebookChatEditorController extends Disposable {
 
 		let notebookSynchronizer: IReference<NotebookModelSynchronizer>;
 		const entryObs = derived((r) => {
-			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const model = notebookModel.read(r);
-			if (!model || !session) {
+			if (!model) {
 				return;
 			}
-			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
+			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+			return sessions.map(s => s.readEntry(model.uri, r)).find(r => !!r);
 		}).recomputeInitiallyAndOnChange(this._store);
 
 
@@ -195,8 +193,8 @@ class NotebookChatEditorController extends Disposable {
 			const diffInfo = notebookDiffInfo.read(r);
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
-			const vmAttached = viewModelAttached.read(r);
-			if (!vmAttached || !entry || !modified || !original || !diffInfo) {
+			const ready = readyToRenderViewzones.read(r);
+			if (!ready || !entry || !modified || !original || !diffInfo) {
 				return;
 			}
 			if (diffInfo && updatedDeletedInsertedDecoratorsOnceBefore && (diffInfo.modelVersion !== modified.versionId)) {
@@ -209,8 +207,3 @@ class NotebookChatEditorController extends Disposable {
 	}
 
 }
-
-registerNotebookContribution(NotebookChatEditorControllerContrib.ID, NotebookChatEditorControllerContrib);
-registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
-registerSingleton(INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory, InstantiationType.Delayed);
-registerSingleton(INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory, InstantiationType.Delayed);

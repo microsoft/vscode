@@ -14,7 +14,7 @@ import { Event } from '../../../base/common/event.js';
 import { UILabelProvider } from '../../../base/common/keybindingLabels.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { combinedDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { isLinux, isWindows, OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { assertType } from '../../../base/common/types.js';
@@ -169,6 +169,7 @@ export interface IMenuEntryActionViewItemOptions {
 	draggable?: boolean;
 	keybinding?: string;
 	hoverDelegate?: IHoverDelegate;
+	keybindingNotRenderedWithLabel?: boolean;
 }
 
 export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions = IMenuEntryActionViewItemOptions> extends ActionViewItem {
@@ -187,7 +188,7 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: _options?.draggable, keybinding: _options?.keybinding, hoverDelegate: _options?.hoverDelegate });
+		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: _options?.draggable, keybinding: _options?.keybinding, hoverDelegate: _options?.hoverDelegate, keybindingNotRenderedWithLabel: _options?.keybindingNotRenderedWithLabel });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
@@ -428,6 +429,7 @@ export interface IDropdownWithDefaultActionViewItemOptions extends IDropdownMenu
 export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	private readonly _options: IDropdownWithDefaultActionViewItemOptions | undefined;
 	private _defaultAction: ActionViewItem;
+	private readonly _defaultActionDisposables = this._register(new DisposableStore());
 	private readonly _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
 	private readonly _storageKey: string;
@@ -467,10 +469,10 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 			...options,
 			menuAsChild: options?.menuAsChild ?? true,
 			classNames: options?.classNames ?? ['codicon', 'codicon-chevron-down'],
-			actionRunner: options?.actionRunner ?? new ActionRunner(),
+			actionRunner: options?.actionRunner ?? this._register(new ActionRunner()),
 		};
 
-		this._dropdown = new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions);
+		this._dropdown = this._register(new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions));
 		this._register(this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
 			if (e.action instanceof MenuItemAction) {
 				this.update(e.action);
@@ -483,13 +485,13 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 			this._storageService.store(this._storageKey, lastAction.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 
-		this._defaultAction.dispose();
-		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction) });
-		this._defaultAction.actionRunner = new class extends ActionRunner {
+		this._defaultActionDisposables.clear();
+		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction) }));
+		this._defaultAction.actionRunner = this._defaultActionDisposables.add(new class extends ActionRunner {
 			protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 				await action.run(undefined);
 			}
-		}();
+		}());
 
 		if (this._container) {
 			this._defaultAction.render(prepend(this._container, $('.action-container')));
@@ -565,12 +567,6 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 			this._defaultAction.element!.tabIndex = -1;
 			this._dropdown.setFocusable(false);
 		}
-	}
-
-	override dispose() {
-		this._defaultAction.dispose();
-		this._dropdown.dispose();
-		super.dispose();
 	}
 }
 

@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtHostWorkspaceProvider } from '../common/extHostWorkspace.js';
-import { ExtHostConfigProvider } from '../common/extHostConfiguration.js';
+import { ConfigurationInspect, ExtHostConfigProvider } from '../common/extHostConfiguration.js';
 import { MainThreadTelemetryShape } from '../common/extHost.protocol.js';
 import { IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
 import { ExtHostExtensionService } from './extHostExtensionService.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest, getOrLoadAdditionalCertificates, LookupProxyAuthorization } from '@vscode/proxy-agent';
+import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest } from '@vscode/proxy-agent';
 import { AuthInfo } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { createRequire } from 'node:module';
 import type * as undiciType from 'undici-types';
 import type * as tlsType from 'tls';
-import type * as streamType from 'stream';
+import { lookupKerberosAuthorization } from '../../../platform/request/node/requestService.js';
+import * as proxyAgent from '@vscode/proxy-agent';
 
 const require = createRequire(import.meta.url);
 const http = require('http');
 const https = require('https');
 const tls: typeof tlsType = require('tls');
 const net = require('net');
-const undici: typeof undiciType = require('undici');
 
 const systemCertificatesV2Default = false;
 const useElectronFetchDefault = false;
@@ -39,16 +39,20 @@ export function connectProxyResolver(
 	disposables: DisposableStore,
 ) {
 
-	const useHostProxy = initData.environment.useHostProxy;
-	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
+	const isRemote = initData.remote.isRemote;
+	const useHostProxyDefault = initData.environment.useHostProxy ?? !isRemote;
+	const fallbackToLocalKerberos = useHostProxyDefault;
+	const loadLocalCertificates = useHostProxyDefault;
+	const isUseHostProxyEnabled = () => !isRemote || configProvider.getConfiguration('http').get<boolean>('useLocalProxyConfiguration', useHostProxyDefault);
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
-		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, {}, initData.remote.isRemote, doUseHostProxy),
-		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
-		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
-		getNoProxyConfig: () => configProvider.getConfiguration('http').get<string[]>('noProxy') || [],
-		addCertificatesV1: () => certSettingV1(configProvider),
-		addCertificatesV2: () => certSettingV2(configProvider),
+		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, {}, initData.remote.isRemote, fallbackToLocalKerberos),
+		getProxyURL: () => getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxy'),
+		getProxySupport: () => getExtHostConfigValue<ProxySupportSetting>(configProvider, isRemote, 'http.proxySupport') || 'off',
+		getNoProxyConfig: () => getExtHostConfigValue<string[]>(configProvider, isRemote, 'http.noProxy') || [],
+		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
+		addCertificatesV1: () => certSettingV1(configProvider, isRemote),
+		addCertificatesV2: () => certSettingV2(configProvider, isRemote),
 		log: extHostLogService,
 		getLogLevel: () => {
 			const level = extHostLogService.getLevel();
@@ -67,13 +71,13 @@ export function connectProxyResolver(
 			}
 		},
 		proxyResolveTelemetry: () => { },
-		useHostProxy: doUseHostProxy,
+		isUseHostProxyEnabled,
 		loadAdditionalCertificates: async () => {
 			const promises: Promise<string[]>[] = [];
 			if (initData.remote.isRemote) {
 				promises.push(loadSystemCertificates({ log: extHostLogService }));
 			}
-			if (doUseHostProxy) {
+			if (loadLocalCertificates) {
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
 				const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
 				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
@@ -89,8 +93,10 @@ export function connectProxyResolver(
 		env: process.env,
 	};
 	const { resolveProxyWithRequest, resolveProxyURL } = createProxyResolver(params);
+	const target = (proxyAgent as any).default || proxyAgent;
+	target.resolveProxyURL = resolveProxyURL;
 
-	patchGlobalFetch(configProvider, mainThreadTelemetry, initData, resolveProxyURL, params.lookupProxyAuthorization!, getOrLoadAdditionalCertificates.bind(undefined, params), disposables);
+	patchGlobalFetch(params, configProvider, mainThreadTelemetry, initData, resolveProxyURL, disposables);
 
 	const lookup = createPatchedModules(params, resolveProxyWithRequest);
 	return configureModuleLoading(extensionService, lookup);
@@ -108,11 +114,11 @@ const unsafeHeaders = [
 	'set-cookie',
 ];
 
-function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, resolveProxyURL: (url: string) => Promise<string | undefined>, lookupProxyAuthorization: LookupProxyAuthorization, loadAdditionalCertificates: () => Promise<string[]>, disposables: DisposableStore) {
+function patchGlobalFetch(params: ProxyAgentParams, configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, resolveProxyURL: (url: string) => Promise<string | undefined>, disposables: DisposableStore) {
 	if (!(globalThis as any).__vscodeOriginalFetch) {
 		const originalFetch = globalThis.fetch;
 		(globalThis as any).__vscodeOriginalFetch = originalFetch;
-		const patchedFetch = patchFetch(originalFetch, configProvider, resolveProxyURL, lookupProxyAuthorization, loadAdditionalCertificates);
+		const patchedFetch = proxyAgent.createFetchPatch(params, originalFetch, resolveProxyURL);
 		(globalThis as any).__vscodePatchedFetch = patchedFetch;
 		let useElectronFetch = false;
 		if (!initData.remote.isRemote) {
@@ -148,7 +154,7 @@ function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelem
 				recordFetchFeatureUse(mainThreadTelemetry, 'integrity');
 			}
 			if (!useElectronFetch || isDataUrl || isBlobUrl || isManualRedirect || integrity) {
-				const response = await patchedFetch(input, init, urlString);
+				const response = await patchedFetch(input, init);
 				monitorResponseProperties(mainThreadTelemetry, response, urlString);
 				return response;
 			}
@@ -167,120 +173,6 @@ function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelem
 			monitorResponseProperties(mainThreadTelemetry, response, urlString);
 			return response;
 		};
-	}
-}
-
-function patchFetch(originalFetch: typeof globalThis.fetch, configProvider: ExtHostConfigProvider, resolveProxyURL: (url: string) => Promise<string | undefined>, lookupProxyAuthorization: LookupProxyAuthorization, loadAdditionalCertificates: () => Promise<string[]>) {
-	return async function patchedFetch(input: string | URL | Request, init?: RequestInit, urlString?: string) {
-		const config = configProvider.getConfiguration('http');
-		const enabled = config.get<boolean>('fetchAdditionalSupport');
-		if (!enabled) {
-			return originalFetch(input, init);
-		}
-		const proxySupport = config.get<ProxySupportSetting>('proxySupport') || 'off';
-		const doResolveProxy = proxySupport === 'override' || proxySupport === 'fallback' || (proxySupport === 'on' && ((init as any)?.dispatcher) === undefined);
-		const addCerts = config.get<boolean>('systemCertificates');
-		if (!doResolveProxy && !addCerts) {
-			return originalFetch(input, init);
-		}
-		if (!urlString) { // for testing
-			urlString = typeof input === 'string' ? input : 'cache' in input ? input.url : input.toString();
-		}
-		const proxyURL = doResolveProxy ? await resolveProxyURL(urlString) : undefined;
-		if (!proxyURL && !addCerts) {
-			return originalFetch(input, init);
-		}
-		const ca = addCerts ? [...tls.rootCertificates, ...await loadAdditionalCertificates()] : undefined;
-		const { allowH2, requestCA, proxyCA } = getAgentOptions(ca, init);
-		if (!proxyURL) {
-			const modifiedInit = {
-				...init,
-				dispatcher: new undici.Agent({
-					allowH2,
-					connect: { ca: requestCA },
-				})
-			};
-			return originalFetch(input, modifiedInit);
-		}
-
-		const state: Record<string, any> = {};
-		const proxyAuthorization = await lookupProxyAuthorization(proxyURL, undefined, state);
-		const modifiedInit = {
-			...init,
-			dispatcher: new undici.ProxyAgent({
-				uri: proxyURL,
-				allowH2,
-				headers: proxyAuthorization ? { 'Proxy-Authorization': proxyAuthorization } : undefined,
-				...(requestCA ? { requestTls: { ca: requestCA } } : {}),
-				...(proxyCA ? { proxyTls: { ca: proxyCA } } : {}),
-				clientFactory: (origin: URL, opts: object): undiciType.Dispatcher => (new undici.Pool(origin, opts) as any).compose((dispatch: undiciType.Dispatcher['dispatch']) => {
-					class ProxyAuthHandler extends undici.DecoratorHandler {
-						private abort: ((err?: Error) => void) | undefined;
-						constructor(private dispatch: undiciType.Dispatcher['dispatch'], private options: undiciType.Dispatcher.DispatchOptions, private handler: undiciType.Dispatcher.DispatchHandlers) {
-							super(handler);
-						}
-						onConnect(abort: (err?: Error) => void): void {
-							this.abort = abort;
-							this.handler.onConnect?.(abort);
-						}
-						onError(err: Error): void {
-							if (!(err instanceof ProxyAuthError)) {
-								return this.handler.onError?.(err);
-							}
-							(async () => {
-								try {
-									const proxyAuthorization = await lookupProxyAuthorization(proxyURL!, err.proxyAuthenticate, state);
-									if (proxyAuthorization) {
-										if (!this.options.headers) {
-											this.options.headers = ['Proxy-Authorization', proxyAuthorization];
-										} else if (Array.isArray(this.options.headers)) {
-											const i = this.options.headers.findIndex((value, index) => index % 2 === 0 && value.toLowerCase() === 'proxy-authorization');
-											if (i === -1) {
-												this.options.headers.push('Proxy-Authorization', proxyAuthorization);
-											} else {
-												this.options.headers[i + 1] = proxyAuthorization;
-											}
-										} else {
-											this.options.headers['Proxy-Authorization'] = proxyAuthorization;
-										}
-										this.dispatch(this.options, this);
-									} else {
-										this.handler.onError?.(new undici.errors.RequestAbortedError(`Proxy response (407) ?.== 200 when HTTP Tunneling`)); // Mimick undici's behavior
-									}
-								} catch (err) {
-									this.handler.onError?.(err);
-								}
-							})();
-						}
-						onUpgrade(statusCode: number, headers: Buffer[] | string[] | null, socket: streamType.Duplex): void {
-							if (statusCode === 407 && headers) {
-								const proxyAuthenticate: string[] = [];
-								for (let i = 0; i < headers.length; i += 2) {
-									if (headers[i].toString().toLowerCase() === 'proxy-authenticate') {
-										proxyAuthenticate.push(headers[i + 1].toString());
-									}
-								}
-								if (proxyAuthenticate.length) {
-									this.abort?.(new ProxyAuthError(proxyAuthenticate));
-									return;
-								}
-							}
-							this.handler.onUpgrade?.(statusCode, headers, socket);
-						}
-					}
-					return function proxyAuthDispatch(options: undiciType.Dispatcher.DispatchOptions, handler: undiciType.Dispatcher.DispatchHandlers) {
-						return dispatch(options, new ProxyAuthHandler(dispatch, options, handler));
-					};
-				}),
-			})
-		};
-		return originalFetch(input, modifiedInit);
-	};
-}
-
-class ProxyAuthError extends Error {
-	constructor(public proxyAuthenticate: string[]) {
-		super('Proxy authentication required');
 	}
 }
 
@@ -331,9 +223,9 @@ const fetchFeatureUse: FetchFeatureUseEvent = {
 };
 
 let timer: NodeJS.Timeout | undefined;
-
+const enableFeatureUseTelemetry = false;
 function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, feature: keyof typeof fetchFeatureUse) {
-	if (!fetchFeatureUse[feature]++) {
+	if (enableFeatureUseTelemetry && !fetchFeatureUse[feature]++) {
 		if (timer) {
 			clearTimeout(timer);
 		}
@@ -347,7 +239,9 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ResolveProxyWithRequest) {
 
 	function mergeModules(module: any, patch: any) {
-		return Object.assign(module.default || module, patch);
+		const target = module.default || module;
+		target.__vscodeOriginal = Object.assign({}, target);
+		return Object.assign(target, patch);
 	}
 
 	return {
@@ -358,14 +252,12 @@ function createPatchedModules(params: ProxyAgentParams, resolveProxy: ResolvePro
 	};
 }
 
-function certSettingV1(configProvider: ExtHostConfigProvider) {
-	const http = configProvider.getConfiguration('http');
-	return !http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
+function certSettingV1(configProvider: ExtHostConfigProvider, isRemote: boolean) {
+	return !getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.experimental.systemCertificatesV2', systemCertificatesV2Default) && !!getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificates');
 }
 
-function certSettingV2(configProvider: ExtHostConfigProvider) {
-	const http = configProvider.getConfiguration('http');
-	return !!http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
+function certSettingV2(configProvider: ExtHostConfigProvider, isRemote: boolean) {
+	return !!getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.experimental.systemCertificatesV2', systemCertificatesV2Default) && !!getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificates');
 }
 
 const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https; undici?: typeof undiciType }>();
@@ -395,7 +287,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				if (!cache[request]) {
 					if (request === 'undici') {
 						const undici = original.apply(this, arguments);
-						patchUndici(undici);
+						proxyAgent.patchUndici(undici);
 						cache[request] = undici;
 					} else {
 						const mod = lookup[request];
@@ -407,54 +299,6 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 		});
 }
 
-const agentOptions = Symbol('agentOptions');
-const proxyAgentOptions = Symbol('proxyAgentOptions');
-
-function patchUndici(undici: typeof undiciType) {
-	const originalAgent = undici.Agent;
-	const patchedAgent = function PatchedAgent(opts?: undiciType.Agent.Options): undiciType.Agent {
-		const agent = new originalAgent(opts);
-		(agent as any)[agentOptions] = {
-			...opts,
-			...(opts?.connect && typeof opts?.connect === 'object' ? { connect: { ...opts.connect } } : undefined),
-		};
-		return agent;
-	};
-	patchedAgent.prototype = originalAgent.prototype;
-	(undici as any).Agent = patchedAgent;
-
-	const originalProxyAgent = undici.ProxyAgent;
-	const patchedProxyAgent = function PatchedProxyAgent(opts: undiciType.ProxyAgent.Options | string): undiciType.ProxyAgent {
-		const proxyAgent = new originalProxyAgent(opts);
-		(proxyAgent as any)[proxyAgentOptions] = typeof opts === 'string' ? opts : {
-			...opts,
-			...(opts?.connect && typeof opts?.connect === 'object' ? { connect: { ...opts.connect } } : undefined),
-		};
-		return proxyAgent;
-	};
-	patchedProxyAgent.prototype = originalProxyAgent.prototype;
-	(undici as any).ProxyAgent = patchedProxyAgent;
-}
-
-function getAgentOptions(systemCA: string[] | undefined, requestInit: RequestInit | undefined) {
-	let allowH2: boolean | undefined;
-	let requestCA: string | Buffer | Array<string | Buffer> | undefined = systemCA;
-	let proxyCA: string | Buffer | Array<string | Buffer> | undefined = systemCA;
-	const dispatcher: undiciType.Dispatcher = (requestInit as any)?.dispatcher;
-	const originalAgentOptions: undiciType.Agent.Options | undefined = dispatcher && (dispatcher as any)[agentOptions];
-	if (originalAgentOptions) {
-		allowH2 = originalAgentOptions.allowH2;
-		requestCA = originalAgentOptions.connect && typeof originalAgentOptions.connect === 'object' && 'ca' in originalAgentOptions.connect && originalAgentOptions.connect.ca || systemCA;
-	}
-	const originalProxyAgentOptions: undiciType.ProxyAgent.Options | string | undefined = dispatcher && (dispatcher as any)[proxyAgentOptions];
-	if (originalProxyAgentOptions && typeof originalProxyAgentOptions === 'object') {
-		allowH2 = originalProxyAgentOptions.allowH2;
-		requestCA = originalProxyAgentOptions.requestTls && 'ca' in originalProxyAgentOptions.requestTls && originalProxyAgentOptions.requestTls.ca || systemCA;
-		proxyCA = originalProxyAgentOptions.proxyTls && 'ca' in originalProxyAgentOptions.proxyTls && originalProxyAgentOptions.proxyTls.ca || systemCA;
-	}
-	return { allowH2, requestCA, proxyCA };
-}
-
 async function lookupProxyAuthorization(
 	extHostWorkspace: IExtHostWorkspaceProvider,
 	extHostLogService: ILogService,
@@ -463,7 +307,7 @@ async function lookupProxyAuthorization(
 	proxyAuthenticateCache: Record<string, string | string[] | undefined>,
 	basicAuthCache: Record<string, string | undefined>,
 	isRemote: boolean,
-	useHostProxy: boolean,
+	fallbackToLocalKerberos: boolean,
 	proxyURL: string,
 	proxyAuthenticate: string | string[] | undefined,
 	state: { kerberosRequested?: boolean; basicAuthCacheUsed?: boolean; basicAuthAttempt?: number }
@@ -480,20 +324,14 @@ async function lookupProxyAuthorization(
 		state.kerberosRequested = true;
 
 		try {
-			const importKerberos = await import('kerberos');
-			const kerberos = importKerberos.default || importKerberos;
-			const url = new URL(proxyURL);
-			const spn = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal')
-				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
-			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup', `proxyURL:${proxyURL}`, `spn:${spn}`);
-			const client = await kerberos.initializeClient(spn);
-			const response = await client.step('');
+			const spnConfig = getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxyKerberosServicePrincipal');
+			const response = await lookupKerberosAuthorization(proxyURL, spnConfig, extHostLogService, 'ProxyResolver#lookupProxyAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
 			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
 		}
 
-		if (isRemote && useHostProxy) {
+		if (isRemote && fallbackToLocalKerberos) {
 			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup on host', `proxyURL:${proxyURL}`);
 			const auth = await extHostWorkspace.lookupKerberosAuthorization(proxyURL);
 			if (auth) {
@@ -556,9 +394,9 @@ type ProxyAuthenticationEvent = {
 };
 
 let telemetrySent = false;
-
+const enableProxyAuthenticationTelemetry = false;
 function sendTelemetry(mainThreadTelemetry: MainThreadTelemetryShape, authenticate: string[], isRemote: boolean) {
-	if (telemetrySent || !authenticate.length) {
+	if (!enableProxyAuthenticationTelemetry || telemetrySent || !authenticate.length) {
 		return;
 	}
 	telemetrySent = true;
@@ -567,4 +405,14 @@ function sendTelemetry(mainThreadTelemetry: MainThreadTelemetryShape, authentica
 		authenticationType: authenticate.map(a => a.split(' ')[0]).join(','),
 		extensionHostType: isRemote ? 'remote' : 'local',
 	});
+}
+
+function getExtHostConfigValue<T>(configProvider: ExtHostConfigProvider, isRemote: boolean, key: string, fallback: T): T;
+function getExtHostConfigValue<T>(configProvider: ExtHostConfigProvider, isRemote: boolean, key: string): T | undefined;
+function getExtHostConfigValue<T>(configProvider: ExtHostConfigProvider, isRemote: boolean, key: string, fallback?: T): T | undefined {
+	if (isRemote) {
+		return configProvider.getConfiguration().get<T>(key) ?? fallback;
+	}
+	const values: ConfigurationInspect<T> | undefined = configProvider.getConfiguration().inspect<T>(key);
+	return values?.globalLocalValue ?? values?.defaultValue ?? fallback;
 }

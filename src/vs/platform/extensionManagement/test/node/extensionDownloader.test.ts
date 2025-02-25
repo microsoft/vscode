@@ -128,7 +128,7 @@ suite('ExtensionDownloader Tests', () => {
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: false }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, undefined);
+		assert.strictEqual(actual.verificationStatus, ExtensionSignatureVerificationCode.NotSigned);
 	});
 
 	test('download completes successfully for an unsigned extension even when signature verification throws error', async () => {
@@ -136,7 +136,7 @@ suite('ExtensionDownloader Tests', () => {
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: false }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, undefined);
+		assert.strictEqual(actual.verificationStatus, ExtensionSignatureVerificationCode.NotSigned);
 	});
 
 	function aTestObject(options: { verificationResult: boolean | string }): ExtensionsDownloader {

@@ -8,7 +8,7 @@ import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base
 import { TerminalCapabilityStore } from '../capabilities/terminalCapabilityStore.js';
 import { CommandDetectionCapability } from '../capabilities/commandDetectionCapability.js';
 import { CwdDetectionCapability } from '../capabilities/cwdDetectionCapability.js';
-import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, IShellEnvDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
 import { PartialCommandDetectionCapability } from '../capabilities/partialCommandDetectionCapability.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -18,6 +18,7 @@ import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from '../../../../base/common/uri.js';
 import { sanitizeCwd } from '../terminalEnvironment.js';
 import { removeAnsiEscapeCodesFromPrompt } from '../../../../base/common/strings.js';
+import { ShellEnvDetectionCapability } from '../capabilities/shellEnvDetectionCapability.js';
 
 
 /**
@@ -224,6 +225,70 @@ const enum VSCodeOscPt {
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	SetMark = 'SetMark',
+
+	/**
+	 * Sends the shell's complete environment in JSON format.
+	 *
+	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce>`
+	 *
+	 * - `Environment` - A stringified JSON object containing the shell's complete environment. The
+	 *    variables and values use the same encoding rules as the {@link CommandLine} sequence.
+	 * - `Nonce` - An _mandatory_ nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvJson = 'EnvJson',
+
+	/**
+	 * Delete a single environment variable from cached environment.
+	 *
+	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvSingleDelete = 'EnvSingleDelete',
+
+	/**
+	 * The start of the collecting user's environment variables individually.
+	 *
+	 * Format: `OSC 633 ; EnvSingleStart ; <Clear> [; <Nonce>]`
+	 *
+	 * - `Clear` - An _mandatory_ flag indicating any cached environment variables will be cleared.
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvSingleStart = 'EnvSingleStart',
+
+	/**
+	 * Sets an entry of single environment variable to transactional pending map of environment variables.
+	 *
+	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvSingleEntry = 'EnvSingleEntry',
+
+	/**
+	 * The end of the collecting user's environment variables individually.
+	 * Clears any pending environment variables and fires an event that contains user's environment.
+	 *
+	 * Format: `OSC 633 ; EnvSingleEnd [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvSingleEnd = 'EnvSingleEnd'
 }
 
 /**
@@ -358,7 +423,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		this._activationTimeout = setTimeout(() => {
 			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
-				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
+				this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration activation timeout' }>('terminal/shellIntegrationActivationTimeout');
 				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
 			}
 			this._hasUpdatedTelemetry = true;
@@ -416,6 +481,48 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.ContinuationEnd: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
+				return true;
+			}
+			case VSCodeOscPt.EnvJson: {
+				const arg0 = args[0];
+				const arg1 = args[1];
+				if (arg0 !== undefined) {
+					try {
+						const env = JSON.parse(deserializeMessage(arg0));
+						this._createOrGetShellEnvDetection().setEnvironment(env, arg1 === this._nonce);
+					} catch (e) {
+						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
+					}
+				}
+				return true;
+			}
+			case VSCodeOscPt.EnvSingleStart: {
+				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === '1', args[1] === this._nonce);
+				return true;
+			}
+			case VSCodeOscPt.EnvSingleDelete: {
+				const arg0 = args[0];
+
+				const arg1 = args[1];
+				const arg2 = args[2];
+				if (arg0 !== undefined && arg1 !== undefined) {
+					const env = deserializeMessage(arg1);
+					this._createOrGetShellEnvDetection().deleteEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
+				}
+				return true;
+			}
+			case VSCodeOscPt.EnvSingleEntry: {
+				const arg0 = args[0];
+				const arg1 = args[1];
+				const arg2 = args[2];
+				if (arg0 !== undefined && arg1 !== undefined) {
+					const env = deserializeMessage(arg1);
+					this._createOrGetShellEnvDetection().setEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
+				}
+				return true;
+			}
+			case VSCodeOscPt.EnvSingleEnd: {
+				this._createOrGetShellEnvDetection().endEnvironmentSingleVar(args[0] === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.RightPromptStart: {
@@ -585,7 +692,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._terminal) {
 			throw new Error('Cannot restore commands before addon is activated');
 		}
-		this._createOrGetCommandDetection(this._terminal).deserialize(serialized);
+		const commandDetection = this._createOrGetCommandDetection(this._terminal);
+		commandDetection.deserialize(serialized);
+		if (commandDetection.cwd) {
+			// Cwd gets set when the command is deserialized, so we need to update it here
+			this._updateCwd(commandDetection.cwd);
+		}
 	}
 
 	protected _createOrGetCwdDetection(): ICwdDetectionCapability {
@@ -613,6 +725,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
 		}
 		return bufferMarkDetection;
+	}
+
+	protected _createOrGetShellEnvDetection(): IShellEnvDetectionCapability {
+		let shellEnvDetection = this.capabilities.get(TerminalCapability.ShellEnvDetection);
+		if (!shellEnvDetection) {
+			shellEnvDetection = this._register(new ShellEnvDetectionCapability());
+			this.capabilities.add(TerminalCapability.ShellEnvDetection, shellEnvDetection);
+		}
+		return shellEnvDetection;
 	}
 }
 

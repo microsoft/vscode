@@ -62,7 +62,7 @@ interface ICommentThreadTemplateData {
 		timestamp: TimestampWidget;
 		separator: HTMLElement;
 		commentPreview: HTMLSpanElement;
-		range: HTMLSpanElement;
+		range: HTMLElement;
 	};
 	repliesMetadata: {
 		container: HTMLElement;
@@ -193,14 +193,25 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
 		const metadata = dom.append(metadataContainer, dom.$('.comment-metadata'));
+
+		const icon = dom.append(metadata, dom.$('.icon'));
+		const userNames = dom.append(metadata, dom.$('.user'));
+		const timestamp = new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container')));
+		const relevance = dom.append(metadata, dom.$('.relevance'));
+		const separator = dom.append(metadata, dom.$('.separator'));
+		const commentPreview = dom.append(metadata, dom.$('.text'));
+		const rangeContainer = dom.append(metadata, dom.$('.range'));
+		const range = dom.$('p');
+		rangeContainer.appendChild(range);
+
 		const threadMetadata = {
-			icon: dom.append(metadata, dom.$('.icon')),
-			userNames: dom.append(metadata, dom.$('.user')),
-			timestamp: new TimestampWidget(this.configurationService, this.hoverService, dom.append(metadata, dom.$('.timestamp-container'))),
-			relevance: dom.append(metadata, dom.$('.relevance')),
-			separator: dom.append(metadata, dom.$('.separator')),
-			commentPreview: dom.append(metadata, dom.$('.text')),
-			range: dom.append(metadata, dom.$('.range'))
+			icon,
+			userNames,
+			timestamp,
+			relevance,
+			separator,
+			commentPreview,
+			range
 		};
 		threadMetadata.separator.innerText = '\u00b7';
 
@@ -249,6 +260,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const textDescription = dom.$('');
 			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
 			image.parentNode!.replaceChild(textDescription, image);
+		}
+		const headings = [...renderedComment.element.getElementsByTagName('h1'), ...renderedComment.element.getElementsByTagName('h2'), ...renderedComment.element.getElementsByTagName('h3'), ...renderedComment.element.getElementsByTagName('h4'), ...renderedComment.element.getElementsByTagName('h5'), ...renderedComment.element.getElementsByTagName('h6')];
+		for (const heading of headings) {
+			const textNode = document.createTextNode(heading.textContent || '');
+			heading.parentNode!.replaceChild(textNode, heading);
 		}
 		while ((renderedComment.element.children.length > 1) && (renderedComment.element.firstElementChild?.tagName === 'HR')) {
 			renderedComment.element.removeChild(renderedComment.element.firstElementChild);
@@ -299,7 +315,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.disposables.push(disposables);
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
-			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
+			for (let i = renderedComment.element.children.length - 1; i >= 1; i--) {
+				renderedComment.element.removeChild(renderedComment.element.children[i]);
+			}
+			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
 			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 

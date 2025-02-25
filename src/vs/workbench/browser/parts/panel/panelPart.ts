@@ -15,8 +15,8 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { TogglePanelAction } from './panelActions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../common/theme.js';
-import { contrastBorder, badgeBackground, badgeForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER, PANEL_TITLE_BADGE_BACKGROUND, PANEL_TITLE_BADGE_FOREGROUND } from '../../../common/theme.js';
+import { contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -91,6 +91,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			'panel',
 			'panel',
 			undefined,
+			PANEL_TITLE_BORDER,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -151,8 +152,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
 				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
-				badgeBackground: theme.getColor(badgeBackground),
-				badgeForeground: theme.getColor(badgeForeground),
+				badgeBackground: theme.getColor(PANEL_TITLE_BADGE_BACKGROUND),
+				badgeForeground: theme.getColor(PANEL_TITLE_BADGE_FOREGROUND),
 				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
 			})
 		};

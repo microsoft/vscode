@@ -17,7 +17,7 @@ import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 
 import { UnthemedProductIconTheme } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
-import { IColorTheme, IFileIconTheme, IProductIconTheme, ITokenStyle } from '../../../../platform/theme/common/themeService.js';
+import { IFileIconTheme, IProductIconTheme, IThemeChangeEvent, ITokenStyle } from '../../../../platform/theme/common/themeService.js';
 
 suite('TokenizationSupport2Adapter', () => {
 
@@ -92,7 +92,7 @@ suite('TokenizationSupport2Adapter', () => {
 		public getProductIconTheme(): IProductIconTheme {
 			return this._builtInProductIconTheme;
 		}
-		public readonly onDidColorThemeChange = new Emitter<IColorTheme>().event;
+		public readonly onDidColorThemeChange = new Emitter<IThemeChangeEvent>().event;
 		public readonly onDidFileIconThemeChange = new Emitter<IFileIconTheme>().event;
 		public readonly onDidProductIconThemeChange = new Emitter<IProductIconTheme>().event;
 	}

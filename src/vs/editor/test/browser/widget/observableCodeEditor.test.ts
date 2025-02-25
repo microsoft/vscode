@@ -86,7 +86,7 @@ suite("CodeEditorWidget", () => {
 				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
 				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
 				'handle change: editor.selections {"selection":"[1,4 -> 1,4]","modelVersionId":4,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-				"running derived: selection: [1,4 -> 1,4], value: 4",
+				'running derived: selection: [1,4 -> 1,4], value: 4',
 			]);
 		}));
 
@@ -100,7 +100,7 @@ suite("CodeEditorWidget", () => {
 				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
 				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
 				'handle change: editor.selections {"selection":"[1,4 -> 1,4]","modelVersionId":4,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-				"running derived: selection: [1,4 -> 1,4], value: 4",
+				'running derived: selection: [1,4 -> 1,4], value: 4',
 			]);
 
 			editor.setPosition(new Position(1, 5), "test");
@@ -112,7 +112,7 @@ suite("CodeEditorWidget", () => {
 		}));
 
 	test("listener interaction (unforced)", () => {
-		let derived: IObservable<string, unknown>;
+		let derived: IObservable<string>;
 		let log: Log;
 		withEditorSetupTestFixture(
 			(editor, disposables) => {
@@ -143,7 +143,7 @@ suite("CodeEditorWidget", () => {
 	});
 
 	test("listener interaction ()", () => {
-		let derived: IObservable<string, unknown>;
+		let derived: IObservable<string>;
 		let log: Log;
 		withEditorSetupTestFixture(
 			(editor, disposables) => {

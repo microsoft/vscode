@@ -38,6 +38,9 @@ export const inQuickInputContextKeyValue = 'inQuickInput';
 export const InQuickInputContextKey = new RawContextKey<boolean>(inQuickInputContextKeyValue, false, localize('inQuickInput', "Whether keyboard focus is inside the quick input control"));
 export const inQuickInputContext = ContextKeyExpr.has(inQuickInputContextKeyValue);
 
+export const quickInputAlignmentContextKeyValue = 'quickInputAlignment';
+export const QuickInputAlignmentContextKey = new RawContextKey<'top' | 'center' | undefined>(quickInputAlignmentContextKeyValue, 'top', localize('quickInputAlignment', "The alignment of the quick input"));
+
 export const quickInputTypeContextKeyValue = 'quickInputType';
 export const QuickInputTypeContextKey = new RawContextKey<QuickInputType>(quickInputTypeContextKeyValue, undefined, localize('quickInputType', "The type of the currently visible quick input"));
 
@@ -562,6 +565,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _ok: boolean | 'default' = 'default';
+	private _okLabel: string | undefined;
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
@@ -809,6 +813,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	set ok(showOkButton: boolean | 'default') {
 		this._ok = showOkButton;
+		this.update();
+	}
+
+	get okLabel() {
+		return this._okLabel ?? localize('ok', "OK");
+	}
+
+	set okLabel(okLabel: string | undefined) {
+		this._okLabel = okLabel;
 		this.update();
 	}
 
@@ -1101,6 +1114,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 				this.selectedItemsToConfirm = null;
 			}
 		}
+		this.ui.ok.label = this.okLabel || '';
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
 		if (!visibilities.inputBox) {
@@ -1282,7 +1296,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super('element', false, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+		super('element', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
 	}
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {

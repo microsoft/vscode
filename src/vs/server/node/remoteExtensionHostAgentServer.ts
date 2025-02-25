@@ -14,7 +14,7 @@ import { CharCode } from '../../base/common/charCode.js';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { isEqualOrParent } from '../../base/common/extpath.js';
 import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
-import { connectionTokenQueryName, FileAccess, getServerRootPath, Schemas } from '../../base/common/network.js';
+import { connectionTokenQueryName, FileAccess, getServerProductSegment, Schemas } from '../../base/common/network.js';
 import { dirname, join } from '../../base/common/path.js';
 import * as perf from '../../base/common/performance.js';
 import * as platform from '../../base/common/platform.js';
@@ -66,7 +66,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	private readonly _webClientServer: WebClientServer | null;
 	private readonly _webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
 
-	private readonly _serverRootPath: string;
+	private readonly _serverBasePath: string | undefined;
+	private readonly _serverProductPath: string;
 
 	private shutdownTimer: NodeJS.Timeout | undefined;
 
@@ -83,13 +84,18 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	) {
 		super();
 
-		this._serverRootPath = getServerRootPath(_productService, serverBasePath);
+		if (serverBasePath !== undefined && serverBasePath.charCodeAt(serverBasePath.length - 1) === CharCode.Slash) {
+			// Remove trailing slash from base path
+			serverBasePath = serverBasePath.substring(0, serverBasePath.length - 1);
+		}
+		this._serverBasePath = serverBasePath; // undefined or starts with a slash
+		this._serverProductPath = `/${getServerProductSegment(_productService)}`; // starts with a slash
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
 		this._webClientServer = (
 			hasWebClient
-				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverRootPath)
+				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverProductPath)
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
@@ -114,9 +120,13 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		// for now accept all paths, with or without server root path
-		if (pathname.startsWith(this._serverRootPath) && pathname.charCodeAt(this._serverRootPath.length) === CharCode.Slash) {
-			pathname = pathname.substring(this._serverRootPath.length);
+		// Serve from both '/' and serverBasePath
+		if (this._serverBasePath !== undefined && pathname.startsWith(this._serverBasePath)) {
+			pathname = pathname.substring(this._serverBasePath.length) || '/';
+		}
+		// for now accept all paths, with or without server product path
+		if (pathname.startsWith(this._serverProductPath) && pathname.charCodeAt(this._serverProductPath.length) === CharCode.Slash) {
+			pathname = pathname.substring(this._serverProductPath.length);
 		}
 
 		// Version
@@ -172,7 +182,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 		// workbench web UI
 		if (this._webClientServer) {
-			this._webClientServer.handle(req, res, parsedUrl);
+			this._webClientServer.handle(req, res, parsedUrl, pathname);
 			return;
 		}
 

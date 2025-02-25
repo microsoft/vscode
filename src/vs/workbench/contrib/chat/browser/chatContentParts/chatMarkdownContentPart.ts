@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -29,26 +30,30 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService, IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
-import { IChatMarkdownContent } from '../../common/chatService.js';
+import { IChatMarkdownContent, IChatUndoStop } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
-import { AnimatedValue, ObservableAnimatedValue } from '../chatEditorOverlay.js';
+import { IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
-import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
 import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 const $ = dom.$;
 
+export interface IChatMarkdownContentPartOptions {
+	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	readonly renderCodeBlockPills?: boolean;
+}
+
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
 	private static idPool = 0;
-	public readonly id = String(++ChatMarkdownContentPart.idPool);
+	public readonly codeblocksPartId = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock>[] = [];
 
@@ -66,7 +71,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		renderer: MarkdownRenderer,
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
-		private readonly rendererOptions: IChatListItemRendererOptions,
+		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -74,20 +79,26 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		super();
 
 		const element = context.element;
+		const inUndoStop = (findLast(context.content, e => e.kind === 'undoStop', context.contentIndex) as IChatUndoStop | undefined)?.id;
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
-		let codeBlockIndex = codeBlockStartIndex;
+
+		// Need to track the index of the codeblock within the response so it can have a unique ID,
+		// and within this part to find it within the codeblocks array
+		let globalCodeBlockIndexStart = codeBlockStartIndex;
+		let thisPartCodeBlockIndexStart = 0;
 		const result = this._register(renderer.render(markdown.content, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
-				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
+				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
 				if ((!text || (text.startsWith('<vscode_codeblock_uri>') && !text.includes('\n'))) && !isCodeBlockComplete && rendererOptions.renderCodeBlockPills) {
 					const hideEmptyCodeblock = $('div');
 					hideEmptyCodeblock.style.display = 'none';
 					return hideEmptyCodeblock;
 				}
-				const index = codeBlockIndex++;
+				const globalIndex = globalCodeBlockIndexStart++;
+				const thisPartIndex = thisPartCodeBlockIndexStart++;
 				let textModel: Promise<ITextModel>;
 				let range: Range | undefined;
 				let vulns: readonly IMarkdownVulnerability[] | undefined;
@@ -102,15 +113,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					}
 				} else {
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
-					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
-					const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(sessionId, element, index, { text, languageId, isComplete: isCodeBlockComplete });
+					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, globalIndex);
+					const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(sessionId, element, globalIndex, { text, languageId, isComplete: isCodeBlockComplete });
 					vulns = modelEntry.vulns;
 					codemapperUri = fastUpdateModelEntry.codemapperUri;
 					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
+				const renderOptions = {
+					...this.rendererOptions.codeBlockRenderOptions,
+				};
+				if (hideToolbar !== undefined) {
+					renderOptions.hideToolbar = hideToolbar;
+				}
+				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri, renderOptions };
 
 				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest || !codemapperUri) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
@@ -120,11 +137,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 					this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
-					const ownerMarkdownPartId = this.id;
-					const info: IChatCodeBlockInfo = new class {
+					const ownerMarkdownPartId = this.codeblocksPartId;
+					const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
-						readonly codeBlockIndex = index;
-						readonly element = element;
+						readonly codeBlockIndex = globalIndex;
+						readonly elementId = element.id;
 						readonly isStreaming = !rendererOptions.renderCodeBlockPills;
 						codemapperUri = undefined; // will be set async
 						public get uri() {
@@ -136,30 +153,27 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						public focus() {
 							ref.object.focus();
 						}
-						public getContent(): string {
-							return ref.object.editor.getValue();
-						}
 					}();
 					this.codeblocks.push(info);
 					orderedDisposablesList.push(ref);
 					return ref.object.element;
 				} else {
 					const requestId = isRequestVM(element) ? element.id : element.requestId;
-					const ref = this.renderCodeBlockPill(element.sessionId, requestId, codeBlockInfo.codemapperUri, !isCodeBlockComplete);
+					const ref = this.renderCodeBlockPill(element.sessionId, requestId, inUndoStop, codeBlockInfo.codemapperUri, !isCodeBlockComplete);
 					if (isResponseVM(codeBlockInfo.element)) {
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
 							// Update the existing object's codemapperUri
-							this.codeblocks[codeBlockInfo.codeBlockIndex].codemapperUri = e.codemapperUri;
+							this.codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 							this._onDidChangeHeight.fire();
 						});
 					}
 					this.allRefs.push(ref);
-					const ownerMarkdownPartId = this.id;
-					const info: IChatCodeBlockInfo = new class {
+					const ownerMarkdownPartId = this.codeblocksPartId;
+					const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
-						readonly codeBlockIndex = index;
-						readonly element = element;
+						readonly codeBlockIndex = globalIndex;
+						readonly elementId = element.id;
 						readonly isStreaming = !isCodeBlockComplete;
 						readonly codemapperUri = codemapperUri;
 						public get uri() {
@@ -168,9 +182,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly uriPromise = Promise.resolve(undefined);
 						public focus() {
 							return ref.object.element.focus();
-						}
-						public getContent(): string {
-							return ''; // Not needed for collapsed code blocks
 						}
 					}();
 					this.codeblocks.push(info);
@@ -188,8 +199,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.domNode = result.element;
 	}
 
-	private renderCodeBlockPill(sessionId: string, requestId: string, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {
-		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, requestId);
+	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {
+		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, requestId, inUndoStop);
 		if (codemapperUri) {
 			codeBlock.render(codemapperUri, isStreaming);
 		}
@@ -206,7 +217,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		if (isResponseVM(data.element)) {
 			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId, isComplete }).then((e) => {
 				// Update the existing object's codemapperUri
-				this.codeblocks[data.codeBlockIndex].codemapperUri = e.codemapperUri;
+				this.codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 				this._onDidChangeHeight.fire();
 			});
 		}
@@ -274,6 +285,11 @@ export class EditorPool extends Disposable {
 	}
 }
 
+function codeblockHasClosingBackticks(str: string): boolean {
+	str = str.trim();
+	return !!str.match(/\n```+$/);
+}
+
 class CollapsedCodeBlock extends Disposable {
 
 	public readonly element: HTMLElement;
@@ -283,11 +299,14 @@ class CollapsedCodeBlock extends Disposable {
 		return this._uri;
 	}
 
-	private readonly _progressStore = new DisposableStore();
+	private _currentDiff: IEditSessionEntryDiff | undefined;
+
+	private readonly _progressStore = this._store.add(new DisposableStore());
 
 	constructor(
-		sessionId: string,
-		requestId: string,
+		private readonly sessionId: string,
+		private readonly requestId: string,
+		private readonly inUndoStop: string | undefined,
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IModelService private readonly modelService: IModelService,
@@ -301,7 +320,13 @@ class CollapsedCodeBlock extends Disposable {
 		this.element = $('.chat-codeblock-pill-widget');
 		this.element.classList.add('show-file-icons');
 		this._register(dom.addDisposableListener(this.element, 'click', async () => {
-			if (this.uri) {
+			if (this._currentDiff) {
+				this.editorService.openEditor({
+					original: { resource: this._currentDiff.originalURI },
+					modified: { resource: this._currentDiff.modifiedURI },
+					options: { transient: true },
+				});
+			} else if (this.uri) {
 				this.editorService.openEditor({ resource: this.uri });
 			}
 		}));
@@ -313,7 +338,7 @@ class CollapsedCodeBlock extends Disposable {
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => event,
 				getActions: () => {
-					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, { arg: { sessionId, requestId, uri: this.uri } });
+					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, { arg: { sessionId, requestId, uri: this.uri, stopId: inUndoStop } });
 					return getFlatContextMenuActions(menu);
 				},
 			});
@@ -326,8 +351,9 @@ class CollapsedCodeBlock extends Disposable {
 		this._uri = uri;
 
 		const iconText = this.labelService.getUriBasenameLabel(uri);
-		const modifiedEntry = this.chatEditingService.currentEditingSession?.entries.get().find(entry => entry.modifiedURI.toString() === uri.toString());
-		const isComplete = !modifiedEntry?.isCurrentlyBeingModified.get();
+		const editSession = this.chatEditingService.getEditingSession(this.sessionId);
+		const modifiedEntry = editSession?.getEntry(uri);
+		const isComplete = !modifiedEntry?.isCurrentlyBeingModifiedBy.get();
 
 		let iconClasses: string[] = [];
 		if (isStreaming || !isComplete) {
@@ -342,56 +368,51 @@ class CollapsedCodeBlock extends Disposable {
 		iconEl.classList.add(...iconClasses);
 
 		const children = [dom.$('span.icon-label', {}, iconText)];
+		const labelDetail = dom.$('span.label-detail', {}, '');
+		children.push(labelDetail);
 		if (isStreaming) {
-			children.push(dom.$('span.label-detail', {}, localize('chat.codeblock.generating', "Generating edits...")));
-		} else if (!isComplete) {
-			children.push(dom.$('span.label-detail', {}, ''));
+			labelDetail.textContent = localize('chat.codeblock.generating', "Generating edits...");
 		}
+
 		this.element.replaceChildren(iconEl, ...children);
 		this.element.title = this.labelService.getUriLabel(uri, { relative: false });
 
+
+		const renderDiff = (changes: IEditSessionEntryDiff | undefined) => {
+			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
+			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
+			if (changes && !changes?.identical && !changes?.quitEarly) {
+				this._currentDiff = changes;
+				labelAdded.textContent = `+${changes.added}`;
+				labelRemoved.textContent = `-${changes.removed}`;
+				const insertionsFragment = changes.added === 1 ? localize('chat.codeblock.insertions.one', "1 insertion") : localize('chat.codeblock.insertions', "{0} insertions", changes.added);
+				const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
+				this.element.ariaLabel = this.element.title = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
+			}
+		};
+
+		const diffBetweenStops = modifiedEntry && editSession
+			? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
+			: undefined;
+
 		// Show a percentage progress that is driven by the rewrite
-		const slickRatio = ObservableAnimatedValue.const(0);
-		let t = Date.now();
+
 		this._progressStore.add(autorun(r => {
 			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
-			if (rewriteRatio) {
-				slickRatio.changeAnimation(prev => {
-					const result = new AnimatedValue(prev.getValue(), rewriteRatio, Date.now() - t);
-					t = Date.now();
-					return result;
-				}, undefined);
-			}
 
-			const labelDetail = this.element.querySelector('.label-detail');
-			const isComplete = !modifiedEntry?.isCurrentlyBeingModified.read(r);
-			if (labelDetail && !isStreaming && !isComplete) {
-				const value = slickRatio.getValue(undefined);
-				labelDetail.textContent = value === 0 ? localize('chat.codeblock.applying', "Applying edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));
-			} else if (labelDetail && !isStreaming && isComplete) {
+			const isComplete = !modifiedEntry?.isCurrentlyBeingModifiedBy.read(r);
+			if (!isStreaming && !isComplete) {
+				const value = rewriteRatio;
+				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));
+			} else if (!isStreaming && isComplete) {
 				iconEl.classList.remove(...iconClasses);
 				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 				iconEl.classList.add(...getIconClasses(this.modelService, this.languageService, uri, fileKind));
 				labelDetail.textContent = '';
 			}
 
-			if (!isStreaming && isComplete) {
-				const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
-				const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
-				const changes = modifiedEntry?.diffInfo.read(r);
-				if (changes && !changes?.identical && !changes?.quitEarly) {
-					let removedLines = 0;
-					let addedLines = 0;
-					for (const change of changes.changes) {
-						removedLines += change.original.endLineNumberExclusive - change.original.startLineNumber;
-						addedLines += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
-					}
-					labelAdded.textContent = `+${addedLines}`;
-					labelRemoved.textContent = `-${removedLines}`;
-					const insertionsFragment = addedLines === 1 ? localize('chat.codeblock.insertions.one', "{0} insertion") : localize('chat.codeblock.insertions', "{0} insertions", addedLines);
-					const deletionsFragment = removedLines === 1 ? localize('chat.codeblock.deletions.one', "{0} deletion") : localize('chat.codeblock.deletions', "{0} deletions", removedLines);
-					this.element.ariaLabel = this.element.title = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
-				}
+			if (!isStreaming && isComplete && diffBetweenStops) {
+				renderDiff(diffBetweenStops.read(r));
 			}
 		}));
 	}

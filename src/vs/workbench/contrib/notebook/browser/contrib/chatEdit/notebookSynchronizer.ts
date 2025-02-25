@@ -5,31 +5,32 @@
 
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { Disposable, IReference, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
-import { IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
+import { IChatEditingService, IModifiedFileEntry } from '../../../../chat/common/chatEditingService.js';
 import { INotebookService } from '../../../common/notebookService.js';
-import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { bufferToStream, streamToBuffer, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { raceCancellation, ThrottledDelayer } from '../../../../../../base/common/async.js';
 import { CellDiffInfo, computeDiff, prettyChanges } from '../../diff/notebookDiffViewModel.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { INotebookEditorWorkerService } from '../../../common/services/notebookWorkerService.js';
-import { ChatEditingModifiedFileEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedFileEntry.js';
-import { CellEditType, ICellDto2, ICellReplaceEdit, NotebookData, NotebookSetting } from '../../../common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, NotebookData, NotebookSetting } from '../../../common/notebookCommon.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { EditOperation } from '../../../../../../editor/common/core/editOperation.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 import { filter } from '../../../../../../base/common/objects.js';
 import { INotebookEditorModelResolverService } from '../../../common/notebookEditorModelResolverService.js';
-import { SaveReason } from '../../../../../common/editor.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { SaveReason } from '../../../../../common/editor.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { SnapshotContext } from '../../../../../services/workingCopy/common/fileWorkingCopy.js';
+import { INotebookEditorService } from '../../services/notebookEditorService.js';
+import { CellEditState } from '../../notebookBrowser.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { TextModel } from '../../../../../../editor/common/model/textModel.js';
+import { ChatEditingModifiedDocumentEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
@@ -72,12 +73,17 @@ export class NotebookModelSynchronizer extends Disposable {
 	}
 	private snapshot?: { bytes: VSBuffer; dirty: boolean };
 	private isEditFromUs: boolean = false;
+	private isTextEditFromUs: boolean = false;
+	private isReverting = false;
+	private throttledTextModelUpdate = new ThrottledDelayer<void>(100);
 	constructor(
 		private readonly model: NotebookTextModel,
 		@IChatEditingService _chatEditingService: IChatEditingService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@IChatService chatService: IChatService,
 		@IModelService private readonly modelService: IModelService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 		@INotebookLoggingService private readonly logService: INotebookLoggingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
@@ -87,11 +93,9 @@ export class NotebookModelSynchronizer extends Disposable {
 		super();
 
 		const entryObs = derived((r) => {
-			const session = _chatEditingService.currentEditingSessionObs.read(r);
-			if (!session) {
-				return;
-			}
-			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
+			const sessions = _chatEditingService.editingSessionsObs.read(r);
+			const entry = sessions.map(s => s.readEntry(model.uri, r)).find(r => !!r);
+			return entry instanceof ChatEditingModifiedDocumentEntry ? entry : undefined;
 		}).recomputeInitiallyAndOnChange(this._store);
 
 
@@ -116,16 +120,6 @@ export class NotebookModelSynchronizer extends Disposable {
 			this.throttledUpdateNotebookModel.trigger(() => this.updateNotebookModel(entry, token));
 		};
 
-		this._register(autorun(async (r) => {
-			const entry = entryObs.read(r);
-			if (!entry) {
-				return;
-			}
-			if (entry.state.read(r) === WorkingSetEntryState.Rejected) {
-				await this.revertImpl();
-			}
-		}));
-
 		let snapshotCreated = false;
 		this._register(autorunWithStore((r, store) => {
 			const entry = entryObs.read(r);
@@ -137,10 +131,14 @@ export class NotebookModelSynchronizer extends Disposable {
 				snapshotCreated = true;
 			}
 
-			const modifiedModel = (entry as ChatEditingModifiedFileEntry).modifiedModel;
+			const modifiedModel = this.modelService.getModel(entry.modifiedURI);
+			if (!modifiedModel) {
+				return;
+			}
 			let cancellationToken = store.add(new CancellationTokenSource());
 			store.add(modifiedModel.onDidChangeContent(async () => {
-				if (!modifiedModel.isDisposed() && !entry.originalModel.isDisposed() && modifiedModel.getValue() !== entry.originalModel.getValue()) {
+				const originalModel = this.modelService.getModel(entry.originalURI);
+				if (originalModel && !this.isTextEditFromUs && !modifiedModel.isDisposed() && !originalModel.isDisposed() && modifiedModel.getValue() !== originalModel.getValue()) {
 					cancellationToken = store.add(new CancellationTokenSource());
 					updateNotebookModel(entry, cancellationToken.token);
 				}
@@ -153,6 +151,10 @@ export class NotebookModelSynchronizer extends Disposable {
 			// Track changes from the user.
 			if (!this.isEditFromUs && this.snapshot) {
 				this.snapshot.dirty = true;
+				const entry = entryObs.get();
+				if (entry) {
+					this.throttledTextModelUpdate.trigger(() => this.updateTextDocumentModel(entry));
+				}
 			}
 		}));
 	}
@@ -168,6 +170,12 @@ export class NotebookModelSynchronizer extends Disposable {
 				metadata: filter(this.model.metadata, key => !serializer.options.transientDocumentMetadata[key]),
 				cells: [],
 			};
+
+			const indentAmount = this.model.metadata.indentAmount || ref.object.notebook.metadata.indentAmount || undefined;
+			if (typeof indentAmount === 'string' && indentAmount) {
+				// This is required for ipynb serializer to preserve the whitespace in the notebook.
+				data.metadata.indentAmount = indentAmount;
+			}
 
 			let outputSize = 0;
 			for (const cell of this.model.cells) {
@@ -210,35 +218,76 @@ export class NotebookModelSynchronizer extends Disposable {
 	}
 
 	private async revertImpl(): Promise<void> {
-		if (!this.snapshot) {
+		if (!this.snapshot || this.isReverting) {
 			return;
 		}
-		await this.updateNotebook(this.snapshot.bytes, !this.snapshot.dirty);
-		this._diffInfo.set(undefined, undefined);
+		this.isReverting = true;
+		try {
+			// NOTE: We must save if the notebook model was not already dirty.
+			// Today ModifiedFileEntry class will save the text model to get rid of dirty indicator.
+			// If we do not save the notebook model, then ipynb json text document will get saved in ModifiedFileEntry class,
+			// and that results in ipynb being saved without going to serializer.
+			// Serializer is responsible for adding new line to ipynb files, and that new line will not be added when saving ipynb text document.
+			// As a result of this, reverting (creating new edit sessions), result in ipynb files without new line at the end meaning we still end up with a saved ipynb file with changes.
+			// Hence we must ensure ipynb notebooks are always saved through serializer.
+			// But do this only if the notebook model was not already dirty.
+			await this.updateNotebook(this.snapshot.bytes, !this.snapshot.dirty);
+		}
+		finally {
+			this.isReverting = false;
+			this._diffInfo.set(undefined, undefined);
+		}
 	}
 
-	private async updateNotebook(bytes: VSBuffer, save: boolean) {
+	private async updateNotebook(bytes: VSBuffer, saveForRevert: boolean) {
+		const oldEditIsFromus = this.isEditFromUs;
+		this.isEditFromUs = true;
 		const ref = await this.notebookModelResolverService.resolve(this.model.uri);
 		try {
 			const serializer = await this.getNotebookSerializer();
 			const data = await serializer.dataToNotebook(bytes);
 			this.model.reset(data.cells, data.metadata, serializer.options);
-
-			if (save) {
-				// save the file after discarding so that the dirty indicator goes away
-				// and so that an intermediate saved state gets reverted
-				// await this.notebookEditor.textModel.save({ reason: SaveReason.EXPLICIT });
-				await ref.object.save({ reason: SaveReason.EXPLICIT });
+			if (saveForRevert) {
+				// When reverting/creating a new session ModifiedFileEntry will revert and save changes to ipynb text document first, and save the file.
+				// This happens in the NotebookSyncrhonizerService which is called from SimpleNotebookEditorModel (NotebookEditorModel.ts).
+				// However when creating new sessions, the modified File entry will not exist as its a whole new session,
+				// As a result we aren't able to save the ipynb text document and match the last modified date time.
+				// Hence the work around implemented in SimpleNotebookEditorModel does not work.
+				// Thus we must save the file here igorning the modified since time, but only when reverting.
+				await ref.object.save({ reason: SaveReason.EXPLICIT, force: true, ignoreModifiedSince: true } as any);
 			}
 		} finally {
 			ref.dispose();
+			this.isEditFromUs = oldEditIsFromus;
 		}
 	}
 
 	private async accept(entry: IModifiedFileEntry) {
-		const modifiedModel = (entry as ChatEditingModifiedFileEntry).modifiedModel;
+		const modifiedModel = this.modelService.getModel(entry.modifiedURI);
+		if (!modifiedModel) {
+			return;
+		}
 		const content = modifiedModel.getValue();
 		await this.updateNotebook(VSBuffer.fromString(content), false);
+		this._diffInfo.set(undefined, undefined);
+
+		// The original notebook model needs to be updated with the latest content.
+		const stream = await this.notebookService.createNotebookTextDocumentSnapshot(this.model.uri, SnapshotContext.Save, CancellationToken.None);
+		const originalModel = await this.getOriginalModel(entry);
+		await this.notebookService.restoreNotebookTextModelFromSnapshot(originalModel.uri, originalModel.viewType, stream);
+	}
+
+	private async updateTextDocumentModel(entry: IModifiedFileEntry) {
+		const modifiedModel = this.modelService.getModel(entry.modifiedURI);
+		if (!modifiedModel) {
+			return;
+		}
+		const stream = await this.notebookService.createNotebookTextDocumentSnapshot(this.model.uri, SnapshotContext.Save, CancellationToken.None);
+		const buffer = await streamToBuffer(stream);
+		const text = new TextDecoder().decode(buffer.buffer);
+		this.isTextEditFromUs = true;
+		modifiedModel.pushEditOperations(null, [{ range: modifiedModel.getFullModelRange(), text }], () => null);
+		this.isTextEditFromUs = false;
 	}
 
 	async getNotebookSerializer() {
@@ -249,12 +298,25 @@ export class NotebookModelSynchronizer extends Disposable {
 	private _originalModel?: Promise<NotebookTextModel>;
 	private async getOriginalModel(entry: IModifiedFileEntry): Promise<NotebookTextModel> {
 		if (!this._originalModel) {
-			this._originalModel = this.originalModelRefFactory.getOrCreate(entry, this.model.viewType).then(ref => this._register(ref).object);
+			this._originalModel = this.originalModelRefFactory.getOrCreate(entry, this.model.viewType).then(ref => {
+				if (this._store.isDisposed) {
+					ref.dispose();
+					return ref.object;
+				} else {
+					return this._register(ref).object;
+				}
+			});
 		}
 		return this._originalModel;
 	}
+
 	private async updateNotebookModel(entry: IModifiedFileEntry, token: CancellationToken) {
-		const modifiedModelVersion = (entry as ChatEditingModifiedFileEntry).modifiedModel.getVersionId();
+		const modifiedModel = this.modelService.getModel(entry.modifiedURI);
+		if (!modifiedModel) {
+			return;
+		}
+
+		const modifiedModelVersion = modifiedModel.getVersionId();
 		const currentModel = this.model;
 		const modelVersion = currentModel?.versionId ?? 0;
 		const modelWithChatEdits = await this.getModifiedModelForDiff(entry, token);
@@ -266,7 +328,7 @@ export class NotebookModelSynchronizer extends Disposable {
 		const cellDiffInfo = (await this.computeDiff(originalModel, modelWithChatEdits, token))?.cellDiffInfo;
 		// This is the diff from the current model to the model with chat edits.
 		const cellDiffInfoToApplyEdits = (await this.computeDiff(currentModel, modelWithChatEdits, token))?.cellDiffInfo;
-		const currentVersion = (entry as ChatEditingModifiedFileEntry).modifiedModel.getVersionId();
+		const currentVersion = modifiedModel.getVersionId();
 		if (!cellDiffInfo || !cellDiffInfoToApplyEdits || token.isCancellationRequested || currentVersion !== modifiedModelVersion || modelVersion !== currentModel.versionId) {
 			return;
 		}
@@ -285,9 +347,6 @@ export class NotebookModelSynchronizer extends Disposable {
 			await Promise.all(cellDiffInfoToApplyEdits.reverse().map(async diff => {
 				if (diff.type === 'delete') {
 					deletedIndexes.push(diff.originalCellIndex);
-					const cell = currentModel.cells[diff.originalCellIndex];
-					// Ensure the models of these cells have been loaded before we delete them.
-					await this.waitForCellModelToBeAvailable(cell);
 					edits.push({
 						editType: CellEditType.Replace,
 						index: diff.originalCellIndex,
@@ -301,6 +360,8 @@ export class NotebookModelSynchronizer extends Disposable {
 				edits.length = 0;
 			}
 
+			const notebookEditor = this.notebookEditorService.retrieveExistingWidgetFromURI(this.model.uri)?.value;
+
 			// Next insert.
 			cellDiffInfoToApplyEdits.reverse().forEach(diff => {
 				if (diff.type === 'modified' || diff.type === 'unchanged') {
@@ -309,6 +370,7 @@ export class NotebookModelSynchronizer extends Disposable {
 				if (diff.type === 'insert') {
 					const originalIndex = mappings.get(diff.modifiedCellIndex - 1) ?? 0;
 					mappings.set(diff.modifiedCellIndex, originalIndex);
+					const index = currentModel.cells.length ? originalIndex + 1 : originalIndex;
 					const cell = modelWithChatEdits.cells[diff.modifiedCellIndex];
 					const newCell: ICellDto2 =
 					{
@@ -323,7 +385,7 @@ export class NotebookModelSynchronizer extends Disposable {
 					};
 					edits.push({
 						editType: CellEditType.Replace,
-						index: originalIndex + 1,
+						index,
 						cells: [newCell],
 						count: 0
 					});
@@ -331,6 +393,13 @@ export class NotebookModelSynchronizer extends Disposable {
 			});
 			if (edits.length) {
 				currentModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+				for (const edit of edits.filter(e => e.editType === CellEditType.Replace)) {
+					const cell = currentModel.cells[edit.index];
+					if (cell) {
+						const cellViewModel = notebookEditor?.getCellByHandle(cell.handle);
+						cellViewModel?.updateEditState(CellEditState.Editing, 'chatEdit');
+					}
+				}
 				edits.length = 0;
 			}
 
@@ -339,11 +408,42 @@ export class NotebookModelSynchronizer extends Disposable {
 				if (diff.type === 'modified') {
 					const cell = currentModel.cells[diff.originalCellIndex];
 					// Ensure the models of these cells have been loaded before we update them.
-					const textModel = await this.waitForCellModelToBeAvailable(cell);
-					const newText = modelWithChatEdits.cells[diff.modifiedCellIndex].getValue();
-					textModel.pushEditOperations(null, [
-						EditOperation.replace(textModel.getFullModelRange(), newText)
-					], () => null);
+					const cellModelRef = await this.textModelService.createModelReference(cell.uri);
+					try {
+						const modifiedCell = modelWithChatEdits.cells[diff.modifiedCellIndex];
+						if (modifiedCell.cellKind === cell.cellKind) {
+							const cellViewModel = notebookEditor?.getCellByHandle(cell.handle);
+							cellViewModel?.updateEditState(CellEditState.Editing, 'chatEdit');
+							const textModel = cellModelRef.object.textEditorModel;
+							textModel.pushEditOperations(null, [
+								EditOperation.replace(textModel.getFullModelRange(), modifiedCell.getValue())
+							], () => null);
+						} else {
+							const newCellDto: ICellDto2 =
+							{
+								source: modifiedCell.getValue(),
+								cellKind: modifiedCell.cellKind,
+								language: modifiedCell.language,
+								outputs: modifiedCell.outputs.map(output => output.asDto()),
+								mime: modifiedCell.mime,
+								metadata: modifiedCell.metadata,
+								collapseState: modifiedCell.collapseState,
+								internalMetadata: modifiedCell.internalMetadata
+							};
+							const edit: ICellEditOperation = {
+								editType: CellEditType.Replace,
+								index: diff.originalCellIndex,
+								cells: [newCellDto],
+								count: 1
+							};
+							currentModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
+							const newCell = currentModel.cells[diff.originalCellIndex];
+							const cellViewModel = notebookEditor?.getCellByHandle(newCell.handle);
+							cellViewModel?.updateEditState(CellEditState.Editing, 'chatEdit');
+						}
+					} finally {
+						cellModelRef.dispose();
+					}
 				}
 			}));
 
@@ -358,15 +458,12 @@ export class NotebookModelSynchronizer extends Disposable {
 	}
 	private previousUriOfModelForDiff?: URI;
 
-	private async waitForCellModelToBeAvailable(cell: NotebookCellTextModel): Promise<TextModel> {
-		if (cell.textModel) {
-			return cell.textModel;
-		}
-		await Event.toPromise(this.modelService.onModelAdded);
-		return this.waitForCellModelToBeAvailable(cell);
-	}
 	private async getModifiedModelForDiff(entry: IModifiedFileEntry, token: CancellationToken): Promise<NotebookTextModel | undefined> {
-		const text = (entry as ChatEditingModifiedFileEntry).modifiedModel.getValue();
+		const modifiedModel = this.modelService.getModel(entry.modifiedURI);
+		if (!modifiedModel) {
+			return;
+		}
+		const text = modifiedModel.getValue();
 		const bytes = VSBuffer.fromString(text);
 		const uri = entry.modifiedURI.with({ scheme: `NotebookChatEditorController.modifiedScheme${Date.now().toString()}` });
 		const stream = bufferToStream(bytes);

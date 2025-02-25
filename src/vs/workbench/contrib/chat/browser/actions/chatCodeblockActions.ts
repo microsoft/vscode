@@ -3,23 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Disposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
-import { localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -76,6 +84,44 @@ abstract class ChatCodeBlockAction extends Action2 {
 	}
 
 	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
+}
+
+const APPLY_IN_EDITOR_ID = 'workbench.action.chat.applyInEditor';
+
+export class CodeBlockActionRendering extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.codeBlockActionRendering';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILabelService labelService: ILabelService,
+	) {
+		super();
+
+		const disposable = actionViewItemService.register(MenuId.ChatCodeBlock, APPLY_IN_EDITOR_ID, (action, options) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(class extends MenuEntryActionViewItem {
+				protected override getTooltip(): string {
+					const context = this._context;
+					if (isCodeBlockActionContext(context) && context.codemapperUri) {
+						const label = labelService.getUriLabel(context.codemapperUri, { relative: true });
+						return localize('interactive.applyInEditorWithURL.label', "Apply to {0}", label);
+					}
+					return super.getTooltip();
+				}
+				override setActionContext(newContext: unknown): void {
+					super.setActionContext(newContext);
+					this.updateTooltip();
+				}
+			}, action, undefined);
+		});
+
+		// Reduces flicker a bit on reload/restart
+		markAsSingleton(disposable);
+	}
 }
 
 export function registerChatCodeBlockActions() {
@@ -184,7 +230,7 @@ export function registerChatCodeBlockActions() {
 
 		constructor() {
 			super({
-				id: 'workbench.action.chat.applyInEditor',
+				id: APPLY_IN_EDITOR_ID,
 				title: localize2('interactive.applyInEditor.label', "Apply in Editor"),
 				precondition: ChatContextKeys.enabled,
 				f1: true,
@@ -224,7 +270,7 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
-	registerAction2(class SmartApplyInEditorAction extends ChatCodeBlockAction {
+	registerAction2(class InsertAtCursorAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
@@ -404,8 +450,9 @@ export function registerChatCodeBlockActions() {
 		const focused = !widget.inputEditor.hasWidgetFocus() && widget.getFocus();
 		const focusedResponse = isResponseVM(focused) ? focused : undefined;
 
-		const currentResponse = curCodeBlockInfo ?
-			curCodeBlockInfo.element :
+		const elementId = curCodeBlockInfo?.elementId;
+		const element = elementId ? widget.viewModel?.getItems().find(item => item.id === elementId) : undefined;
+		const currentResponse = element ??
 			(focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
 		if (!currentResponse || !isResponseVM(currentResponse)) {
 			return;
@@ -485,8 +532,9 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 		return;
 	}
 
+	const element = widget?.viewModel?.getItems().find(item => item.id === codeBlockInfo.elementId);
 	return {
-		element: codeBlockInfo.element,
+		element,
 		codeBlockIndex: codeBlockInfo.codeBlockIndex,
 		code: editor.getValue(),
 		languageId: editor.getModel()!.getLanguageId(),
@@ -517,7 +565,7 @@ export function registerChatCodeCompareBlockActions() {
 				title: localize2('interactive.compare.apply', "Apply Edits"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.check,
+				icon: Codicon.gitPullRequestGoToChanges,
 				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
@@ -529,16 +577,36 @@ export function registerChatCodeCompareBlockActions() {
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
-			const editorService = accessor.get(IEditorService);
 			const instaService = accessor.get(IInstantiationService);
+			const editorService = accessor.get(ICodeEditorService);
 
-			const editor = instaService.createInstance(DefaultChatTextEditor);
-			await editor.apply(context.element, context.edit, context.diffEditor);
+			const item = context.edit;
+			const response = context.element;
 
-			await editorService.openEditor({
-				resource: context.edit.uri,
-				options: { revealIfVisible: true },
-			});
+			if (item.state?.applied) {
+				// already applied
+				return false;
+			}
+
+			if (!response.response.value.includes(item)) {
+				// bogous item
+				return false;
+			}
+
+			const firstEdit = item.edits[0]?.[0];
+			if (!firstEdit) {
+				return false;
+			}
+			const textEdits = AsyncIterableObject.fromArray(item.edits);
+
+			const editorToApply = await editorService.openCodeEditor({ resource: item.uri }, null);
+			if (editorToApply) {
+				editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
+				instaService.invokeFunction(reviewEdits, editorToApply, textEdits, CancellationToken.None);
+				response.setEditApplied(item, 1);
+				return true;
+			}
+			return false;
 		}
 	});
 

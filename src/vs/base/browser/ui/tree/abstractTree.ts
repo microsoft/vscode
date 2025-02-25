@@ -20,7 +20,7 @@ import { IToggleStyles, Toggle, unthemedToggleStyles } from '../toggle/toggle.js
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from './tree.js';
 import { Action } from '../../../common/actions.js';
-import { distinct, equals, range } from '../../../common/arrays.js';
+import { distinct, equals, insertInto, range } from '../../../common/arrays.js';
 import { Delayer, disposableTimeout, timeout } from '../../../common/async.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
@@ -947,7 +947,7 @@ interface IAbstractFindControllerOptions extends IFindWidgetOptions {
 	showNotFoundMessage?: boolean;
 }
 
-interface IFindControllerOptions extends IAbstractFindControllerOptions {
+export interface IFindControllerOptions extends IAbstractFindControllerOptions {
 	defaultFindMode?: TreeFindMode;
 	defaultFindMatchType?: TreeFindMatchType;
 }
@@ -1177,7 +1177,7 @@ export class FindController<T, TFilterData> extends AbstractFindController<T, TF
 		this.tree.refilter();
 
 		if (pattern) {
-			this.tree.focusNext(0, true, undefined, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+			this.tree.focusNext(0, true, undefined, (node) => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
 		}
 
 		const focus = this.tree.getFocus();
@@ -3080,16 +3080,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		const root = this.model.getNode();
-		const queue = [root];
+		const stack = [root];
 
-		while (queue.length > 0) {
-			const node = queue.shift()!;
+		while (stack.length > 0) {
+			const node = stack.pop()!;
 
 			if (node !== root && node.collapsible) {
 				state.expanded[getId(node.element)] = node.collapsed ? 0 : 1;
 			}
 
-			queue.push(...node.children);
+			insertInto(stack, stack.length, node.children);
 		}
 
 		return state;

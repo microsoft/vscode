@@ -183,8 +183,20 @@ const apiMenus: IAPIMenu[] = [
 	},
 	{
 		key: 'scm/historyItem/context',
-		id: MenuId.SCMChangesContext,
+		id: MenuId.SCMHistoryItemContext,
 		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/historyItem/hover',
+		id: MenuId.SCMHistoryItemHover,
+		description: localize('menus.historyItemHover', "The Source Control history item hover menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/historyItemRef/context',
+		id: MenuId.SCMHistoryItemRefContext,
+		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
@@ -426,6 +438,11 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.DiffEditorSelectionToolbar,
 		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
 		proposed: 'contribDiffEditorGutterToolBarMenus'
+	},
+	{
+		key: 'searchPanel/aiResults/commands',
+		id: MenuId.SearchActionMenu,
+		description: localize('searchPanel.aiResultsCommands', "The commands that will contribute to the menu rendered as buttons next to the AI search title"),
 	}
 ];
 
@@ -1037,11 +1054,19 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		// Add to commandPalette array any commands not explicitly contributed to it
 		const implicitlyOnCommandPalette = index(commands, c => c.id);
-		for (const command of menus['commandPalette']) {
-			delete implicitlyOnCommandPalette[command.command];
+		if (menus['commandPalette']) {
+			for (const command of menus['commandPalette']) {
+				delete implicitlyOnCommandPalette[command.command];
+			}
 		}
-		for (const command in implicitlyOnCommandPalette) {
-			menus['commandPalette'].push({ command });
+
+		if (Object.keys(implicitlyOnCommandPalette).length) {
+			if (!menus['commandPalette']) {
+				menus['commandPalette'] = [];
+			}
+			for (const command in implicitlyOnCommandPalette) {
+				menus['commandPalette'].push({ command });
+			}
 		}
 
 		for (const context in menus) {

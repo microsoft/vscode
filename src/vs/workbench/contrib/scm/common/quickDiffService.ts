@@ -80,3 +80,8 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 		return diffs.filter<QuickDiff>(this.isQuickDiff);
 	}
 }
+
+export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI, language: string | undefined, isSynchronized: boolean | undefined): Promise<URI | null> {
+	const quickDiffs = await quickDiffService.getQuickDiffs(uri, language, isSynchronized);
+	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
+}

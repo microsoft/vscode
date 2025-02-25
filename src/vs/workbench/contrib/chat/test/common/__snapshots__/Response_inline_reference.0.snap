@@ -1,7 +1,7 @@
 [
   {
     content: {
-      value: "text before",
+      value: "text before ",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false
@@ -14,7 +14,7 @@
   },
   {
     content: {
-      value: "text after",
+      value: " text after",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false

@@ -90,7 +90,8 @@ export class EditorTitleControl extends Themable {
 			showFileIcons: true,
 			showSymbolIcons: true,
 			showDecorationColors: false,
-			showPlaceholder: true
+			showPlaceholder: true,
+			dragEditor: false,
 		}));
 
 		// Breadcrumbs enablement & visibility change have an impact on layout

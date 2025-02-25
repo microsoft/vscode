@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import * as fs from 'fs';
-import * as crypto from 'crypto';
-import * as path from 'path';
-import * as os from 'os';
+import cp from 'child_process';
+import fs from 'fs';
+import crypto from 'crypto';
+import path from 'path';
+import os from 'os';
 
 export class Temp {
 	private _files: string[] = [];

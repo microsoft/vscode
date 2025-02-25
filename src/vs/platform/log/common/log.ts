@@ -91,6 +91,11 @@ function format(args: any, verbose: boolean = false): string {
 	return result;
 }
 
+export type LoggerGroup = {
+	readonly id: string;
+	readonly name: string;
+};
+
 export interface ILogService extends ILogger {
 	readonly _serviceBrand: undefined;
 }
@@ -136,6 +141,11 @@ export interface ILoggerOptions {
 	 * Id of the extension that created this logger.
 	 */
 	extensionId?: string;
+
+	/**
+	 * Group of the logger.
+	 */
+	group?: LoggerGroup;
 }
 
 export interface ILoggerResource {
@@ -146,6 +156,7 @@ export interface ILoggerResource {
 	readonly hidden?: boolean;
 	readonly when?: string;
 	readonly extensionId?: string;
+	readonly group?: LoggerGroup;
 }
 
 export type DidChangeLoggersEvent = {
@@ -432,7 +443,7 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.canLog(LogLevel.Warning)) {
 			if (this.useColors) {
-				console.log('%c WARN', 'color: #993', message, ...args);
+				console.warn('%c WARN', 'color: #993', message, ...args);
 			} else {
 				console.log(message, ...args);
 			}
@@ -442,7 +453,7 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	error(message: string, ...args: any[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (this.useColors) {
-				console.log('%c  ERR', 'color: #f33', message, ...args);
+				console.error('%c  ERR', 'color: #f33', message, ...args);
 			} else {
 				console.error(message, ...args);
 			}
@@ -616,7 +627,16 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		}
 		const loggerEntry: LoggerEntry = {
 			logger,
-			info: { resource, id, logLevel, name: options?.name, hidden: options?.hidden, extensionId: options?.extensionId, when: options?.when }
+			info: {
+				resource,
+				id,
+				logLevel,
+				name: options?.name,
+				hidden: options?.hidden,
+				group: options?.group,
+				extensionId: options?.extensionId,
+				when: options?.when
+			}
 		};
 		this.registerLogger(loggerEntry.info);
 		// TODO: @sandy081 Remove this once registerLogger can take ILogger

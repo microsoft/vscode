@@ -9,7 +9,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NotebookOutlineContext } from '../contrib/outline/notebookOutline.js';
 import { FoldingController } from './foldingController.js';
-import { CellFoldingState, ICellViewModel, INotebookEditor } from '../notebookBrowser.js';
+import { CellEditState, CellFoldingState, ICellViewModel, INotebookEditor } from '../notebookBrowser.js';
 import * as icons from '../notebookIcons.js';
 import { OutlineEntry } from '../viewModel/OutlineEntry.js';
 import { CellKind } from '../../common/notebookCommon.js';
@@ -109,16 +109,25 @@ export class NotebookRunCellsInSection extends Action2 {
 			return;
 		}
 
-		const idx = context.notebookEditor.getViewModel()?.getCellIndex(cell);
-		if (idx === undefined) {
+		if (cell.getEditState() === CellEditState.Editing) {
+			const foldingController = context.notebookEditor.getContribution<FoldingController>(FoldingController.id);
+			foldingController.recompute();
+		}
+
+		const cellIdx = context.notebookEditor.getViewModel()?.getCellIndex(cell);
+		if (cellIdx === undefined) {
 			return;
 		}
-		const length = context.notebookEditor.getViewModel()?.getFoldedLength(idx);
+		const sectionIdx = context.notebookEditor.getViewModel()?.getFoldingStartIndex(cellIdx);
+		if (sectionIdx === undefined) {
+			return;
+		}
+		const length = context.notebookEditor.getViewModel()?.getFoldedLength(sectionIdx);
 		if (length === undefined) {
 			return;
 		}
 
-		const cells = context.notebookEditor.getCellsInRange({ start: idx, end: idx + length + 1 });
+		const cells = context.notebookEditor.getCellsInRange({ start: sectionIdx, end: sectionIdx + length + 1 });
 		context.notebookEditor.executeNotebookCells(cells);
 	}
 }

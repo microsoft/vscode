@@ -207,7 +207,7 @@ export class DebugService implements IDebugService {
 		this.disposables.add(extensionService.onWillStop(evt => {
 			evt.veto(
 				this.model.getSessions().length > 0,
-				nls.localize('active debug session', 'A debug session is still running.'),
+				nls.localize('active debug session', 'A debug session is still running that would terminate.'),
 			);
 		}));
 
@@ -338,7 +338,7 @@ export class DebugService implements IDebugService {
 		if (!this.haveDoneLazySetup) {
 			// Registering fs providers is slow
 			// https://github.com/microsoft/vscode/issues/159886
-			this.disposables.add(this.fileService.registerProvider(DEBUG_MEMORY_SCHEME, new DebugMemoryFileSystemProvider(this)));
+			this.disposables.add(this.fileService.registerProvider(DEBUG_MEMORY_SCHEME, this.disposables.add(new DebugMemoryFileSystemProvider(this))));
 			this.haveDoneLazySetup = true;
 		}
 	}

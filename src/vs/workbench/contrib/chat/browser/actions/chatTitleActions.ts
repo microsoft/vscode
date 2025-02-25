@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
+import { observableFromEvent, waitForState } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -36,6 +36,7 @@ import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem, EditsViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -222,7 +223,6 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
-			const chatEditingService = accessor.get(IChatEditingService);
 			const chatModel = chatService.getSession(item.sessionId);
 			const chatRequests = chatModel?.getRequests();
 			if (!chatRequests) {
@@ -232,9 +232,14 @@ export function registerChatTitleActions() {
 			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
+				const chatEditingService = accessor.get(IChatEditingService);
+				const currentEditingSession = chatEditingService.getEditingSession(chatModel.sessionId);
+				if (!currentEditingSession) {
+					return;
+				}
 
 				// Prompt if the last request modified the working set and the user hasn't already disabled the dialog
-				const entriesModifiedInLastRequest = chatEditingService.currentEditingSessionObs.get()?.entries.get().filter((entry) => entry.lastModifyingRequestId === item.requestId) ?? [];
+				const entriesModifiedInLastRequest = currentEditingSession.entries.get().filter((entry) => entry.lastModifyingRequestId === item.requestId);
 				const shouldPrompt = entriesModifiedInLastRequest.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
 				const confirmation = shouldPrompt
 					? await dialogService.confirm({
@@ -256,10 +261,10 @@ export function registerChatTitleActions() {
 					await configurationService.updateValue('chat.editing.confirmEditRequestRetry', false);
 				}
 
-				// Reset the snapshot
+				// Reset the snapshot to the first stop (undefined undo index)
 				const snapshotRequest = chatRequests[itemIndex];
 				if (snapshotRequest) {
-					await chatEditingService.restoreSnapshot(snapshotRequest.id);
+					await currentEditingSession.restoreSnapshot(snapshotRequest.id, undefined);
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
@@ -457,14 +462,15 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			await viewsService.openView(EditsViewId);
+			const editsView = await viewsService.openView(EditsViewId);
 
-			let editingSession = chatEditingService.currentEditingSessionObs.get();
-			if (!editingSession) {
-				await Event.toPromise(chatEditingService.onDidCreateEditingSession);
-				editingSession = chatEditingService.currentEditingSessionObs.get();
+			if (!(editsView instanceof ChatViewPane)) {
 				return;
 			}
+
+			const viewModelObs = observableFromEvent(this, editsView.widget.onDidChangeViewModel, () => editsView.widget.viewModel);
+			const chatSessionId = (await waitForState(viewModelObs)).sessionId;
+			const editingSession = chatEditingService.getEditingSession(chatSessionId);
 
 			if (!editingSession) {
 				return;
@@ -486,7 +492,7 @@ export function registerChatTitleActions() {
 			// make request
 			await chatService.sendRequest(editingSession.chatSessionId, '', {
 				agentId: editAgent.id,
-				acceptedConfirmationData: [{ _type: 'toEditTransfer', transferedTurnResults: sourceRequests.map(v => v.response?.result) }], // TODO@jrieken HACKY
+				acceptedConfirmationData: [{ _type: 'toEditTransfer', transferredTurnResults: sourceRequests.map(v => v.response?.result) }], // TODO@jrieken HACKY
 				confirmation: typeof this.desc.title === 'string' ? this.desc.title : this.desc.title.value
 			});
 		}
@@ -553,9 +559,9 @@ export function registerChatTitleActions() {
 			return await new Promise<IChatRequestModel[]>(_resolve => {
 
 				const resolve = (value: IChatRequestModel[]) => {
-					qp.hide();
 					store.dispose();
 					_resolve(value);
+					qp.hide();
 				};
 
 				const store = new DisposableStore();
@@ -573,9 +579,26 @@ export function registerChatTitleActions() {
 					ignore = true;
 					try {
 						const [first] = e;
-						const idx = first ? customPicks.indexOf(first) : -1;
-						const selected = idx >= 0 ? customPicks.slice(idx) : [];
+
+						const selected: typeof customPicks = [];
+						let disabled = false;
+
+						for (let i = 0; i < customPicks.length; i++) {
+							const oldItem = customPicks[i];
+							customPicks[i] = {
+								...oldItem,
+								disabled,
+							};
+
+							disabled = disabled || oldItem === first;
+
+							if (disabled) {
+								selected.push(customPicks[i]);
+							}
+						}
+						qp.items = customPicks;
 						qp.selectedItems = selected;
+
 					} finally {
 						ignore = false;
 					}

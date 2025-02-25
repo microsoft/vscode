@@ -20,7 +20,6 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { WorkbenchAsyncDataTree } from '../../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
@@ -64,11 +63,10 @@ export class NotebookVariablesView extends ViewPane {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.handleActiveEditorChange()));
 		this._register(this.notebookKernelService.onDidNotebookVariablesUpdate(this.handleVariablesChanged.bind(this)));
@@ -85,8 +83,8 @@ export class NotebookVariablesView extends ViewPane {
 		super.renderBody(container);
 		this.element.classList.add('debug-pane');
 
-		this.tree = <WorkbenchAsyncDataTree<INotebookScope | IEmptyScope, INotebookVariableElement>>this.instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchAsyncDataTree<INotebookScope | IEmptyScope, INotebookVariableElement>,
 			'notebookVariablesTree',
 			container,
 			new NotebookVariablesDelegate(),

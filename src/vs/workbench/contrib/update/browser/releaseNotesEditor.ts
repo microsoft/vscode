@@ -288,10 +288,6 @@ export class ReleaseNotesManager {
 
 					/* codesetting */
 
-					code:has(.codesetting)+code:not(:has(.codesetting)) {
-						display: none;
-					}
-
 					code:has(.codesetting) {
 						background-color: var(--vscode-textPreformat-background);
 						color: var(--vscode-textPreformat-foreground);

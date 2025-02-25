@@ -4,47 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { $ } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent, IBreadcrumbsWidgetStyles } from '../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { timeout } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import './media/breadcrumbscontrol.css';
+import { DocumentSymbol } from '../../../../editor/common/languages.js';
+import { OutlineElement } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { fillInSymbolsDragData, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { FileKind, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IListService, WorkbenchAsyncDataTree, WorkbenchDataTree, WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { EditorResourceAccessor, IEditorPartOptions, SideBySideEditor } from '../../../common/editor.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
+import { IOutline } from '../../../services/outline/browser/outline.js';
+import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../labels.js';
 import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from './breadcrumbsPicker.js';
-import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
-import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorGroupView } from './editor.js';
-import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { IOutline } from '../../../services/outline/browser/outline.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { DataTransfers } from '../../../../base/browser/dnd.js';
-import { $ } from '../../../../base/browser/dom.js';
-import { OutlineElement } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
-import { CodeDataTransfers, DocumentSymbolTransferData } from '../../../../platform/dnd/browser/dnd.js';
-import { withSelection } from '../../../../platform/opener/common/opener.js';
+import './media/breadcrumbscontrol.css';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -53,7 +54,8 @@ class OutlineItem extends BreadcrumbsItem {
 	constructor(
 		readonly model: BreadcrumbsModel,
 		readonly element: OutlineElement2,
-		readonly options: IBreadcrumbsControlOptions
+		readonly options: IBreadcrumbsControlOptions,
+		@IInstantiationService private readonly _instantiationService: InstantiationService,
 	) {
 		super();
 	}
@@ -103,18 +105,7 @@ class OutlineItem extends BreadcrumbsItem {
 		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
 
 		if (element instanceof OutlineElement && outline.uri) {
-			const symbolUri = withSelection(outline.uri, element.symbol.range);
-			const symbolTransferData: DocumentSymbolTransferData = {
-				name: element.symbol.name,
-				fsPath: outline.uri.fsPath,
-				range: element.symbol.range,
-				kind: element.symbol.kind
-			};
-			const dataTransfers: DataTransfer[] = [
-				[CodeDataTransfers.SYMBOLS, [symbolTransferData]],
-				[DataTransfers.RESOURCES, [symbolUri]]
-			];
-			this._disposables.add(createBreadcrumbDndObserver(container, element.symbol.name, symbolUri.toString(), dataTransfers));
+			this._disposables.add(this._instantiationService.invokeFunction(accessor => createBreadcrumbDndObserver(accessor, container, element.symbol.name, { symbol: element.symbol, uri: outline.uri! }, this.model, this.options.dragEditor)));
 		}
 	}
 }
@@ -128,7 +119,8 @@ class FileItem extends BreadcrumbsItem {
 		readonly element: FileElement,
 		readonly options: IBreadcrumbsControlOptions,
 		private readonly _labels: ResourceLabels,
-		private readonly _hoverDelegate: IHoverDelegate
+		private readonly _hoverDelegate: IHoverDelegate,
+		@IInstantiationService private readonly _instantiationService: InstantiationService,
 	) {
 		super();
 	}
@@ -159,18 +151,14 @@ class FileItem extends BreadcrumbsItem {
 		container.classList.add(FileKind[this.element.kind].toLowerCase());
 		this._disposables.add(label);
 
-		const dataTransfers: DataTransfer[] = [
-			[CodeDataTransfers.FILES, [this.element.uri.fsPath]],
-			[DataTransfers.RESOURCES, [this.element.uri.toString()]],
-		];
-		const dndObserver = createBreadcrumbDndObserver(container, basename(this.element.uri), this.element.uri.toString(), dataTransfers);
-		this._disposables.add(dndObserver);
+		this._disposables.add(this._instantiationService.invokeFunction(accessor => createBreadcrumbDndObserver(accessor, container, basename(this.element.uri), this.element.uri, this.model, this.options.dragEditor)));
 	}
 }
 
-type DataTransfer = [string, any[]];
 
-function createBreadcrumbDndObserver(container: HTMLElement, label: string, textData: string, dataTransfers: DataTransfer[]): IDisposable {
+function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTMLElement, label: string, item: URI | { symbol: DocumentSymbol; uri: URI }, model: BreadcrumbsModel, dragEditor: boolean): IDisposable {
+	const instantiationService = accessor.get(IInstantiationService);
+
 	container.draggable = true;
 
 	return new dom.DragAndDropObserver(container, {
@@ -181,10 +169,26 @@ function createBreadcrumbDndObserver(container: HTMLElement, label: string, text
 
 			// Set data transfer
 			event.dataTransfer.effectAllowed = 'copyMove';
-			event.dataTransfer.setData(DataTransfers.TEXT, textData);
-			for (const [type, data] of dataTransfers) {
-				event.dataTransfer.setData(type, JSON.stringify(data));
-			}
+
+			instantiationService.invokeFunction(accessor => {
+				if (URI.isUri(item)) {
+					fillEditorsDragData(accessor, [item], event);
+				} else { // Symbol
+					fillEditorsDragData(accessor, [{ resource: item.uri, selection: item.symbol.range }], event);
+
+					fillInSymbolsDragData([{
+						name: item.symbol.name,
+						fsPath: item.uri.fsPath,
+						range: item.symbol.range,
+						kind: item.symbol.kind
+					}], event);
+				}
+
+				if (dragEditor && model.editor && model.editor?.input) {
+					const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+					editorTransfer.setData([new DraggedEditorIdentifier({ editor: model.editor.input, groupId: model.editor.group.id })], DraggedEditorIdentifier.prototype);
+				}
+			});
 
 			// Create drag image and remove when dropped
 			const dragImage = $('.monaco-drag-image');
@@ -210,6 +214,7 @@ export interface IBreadcrumbsControlOptions {
 	readonly showSymbolIcons: boolean;
 	readonly showDecorationColors: boolean;
 	readonly showPlaceholder: boolean;
+	readonly dragEditor: boolean;
 	readonly widgetStyles?: IBreadcrumbsWidgetStyles;
 }
 
@@ -389,7 +394,9 @@ export class BreadcrumbsControl {
 				showFileIcons: this._options.showFileIcons && showIcons,
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
-			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._labels, this._hoverDelegate) : new OutlineItem(model, element, options));
+			const items = model.getElements().map(element => element instanceof FileElement
+				? this._instantiationService.createInstance(FileItem, model, element, options, this._labels, this._hoverDelegate)
+				: this._instantiationService.createInstance(OutlineItem, model, element, options));
 			if (items.length === 0) {
 				this._widget.setEnabled(false);
 				this._widget.setItems([new class extends BreadcrumbsItem {
@@ -680,7 +687,8 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 				{ id: MenuId.MenubarAppearanceMenu, group: '4_editor', order: 2 },
 				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 },
 				{ id: MenuId.StickyScrollContext },
-				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 }
+				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 },
+				{ id: MenuId.NotebookToolbarContext, group: 'notebookView', order: 2 }
 			]
 		});
 	}

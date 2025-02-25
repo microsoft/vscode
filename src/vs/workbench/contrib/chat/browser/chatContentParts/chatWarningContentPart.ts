@@ -42,7 +42,7 @@ export class ChatWarningContentPart extends Disposable implements IChatContentPa
 				break;
 		}
 		this.domNode.appendChild($(iconClass, undefined, renderIcon(icon)));
-		const markdownContent = renderer.render(content);
+		const markdownContent = this._register(renderer.render(content));
 		this.domNode.appendChild(markdownContent.element);
 	}
 

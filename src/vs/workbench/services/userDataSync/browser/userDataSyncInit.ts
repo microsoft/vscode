@@ -20,7 +20,7 @@ import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from '
 import { getSyncAreaLabel } from '../common/userDataSync.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { Barrier, Promises } from '../../../../base/common/async.js';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionService, toExtensionDescription } from '../../extensions/common/extensions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -384,10 +384,10 @@ class NewExtensionsInitializer implements IUserDataSyncResourceInitializer {
 				}
 				this.logService.trace(`Installing extension...`, galleryExtension.identifier.id);
 				const local = await this.extensionManagementService.installFromGallery(galleryExtension, {
-					isMachineScoped: false, /* set isMachineScoped to prevent install and sync dialog in web */
 					donotIncludePackAndDependencies: true,
 					installGivenVersion: !!extensionToSync.version,
-					installPreReleaseVersion: extensionToSync.preRelease
+					installPreReleaseVersion: extensionToSync.preRelease,
+					context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.SETTINGS_SYNC }
 				});
 				if (!preview.disabledExtensions.some(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 					newlyEnabledExtensions.push(local);

@@ -225,7 +225,7 @@
 	"configuration.tsserver.web.typeAcquisition.enabled": "Enable/disable package acquisition on the web. This enables IntelliSense for imported packages. Requires `#typescript.tsserver.web.projectWideIntellisense.enabled#`. Currently not supported for Safari.",
 	"configuration.tsserver.nodePath": "Run TS Server on a custom Node installation. This can be a path to a Node executable, or 'node' if you want VS Code to detect a Node installation.",
 	"configuration.updateImportsOnPaste": "Enable updating imports when pasting code. Requires TypeScript 5.7+.\n\nBy default this shows a option to update imports after pasting. You can use the `#editor.pasteAs.preferences#` setting to update imports automatically when pasting: `\"editor.pasteAs.preferences\": [ \"text.updateImports.jsts\" ]`.",
-	"configuration.expandableHover": "Enable/disable expanding on hover.",
+	"configuration.expandableHover": "Enable expanding/contracting the hover to reveal more/less information from the TS server.",
 	"walkthroughs.nodejsWelcome.title": "Get started with JavaScript and Node.js",
 	"walkthroughs.nodejsWelcome.description": "Make the most of Visual Studio Code's first-class JavaScript experience.",
 	"walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.title": "Install Node.js",

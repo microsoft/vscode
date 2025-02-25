@@ -230,7 +230,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected addFileToRecentlyOpened(uri: URI): void {
-		this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
+		this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri, { appendWorkspaceSuffix: true }) }]);
 	}
 
 	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {

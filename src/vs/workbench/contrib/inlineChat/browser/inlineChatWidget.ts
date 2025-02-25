@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from '../../../../base/browser/dom.js';
+import { $, Dimension, getActiveElement, getTotalHeight, getWindow, h, reset, trackFocus } from '../../../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
@@ -424,10 +423,7 @@ export class InlineChatWidget {
 
 	get responseContent(): string | undefined {
 		const requests = this._chatWidget.viewModel?.model.getRequests();
-		if (!isNonEmptyArray(requests)) {
-			return undefined;
-		}
-		return requests.at(-1)?.response?.response.toString();
+		return requests?.at(-1)?.response?.response.toString();
 	}
 
 
@@ -520,13 +516,18 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IHoverService hoverService: IHoverService,
 		@ILayoutService layoutService: ILayoutService
 	) {
+		const overflowWidgetsNode = layoutService.getContainer(getWindow(_parentEditor.getContainerDomNode())).appendChild($('.inline-chat-overflow.monaco-editor'));
 		super(location, {
 			...options,
 			chatWidgetViewOptions: {
 				...options.chatWidgetViewOptions,
-				editorOverflowWidgetsDomNode: layoutService.mainContainer.appendChild($('.inline-chat-overflow.monaco-editor'))
+				editorOverflowWidgetsDomNode: overflowWidgetsNode
 			}
 		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+
+		this._store.add(toDisposable(() => {
+			overflowWidgetsNode.remove();
+		}));
 	}
 
 	// --- layout

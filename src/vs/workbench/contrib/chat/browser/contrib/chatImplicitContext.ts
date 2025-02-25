@@ -6,16 +6,20 @@
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { IChatService } from '../../common/chatService.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
@@ -24,15 +28,21 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 	private readonly _currentCancelTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
 
+	private _implicitContextEnablement = this.configurationService.getValue<{ [mode: string]: string }>('chat.implicitContext.enabled');
+
 	constructor(
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatService private readonly chatService: IChatService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		super();
 
 		const activeEditorDisposables = this._register(new DisposableStore());
+
 		this._register(Event.runAndSubscribe(
 			editorService.onDidVisibleEditorsChange,
 			(() => {
@@ -50,7 +60,25 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 				this.updateImplicitContext();
 			})));
-		this._register(chatWidgetService.onDidAddWidget(widget => this.updateImplicitContext(widget)));
+		this._register(autorun((reader) => {
+			this.chatEditingService.editingSessionsObs.read(reader);
+			this.updateImplicitContext();
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.implicitContext.enabled')) {
+				this._implicitContextEnablement = this.configurationService.getValue<{ [mode: string]: string }>('chat.implicitContext.enabled');
+				this.updateImplicitContext();
+			}
+		}));
+		this._register(this.chatService.onDidSubmitRequest(({ chatSessionId }) => {
+			const widget = this.chatWidgetService.getWidgetBySessionId(chatSessionId);
+			if (!widget?.input.implicitContext) {
+				return;
+			}
+			if (this._implicitContextEnablement[widget.location] === 'first' && widget.viewModel?.getItems().length !== 0) {
+				widget.input.implicitContext.setValue(undefined, false);
+			}
+		}));
 	}
 
 	private findActiveCodeEditor(): ICodeEditor | undefined {
@@ -115,10 +143,19 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			return;
 		}
 
-		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Editor)];
+		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditingSession), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Editor)];
 		for (const widget of widgets) {
-			if (widget.input.implicitContext) {
+			if (!widget.input.implicitContext) {
+				continue;
+			}
+			const setting = this._implicitContextEnablement[widget.location];
+			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
+			if (setting === 'first' && !isFirstInteraction) {
+				widget.input.implicitContext.setValue(undefined, false);
+			} else if (setting === 'always' || setting === 'first' && isFirstInteraction) {
 				widget.input.implicitContext.setValue(newValue, isSelection);
+			} else if (setting === 'never') {
+				widget.input.implicitContext.setValue(undefined, false);
 			}
 		}
 	}
@@ -161,8 +198,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		}
 	}
 
-	// TODO@roblourens
-	readonly isDynamic = true;
 	readonly isFile = true;
 
 	private _isSelection = false;
@@ -205,7 +240,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			name: this.name,
 			value: this.value,
 			isFile: true,
-			isDynamic: true,
 			modelDescription: this.modelDescription
 		};
 	}

@@ -648,8 +648,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		return this.getPart(group).mergeGroup(group, target, options);
 	}
 
-	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): boolean {
-		return this.activePart.mergeAllGroups(target);
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
+		return this.activePart.mergeAllGroups(target, options);
 	}
 
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {

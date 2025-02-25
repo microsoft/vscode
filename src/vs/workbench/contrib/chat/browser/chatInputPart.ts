@@ -8,23 +8,21 @@ import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IActionProvider } from '../../../../base/browser/ui/dropdown/dropdown.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
-import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { IAction } from '../../../../base/common/actions.js';
-import { coalesce } from '../../../../base/common/arrays.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { Promises } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -38,16 +36,21 @@ import { IPosition } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { DropIntoEditorController } from '../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { DropdownMenuActionViewItemWithKeybinding } from '../../../../platform/actions/browser/dropdownActionViewItemWithKeybinding.js';
 import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { getFlatActionBarActions, getFlatContextMenuActions, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -61,15 +64,14 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService, type OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { IFileLabelOptions, ResourceLabels } from '../../../browser/labels.js';
-import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
@@ -77,25 +79,29 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
-import { ChatRequestDynamicVariablePart } from '../common/chatParserTypes.js';
+import { IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { IChatRequestVariableEntry, isImageVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
+import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
-import { IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, ChatSubmitAction } from './actions/chatExecuteActions.js';
+import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
+import { CancelAction, ChatModelPickerActionId, ChatSubmitAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, IToggleAgentModeArgs, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
+import { PromptAttachmentsCollectionWidget } from './attachments/promptAttachments/promptAttachmentsCollectionWidget.js';
 import { IChatWidget } from './chat.js';
-import { ChatAttachmentModel, EditsAttachmentModel } from './chatAttachmentModel.js';
+import { ChatAttachmentModel } from './chatAttachmentModel.js';
+import { toChatVariable } from './chatAttachmentModel/chatPromptAttachmentsCollection.js';
+import { hookUpResourceAttachmentDragAndContextMenu, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatDragAndDrop, EditsDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingRemoveAllFilesAction, ChatEditingShowChangesAction } from './chatEditing/chatEditingActions.js';
-import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
+import { ChatFileReference } from './contrib/chatDynamicVariables/chatFileReference.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
+import { resizeImage } from './imageUtils.js';
 
 const $ = dom.$;
 
@@ -116,7 +122,13 @@ interface IChatInputPartOptions {
 		telemetrySource?: string;
 	};
 	editorOverflowWidgetsDomNode?: HTMLElement;
+	renderWorkingSet?: boolean;
 	enableImplicitContext?: boolean;
+}
+
+export interface IWorkingSetEntry {
+	uri: URI;
+	isMarkedReadonly?: boolean;
 }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -146,13 +158,63 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
-	public getAttachedAndImplicitContext(): IChatRequestVariableEntry[] {
+	public getAttachedAndImplicitContext(sessionId: string): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
 			contextArr.push(this.implicitContext.toBaseEntry());
 		}
 
+		// retrieve links from the input editor
+		const linkOccurrences = this.inputEditor.getContribution<LinkDetector>(LinkDetector.ID)?.getAllLinkOccurrences() ?? [];
+		const linksSeen = new Set<string>();
+		for (const linkOccurrence of linkOccurrences) {
+			const link = linkOccurrence.link;
+			const uri = URI.isUri(link.url) ? link.url : link.url ? URI.parse(link.url) : undefined;
+			if (!uri || linksSeen.has(uri.toString())) {
+				continue;
+			}
+
+			linksSeen.add(uri.toString());
+			contextArr.push({
+				kind: 'link',
+				id: uri.toString(),
+				name: uri.fsPath,
+				value: uri,
+				isFile: false,
+			});
+		}
+
+		// factor in nested file references into the implicit context
+		const variables = this.variableService.getDynamicVariables(sessionId);
+		for (const variable of variables) {
+			if (!(variable instanceof ChatFileReference)) {
+				continue;
+			}
+
+			// the usual URIs list of prompt instructions is `bottom-up`, therefore
+			// we do the same here - first add all child references to the list
+			contextArr.push(
+				...variable.allValidReferences.map((link) => {
+					return toChatVariable(link, false);
+				}),
+			);
+			// then add the root reference itself
+			contextArr.push(
+				toChatVariable(variable, true),
+			);
+		}
+
+		contextArr
+			.push(...this.instructionAttachmentsPart.chatAttachments);
+
 		return contextArr;
+	}
+
+	/**
+	 * Check if the chat input part has any prompt instruction attachments.
+	 */
+	public get hasInstructionAttachments(): boolean {
+		return !this.instructionAttachmentsPart.empty;
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
@@ -176,8 +238,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private followupsContainer!: HTMLElement;
 	private readonly followupsDisposables = this._register(new DisposableStore());
 
+	private attachmentsContainer!: HTMLElement;
+
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
+
+	private relatedFilesContainer!: HTMLElement;
 
 	private chatEditingSessionWidgetContainer!: HTMLElement;
 
@@ -189,6 +255,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _followupsHeight: number = 0;
 	get followupsHeight() {
 		return this._followupsHeight;
+	}
+
+	private _editSessionWidgetHeight: number = 0;
+	get editSessionWidgetHeight() {
+		return this._editSessionWidgetHeight;
 	}
 
 	private _inputEditor!: CodeEditorWidget;
@@ -210,12 +281,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
+	/**
+	 * Context key is set when prompt instructions are attached.
+	 */
+	private promptInstructionsAttached: IContextKey<boolean>;
 
 	private readonly _waitForPersistedLanguageModel = this._register(new MutableDisposable<IDisposable>());
-	private _onDidChangeCurrentLanguageModel = this._register(new Emitter<string>());
-	private _currentLanguageModel: string | undefined;
+	private _onDidChangeCurrentLanguageModel = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
+	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	get currentLanguageModel() {
-		return this._currentLanguageModel;
+		return this._currentLanguageModel?.identifier;
 	}
 
 	private cachedDimensions: dom.Dimension | undefined;
@@ -226,8 +301,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _chatEditsActionsDisposables = this._register(new DisposableStore());
 	private readonly _chatEditsDisposables = this._register(new DisposableStore());
-	private readonly _chatEditsFileLimitHover = this._register(new MutableDisposable<IDisposable>());
-	private _chatEditsProgress: ProgressBar | undefined;
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
 	get selectedElements(): URI[] {
@@ -250,12 +323,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	public get attemptedWorkingSetEntriesCount() {
 		return this._attemptedWorkingSetEntriesCount;
 	}
-	private _combinedChatEditWorkingSetEntries: URI[] = [];
-	public get chatEditWorkingSetFiles() {
-		return this._combinedChatEditWorkingSetEntries;
-	}
 
 	private readonly getInputState: () => IChatInputState;
+
+	/**
+	 * Child widget of prompt instruction attachments.
+	 * See {@linkcode PromptAttachmentsCollectionWidget}.
+	 */
+	private instructionAttachmentsPart: PromptAttachmentsCollectionWidget;
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -265,9 +340,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		getContribsInputState: () => any,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -278,19 +353,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@IMenuService private readonly menuService: IMenuService,
-		@ILanguageService private readonly languageService: ILanguageService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IChatVariablesService private readonly variableService: IChatVariablesService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
+		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		if (this.location === ChatAgentLocation.EditingSession) {
-			this._attachmentModel = this._register(this.instantiationService.createInstance(EditsAttachmentModel));
 			this.dnd = this._register(this.instantiationService.createInstance(EditsDragAndDrop, this.attachmentModel, styles));
 		} else {
-			this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 			this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.attachmentModel, styles));
 		}
 
@@ -305,9 +380,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
+		this.promptInstructionsAttached = ChatContextKeys.instructionsAttached.bindTo(contextKeyService);
 
 		this.history = this.loadHistory();
-		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], 50, historyKeyFn)));
+		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], ChatInputHistoryMaxEntries, historyKeyFn)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
@@ -318,6 +394,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar));
 
 		this._hasFileAttachmentContextKey = ChatContextKeys.hasFileAttachments.bindTo(contextKeyService);
+
+		this.instructionAttachmentsPart = this._register(
+			instantiationService.createInstance(
+				PromptAttachmentsCollectionWidget,
+				this.attachmentModel.promptInstructions,
+				this._contextResourceLabels,
+			),
+		);
+
+		// trigger re-layout of chat input when number of instruction attachment changes
+		this.instructionAttachmentsPart.onAttachmentsCountChange(() => {
+			this._onDidChangeHeight.fire();
+		});
 
 		this.initSelectedModel();
 	}
@@ -331,7 +420,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (persistedSelection) {
 			const model = this.languageModelsService.lookupLanguageModel(persistedSelection);
 			if (model) {
-				this._currentLanguageModel = persistedSelection;
+				this._currentLanguageModel = { metadata: model, identifier: persistedSelection };
 				this._onDidChangeCurrentLanguageModel.fire(this._currentLanguageModel);
 			} else {
 				this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
@@ -340,26 +429,61 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						this._waitForPersistedLanguageModel.clear();
 
 						if (persistedModel.metadata.isUserSelectable) {
-							this._currentLanguageModel = persistedSelection;
+							this._currentLanguageModel = { metadata: persistedModel.metadata, identifier: persistedSelection };
 							this._onDidChangeCurrentLanguageModel.fire(this._currentLanguageModel!);
 						}
 					}
 				});
 			}
 		}
+
+		this._register(this.chatAgentService.onDidChangeToolsAgentModeEnabled(() => {
+			if (this._currentLanguageModel && !this.modelSupportedForDefaultAgent(this._currentLanguageModel)) {
+				this.setCurrentLanguageModelToDefault();
+			}
+		}));
+	}
+
+	private supportsVision(): boolean {
+		return this._currentLanguageModel?.metadata.capabilities?.vision ?? false;
+	}
+
+	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
+		if (this.chatAgentService.getDefaultAgent(this.location)?.isToolsAgent) {
+			if (this.configurationService.getValue('chat.agent.allModels')) {
+				return true;
+			}
+
+			// Filter out models that don't support tool calling, and models that don't support enough context to have a good experience with the tools agent
+			return !!model.metadata.capabilities?.toolCalling && model.metadata.maxInputTokens > 40000;
+		}
+
+		return true;
+	}
+
+	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
+		const models = this.languageModelsService.getLanguageModelIds()
+			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }))
+			.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry));
+		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+
+		return models;
 	}
 
 	private setCurrentLanguageModelToDefault() {
-		const defaultLanguageModel = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
+		const defaultLanguageModelId = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
 		const hasUserSelectableLanguageModels = this.languageModelsService.getLanguageModelIds().find(id => {
 			const model = this.languageModelsService.lookupLanguageModel(id);
 			return model?.isUserSelectable && !model.isDefault;
 		});
-		this._currentLanguageModel = hasUserSelectableLanguageModels ? defaultLanguageModel : undefined;
+		this._currentLanguageModel = hasUserSelectableLanguageModels && defaultLanguageModelId ?
+			{ metadata: this.languageModelsService.lookupLanguageModel(defaultLanguageModelId)!, identifier: defaultLanguageModelId } :
+			undefined;
 	}
 
-	private setCurrentLanguageModelByUser(modelId: string) {
-		this._currentLanguageModel = modelId;
+	private setCurrentLanguageModelByUser(model: ILanguageModelChatMetadataAndIdentifier) {
+		this._currentLanguageModel = model;
 
 		// The user changed the language model, so we don't wait for the persisted option to be registered
 		this._waitForPersistedLanguageModel.clear();
@@ -367,7 +491,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 		}
 
-		this.storageService.store(this.getSelectedModelStorageKey(), modelId, StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -415,12 +539,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.container;
 	}
 
-	showPreviousValue(): void {
+	async showPreviousValue(): Promise<void> {
 		const inputState = this.getInputState();
 		if (this.history.isAtEnd()) {
 			this.saveCurrentValue(inputState);
 		} else {
-			if (!this.history.has({ text: this._inputEditor.getValue(), state: inputState })) {
+			const currentEntry = this.getFilteredEntry(this._inputEditor.getValue(), inputState);
+			if (!this.history.has(currentEntry)) {
 				this.saveCurrentValue(inputState);
 				this.history.resetCursor();
 			}
@@ -429,12 +554,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.navigateHistory(true);
 	}
 
-	showNextValue(): void {
+	async showNextValue(): Promise<void> {
 		const inputState = this.getInputState();
 		if (this.history.isAtEnd()) {
 			return;
 		} else {
-			if (!this.history.has({ text: this._inputEditor.getValue(), state: inputState })) {
+			const currentEntry = this.getFilteredEntry(this._inputEditor.getValue(), inputState);
+			if (!this.history.has(currentEntry)) {
 				this.saveCurrentValue(inputState);
 				this.history.resetCursor();
 			}
@@ -443,11 +569,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.navigateHistory(false);
 	}
 
-	private navigateHistory(previous: boolean): void {
+	private async navigateHistory(previous: boolean): Promise<void> {
 		const historyEntry = previous ?
 			this.history.previous() : this.history.next();
 
-		const historyAttachments = historyEntry.state?.chatContextAttachments ?? [];
+		let historyAttachments = historyEntry.state?.chatContextAttachments ?? [];
+
+		// Check for images in history to restore the value.
+		if (historyAttachments.length > 0) {
+			historyAttachments = (await Promise.all(historyAttachments.map(async (attachment) => {
+				if (attachment.isImage && attachment.references?.length && URI.isUri(attachment.references[0].reference)) {
+					try {
+						const buffer = await this.fileService.readFile(attachment.references[0].reference);
+						const newAttachment = { ...attachment };
+						newAttachment.value = (isImageVariableEntry(attachment) && attachment.isPasted) ? buffer.value.buffer : await resizeImage(buffer.value.buffer); // if pasted image, we do not need to resize.
+						return newAttachment;
+					} catch (err) {
+						this.logService.error('Failed to restore image from history', err);
+						return undefined;
+					}
+				}
+				return attachment;
+			}))).filter(attachment => attachment !== undefined);
+		}
+
 		this._attachmentModel.clearAndSetContext(...historyAttachments);
 
 		aria.status(historyEntry.text);
@@ -486,8 +631,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private saveCurrentValue(inputState: any): void {
-		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
+	private saveCurrentValue(inputState: IChatInputState): void {
+		const newEntry = this.getFilteredEntry(this._inputEditor.getValue(), inputState);
 		this.history.replaceLast(newEntry);
 	}
 
@@ -506,7 +651,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async acceptInput(isUserQuery?: boolean): Promise<void> {
 		if (isUserQuery) {
 			const userQuery = this._inputEditor.getValue();
-			const entry: IChatHistoryEntry = { text: userQuery, state: this.getInputState() };
+			const inputState = this.getInputState();
+			const entry = this.getFilteredEntry(userQuery, inputState);
 			this.history.replaceLast(entry);
 			this.history.add({ text: '' });
 		}
@@ -520,6 +666,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._inputEditor.focus();
 			this._inputEditor.setValue('');
 		}
+	}
+
+	// A funtion that filters out specifically the `value` property of the attachment.
+	private getFilteredEntry(query: string, inputState: IChatInputState): IChatHistoryEntry {
+		const attachmentsWithoutImageValues = inputState.chatContextAttachments?.map(attachment => {
+			if (attachment.isImage && attachment.references?.length && attachment.value) {
+				const newAttachment = { ...attachment };
+				newAttachment.value = undefined;
+				return newAttachment;
+			}
+			return attachment;
+		});
+
+		inputState.chatContextAttachments = attachmentsWithoutImageValues;
+		const newEntry = {
+			text: query,
+			state: inputState,
+		};
+
+		return newEntry;
 	}
 
 	private _acceptInputForVoiceover(): void {
@@ -552,7 +718,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							dom.h('.chat-input-toolbars@inputToolbars'),
 						]),
 					]),
-					dom.h('.chat-attached-context@attachedContextContainer'),
+					dom.h('.chat-attachments-container@attachmentsContainer', [
+						dom.h('.chat-attachment-toolbar@attachmentToolbar'),
+						dom.h('.chat-attached-context@attachedContextContainer'),
+						dom.h('.chat-related-files@relatedFilesContainer'),
+					]),
 					dom.h('.interactive-input-followups@followupsContainer'),
 				])
 			]);
@@ -562,8 +732,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 					dom.h('.chat-input-container@inputContainer', [
+						dom.h('.chat-attachments-container@attachmentsContainer', [
+							dom.h('.chat-attachment-toolbar@attachmentToolbar'),
+							dom.h('.chat-attached-context@attachedContextContainer'),
+							dom.h('.chat-related-files@relatedFilesContainer'),
+						]),
 						dom.h('.chat-editor-container@editorContainer'),
-						dom.h('.chat-attached-context@attachedContextContainer'),
 						dom.h('.chat-input-toolbars@inputToolbars'),
 					]),
 				]),
@@ -576,8 +750,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		const editorContainer = elements.editorContainer;
+		this.attachmentsContainer = elements.attachmentsContainer;
 		this.attachedContextContainer = elements.attachedContextContainer;
+		this.relatedFilesContainer = elements.relatedFilesContainer;
 		const toolbarsContainer = elements.inputToolbars;
+		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.renderAttachedContext();
 		if (this.options.enableImplicitContext) {
@@ -622,7 +799,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputEditorElement = dom.append(editorContainer!, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID, LinkDetector.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 
@@ -654,6 +831,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			this._onDidBlur.fire();
 		}));
+		this._register(this._inputEditor.onDidBlurEditorWidget(() => {
+			CopyPasteController.get(this._inputEditor)?.clearWidgets();
+			DropIntoEditorController.get(this._inputEditor)?.clearWidgets();
+		}));
 
 		const hoverDelegate = this._register(createInstantHoverDelegate());
 
@@ -681,7 +862,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (this.location === ChatAgentLocation.Panel || this.location === ChatAgentLocation.Editor) {
 					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID) && action instanceof MenuItemAction) {
 						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
-						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, options);
+						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, { ...options, menuAsChild: false });
 					}
 				}
 
@@ -693,12 +874,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					if (this._currentLanguageModel) {
 						const itemDelegate: ModelPickerDelegate = {
 							onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
-							setModel: (modelId: string) => {
-								this.setCurrentLanguageModelByUser(modelId);
-							}
+							setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
+								this.setCurrentLanguageModelByUser(model);
+								this.renderAttachedContext();
+							},
+							getModels: () => this.getModels()
 						};
-						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate, { hoverDelegate: options.hoverDelegate, keybinding: options.keybinding ?? undefined });
+						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate);
 					}
+				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(ToggleAgentActionViewItem, action);
 				}
 
 				return undefined;
@@ -727,8 +912,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
 			inputModel = this.modelService.createModel('', null, this.inputUri, true);
-			this._register(inputModel);
 		}
+
+		this.textModelResolverService.createModelReference(this.inputUri).then(ref => {
+			// make sure to hold a reference so that the model doesn't get disposed by the text model service
+			if (this._store.isDisposed) {
+				ref.dispose();
+				return;
+			}
+			this._register(ref);
+		});
 
 		this.inputModel = inputModel;
 		this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
@@ -762,6 +955,32 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this.themeService.onDidFileIconThemeChange(() => {
 			this.renderAttachedContext();
 		}));
+
+		if (this.options.renderWorkingSet) {
+			const attachmentToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, attachmentToolbarContainer, MenuId.ChatInputAttachmentToolbar, {
+				telemetrySource: this.options.menus.telemetrySource,
+				label: true,
+				menuOptions: { shouldForwardArgs: true, renderShortTitle: true },
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				hoverDelegate,
+				getKeyBinding: () => undefined,
+				actionViewItemProvider: (action, options) => {
+					if (action.id === 'workbench.action.chat.editing.attachFiles') {
+						const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
+						return viewItem;
+					}
+					return undefined;
+				}
+			}));
+			attachmentToolbar.context = { widget, placeholder: localize('chatAttachFiles', 'Search for files and context to add to your request') };
+			this._register(attachmentToolbar.onDidChangeMenuItems(() => {
+				if (this.cachedDimensions) {
+					this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+				}
+			}));
+		} else {
+			dom.hide(attachmentToolbarContainer);
+		}
 	}
 
 	private async renderAttachedContext() {
@@ -772,11 +991,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		dom.clearNode(container);
 		const hoverDelegate = store.add(createInstantHoverDelegate());
-		const attachments = this.location === ChatAgentLocation.EditingSession
-			// Render as attachments anything that isn't a file, but still render specific ranges in a file
-			? [...this.attachmentModel.attachments.entries()].filter(([_, attachment]) => !attachment.isFile || attachment.isFile && typeof attachment.value === 'object' && !!attachment.value && 'range' in attachment.value)
-			: [...this.attachmentModel.attachments.entries()];
-		dom.setVisibility(Boolean(attachments.length) || Boolean(this.implicitContext?.value), this.attachedContextContainer);
+
+		const attachments = [...this.attachmentModel.attachments.entries()];
+		dom.setVisibility(Boolean(attachments.length) || Boolean(this.implicitContext?.value) || !this.instructionAttachmentsPart.empty, this.attachedContextContainer);
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
@@ -786,6 +1003,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			container.appendChild(implicitPart.domNode);
 		}
 
+		this.promptInstructionsAttached.set(!this.instructionAttachmentsPart.empty);
+		this.instructionAttachmentsPart.render(container);
+
 		const attachmentInitPromises: Promise<void>[] = [];
 		for (const [index, attachment] of attachments) {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
@@ -793,77 +1013,107 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			let ariaLabel: string | undefined;
 
-			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
-			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
+			let resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+			let range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 			if (resource && (attachment.isFile || attachment.isDirectory)) {
 				const fileBasename = basename(resource.path);
 				const fileDirname = dirname(resource.path);
 				const friendlyName = `${fileBasename} ${fileDirname}`;
-
 				ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 
-				const fileOptions: IFileLabelOptions = { hidePath: true };
-				label.setFile(resource, attachment.isFile ? {
-					...fileOptions,
-					fileKind: FileKind.FILE,
-					range,
-				} : {
-					...fileOptions,
-					fileKind: FileKind.FOLDER,
-					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
+				if (attachment.isOmitted) {
+					this.customAttachment(widget, friendlyName, hoverDelegate, ariaLabel, store);
+				} else {
+					const fileOptions: IFileLabelOptions = { hidePath: true };
+					label.setFile(resource, attachment.isFile ? {
+						...fileOptions,
+						fileKind: FileKind.FILE,
+						range,
+					} : {
+						...fileOptions,
+						fileKind: FileKind.FOLDER,
+						icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
+					});
+				}
+
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+				this.instantiationService.invokeFunction(accessor => {
+					if (resource) {
+						store.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
+					}
 				});
-
-				const scopedContextKeyService = store.add(this.contextKeyService.createScoped(widget));
-				const resourceContextKey = store.add(new ResourceContextKey(scopedContextKeyService, this.fileService, this.languageService, this.modelService));
-				resourceContextKey.set(resource);
-
-				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate, {
-					contextMenuArg: resource,
-					contextKeyService: scopedContextKeyService,
-					contextMenuId: MenuId.ChatInputResourceAttachmentContext,
-				});
-
-				// Drag and drop
-				widget.draggable = true;
-				this._register(dom.addDisposableListener(widget, 'dragstart', e => {
-					this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [resource], e));
-					e.dataTransfer?.setDragImage(widget, 0, 0);
-				}));
-
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
+				const supportsVision = this.supportsVision();
+				const hoverElement = this.customAttachment(widget, attachment.name, hoverDelegate, ariaLabel, store, attachment.isImage, supportsVision);
 
-				const hoverElement = dom.$('div.chat-attached-context-hover');
-				hoverElement.setAttribute('aria-label', ariaLabel);
-
-				// Custom label
-				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
-				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
-				widget.appendChild(pillIcon);
-				widget.appendChild(textLabel);
-
-				attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
-					let buffer: Uint8Array;
-					try {
-						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
-						if (attachment.value instanceof URI) {
-							const readFile = await this.fileService.readFile(attachment.value);
-							if (store.isDisposed) {
-								return;
-							}
-							buffer = readFile.value.buffer;
-						} else {
-							buffer = attachment.value as Uint8Array;
+				if (attachment.references) {
+					widget.style.cursor = 'pointer';
+					const clickHandler = () => {
+						if (attachment.references && URI.isUri(attachment.references[0].reference)) {
+							this.openResource(attachment.references[0].reference, false, undefined);
 						}
-						this.createImageElements(buffer, widget, hoverElement);
-					} catch (error) {
-						console.error('Error processing attachment:', error);
-					}
+					};
+					store.add(addDisposableListener(widget, 'click', clickHandler));
+				}
 
-					widget.style.position = 'relative';
-					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
-					resolve();
-				}));
+				if (supportsVision) {
+					attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
+						let buffer: Uint8Array;
+						try {
+							if (attachment.value instanceof URI) {
+								const readFile = await this.fileService.readFile(attachment.value);
+								if (store.isDisposed) {
+									return;
+								}
+								buffer = readFile.value.buffer;
+							} else {
+								buffer = attachment.value as Uint8Array;
+							}
+							this.createImageElements(buffer, widget, hoverElement);
+						} catch (error) {
+							console.error('Error processing attachment:', error);
+						}
+						store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
+						resolve();
+					}));
+				}
+
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+				widget.style.position = 'relative';
+			} else if (isPasteVariableEntry(attachment)) {
+				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+
+				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
+				if (attachment.copiedFrom) {
+					resource = attachment.copiedFrom.uri;
+					range = attachment.copiedFrom.range;
+					const filename = basename(resource.path);
+					label.setLabel(filename, undefined, { extraClasses: classNames });
+				} else {
+					label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				}
+				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
+
+				widget.style.position = 'relative';
+
+				const hoverContent: IManagedHoverTooltipMarkdownString = {
+					markdown: {
+						value: `${attachment.copiedFrom ? this.labelService.getUriLabel(attachment.copiedFrom.uri, { relative: true }) : attachment.fileName}\n\n---\n\n\`\`\`${attachment.language}\n\n${attachment.code}\n\`\`\``,
+					},
+					markdownNotSupportedFallback: attachment.code,
+				};
+				store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+
+				const copiedFromResource = attachment.copiedFrom?.uri;
+				if (copiedFromResource) {
+					store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, copiedFromResource)));
+				}
+			} else if (isLinkVariableEntry(attachment)) {
+				ariaLabel = localize('chat.attachment.link', "Attached link, {0}", attachment.name);
+				label.setResource({ resource: attachment.value, name: attachment.name }, { icon: Codicon.link, title: attachment.value.toString() });
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
@@ -872,6 +1122,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+			}
+
+			if (attachment.kind === 'symbol') {
+				const scopedContextKeyService = store.add(this.contextKeyService.createScoped(widget));
+				store.add(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, widget, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext)));
 			}
 
 			await Promise.all(attachmentInitPromises);
@@ -912,6 +1167,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	private customAttachment(widget: HTMLElement, friendlyName: string, hoverDelegate: IHoverDelegate, ariaLabel: string, store: DisposableStore, isImage?: boolean, supportsVision?: boolean): HTMLElement {
+		const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
+		const textLabel = dom.$('span.chat-attached-context-custom-text', {}, friendlyName);
+		widget.appendChild(pillIcon);
+		widget.appendChild(textLabel);
+
+		const hoverElement = dom.$('div.chat-attached-context-hover');
+		hoverElement.setAttribute('aria-label', ariaLabel);
+
+		if (!supportsVision) {
+			widget.classList.add('warning');
+			hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this {1} type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel)?.name : this.currentLanguageModel, isImage ? 'image' : 'file');
+			store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: true }));
+		}
+
+		return hoverElement;
+	}
+
 	private openResource(resource: URI, isDirectory: true): void;
 	private openResource(resource: URI, isDirectory: false, range: IRange | undefined): void;
 	private openResource(resource: URI, isDirectory?: boolean, range?: IRange): void {
@@ -930,7 +1203,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.openerService.open(resource, options);
 	}
 
-	private attachButtonAndDisposables(widget: HTMLElement, index: number, attachment: IChatRequestVariableEntry, hoverDelegate: IHoverDelegate, contextMenuOpts?: { contextMenuId: MenuId; contextKeyService: IContextKeyService; contextMenuArg: unknown }) {
+	private attachButtonAndDisposables(widget: HTMLElement, index: number, attachment: IChatRequestVariableEntry, hoverDelegate: IHoverDelegate) {
 		const store = this.attachedContextDisposables.value;
 		if (!store) {
 			return;
@@ -939,7 +1212,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const clearButton = new Button(widget, {
 			supportIcons: true,
 			hoverDelegate,
-			title: localize('chat.attachment.clearButton', "Remove from context"),
+			title: localize('chat.attachment.clearButton', "Remove from context")
 		});
 
 		// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
@@ -966,23 +1239,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			this._onDidChangeContext.fire({ removed: [attachment] });
 		}));
-
-		// Context menu
-		if (contextMenuOpts) {
-			store.add(dom.addDisposableListener(widget, dom.EventType.CONTEXT_MENU, async domEvent => {
-				const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
-				dom.EventHelper.stop(domEvent, true);
-
-				this.contextMenuService.showContextMenu({
-					contextKeyService: contextMenuOpts.contextKeyService,
-					getAnchor: () => event,
-					getActions: () => {
-						const menu = this.menuService.getMenuActions(contextMenuOpts.contextMenuId, contextMenuOpts.contextKeyService, { arg: contextMenuOpts.contextMenuArg });
-						return getFlatContextMenuActions(menu);
-					},
-				});
-			}));
-		}
 	}
 
 	// Helper function to create and replace image
@@ -1005,29 +1261,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		hoverImage.onload = () => {
 			URL.revokeObjectURL(url);
 		};
+
+		hoverImage.onerror = () => {
+			// reset to original icon on error or invalid image
+			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
+			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
+			const existingPill = widget.querySelector('.chat-attached-context-pill');
+			if (existingPill) {
+				existingPill.replaceWith(pill);
+			}
+		};
 	}
 
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
-		if (!chatEditingSession) {
-			dom.clearNode(this.chatEditingSessionWidgetContainer);
-			this._chatEditsDisposables.clear();
-			this._chatEditList = undefined;
-			this._combinedChatEditWorkingSetEntries = [];
-			this._chatEditsProgress?.dispose();
-			return;
+		if (chatEditingSession && this.configurationService.getValue('chat.renderRelatedFiles')) {
+			this.renderChatRelatedFiles(chatEditingSession, this.relatedFilesContainer);
 		}
 
-		const currentChatEditingState = chatEditingSession.state.get();
-		if (this._chatEditList && !chatWidget?.viewModel?.requestInProgress && (currentChatEditingState === ChatEditingSessionState.Idle || currentChatEditingState === ChatEditingSessionState.Initial)) {
-			this._chatEditsProgress?.stop();
-		}
-
-		// Summary of number of files changed
-		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
 		const seenEntries = new ResourceSet();
-		let entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
+		const entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
 			seenEntries.add(entry.modifiedURI);
 			return {
 				reference: entry.modifiedURI,
@@ -1035,50 +1289,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'reference',
 			};
 		}) ?? [];
-		for (const attachment of this.attachmentModel.attachments) {
-			if (attachment.isFile && URI.isUri(attachment.value) && !seenEntries.has(attachment.value)) {
-				entries.unshift({
-					reference: attachment.value,
-					state: WorkingSetEntryState.Attached,
-					kind: 'reference',
-				});
-				seenEntries.add(attachment.value);
-			}
+
+		if (!chatEditingSession || !this.options.renderWorkingSet || !entries.length) {
+			dom.clearNode(this.chatEditingSessionWidgetContainer);
+			this._chatEditsDisposables.clear();
+			this._chatEditList = undefined;
+			return;
 		}
-		for (const [file, state] of chatEditingSession.workingSet.entries()) {
-			if (!seenEntries.has(file)) {
+
+		// Summary of number of files changed
+		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
+		for (const [file, metadata] of chatEditingSession.workingSet.entries()) {
+			if (!seenEntries.has(file) && metadata.state !== WorkingSetEntryState.Suggested) {
 				entries.unshift({
 					reference: file,
-					state: state.state,
-					description: state.description,
+					state: metadata.state,
+					description: metadata.description,
 					kind: 'reference',
+					isMarkedReadonly: metadata.isMarkedReadonly,
 				});
 				seenEntries.add(file);
 			}
 		}
-		// Factor file variables that are part of the user query into the working set
-		for (const part of chatWidget?.parsedInput.parts ?? []) {
-			if (part instanceof ChatRequestDynamicVariablePart && part.isFile && URI.isUri(part.data) && !seenEntries.has(part.data)) {
-				entries.unshift({
-					reference: part.data,
-					state: WorkingSetEntryState.Attached,
-					kind: 'reference',
-				});
-			}
-		}
-		const excludedEntries: IChatCollapsibleListItem[] = [];
-		for (const excludedAttachment of (this.attachmentModel as EditsAttachmentModel).excludedFileAttachments) {
-			if (excludedAttachment.isFile && URI.isUri(excludedAttachment.value) && !seenEntries.has(excludedAttachment.value)) {
-				excludedEntries.push({
-					reference: excludedAttachment.value,
-					state: WorkingSetEntryState.Attached,
-					kind: 'reference',
-					excluded: true,
-					title: localize('chatEditingSession.excludedFile', 'The Working Set file limit has ben reached. {0} is excluded from the Woking Set. Remove other files to make space for {0}.', basename(excludedAttachment.value.path))
-				});
-				seenEntries.add(excludedAttachment.value);
-			}
-		}
+
 		entries.sort((a, b) => {
 			if (a.kind === 'reference' && b.kind === 'reference') {
 				if (a.state === b.state || a.state === undefined || b.state === undefined) {
@@ -1088,84 +1321,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			return 0;
 		});
-		let remainingFileEntriesBudget = this.chatEditingService.editingSessionFileLimit;
+
 		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
 		const overviewTitle = overviewRegion.querySelector('.working-set-title') as HTMLElement ?? dom.append(overviewRegion, $('.working-set-title'));
-		const overviewWorkingSet = overviewTitle.querySelector('span') ?? dom.append(overviewTitle, $('span'));
 		const overviewFileCount = overviewTitle.querySelector('span.working-set-count') ?? dom.append(overviewTitle, $('span.working-set-count'));
-
-		overviewWorkingSet.textContent = localize('chatEditingSession.workingSet', 'Working Set');
-
-		// Record the number of entries that the user wanted to add to the working set
-		this._attemptedWorkingSetEntriesCount = entries.length + excludedEntries.length;
 
 		let suggestedFilesInWorkingSetCount = 0;
 		overviewFileCount.textContent = '';
 		if (entries.length === 1) {
-			overviewFileCount.textContent = ' ' + localize('chatEditingSession.oneFile', '(1 file)');
+			overviewFileCount.textContent = localize('chatEditingSession.oneFile.1', '1 file changed');
 			suggestedFilesInWorkingSetCount = entries[0].kind === 'reference' && entries[0].state === WorkingSetEntryState.Suggested ? 1 : 0;
-		} else if (entries.length >= remainingFileEntriesBudget) {
-			// The user tried to attach too many files, we have to drop anything after the limit
-			const entriesToPreserve: IChatCollapsibleListItem[] = [];
-			const newEntries: IChatCollapsibleListItem[] = [];
-			const suggestedFiles: IChatCollapsibleListItem[] = [];
-			for (let i = 0; i < entries.length; i += 1) {
-				const entry = entries[i];
-				if (entry.kind !== 'reference' || !URI.isUri(entry.reference)) {
-					continue;
-				}
-				const currentEntryUri = entry.reference;
-				if (entry.state === WorkingSetEntryState.Suggested) {
-					// Keep track of suggested files for now, they should not take precedence over newly added files
-					suggestedFiles.push(entry);
-				} else if (this._combinedChatEditWorkingSetEntries.find((e) => e.toString() === currentEntryUri?.toString())) {
-					// If this entry was here earlier and is still here, we should prioritize preserving it
-					// so that nothing existing gets evicted
-					if (remainingFileEntriesBudget > 0) {
-						entriesToPreserve.push(entry);
-						remainingFileEntriesBudget -= 1;
-					}
-				} else {
-					newEntries.push(entry);
-				}
-			}
-
-			const newEntriesThatFit = remainingFileEntriesBudget > 0 ? newEntries.slice(0, remainingFileEntriesBudget) : [];
-			remainingFileEntriesBudget -= newEntriesThatFit.length;
-			const suggestedFilesThatFit = remainingFileEntriesBudget > 0 ? suggestedFiles.slice(0, remainingFileEntriesBudget) : [];
-			// Intentional: to make bad suggestions less annoying,
-			// here we don't count the suggested files against the budget,
-			// so that the Add Files button remains enabled and the user can easily
-			// override the suggestions with their own manual file selections
-			entries = [...entriesToPreserve, ...newEntriesThatFit, ...suggestedFilesThatFit];
-			suggestedFilesInWorkingSetCount = suggestedFilesThatFit.length;
 		} else {
 			suggestedFilesInWorkingSetCount = entries.filter(e => e.kind === 'reference' && e.state === WorkingSetEntryState.Suggested).length;
 		}
 
-		if (excludedEntries.length > 0) {
-			overviewFileCount.textContent = ' ' + localize('chatEditingSession.excludedFiles', '({0}/{1} files)', this.chatEditingService.editingSessionFileLimit + excludedEntries.length, this.chatEditingService.editingSessionFileLimit);
-		} else if (entries.length > 1) {
+		if (entries.length > 1) {
 			const fileCount = entries.length - suggestedFilesInWorkingSetCount;
-			overviewFileCount.textContent = ' ' + (fileCount === 1 ? localize('chatEditingSession.oneFile', '(1 file)') : localize('chatEditingSession.manyFiles', '({0} files)', fileCount));
+			overviewFileCount.textContent = (fileCount === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', fileCount));
 		}
 
-		const fileLimitReached = remainingFileEntriesBudget <= 0;
-		overviewFileCount.classList.toggle('file-limit-reached', fileLimitReached);
-		if (fileLimitReached) {
-			let title = localize('chatEditingSession.fileLimitReached', 'You have reached the maximum number of files that can be added to the working set.');
-			title += excludedEntries.length === 1 ? ' ' + localize('chatEditingSession.excludedOneFile', '1 file is excluded from the Working Set.') : '';
-			title += excludedEntries.length > 1 ? ' ' + localize('chatEditingSession.excludedSomeFiles', '{0} files are excluded from the Working Set.', excludedEntries.length) : '';
-
-			this._chatEditsFileLimitHover.value = getBaseLayerHoverDelegate().setupDelayedHover(overviewFileCount as HTMLElement,
-				{
-					content: title,
-					appearance: { showPointer: true, compact: true },
-					position: { hoverPosition: HoverPosition.ABOVE }
-				});
-		} else {
-			this._chatEditsFileLimitHover.clear();
-		}
+		overviewTitle.ariaLabel = overviewFileCount.textContent;
+		overviewTitle.tabIndex = 0;
 
 		// Clear out the previous actions (if any)
 		this._chatEditsActionsDisposables.clear();
@@ -1179,7 +1355,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				arg: { sessionId: chatEditingSession.chatSessionId },
 			},
 			buttonConfigProvider: (action) => {
-				if (action.id === ChatEditingShowChangesAction.ID || action.id === ChatEditingSaveAllAction.ID || action.id === ChatEditingRemoveAllFilesAction.ID) {
+				if (action.id === ChatEditingShowChangesAction.ID || action.id === ChatEditingRemoveAllFilesAction.ID) {
 					return { showIcon: true, showLabel: false, isSecondary: true };
 				}
 				return undefined;
@@ -1188,11 +1364,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (!chatEditingSession) {
 			return;
-		}
-
-		if (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress) {
-			this._chatEditsProgress ??= new ProgressBar(innerContainer);
-			this._chatEditsProgress?.infinite().show(500);
 		}
 
 		// Working set
@@ -1204,21 +1375,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.add(list.onDidFocus(() => {
 				this._onDidFocus.fire();
 			}));
-			this._chatEditsDisposables.add(list.onDidOpen((e) => {
+			this._chatEditsDisposables.add(list.onDidOpen(async (e) => {
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
 
-					const entry = chatEditingSession.entries.get().find(entry => entry.modifiedURI.toString() === modifiedFileUri.toString());
-					const diffInfo = entry?.diffInfo.get();
-					const range = diffInfo?.changes.at(0)?.modified.toExclusiveRange();
+					const entry = chatEditingSession.getEntry(modifiedFileUri);
 
-					this.editorService.openEditor({
+					const pane = await this.editorService.openEditor({
 						resource: modifiedFileUri,
-						options: {
-							...e.editorOptions,
-							selection: range,
-						}
+						options: e.editorOptions
 					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+
+					if (pane) {
+						entry?.getEditorIntegration(pane).reveal(true);
+					}
 				}
 			}));
 			this._chatEditsDisposables.add(addDisposableListener(list.getHTMLElement(), 'click', e => {
@@ -1231,29 +1401,66 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const maxItemsShown = 6;
-		const itemsShown = Math.min(entries.length + excludedEntries.length, maxItemsShown);
+		const itemsShown = Math.min(entries.length, maxItemsShown);
 		const height = itemsShown * 22;
 		const list = this._chatEditList.object;
 		list.layout(height);
 		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, entries);
-		list.splice(entries.length, 0, excludedEntries);
-		this._combinedChatEditWorkingSetEntries = coalesce(entries.map((e) => e.kind === 'reference' && URI.isUri(e.reference) ? e.reference : undefined));
+		this._onDidChangeHeight.fire();
+	}
 
-		const addFilesElement = innerContainer.querySelector('.chat-editing-session-toolbar-actions') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-toolbar-actions'));
+	async renderChatRelatedFiles(chatEditingSession: IChatEditingSession, anchor: HTMLElement) {
+		dom.clearNode(anchor);
+		const hoverDelegate = getDefaultHoverDelegate('element');
+		for (const [uri, metadata] of chatEditingSession.workingSet) {
+			if (metadata.state !== WorkingSetEntryState.Suggested) {
+				continue;
+			}
+			const uriLabel = this._chatEditsActionsDisposables.add(new Button(anchor, {
+				supportIcons: true,
+				secondary: true,
+				hoverDelegate
+			}));
+			uriLabel.label = this.labelService.getUriBasenameLabel(uri);
+			uriLabel.element.classList.add('monaco-icon-label', ...getIconClasses(this.modelService, this.languageService, uri, FileKind.FILE));
+			uriLabel.element.title = localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), metadata.description ?? '');
 
-		const button = this._chatEditsActionsDisposables.add(new Button(addFilesElement, {
-			supportIcons: true,
-			secondary: true
-		}));
-		// Disable the button if the entries that are not suggested exceed the budget
-		button.enabled = remainingFileEntriesBudget > 0;
-		button.label = localize('chatAddFiles', '{0} Add Files...', '$(add)');
-		button.setTitle(button.enabled ? localize('addFiles.label', 'Add files to your working set') : localize('chatEditingSession.fileLimitReached', 'You have reached the maximum number of files that can be added to the working set.'));
-		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
-			this.commandService.executeCommand('workbench.action.chat.editing.attachFiles', { widget: chatWidget });
-		}));
-		dom.append(addFilesElement, button.element);
+			this._chatEditsActionsDisposables.add(uriLabel.onDidClick(() => {
+				group.remove(); // REMOVE asap
+				this._attachmentModel.addFile(uri);
+				chatEditingSession.remove(WorkingSetEntryRemovalReason.User, uri);
+			}));
+
+			const addButton = this._chatEditsActionsDisposables.add(new Button(anchor, {
+				supportIcons: false,
+				secondary: true,
+				hoverDelegate,
+				ariaLabel: localize('chatEditingSession.addSuggestion', 'Add suggestion {0}', this.labelService.getUriLabel(uri, { relative: true })),
+			}));
+			addButton.icon = Codicon.add;
+			addButton.setTitle(localize('chatEditingSession.addSuggested', 'Add suggestion'));
+			this._chatEditsActionsDisposables.add(addButton.onDidClick(() => {
+				group.remove(); // REMOVE asap
+				this._attachmentModel.addFile(uri);
+				chatEditingSession.remove(WorkingSetEntryRemovalReason.User, uri);
+			}));
+
+			const sep = document.createElement('div');
+			sep.classList.add('separator');
+
+			const group = document.createElement('span');
+			group.classList.add('monaco-button-dropdown', 'sidebyside-button', 'show-file-icons');
+			group.appendChild(uriLabel.element);
+			group.appendChild(sep);
+			group.appendChild(addButton.element);
+			dom.append(anchor, group);
+
+			this._chatEditsActionsDisposables.add(toDisposable(() => {
+				group.remove();
+			}));
+		}
+		this._onDidChangeHeight.fire();
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
@@ -1290,6 +1497,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
 		this._followupsHeight = data.followupsHeight;
+		this._editSessionWidgetHeight = data.chatEditingStateHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
@@ -1318,7 +1526,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 32,
 			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 28,
-			attachmentsHeight: this.attachedContextContainer.offsetHeight,
+			attachmentsHeight: this.attachmentsContainer.offsetHeight + 6,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + inputToolbarWidth + inputToolbarPadding : 0,
@@ -1333,7 +1541,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	saveState(): void {
-		this.saveCurrentValue(this.getInputState());
+		if (this.history.isAtEnd()) {
+			this.saveCurrentValue(this.getInputState());
+		}
+
 		const inputHistory = [...this.history];
 		this.historyService.saveHistory(this.location, inputHistory);
 	}
@@ -1398,85 +1609,127 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 }
 
 interface ModelPickerDelegate {
-	onDidChangeModel: Event<string>;
-	setModel(selectedModelId: string): void;
+	onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
+	setModel(selectedModelId: ILanguageModelChatMetadataAndIdentifier): void;
+	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 }
 
-class ModelPickerActionViewItem extends MenuEntryActionViewItem {
+class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
 	constructor(
 		action: MenuItemAction,
-		private currentLanguageModel: string,
+		private currentLanguageModel: ILanguageModelChatMetadataAndIdentifier,
 		private readonly delegate: ModelPickerDelegate,
-		options: IMenuEntryActionViewItemOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IAccessibilityService _accessibilityService: IAccessibilityService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
+		const modelActionsProvider: IActionProvider = {
+			getActions: () => {
+				const setLanguageModelAction = (entry: ILanguageModelChatMetadataAndIdentifier): IAction => {
+					return {
+						id: entry.identifier,
+						label: entry.metadata.name,
+						tooltip: '',
+						class: undefined,
+						enabled: true,
+						checked: entry.identifier === this.currentLanguageModel.identifier,
+						run: () => {
+							this.currentLanguageModel = entry;
+							this.renderLabel(this.element!);
+							this.delegate.setModel(entry);
+						}
+					};
+				};
 
+				const models: ILanguageModelChatMetadataAndIdentifier[] = this.delegate.getModels();
+				const actions = models.map(entry => setLanguageModelAction(entry));
+				if (contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
+					actions.push(new Separator());
+					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan') }));
+				}
+
+				return actions;
+			}
+		};
+
+		super(action, modelActionsProvider, contextMenuService, undefined, keybindingService, contextKeyService);
 		this._register(delegate.onDidChangeModel(modelId => {
 			this.currentLanguageModel = modelId;
-			this.updateLabel();
+			this.renderLabel(this.element!);
 		}));
 	}
 
-	override async onClick(event: MouseEvent): Promise<void> {
-		this._openContextMenu();
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		this.setAriaLabelAttributes(element);
+		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentLanguageModel.metadata.name), ...renderLabelWithIcons(`$(chevron-down)`));
+		return null;
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-modelPicker-item');
-
-		// TODO@roblourens this should be a DropdownMenuActionViewItem, but we can't customize how it's rendered yet.
-		this._register(dom.addDisposableListener(container, dom.EventType.KEY_UP, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				this._openContextMenu();
-			}
-		}));
-	}
-
-	protected override updateLabel(): void {
-		if (this.label) {
-			const model = this._languageModelsService.lookupLanguageModel(this.currentLanguageModel);
-			if (model) {
-				dom.reset(this.label, dom.$('span.chat-model-label', undefined, model.name), ...renderLabelWithIcons(`$(chevron-down)`));
-			}
-		}
-	}
-
-	private _openContextMenu() {
-		const setLanguageModelAction = (id: string, modelMetadata: ILanguageModelChatMetadata): IAction => {
-			return {
-				id,
-				label: modelMetadata.name,
-				tooltip: '',
-				class: undefined,
-				enabled: true,
-				checked: id === this.currentLanguageModel,
-				run: () => {
-					this.currentLanguageModel = id;
-					this.updateLabel();
-					this.delegate.setModel(id);
-				}
-			};
-		};
-
-		const models = this._languageModelsService.getLanguageModelIds()
-			.map(modelId => ({ id: modelId, model: this._languageModelsService.lookupLanguageModel(modelId)! }))
-			.filter(entry => entry.model?.isUserSelectable);
-		models.sort((a, b) => a.model.name.localeCompare(b.model.name));
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => this.element!,
-			getActions: () => models.map(entry => setLanguageModelAction(entry.id, entry.model)),
-		});
 	}
 }
 
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
+
+class ToggleAgentActionViewItem extends DropdownMenuActionViewItemWithKeybinding {
+	private readonly agentStateActions: IAction[];
+
+	constructor(
+		action: MenuItemAction,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		const agentStateActions = [
+			{
+				...action,
+				id: 'agentMode',
+				label: localize('chat.agentMode', "Agent"),
+				class: undefined,
+				enabled: true,
+				run: () => action.run({ agentMode: true } satisfies IToggleAgentModeArgs)
+			},
+			{
+				...action,
+				id: 'normalMode',
+				label: localize('chat.normalMode', "Edit"),
+				class: undefined,
+				enabled: true,
+				checked: !action.checked,
+				run: () => action.run({ agentMode: false } satisfies IToggleAgentModeArgs)
+			},
+		];
+
+		super(action, agentStateActions, contextMenuService, undefined, keybindingService, contextKeyService);
+		this.agentStateActions = agentStateActions;
+	}
+
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		// Can't call super.renderLabel because it has a hack of forcing the 'codicon' class
+		this.setAriaLabelAttributes(element);
+
+		const state = this.agentStateActions.find(action => action.checked)?.label ?? '';
+		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
+		return null;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-modelPicker-item');
+	}
+}
+
+class AddFilesButton extends ActionViewItem {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
+		super(context, action, options);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-attached-context-attachment', 'chat-add-files');
+	}
+}

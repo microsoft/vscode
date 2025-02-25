@@ -32,6 +32,8 @@ import { IEditorCommentsOptions, IEditorOptions } from '../../../../editor/commo
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { NotebookTextDiffEditor } from './diff/notebookDiffEditor.js';
+import { INotebookTextDiffEditor } from './diff/notebookDiffEditorBrowser.js';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -467,6 +469,7 @@ export interface INotebookViewModel {
 	getMostRecentlyExecutedCell(): ICellViewModel | undefined;
 	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[];
 	getFoldedLength(index: number): number;
+	getFoldingStartIndex(index: number): number;
 	replaceOne(cell: ICellViewModel, range: Range, text: string): Promise<void>;
 	replaceAll(matches: CellFindMatchWithIndex[], texts: string[]): Promise<void>;
 }
@@ -493,7 +496,6 @@ export interface INotebookEditor {
 	readonly onDidChangeActiveKernel: Event<void>;
 	readonly onMouseUp: Event<INotebookEditorMouseEvent>;
 	readonly onMouseDown: Event<INotebookEditorMouseEvent>;
-
 	//#endregion
 
 	//#region readonly properties
@@ -888,6 +890,10 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 
 	if (editorPane.getId() === NOTEBOOK_EDITOR_ID) {
 		return editorPane.getControl() as INotebookEditor | undefined;
+	}
+
+	if (editorPane.getId() === NotebookTextDiffEditor.ID) {
+		return (editorPane.getControl() as INotebookTextDiffEditor).inlineNotebookEditor;
 	}
 
 	const input = editorPane.input;

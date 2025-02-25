@@ -14,13 +14,15 @@
     "Other"
   ],
   "enabledApiProposals": [
-    "terminalCompletionProvider"
+    "terminalCompletionProvider",
+    "terminalShellEnv",
+    "terminalShellType"
   ],
   "scripts": {
-    "compile": "npx gulp compile-extension:npm",
-    "watch": "npx gulp watch-extension:npm"
+    "compile": "npx gulp compile-extension:terminal-suggest",
+    "watch": "npx gulp watch-extension:terminal-suggest",
+    "pull-zshbuiltins": "ts-node ./scripts/pullZshBuiltins.ts"
   },
-
   "main": "./out/terminalSuggestMain",
   "activationEvents": [
     "onTerminalCompletionsRequested"
