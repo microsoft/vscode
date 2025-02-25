@@ -207,8 +207,9 @@ export class ToggleRequestPausedAction extends Action2 {
 	}
 }
 
+export const ChatEditingSessionSubmitActionId = 'workbench.action.edits.submit';
 export class ChatEditingSessionSubmitAction extends SubmitAction {
-	static readonly ID = 'workbench.action.edits.submit';
+	static readonly ID = ChatEditingSessionSubmitActionId;
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
