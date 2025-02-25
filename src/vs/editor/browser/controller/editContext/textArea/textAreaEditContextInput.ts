@@ -745,8 +745,8 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		try {
 			const scrollState = dom.saveParentsScrollTop(textArea);
 			this.setIgnoreSelectionChangeTime('setSelectionRange');
-			textArea.focus();
 			textArea.setSelectionRange(selectionStart, selectionEnd);
+			textArea.focus();
 			dom.restoreParentsScrollTop(textArea, scrollState);
 		} catch (e) {
 			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
