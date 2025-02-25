@@ -14,10 +14,9 @@
 	height: 100%;
 }
 
-.monaco-workbench .part.auxiliarybar > .content {
-	flex: 1;
-	min-height: 0; /* Required for proper flex behavior */
-	position: relative;
+.monaco-workbench .part.auxiliarybar > .content .split-view-view {
+    position: relative !important;
+    height: 100% !important;
 }
 
 .monaco-workbench .part.auxiliarybar > .content .monaco-editor,
@@ -37,15 +36,16 @@
 .monaco-workbench .part.auxiliarybar > .title {
 	background-color: var(--vscode-sideBarTitle-background);
 	padding: 0px;
-	margin-top: 6px;
-	margin-left: 12px;
+	margin-top: 7px;
+	padding-left: 7px;
 	margin-right: 12px;
 	margin-bottom: 0px;
 	flex: 0 0 auto;
-	/* min-height: 34px; */
+	/* min-height: 84px; */
 	display: flex;
 	align-items: center;
 	position: relative;
+	/* border: 1px solid red; */
 	/* z-index: 20000; */
 }
 
@@ -67,7 +67,7 @@
 	padding: 4px;
 	justify-content: flex-start;
 	align-items: center;
-	gap: 4px;
+	gap: 3px;
 	border-radius: 12px;
 	background: var(--vscode-sideBar-background);
 	box-shadow: 0px 0px 0px 1px var(--vscode-badge-background) inset;
