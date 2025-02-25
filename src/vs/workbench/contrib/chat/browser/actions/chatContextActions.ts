@@ -841,29 +841,32 @@ export class AttachContextAction extends Action2 {
 		}), clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, instantiationService, '', context?.placeholder);
 	}
 
-	private async _showDiagnosticsPick(instantiationService: IInstantiationService): Promise<IDiagnosticsQuickPickItemWithFilter | undefined> {
-		const filter = await instantiationService.invokeFunction(accessor => createMarkersQuickPick(accessor));
-		if (!filter) {
-			return undefined;
-		}
-
-		return {
+	private async _showDiagnosticsPick(instantiationService: IInstantiationService, onBackgroundAccept: (item: IChatContextQuickPickItem[]) => void): Promise<IDiagnosticsQuickPickItemWithFilter | undefined> {
+		const convert = (item: IDiagnosticVariableEntryFilterData): IDiagnosticsQuickPickItemWithFilter => ({
 			kind: 'diagnostic-filter',
-			id: IDiagnosticVariableEntryFilterData.id(filter),
-			label: IDiagnosticVariableEntryFilterData.label(filter),
+			id: IDiagnosticVariableEntryFilterData.id(item),
+			label: IDiagnosticVariableEntryFilterData.label(item),
 			icon: IDiagnosticVariableEntryFilterData.icon,
-			filter,
-		};
+			filter: item,
+		});
+
+		const filter = await instantiationService.invokeFunction(accessor =>
+			createMarkersQuickPick(accessor, items => onBackgroundAccept(items.map(convert))));
+		return filter && convert(filter);
 	}
 
 	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, fileService: IFileService, textModelService: ITextModelService, instantiationService: IInstantiationService, query: string = '', placeholder?: string) {
+		const attach = (isBackgroundAccept: boolean, ...items: IChatContextQuickPickItem[]) => {
+			this._attachContext(widget, quickInputService, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, isBackgroundAccept, ...items);
+		};
+
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			handleAccept: async (inputItem: IChatContextQuickPickItem, isBackgroundAccept: boolean) => {
 				let item: IChatContextQuickPickItem | undefined = inputItem;
 				if ('kind' in item && item.kind === 'folder') {
 					item = await this._showFolders(instantiationService);
 				} else if ('kind' in item && item.kind === 'diagnostic') {
-					item = await this._showDiagnosticsPick(instantiationService);
+					item = await this._showDiagnosticsPick(instantiationService, i => attach(true, ...i));
 				}
 
 				if (!item) {
@@ -877,7 +880,7 @@ export class AttachContextAction extends Action2 {
 					if (!clipboardService) {
 						return;
 					}
-					this._attachContext(widget, quickInputService, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, fileService, textModelService, isBackgroundAccept, item);
+					attach(isBackgroundAccept, item);
 					if (isQuickChat(widget)) {
 						quickChatService.open();
 					}

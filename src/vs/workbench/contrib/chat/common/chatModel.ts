@@ -101,6 +101,17 @@ export interface IDiagnosticVariableEntryFilterData {
 }
 
 export namespace IDiagnosticVariableEntryFilterData {
+	export function toEntry(data: IDiagnosticVariableEntryFilterData) {
+		return {
+			id: id(data),
+			name: label(data),
+			icon,
+			value: data,
+			kind: 'diagnostic' as const,
+			range: data.filterRange ? new OffsetRange(data.filterRange.startColumn, data.filterRange.endLineNumber) : undefined,
+		};
+	}
+
 	export function id(data: IDiagnosticVariableEntryFilterData) {
 		return [data.filterUri, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
 	}
