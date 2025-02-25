@@ -2175,9 +2175,9 @@ export class CommandCenter {
 
 	private getDiscardUntrackedChangesDialogDetails(resources: Resource[]): [string, string, string] {
 		const config = workspace.getConfiguration('git');
-		const untrackedChangesSoftDelete = config.get<boolean>('untrackedChangesSoftDelete', true) && !isRemote;
+		const untrackedChangesEnableTrash = config.get<boolean>('untrackedChangesEnableTrash', true) && !isRemote;
 
-		const messageWarning = !untrackedChangesSoftDelete
+		const messageWarning = !untrackedChangesEnableTrash
 			? resources.length === 1
 				? '\n\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.'
 				: '\n\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.'
@@ -2187,7 +2187,7 @@ export class CommandCenter {
 			? l10n.t('Are you sure you want to DELETE the following untracked file: \'{0}\'?{1}', path.basename(resources[0].resourceUri.fsPath), messageWarning)
 			: l10n.t('Are you sure you want to DELETE the {0} untracked files?{1}', resources.length, messageWarning);
 
-		const messageDetail = untrackedChangesSoftDelete
+		const messageDetail = untrackedChangesEnableTrash
 			? isWindows
 				? resources.length === 1
 					? 'You can restore this file from the Recycle Bin.'
@@ -2197,7 +2197,7 @@ export class CommandCenter {
 					: 'You can restore these files from the Trash.'
 			: '';
 
-		const primaryAction = untrackedChangesSoftDelete
+		const primaryAction = untrackedChangesEnableTrash
 			? isWindows
 				? l10n.t('Move to Recycle Bin')
 				: l10n.t('Move to Trash')
