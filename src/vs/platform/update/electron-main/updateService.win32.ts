@@ -130,47 +130,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
-				if (updateType === UpdateType.Archive) {
-					this.setState(State.AvailableForDownload(update));
-					return Promise.resolve(null);
-				}
-
-				this.setState(State.Downloading);
-
-				return this.cleanup(update.version).then(() => {
-					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
-						return pfs.Promises.exists(updatePackagePath).then(exists => {
-							if (exists) {
-								return Promise.resolve(updatePackagePath);
-							}
-
-							const downloadPath = `${updatePackagePath}.tmp`;
-
-							return this.requestService.request({ url: update.url }, CancellationToken.None)
-								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
-								.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
-								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
-								.then(() => updatePackagePath);
-						});
-					}).then(packagePath => {
-						this.availableUpdate = { packagePath };
-						this.setState(State.Downloaded(update));
-						// NOTE: pear does not support fast updates. so we are setting the state to ready.
-						this.setState(State.Ready(update));
-
-						// const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-						// if (fastUpdatesEnabled) {
-						// 	if (this.productService.target === 'user') {
-						// 		this.doApplyUpdate();
-						// 	}
-						// } else {
-						// 	this.setState(State.Ready(update));
-						// }
-					});
-				});
+				this.setState(State.AvailableForDownload(update));
+				return Promise.resolve(null);
 			})
 			.then(undefined, err => {
-				this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('update:error', { messageHash: String(hash(String(err))) });
+				this.telemetryService.publicLog2<{ messageHash: string }, UpdateErrorClassification>('updateCheck:error', { messageHash: String(hash(String(err))) });
 				this.logService.error(err);
 
 				// only show message when explicitly checking for updates
@@ -180,10 +144,52 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		if (state.update.url) {
-			this.nativeHostMainService.openExternal(undefined, state.update.url);
+		if (getUpdateType() === UpdateType.Archive) {
+			if (state.update.url) {
+				this.nativeHostMainService.openExternal(undefined, state.update.url);
+			}
+			this.setState(State.Idle(getUpdateType()));
+			return;
 		}
-		this.setState(State.Idle(getUpdateType()));
+
+		if (this.state.type !== StateType.AvailableForDownload)
+			return;
+
+		const update = this.state.update;
+
+		this.setState(State.Downloading);
+
+		return this.cleanup(update.version).then(() => {
+			return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
+				return pfs.Promises.exists(updatePackagePath).then(exists => {
+					if (exists) {
+						return Promise.resolve(updatePackagePath);
+					}
+
+					const downloadPath = `${updatePackagePath}.tmp`;
+
+					return this.requestService.request({ url: update.url }, CancellationToken.None)
+						.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
+						.then(update.sha256hash ? () => checksum(downloadPath, update.sha256hash) : () => undefined)
+						.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
+						.then(() => updatePackagePath);
+				});
+			}).then(packagePath => {
+				this.availableUpdate = { packagePath };
+				this.setState(State.Downloaded(update));
+				// NOTE: pear does not support fast updates. so we are setting the state to ready.
+				this.setState(State.Ready(update));
+
+				// const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+				// if (fastUpdatesEnabled) {
+				// 	if (this.productService.target === 'user') {
+				// 		this.doApplyUpdate();
+				// 	}
+				// } else {
+				// 	this.setState(State.Ready(update));
+				// }
+			});
+		});
 	}
 
 	private async getUpdatePackagePath(version: string): Promise<string> {

@@ -481,7 +481,7 @@
 	align-items: center;
 	justify-content: center;
 	cursor: pointer;
-	border-radius: 16px;
+	border-radius: 8px;
 	padding: 6px 8px;
 	margin: 5px 6px;
 	color: var(--vscode-button-foreground);
