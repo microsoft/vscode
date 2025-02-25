@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Hash } from './tokens/hash.js';
+import { Dash } from './tokens/dash.js';
 import { Colon } from './tokens/colon.js';
 import { FormFeed } from './tokens/formFeed.js';
 import { Tab } from '../simpleCodec/tokens/tab.js';
@@ -21,10 +22,16 @@ import { LeftParenthesis, RightParenthesis, TParenthesis } from './tokens/parent
 import { LeftAngleBracket, RightAngleBracket, TAngleBracket } from './tokens/angleBrackets.js';
 
 /**
+ * TODO: @legomushroom - list
+ *  - add `!` token support
+ *  - add `comment` token support in the markdown decoder
+ */
+
+/**
  * A token type that this decoder can handle.
  */
 export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed
-	| CarriageReturn | TBracket | TAngleBracket | TParenthesis | Colon | Hash;
+	| CarriageReturn | TBracket | TAngleBracket | TParenthesis | Colon | Hash | Dash;
 
 /**
  * List of well-known distinct tokens that this decoder emits (excluding
@@ -32,9 +39,9 @@ export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed
  * an arbitrary "text" sequence and is emitted as a single `Word` token.
  */
 const WELL_KNOWN_TOKENS = Object.freeze([
-	Space, Tab, VerticalTab, FormFeed, LeftBracket, RightBracket,
-	LeftAngleBracket, RightAngleBracket,
-	LeftParenthesis, RightParenthesis, Colon, Hash,
+	Space, Tab, VerticalTab, FormFeed,
+	LeftBracket, RightBracket, LeftAngleBracket, RightAngleBracket,
+	LeftParenthesis, RightParenthesis, Colon, Hash, Dash,
 ]);
 
 /**
@@ -45,7 +52,7 @@ const WELL_KNOWN_TOKENS = Object.freeze([
 const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze([
 	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol,
 	LeftBracket.symbol, RightBracket.symbol, LeftAngleBracket.symbol, RightAngleBracket.symbol,
-	LeftParenthesis.symbol, RightParenthesis.symbol, Colon.symbol, Hash.symbol,
+	LeftParenthesis.symbol, RightParenthesis.symbol, Colon.symbol, Hash.symbol, Dash.symbol,
 ]);
 
 /**
