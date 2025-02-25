@@ -251,12 +251,18 @@ const main = async () => {
 		// Save the cache to a TypeScript file
 		const cacheFilePath = path.join(__dirname, '../src/shell/zshBuiltinsCache.ts');
 		const cacheObject = Object.fromEntries(zshBuiltinsCommandDescriptionsCache);
-		const tsContent = `export const zshBuiltinsCommandDescriptionsCache = ${JSON.stringify(cacheObject, null, 2)} as const;`;
+		const tsContent = `${copyright}\n\nexport const zshBuiltinsCommandDescriptionsCache = ${JSON.stringify(cacheObject, null, 2)} as const;`;
 		await fs.writeFile(cacheFilePath, tsContent, 'utf8');
 		console.log('saved command descriptions cache to zshBuiltinsCache.ts with ', Object.keys(cacheObject).length, 'entries');
 	} catch (error) {
 		console.error('Error:', error);
 	}
 };
+
+const copyright = `
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/`;
 
 main();

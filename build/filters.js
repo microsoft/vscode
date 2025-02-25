@@ -177,7 +177,6 @@ module.exports.copyrightFilter = [
 	'!extensions/typescript-language-features/node-maintainer/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
-	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
 ];
 
 module.exports.tsFormattingFilter = [
