@@ -4805,7 +4805,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			shareSuggestSelections: false,
 			selectionMode: 'always',
 			showIcons: true,
-			showStatusBar: false,
+			showStatusBar: true,
 			preview: false,
 			previewMode: 'subwordSmart',
 			showInlineDetails: true,
