@@ -413,6 +413,11 @@ export class WindowTitle extends Disposable {
 	}
 
 	isCustomTitleFormat(): boolean {
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			// We add activeEditorState by default when screen reader optimized,
+			// make sure that gets applied
+			return true;
+		}
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
 
