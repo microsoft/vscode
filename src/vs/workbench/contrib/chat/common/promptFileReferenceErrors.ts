@@ -135,7 +135,6 @@ export class RecursiveReference extends ResolveError {
 			uri,
 			`Recursive references found: ${pathString}.`,
 		);
-		this.recursivePathString = pathString;
 	}
 
 	/**
@@ -145,6 +144,14 @@ export class RecursiveReference extends ResolveError {
 		filename: 'basename' | 'fullpath',
 		pathJoinCharacter: string = DEFAULT_RECURSIVE_PATH_JOIN_CHAR,
 	): string {
+		/**
+		 * TODO: @lego - this not currently true though
+		 * TODO: @lego - cache
+		 */
+		if (filename === 'fullpath' && pathJoinCharacter === DEFAULT_RECURSIVE_PATH_JOIN_CHAR) {
+			return this.recursivePathString;
+		}
+
 		return this.recursivePath
 			.map((path) => {
 				if (filename === 'fullpath') {
@@ -175,6 +182,8 @@ export class RecursiveReference extends ResolveError {
 		if (this.uri.toString() !== other.uri.toString()) {
 			return false;
 		}
+
+		// TODO: @lego - check array lengths first
 
 		// performance optimization - if the paths lengths don't match,
 		// no need to compare entire strings as they must be different
