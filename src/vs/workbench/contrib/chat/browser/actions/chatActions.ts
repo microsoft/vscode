@@ -16,12 +16,12 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
-import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -514,34 +514,29 @@ export function registerChatActions() {
 		}
 	});
 
-	function registerOpenLinkAction(id: string, title: ILocalizedString, url: string, order: number, contextKey: ContextKeyExpression = ChatContextKeys.enabled): void {
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id,
-					title,
-					category: CHAT_CATEGORY,
-					f1: true,
-					precondition: contextKey,
-					menu: {
-						id: MenuId.ChatTitleBarMenu,
-						group: 'y_manage',
-						order,
-						when: contextKey
-					}
-				});
-			}
-
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const openerService = accessor.get(IOpenerService);
-				openerService.open(URI.parse(url));
-			}
-		});
-	}
-
 	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.providerSetting}`, defaultChat.enterpriseProviderId));
-	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage Copilot Plan"), defaultChat.managePlanUrl, 1, nonEnterpriseCopilotUsers);
-	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2, nonEnterpriseCopilotUsers);
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.manageSettings',
+				title: localize2('manageCopilot', "Manage Copilot"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: nonEnterpriseCopilotUsers,
+				menu: {
+					id: MenuId.ChatTitleBarMenu,
+					group: 'y_manage',
+					order: 1,
+					when: nonEnterpriseCopilotUsers
+				}
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const openerService = accessor.get(IOpenerService);
+			openerService.open(URI.parse(defaultChat.manageSettingsUrl));
+		}
+	});
 
 	registerAction2(class ShowExtensionsUsingCopilot extends Action2 {
 
