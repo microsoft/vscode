@@ -10,9 +10,7 @@ import { language, OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
@@ -31,8 +29,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'chat.statusBarEntry';
 
-	private readonly treatment = this.assignmentService.getTreatment<boolean>('config.chat.experimental.statusIndicator.enabled'); //TODO@bpasero remove this experiment eventually
-
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 	private readonly entryDisposables = this._register(new MutableDisposable());
 
@@ -43,8 +39,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
 		@IChatEntitlementsService private readonly chatEntitlementsService: IChatEntitlementsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService
@@ -56,21 +50,21 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private async create(): Promise<void> {
-		let enabled = false;
-		if (this.productService.quality === 'stable') {
-			enabled = (await this.treatment) === true;
+		if (this.configurationService.getValue<boolean>('chat.experimental.statusIndicator.enabled') === true) {
+			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */);
 		} else {
-			enabled = true;
+			this.entry?.dispose();
+			this.entry = undefined;
 		}
-
-		if (!enabled) {
-			return;
-		}
-
-		this.entry = this._register(this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */));
 	}
 
 	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.experimental.statusIndicator.enabled')) {
+				this.create();
+			}
+		}));
+
 		const contextKeysSet = new Set([
 			ChatContextKeys.Setup.limited.key,
 			ChatContextKeys.Setup.installed.key,
@@ -287,5 +281,12 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		}
 
 		return settings;
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.entry?.dispose();
+		this.entry = undefined;
 	}
 }
