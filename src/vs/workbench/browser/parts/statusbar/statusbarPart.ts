@@ -501,7 +501,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				isStatusbarEntryLocation(entry.priority.primary) && // entry references another entry as location
 				entry.priority.primary.compact						// entry wants to be compact
 			) {
-				const locationId = entry.priority.primary.id;
+				const locationId = entry.priority.primary.location.id;
 				const location = mapIdToVisibleEntry.get(locationId);
 				if (!location) {
 					continue; // skip if location does not exist
