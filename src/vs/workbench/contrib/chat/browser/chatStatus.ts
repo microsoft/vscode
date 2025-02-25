@@ -140,10 +140,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				// Quota Indicator
 				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
 
-				container.appendChild($('div', undefined, localize('limitTitle', "You are currently using Copilot Free:")));
+				container.appendChild($('div', undefined, localize('limitTitle', "You are using Copilot Free")));
+				container.appendChild($('hr'));
 
-				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats Used"));
-				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Completions Used"));
+				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats Messages Remaining"));
+				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code Completions Remaining"));
 
 				this.chatEntitlementsService.resolve(CancellationToken.None).then(() => {
 					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
@@ -152,14 +153,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 					completionsQuotaIndicator(completionsTotal, completionsRemaining);
 				});
 
-				container.appendChild($('div', undefined, localize('limitQuota', "Usage will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
+				container.appendChild($('div', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.format(quotaResetDate))));
 
 				// Settings
-				container.appendChild(document.createElement('hr'));
+				container.appendChild($('hr'));
 				this.createSettings(container, disposables);
 
 				// Shortcuts
-				container.appendChild(document.createElement('hr'));
+				container.appendChild($('hr'));
 				this.createShortcuts(container, disposables);
 
 				return container;
@@ -171,6 +172,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		else {
 			tooltip = () => {
 				const container = $('div.chat-status-bar-entry-tooltip');
+
+				if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.pro.key) === true) {
+					container.appendChild($('div', undefined, localize('proTitle', "You are using Copilot Pro")));
+					container.appendChild($('hr'));
+				}
 
 				// Settings
 				this.createSettings(container, disposables);
@@ -211,8 +217,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		const update = (total: number | undefined, remaining: number | undefined) => {
 			if (typeof total === 'number' && typeof remaining === 'number') {
-				quotaText.textContent = localize('quotaDisplay', "{0} / {1}", total - remaining, total);
-				quotaBit.style.width = `${((total - remaining) / total) * 100}%`;
+				// TODO@bpasero: enable this label when we can track this better
+				//quotaText.textContent = localize('quotaDisplay', "{0} / {1}", remaining, total);
+				quotaBit.style.width = `${(remaining / total) * 100}%`;
 			}
 		};
 
