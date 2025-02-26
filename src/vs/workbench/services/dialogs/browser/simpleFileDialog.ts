@@ -472,7 +472,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 	private setButtons() {
 		this.filePickBox.buttons = [{
-			iconClass: this._showDotFiles ? ThemeIcon.asClassName(Codicon.eyeClosed) : ThemeIcon.asClassName(Codicon.eye),
+			iconClass: this._showDotFiles ? ThemeIcon.asClassName(Codicon.eye) : ThemeIcon.asClassName(Codicon.eyeClosed),
 			tooltip: this._showDotFiles ? nls.localize('remoteFileDialog.hideDotFiles', "Hide dot files") : nls.localize('remoteFileDialog.showDotFiles', "Show dot files"),
 			alwaysVisible: true
 		}];
