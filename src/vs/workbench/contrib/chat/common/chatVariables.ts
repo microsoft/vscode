@@ -10,7 +10,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatAgentLocation } from './chatAgents.js';
-import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from './chatModel.js';
+import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatContentReference, IChatProgressMessage } from './chatService.js';
 
@@ -24,7 +24,15 @@ export interface IChatVariableData {
 	canTakeArgument?: boolean;
 }
 
-export type IChatRequestVariableValue = string | URI | Location | unknown | Uint8Array;
+export interface IChatRequestProblemsVariable {
+	id: 'vscode.problems';
+	filter: IDiagnosticVariableEntryFilterData;
+}
+
+export const isIChatRequestProblemsVariable = (obj: unknown): obj is IChatRequestProblemsVariable =>
+	typeof obj === 'object' && obj !== null && 'id' in obj && (obj as IChatRequestProblemsVariable).id === 'vscode.problems';
+
+export type IChatRequestVariableValue = string | URI | Location | unknown | Uint8Array | IChatRequestProblemsVariable;
 
 export type IChatVariableResolverProgress =
 	| IChatContentReference

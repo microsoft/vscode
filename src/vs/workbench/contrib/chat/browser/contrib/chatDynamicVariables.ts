@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from '../../../../../base/common/arrays.js';
+import { coalesce, groupBy } from '../../../../../base/common/arrays.js';
+import { assertNever } from '../../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -35,7 +36,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
 import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
 import { IDiagnosticVariableEntryFilterData } from '../../common/chatModel.js';
-import { IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
+import { IChatRequestProblemsVariable, IChatRequestVariableValue, IDynamicVariable } from '../../common/chatVariables.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
@@ -650,7 +651,7 @@ export class AddDynamicVariableAction extends Action2 {
 }
 registerAction2(AddDynamicVariableAction);
 
-export async function createMarkersQuickPick(accessor: ServicesAccessor, onBackgroundAccept: (item: IDiagnosticVariableEntryFilterData[]) => void): Promise<IDiagnosticVariableEntryFilterData | undefined> {
+export async function createMarkersQuickPick(accessor: ServicesAccessor, level: 'problem' | 'file', onBackgroundAccept?: (item: IDiagnosticVariableEntryFilterData[]) => void): Promise<IDiagnosticVariableEntryFilterData | undefined> {
 	const markers = accessor.get(IMarkerService).read();
 	if (!markers.length) {
 		return;
@@ -658,46 +659,68 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, onBackg
 
 	const uriIdentityService = accessor.get(IUriIdentityService);
 	const labelService = accessor.get(ILabelService);
-	markers.sort((a, b) => uriIdentityService.extUri.compare(a.resource, b.resource) || b.severity - a.severity);
+	const grouped = groupBy(markers, (a, b) => uriIdentityService.extUri.compare(a.resource, b.resource));
 
 	const severities = new Set<MarkerSeverity>();
 	type MarkerPickItem = IQuickPickItem & { resource?: URI; entry: IDiagnosticVariableEntryFilterData };
 	const items: (MarkerPickItem | IQuickPickSeparator)[] = [];
-	for (const marker of markers) {
-		if (!uriIdentityService.extUri.isEqual(marker.resource, (items.at(-1) as MarkerPickItem)?.resource)) {
-			items.push({ type: 'separator', label: labelService.getUriLabel(marker.resource, { relative: true }) });
-		}
 
-		severities.add(marker.severity);
-		items.push({
-			type: 'item',
-			resource: marker.resource,
-			label: marker.message,
-			description: localize('markers.panel.at.ln.col.number', "[Ln {0}, Col {1}]", '' + marker.startLineNumber, '' + marker.startColumn),
-			entry: IDiagnosticVariableEntryFilterData.fromMarker(marker),
-		});
+	let pickCount = 0;
+	for (const group of grouped) {
+		const resource = group[0].resource;
+		if (level === 'problem') {
+			items.push({ type: 'separator', label: labelService.getUriLabel(resource, { relative: true }) });
+			for (const marker of group) {
+				pickCount++;
+				severities.add(marker.severity);
+				items.push({
+					type: 'item',
+					resource: marker.resource,
+					label: marker.message,
+					description: localize('markers.panel.at.ln.col.number', "[Ln {0}, Col {1}]", '' + marker.startLineNumber, '' + marker.startColumn),
+					entry: IDiagnosticVariableEntryFilterData.fromMarker(marker),
+				});
+			}
+		} else if (level === 'file') {
+			const entry = { filterUri: resource };
+			pickCount++;
+			items.push({
+				type: 'item',
+				resource,
+				label: IDiagnosticVariableEntryFilterData.label(entry),
+				description: group[0].message + (group.length > 1 ? localize('problemsMore', '+ {0} more', group.length - 1) : ''),
+				entry,
+			});
+			for (const marker of group) {
+				severities.add(marker.severity);
+			}
+		} else {
+			assertNever(level);
+		}
 	}
 
-	if (items.length === 2) { // single error in a URI
-		return (items[1] as MarkerPickItem).entry;
+	if (pickCount < 2) { // single error in a URI
+		return items.find((i): i is MarkerPickItem => i.type === 'item')?.entry;
 	}
 
-	if (items.length > 2) {
-		if (severities.has(MarkerSeverity.Error)) {
-			items.unshift({ type: 'item', label: localize('markers.panel.allErrors', 'All Errors'), entry: { filterSeverity: MarkerSeverity.Error } });
-		}
-		if (severities.has(MarkerSeverity.Warning)) {
-			items.unshift({ type: 'item', label: localize('markers.panel.allWarnings', 'All Warnings'), entry: { filterSeverity: MarkerSeverity.Warning } });
-		}
-		if (severities.has(MarkerSeverity.Info)) {
-			items.unshift({ type: 'item', label: localize('markers.panel.allInfos', 'All Infos'), entry: { filterSeverity: MarkerSeverity.Info } });
-		}
+	if (level === 'file') {
+		items.unshift({ type: 'separator', label: localize('markers.panel.files', 'Files') });
+	}
+
+	if (severities.has(MarkerSeverity.Error)) {
+		items.unshift({ type: 'item', label: localize('markers.panel.allErrors', 'All Errors'), entry: { filterSeverity: MarkerSeverity.Error } });
+	}
+	if (severities.has(MarkerSeverity.Warning)) {
+		items.unshift({ type: 'item', label: localize('markers.panel.allWarnings', 'All Warnings'), entry: { filterSeverity: MarkerSeverity.Warning } });
+	}
+	if (severities.has(MarkerSeverity.Info)) {
+		items.unshift({ type: 'item', label: localize('markers.panel.allInfos', 'All Infos'), entry: { filterSeverity: MarkerSeverity.Info } });
 	}
 
 
 	const quickInputService = accessor.get(IQuickInputService);
 	const quickPick = quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true });
-	quickPick.canAcceptInBackground = true;
+	quickPick.canAcceptInBackground = !onBackgroundAccept;
 	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
 	quickPick.items = items;
 
@@ -705,7 +728,7 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, onBackg
 		quickPick.onDidHide(() => resolve(undefined));
 		quickPick.onDidAccept(ev => {
 			if (ev.inBackground) {
-				onBackgroundAccept(quickPick.selectedItems.map(i => i.entry));
+				onBackgroundAccept?.(quickPick.selectedItems.map(i => i.entry));
 			} else {
 				resolve(quickPick.selectedItems[0]?.entry);
 				quickPick.dispose();
@@ -715,3 +738,53 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, onBackg
 	}).finally(() => quickPick.dispose());
 }
 
+export class SelectAndInsertProblemAction extends Action2 {
+	static readonly Name = 'problems';
+	static readonly ID = 'workbench.action.chat.selectAndInsertProblems';
+
+	constructor() {
+		super({
+			id: SelectAndInsertProblemAction.ID,
+			title: '' // not displayed
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const logService = accessor.get(ILogService);
+		const context = args[0];
+		if (!isSelectAndInsertActionContext(context)) {
+			return;
+		}
+
+		const doCleanup = () => {
+			// Failed, remove the dangling `problem`
+			context.widget.inputEditor.executeEdits('chatInsertProblems', [{ range: context.range, text: `` }]);
+		};
+
+		const pick = await createMarkersQuickPick(accessor, 'file');
+		if (!pick) {
+			doCleanup();
+			return;
+		}
+
+		const editor = context.widget.inputEditor;
+		const originalRange = context.range;
+		const insertText = `#${SelectAndInsertProblemAction.Name}:${pick.filterUri ? basename(pick.filterUri) : MarkerSeverity.toString(pick.filterSeverity!)}`;
+
+		const varRange = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.startColumn + insertText.length);
+		const success = editor.executeEdits('chatInsertProblems', [{ range: varRange, text: insertText + ' ' }]);
+		if (!success) {
+			logService.trace(`SelectAndInsertProblemsAction: failed to insert "${insertText}"`);
+			doCleanup();
+			return;
+		}
+
+		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			id: 'vscode.problems',
+			prefix: SelectAndInsertProblemAction.Name,
+			range: varRange,
+			data: { id: 'vscode.problems', filter: pick } satisfies IChatRequestProblemsVariable,
+		});
+	}
+}
+registerAction2(SelectAndInsertProblemAction);

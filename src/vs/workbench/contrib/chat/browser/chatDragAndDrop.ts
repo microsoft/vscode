@@ -383,10 +383,7 @@ export class ChatDragAndDrop extends Themable {
 				filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
 			}
 
-			return {
-				...IDiagnosticVariableEntryFilterData.toEntry(filter),
-				...filter,
-			};
+			return IDiagnosticVariableEntryFilterData.toEntry(filter);
 		});
 	}
 

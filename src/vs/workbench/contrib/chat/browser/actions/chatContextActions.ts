@@ -852,7 +852,7 @@ export class AttachContextAction extends Action2 {
 		});
 
 		const filter = await instantiationService.invokeFunction(accessor =>
-			createMarkersQuickPick(accessor, items => onBackgroundAccept(items.map(convert))));
+			createMarkersQuickPick(accessor, 'problem', items => onBackgroundAccept(items.map(convert))));
 		return filter && convert(filter);
 	}
 
