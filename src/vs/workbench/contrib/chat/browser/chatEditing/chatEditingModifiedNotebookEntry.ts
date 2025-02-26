@@ -44,7 +44,8 @@ import { ChatEditingNotebookFileSystemProvider } from '../../../notebook/browser
 import { NotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditor.js';
 import { INotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
 import { CellDiffInfo, computeDiff } from '../../../notebook/browser/diff/notebookDiffViewModel.js';
-import { getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
+import { CellEditState, getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
+import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IOutputItemDto, IResolvedNotebookEditorModel, NotebookData, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
@@ -718,7 +719,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (!modifiedCellModel || !originalCellModel) {
 			return;
 		}
-		cellEntry = this._register(this._instantiationService.createInstance(ChatEditingNotebookCellEntry, cell, modifiedCellModel, originalCellModel, this._telemetryInfo, accept, reject));
+		cellEntry = this._register(this._instantiationService.createInstance(ChatEditingNotebookCellEntry, this.modifiedResourceRef.object.resource, cell, modifiedCellModel, originalCellModel, this._telemetryInfo, accept, reject));
 		this.cellEntryMap.set(cell, cellEntry);
 
 		this._register(autorun(r => {
@@ -898,6 +899,7 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined> = this._isCurrentlyBeingModifiedByObs;
 
 	constructor(
+		public readonly notebookUri: URI,
 		public readonly cell: NotebookCellTextModel,
 		private readonly modifiedModel: ITextModel,
 		private readonly originalModel: ITextModel,
@@ -907,8 +909,8 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		@IConfigurationService configService: IConfigurationService,
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
-
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService
 	) {
 		super();
 		this.diffInfo = this._diffInfo.map(value => {
@@ -992,6 +994,11 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 	}
 
 	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
+		const notebookEditor = this.notebookEditorService.retrieveExistingWidgetFromURI(this.notebookUri)?.value;
+		if (notebookEditor) {
+			const vm = notebookEditor.getCellByHandle(this.cell.handle);
+			vm?.updateEditState(CellEditState.Editing, 'chatEdit');
+		}
 
 		// push stack element for the first edit
 		if (this._isFirstEditAfterStartOrSnapshot) {
