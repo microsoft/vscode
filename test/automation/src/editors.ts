@@ -61,11 +61,11 @@ export class Editors {
 	}
 
 	async newUntitledFile(): Promise<void> {
-		const acceptFn = () => this.waitForEditorFocus('Untitled-1');
+		const accept = () => this.waitForEditorFocus('Untitled-1');
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+n', acceptFn);
+			await this.code.dispatchKeybinding('cmd+n', accept);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+n', acceptFn);
+			await this.code.dispatchKeybinding('ctrl+n', accept);
 		}
 
 	}

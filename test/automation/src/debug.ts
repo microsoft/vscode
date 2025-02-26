@@ -58,13 +58,13 @@ export class Debug extends Viewlet {
 	}
 
 	async openDebugViewlet(): Promise<any> {
-		const acceptFn = async () => {
+		const accept = async () => {
 			await this.code.waitForElement(DEBUG_VIEW);
 		};
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+d', acceptFn);
+			await this.code.dispatchKeybinding('cmd+shift+d', accept);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+d', acceptFn);
+			await this.code.dispatchKeybinding('ctrl+shift+d', accept);
 		}
 	}
 

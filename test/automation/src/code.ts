@@ -129,8 +129,8 @@ export class Code {
 		return await this.driver.stopTracing(name, persist);
 	}
 
-	async dispatchKeybinding(keybinding: string, acceptFn: () => Promise<void> | void): Promise<void> {
-		await this.driver.dispatchKeybinding(keybinding, acceptFn);
+	async dispatchKeybinding(keybinding: string, accept: () => Promise<void> | void): Promise<void> {
+		await this.driver.dispatchKeybinding(keybinding, accept);
 	}
 
 	async didFinishLoad(): Promise<void> {

@@ -40,11 +40,11 @@ export class Search extends Viewlet {
 	}
 
 	async openSearchViewlet(): Promise<any> {
-		const acceptFn = async () => await this.waitForInputFocus(INPUT);
+		const accept = () => this.waitForInputFocus(INPUT);
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+f', acceptFn);
+			await this.code.dispatchKeybinding('cmd+shift+f', accept);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+f', acceptFn);
+			await this.code.dispatchKeybinding('ctrl+shift+f', accept);
 		}
 	}
 

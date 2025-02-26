@@ -12,11 +12,11 @@ export class KeybindingsEditor {
 	constructor(private code: Code) { }
 
 	async updateKeybinding(command: string, commandName: string | undefined, keybinding: string, keybindingTitle: string): Promise<any> {
-		const acceptFn = async () => this.code.waitForActiveElement(SEARCH_INPUT);
+		const accept = () => this.code.waitForActiveElement(SEARCH_INPUT);
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+k cmd+s', acceptFn);
+			await this.code.dispatchKeybinding('cmd+k cmd+s', accept);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+k ctrl+s', acceptFn);
+			await this.code.dispatchKeybinding('ctrl+k ctrl+s', accept);
 		}
 
 		await this.code.waitForSetValue(SEARCH_INPUT, `@command:${command}`);
