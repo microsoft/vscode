@@ -13,6 +13,7 @@ import { VerticalTab } from './tokens/verticalTab.js';
 import { Space } from '../simpleCodec/tokens/space.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ExclamationMark } from './tokens/exclamationMark.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
 import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
@@ -23,7 +24,6 @@ import { LeftAngleBracket, RightAngleBracket, TAngleBracket } from './tokens/ang
 
 /**
  * TODO: @legomushroom - list
- *  - add `!` token support
  *  - add `comment` token support in the markdown decoder
  */
 
@@ -31,7 +31,8 @@ import { LeftAngleBracket, RightAngleBracket, TAngleBracket } from './tokens/ang
  * A token type that this decoder can handle.
  */
 export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed
-	| CarriageReturn | TBracket | TAngleBracket | TParenthesis | Colon | Hash | Dash;
+	| CarriageReturn | TBracket | TAngleBracket | TParenthesis
+	| Colon | Hash | Dash | ExclamationMark;
 
 /**
  * List of well-known distinct tokens that this decoder emits (excluding
@@ -41,7 +42,7 @@ export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed
 const WELL_KNOWN_TOKENS = Object.freeze([
 	Space, Tab, VerticalTab, FormFeed,
 	LeftBracket, RightBracket, LeftAngleBracket, RightAngleBracket,
-	LeftParenthesis, RightParenthesis, Colon, Hash, Dash,
+	LeftParenthesis, RightParenthesis, Colon, Hash, Dash, ExclamationMark,
 ]);
 
 /**
@@ -52,7 +53,8 @@ const WELL_KNOWN_TOKENS = Object.freeze([
 const WORD_STOP_CHARACTERS: readonly string[] = Object.freeze([
 	Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol,
 	LeftBracket.symbol, RightBracket.symbol, LeftAngleBracket.symbol, RightAngleBracket.symbol,
-	LeftParenthesis.symbol, RightParenthesis.symbol, Colon.symbol, Hash.symbol, Dash.symbol,
+	LeftParenthesis.symbol, RightParenthesis.symbol,
+	Colon.symbol, Hash.symbol, Dash.symbol, ExclamationMark.symbol,
 ]);
 
 /**
