@@ -157,27 +157,28 @@ export class ObservableEditorSession {
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
 	) {
-		this.value = derived(r => {
-			const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => {
-				for (const session of value) {
-					const entry = session.readEntry(uri, r);
-					if (entry) {
-						return { session, entry, isInlineChat: false };
-					}
-				}
-				return undefined;
-			});
 
-			const result = sessionObs.read(r);
-			if (result) {
-				return result;
+		const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
+
+		const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => {
+			for (const session of value) {
+				const entry = session.readEntry(uri, r);
+				if (entry) {
+					return { session, entry, isInlineChat: false };
+				}
+			}
+			return undefined;
+		});
+
+		this.value = derived(r => {
+
+			const inlineSession = inlineSessionObs.read(r);
+
+			if (inlineSession) {
+				return { session: inlineSession.editingSession, entry: inlineSession.editingSession.readEntry(uri, r), isInlineChat: true };
 			}
 
-			const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
-			const inlineSession = inlineSessionObs.read(r);
-			return inlineSession
-				? { session: inlineSession.editingSession, entry: inlineSession.editingSession.readEntry(uri, r), isInlineChat: true }
-				: undefined;
+			return sessionObs.read(r);
 		});
 	}
 }

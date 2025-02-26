@@ -40,12 +40,29 @@
 .chat-status-bar-entry-tooltip .shortcuts {
 	display: flex;
 	flex-direction: column;
-	gap: 5px;
+	gap: 2px;
 }
 
 .chat-status-bar-entry-tooltip .shortcuts .shortcut {
 	display: flex;
 	gap: 10px;
+
+	/** Make room for the hover feedback */
+	margin-left: -5px;
+	margin-right: -5px;
+	padding-left: 5px;
+	padding-right: 5px;
+	margin-top: -1px;
+	margin-bottom: -1px;
+	padding-top: 1px;
+	padding-bottom: 1px;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut:hover {
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: 3px;
 }
 
 .chat-status-bar-entry-tooltip .shortcuts .shortcut .shortcut-label {
@@ -67,6 +84,7 @@
 .chat-status-bar-entry-tooltip .quota-indicator .quota-label {
 	display: flex;
 	justify-content: space-between;
+	margin-bottom: 3px;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
@@ -74,6 +92,7 @@
 	height: 4px;
 	background-color: var(--vscode-gauge-foreground);
 	border-radius: 4px;
+	border: 1px solid var(--vscode-gauge-background);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {

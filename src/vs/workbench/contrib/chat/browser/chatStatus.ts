@@ -8,14 +8,14 @@ import { safeIntl } from '../../../../base/common/date.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { language, OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
-import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from '../../../../base/browser/dom.js';
 import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
@@ -25,16 +25,29 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Command } from '../../../../editor/common/languages.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../common/theme.js';
+import { contrastBorder, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { ACTIVITY_BAR_BADGE_BACKGROUND } from '../../../common/theme.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { CTX_INLINE_CHAT_POSSIBLE } from '../../inlineChat/common/inlineChat.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { Color } from '../../../../base/common/color.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 
-const GAUGE_BACKGROUND = registerColor('gauge.background', ACTIVITY_BAR_BADGE_BACKGROUND, localize('gaugeBackground', "Gauge background color."));
+registerColor('gauge.background', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeBackground', "Gauge background color."));
 
 registerColor('gauge.foreground', {
-	dark: transparent(GAUGE_BACKGROUND, 0.3),
-	light: transparent(GAUGE_BACKGROUND, 0.3),
-	hcDark: ACTIVITY_BAR_BADGE_FOREGROUND,
-	hcLight: ACTIVITY_BAR_BADGE_FOREGROUND
+	dark: Color.black,
+	light: Color.white,
+	hcDark: Color.white,
+	hcLight: Color.white
 }, localize('gaugeForeground', "Gauge foreground color."));
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
@@ -53,7 +66,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
 
@@ -237,28 +251,47 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private createShortcuts(container: HTMLElement, disposables: DisposableStore): HTMLElement {
 		const shortcuts = container.appendChild($('div.shortcuts'));
 
-		const openChat = { text: localize('shortcuts.chat', "Chat"), id: CHAT_OPEN_ACTION_ID };
-		const openCopilotEdits = { text: localize('shortcuts.copilotEdits', "Copilot Edits"), id: 'workbench.action.chat.openEditSession' };
-		const inlineChat = { text: localize('shortcuts.inlineChat', "Inline Chat"), id: 'inlineChat.start' };
+		const entries = coalesce([
+			{ text: localize('shortcuts.chat', "Chat"), id: CHAT_OPEN_ACTION_ID },
+			{ text: localize('shortcuts.copilotEdits', "Copilot Edits"), id: 'workbench.action.chat.openEditSession' },
+			this.contextKeyService.contextMatchesRules(ContextKeyExpr.and(
+				CTX_INLINE_CHAT_POSSIBLE,
+				EditorContextKeys.writable,
+				EditorContextKeys.editorSimpleInput.negate()
+			)) ? { text: localize('shortcuts.inlineChat', "Inline Chat"), id: 'inlineChat.start' } : undefined
+		]);
 
-		for (const entry of [openChat, openCopilotEdits, inlineChat]) {
+		const onTrigger = (commandId: string, e: EventLike) => {
+			EventHelper.stop(e, true);
+
+			this.hoverService.hideHover(true);
+			this.commandService.executeCommand(commandId);
+		};
+
+		for (const entry of entries) {
 			const keys = this.keybindingService.lookupKeybinding(entry.id);
 			if (!keys) {
 				continue;
 			}
 
-			const shortcut = append(shortcuts, $('div.shortcut'));
+			const shortcut = append(shortcuts, $('div.shortcut', { tabIndex: 0, role: 'button', 'aria-label': entry.text }));
 
-			const shortcutLabel = append(shortcut, $('span.shortcut-label', undefined, entry.text));
+			append(shortcut, $('span.shortcut-label', undefined, entry.text));
 
 			const shortcutKey = disposables.add(new KeybindingLabel(shortcut, OS, { ...defaultKeybindingLabelStyles }));
 			shortcutKey.set(keys);
 
-			for (const element of [shortcutLabel, shortcutKey.element]) {
-				disposables.add(addDisposableListener(element, EventType.CLICK, e => {
-					this.commandService.executeCommand(entry.id);
-				}));
-			}
+			disposables.add(Gesture.addTarget(shortcut));
+			[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
+				disposables.add(addDisposableListener(shortcuts, eventType, e => onTrigger(entry.id, e)));
+			});
+
+			disposables.add(addDisposableListener(shortcut, EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
+					onTrigger(entry.id, e);
+				}
+			}));
 		}
 
 		return shortcuts;
