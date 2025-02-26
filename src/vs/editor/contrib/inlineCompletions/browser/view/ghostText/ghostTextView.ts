@@ -435,7 +435,10 @@ export class AdditionalLinesWidget extends Disposable {
 				renderLines(domNode, tabSize, additionalLines, this._editor.getOptions(), this._isClickable);
 
 				if (this._isClickable) {
-					store.add(addDisposableListener(domNode, 'mouseup', (e) => {
+					store.add(addDisposableListener(domNode, 'mousedown', (e) => {
+						e.preventDefault(); // This prevents that the editor loses focus
+					}));
+					store.add(addDisposableListener(domNode, 'click', (e) => {
 						if (isTargetGhostText(e.target)) {
 							this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
 						}
