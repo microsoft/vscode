@@ -103,7 +103,7 @@
 	height: 4px;
 	background-color: var(--vscode-gauge-foreground);
 	border-radius: 4px;
-	border: 1px solid var(--vscode-gauge-background);
+	border: 1px solid var(--vscode-gauge-border);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {

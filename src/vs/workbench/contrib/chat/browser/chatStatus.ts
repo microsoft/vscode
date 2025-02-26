@@ -25,7 +25,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Command } from '../../../../editor/common/languages.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { contrastBorder, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { contrastBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from '../../../common/theme.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -37,7 +37,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
-registerColor('gauge.background', {
+const gaugeBackground = registerColor('gauge.background', {
 	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
 	light: ACTIVITY_BAR_BADGE_BACKGROUND,
 	hcDark: contrastBorder,
@@ -45,11 +45,18 @@ registerColor('gauge.background', {
 }, localize('gaugeBackground', "Gauge background color."));
 
 registerColor('gauge.foreground', {
-	dark: Color.black,
-	light: Color.white,
+	dark: transparent(gaugeBackground, 0.3),
+	light: transparent(gaugeBackground, 0.3),
 	hcDark: Color.white,
 	hcLight: Color.white
 }, localize('gaugeForeground', "Gauge foreground color."));
+
+registerColor('gauge.border', {
+	dark: null,
+	light: null,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeBorder', "Gauge border color."));
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 

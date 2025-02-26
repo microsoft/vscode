@@ -352,6 +352,7 @@
 		"--vscode-focusBorder",
 		"--vscode-foreground",
 		"--vscode-gauge-background",
+		"--vscode-gauge-border",
 		"--vscode-gauge-foreground",
 		"--vscode-icon-foreground",
 		"--vscode-inlineChat-background",
