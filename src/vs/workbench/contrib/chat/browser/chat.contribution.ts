@@ -98,6 +98,7 @@ import { PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/const
 import { DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
+import product from '../../../../platform/product/common/product.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -190,6 +191,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
+		},
+		'chat.experimental.statusIndicator.enabled': { // TODO@bpasero remove this eventually
+			type: 'boolean',
+			description: nls.localize('chat.statusIndicator', "Controls whether a Copilot related status indicator appears in the lower right corner."),
+			default: product.quality !== 'stable',
+			tags: ['experimental', 'onExp']
 		},
 		[PromptsConfig.CONFIG_KEY]: {
 			type: 'object',
