@@ -21,6 +21,9 @@ import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/to
 import { MarkdownDecoder, TMarkdownToken } from '../../../common/codecs/markdownCodec/markdownDecoder.js';
 import { LeftParenthesis, RightParenthesis } from '../../../common/codecs/simpleCodec/tokens/parentheses.js';
 import { MarkdownComment } from '../../../common/codecs/markdownCodec/tokens/markdownComment.js';
+import { LeftAngleBracket, RightAngleBracket } from '../../../common/codecs/simpleCodec/tokens/angleBrackets.js';
+import { ExclamationMark } from '../../../common/codecs/simpleCodec/tokens/exclamationMark.js';
+import { Dash } from '../../../common/codecs/simpleCodec/tokens/dash.js';
 
 /**
  * A reusable test utility that asserts that a `TestMarkdownDecoder` instance
@@ -361,20 +364,79 @@ suite('MarkdownDecoder', () => {
 	});
 
 	suite('comments', () => {
-		test('base cases', async () => {
+		suite('general', () => {
+			test('base cases', async () => {
+				const test = testDisposables.add(
+					new TestMarkdownDecoder(),
+				);
+
+				const inputData = [
+					// markdown comment with text inside it
+					'\t<!-- hello world -->',
+					// markdown comment with a link inside
+					'some text<!-- \v[link label](/some/path/to/file.md)\f --> and more text ',
+					// markdown comment new lines inside it
+					'<!-- comment\r\ntext\n\ngoes here --> usual text follows',
+					// an empty comment
+					'\t<!---->\t',
+					// markdown comment that was not closed properly
+					'haalo\t<!-- [link label](/some/path/to/file.md)',
+				];
+
+				await test.run(
+					inputData,
+					[
+						// `1st`
+						new Tab(new Range(1, 1, 1, 2)),
+						new MarkdownComment(new Range(1, 2, 1, 2 + 20), '<!-- hello world -->'),
+						new NewLine(new Range(1, 22, 1, 23)),
+						// `2nd`
+						new Word(new Range(2, 1, 2, 5), 'some'),
+						new Space(new Range(2, 5, 2, 6)),
+						new Word(new Range(2, 6, 2, 10), 'text'),
+						new MarkdownComment(new Range(2, 10, 2, 10 + 46), '<!-- \v[link label](/some/path/to/file.md)\f -->'),
+						new Space(new Range(2, 56, 2, 57)),
+						new Word(new Range(2, 57, 2, 60), 'and'),
+						new Space(new Range(2, 60, 2, 61)),
+						new Word(new Range(2, 61, 2, 65), 'more'),
+						new Space(new Range(2, 65, 2, 66)),
+						new Word(new Range(2, 66, 2, 70), 'text'),
+						new Space(new Range(2, 70, 2, 71)),
+						new NewLine(new Range(2, 71, 2, 72)),
+						// `3rd`
+						new MarkdownComment(new Range(3, 1, 3 + 3, 1 + 13), '<!-- comment\r\ntext\n\ngoes here -->'),
+						new Space(new Range(6, 14, 6, 15)),
+						new Word(new Range(6, 15, 6, 15 + 5), 'usual'),
+						new Space(new Range(6, 20, 6, 21)),
+						new Word(new Range(6, 21, 6, 21 + 4), 'text'),
+						new Space(new Range(6, 25, 6, 26)),
+						new Word(new Range(6, 26, 6, 26 + 7), 'follows'),
+						new NewLine(new Range(6, 33, 6, 34)),
+						// `4rd`
+						new Tab(new Range(7, 1, 7, 2)),
+						new MarkdownComment(new Range(7, 2, 7, 2 + 7), '<!---->'),
+						new Tab(new Range(7, 9, 7, 10)),
+						new NewLine(new Range(7, 10, 7, 11)),
+						// `5th`
+						new Word(new Range(8, 1, 8, 6), 'haalo'),
+						new Tab(new Range(8, 6, 8, 7)),
+						new MarkdownComment(new Range(8, 7, 8, 7 + 40), '<!-- [link label](/some/path/to/file.md)'),
+					],
+				);
+			});
+		});
+
+
+		test('not valid comments', async () => {
 			const test = testDisposables.add(
 				new TestMarkdownDecoder(),
 			);
 
 			const inputData = [
-				// markdown comment with text inside it
-				'\t<!-- hello world -->',
-				// markdown comment with a link inside
-				'some text<!-- \v[link label](/some/path/to/file.md)\f --> and more text ',
-				// markdown comment new lines inside it
-				'<!-- comment\r\ntext\n\ngoes here --> usual text follows',
-				// markdown comment that was not closed properly
-				'haalo\t<!-- [link label](/some/path/to/file.md)',
+				'\t<! -- mondo --> ',
+				' < !-- світ -->\t',
+				'\v<!- - terra -->\f',
+				'<!--mundo - -> ',
 			];
 
 			await test.run(
@@ -382,34 +444,53 @@ suite('MarkdownDecoder', () => {
 				[
 					// `1st`
 					new Tab(new Range(1, 1, 1, 2)),
-					new MarkdownComment(new Range(1, 2, 1, 2 + 20), '<!-- hello world -->'),
-					new NewLine(new Range(1, 22, 1, 23)),
+					new LeftAngleBracket(new Range(1, 2, 1, 3)),
+					new ExclamationMark(new Range(1, 3, 1, 4)),
+					new Space(new Range(1, 4, 1, 5)),
+					new Dash(new Range(1, 5, 1, 6)),
+					new Dash(new Range(1, 6, 1, 7)),
+					new Space(new Range(1, 7, 1, 8)),
+					new Word(new Range(1, 8, 1, 8 + 5), 'mondo'),
+					new Space(new Range(1, 13, 1, 14)),
+					new Dash(new Range(1, 14, 1, 15)),
+					new Dash(new Range(1, 15, 1, 16)),
+					new RightAngleBracket(new Range(1, 16, 1, 17)),
+					new Space(new Range(1, 17, 1, 18)),
+					new NewLine(new Range(1, 18, 1, 19)),
 					// `2nd`
-					new Word(new Range(2, 1, 2, 5), 'some'),
-					new Space(new Range(2, 5, 2, 6)),
-					new Word(new Range(2, 6, 2, 10), 'text'),
-					new MarkdownComment(new Range(2, 10, 2, 10 + 46), '<!-- \v[link label](/some/path/to/file.md)\f -->'),
-					new Space(new Range(2, 56, 2, 57)),
-					new Word(new Range(2, 57, 2, 60), 'and'),
-					new Space(new Range(2, 60, 2, 61)),
-					new Word(new Range(2, 61, 2, 65), 'more'),
-					new Space(new Range(2, 65, 2, 66)),
-					new Word(new Range(2, 66, 2, 70), 'text'),
-					new Space(new Range(2, 70, 2, 71)),
-					new NewLine(new Range(2, 71, 2, 72)),
+					new Space(new Range(2, 1, 2, 2)),
+					new LeftAngleBracket(new Range(2, 2, 2, 3)),
+					new Space(new Range(2, 3, 2, 4)),
+					new ExclamationMark(new Range(2, 4, 2, 5)),
+					new Dash(new Range(2, 5, 2, 6)),
+					new Dash(new Range(2, 6, 2, 7)),
+					new Space(new Range(2, 7, 2, 8)),
+					new Word(new Range(2, 8, 2, 8 + 4), 'світ'),
+					new Space(new Range(2, 12, 2, 13)),
+					new Dash(new Range(2, 13, 2, 14)),
+					new Dash(new Range(2, 14, 2, 15)),
+					new RightAngleBracket(new Range(2, 15, 2, 16)),
+					new Tab(new Range(2, 16, 2, 17)),
+					new NewLine(new Range(2, 17, 2, 18)),
 					// `3rd`
-					new MarkdownComment(new Range(3, 1, 3 + 3, 1 + 13), '<!-- comment\r\ntext\n\ngoes here -->'),
-					new Space(new Range(6, 14, 6, 15)),
-					new Word(new Range(6, 15, 6, 15 + 5), 'usual'),
-					new Space(new Range(6, 20, 6, 21)),
-					new Word(new Range(6, 21, 6, 21 + 4), 'text'),
-					new Space(new Range(6, 25, 6, 26)),
-					new Word(new Range(6, 26, 6, 26 + 7), 'follows'),
-					new NewLine(new Range(6, 33, 6, 34)),
+					new VerticalTab(new Range(3, 1, 3, 2)),
+					new LeftAngleBracket(new Range(3, 2, 3, 3)),
+					new ExclamationMark(new Range(3, 3, 3, 4)),
+					new Dash(new Range(3, 4, 3, 5)),
+					new Space(new Range(3, 5, 3, 6)),
+					new Dash(new Range(3, 6, 3, 7)),
+					new Space(new Range(3, 7, 3, 8)),
+					new Word(new Range(3, 8, 3, 8 + 5), 'terra'),
+					new Space(new Range(3, 13, 3, 14)),
+					new Dash(new Range(3, 14, 3, 15)),
+					new Dash(new Range(3, 15, 3, 16)),
+					new RightAngleBracket(new Range(3, 16, 3, 17)),
+					new FormFeed(new Range(3, 17, 3, 18)),
+					new NewLine(new Range(3, 18, 3, 19)),
 					// `4rd`
-					new Word(new Range(7, 1, 7, 6), 'haalo'),
-					new Tab(new Range(7, 6, 7, 7)),
-					new MarkdownComment(new Range(7, 7, 7, 7 + 40), '<!-- [link label](/some/path/to/file.md)'),
+					// note! it does not have correct closing `-->`, hence the comment extends
+					//       to the end of the text, and therefore includes the `space` at the end
+					new MarkdownComment(new Range(4, 1, 4, 1 + 15), '<!--mundo - -> '),
 				],
 			);
 		});
