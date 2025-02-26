@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Position } from 'vs/editor/common/core/position';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { IEditorWhitespace, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from 'vs/editor/common/viewModel';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IViewZone, IViewZoneChangeAccessor } from '../../editorBrowser.js';
+import { ViewPart } from '../../view/viewPart.js';
+import { Position } from '../../../common/core/position.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { IEditorWhitespace, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../../../common/viewModel.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 
 interface IMyViewZone {
 	whitespaceId: string;
@@ -32,6 +32,11 @@ interface IComputedViewZoneProps {
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
+/**
+ * A view zone is a rectangle that is a section that is inserted into the editor
+ * lines that can be used for various purposes such as showing a diffs, peeking
+ * an implementation, etc.
+ */
 export class ViewZones extends ViewPart {
 
 	private _zones: { [id: string]: IMyViewZone };

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize2 } from 'vs/nls';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
-import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
-import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ITextEditorOptions, TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext.js';
+import { MultiDiffEditor } from './multiDiffEditor.js';
+import { MultiDiffEditorInput } from './multiDiffEditorInput.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
 
 export class GoToFileAction extends Action2 {
 	constructor() {
@@ -25,9 +25,9 @@ export class GoToFileAction extends Action2 {
 			id: 'multiDiffEditor.goToFile',
 			title: localize2('goToFile', 'Open File'),
 			icon: Codicon.goToFile,
-			precondition: EditorContextKeys.inMultiDiffEditor,
+			precondition: ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
 			menu: {
-				when: EditorContextKeys.inMultiDiffEditor,
+				when: ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 22,
 				group: 'navigation',

@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, TimelinePaneId } from './timeline';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, TimelinePaneId } from './timeline.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const TimelineHasProviderContext = new RawContextKey<boolean>('timelineHasProvider', false);
 
-export class TimelineService implements ITimelineService {
+export class TimelineService extends Disposable implements ITimelineService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeProviders = new Emitter<TimelineProvidersChangeEvent>();
-	readonly onDidChangeProviders: Event<TimelineProvidersChangeEvent> = this._onDidChangeProviders.event;
+	private readonly _onDidChangeProviders = this._register(new Emitter<TimelineProvidersChangeEvent>());
+	readonly onDidChangeProviders = this._onDidChangeProviders.event;
 
-	private readonly _onDidChangeTimeline = new Emitter<TimelineChangeEvent>();
-	readonly onDidChangeTimeline: Event<TimelineChangeEvent> = this._onDidChangeTimeline.event;
-	private readonly _onDidChangeUri = new Emitter<URI>();
-	readonly onDidChangeUri: Event<URI> = this._onDidChangeUri.event;
+	private readonly _onDidChangeTimeline = this._register(new Emitter<TimelineChangeEvent>());
+	readonly onDidChangeTimeline = this._onDidChangeTimeline.event;
+	private readonly _onDidChangeUri = this._register(new Emitter<URI>());
+	readonly onDidChangeUri = this._onDidChangeUri.event;
 
 	private readonly hasProviderContext: IContextKey<boolean>;
 	private readonly providers = new Map<string, TimelineProvider>();
@@ -36,6 +36,8 @@ export class TimelineService implements ITimelineService {
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 	) {
+		super();
+
 		this.hasProviderContext = TimelineHasProviderContext.bindTo(this.contextKeyService);
 		this.updateHasProviderContext();
 	}
@@ -72,10 +74,10 @@ export class TimelineService implements ITimelineService {
 
 					return result;
 				}),
-			options: options,
+			options,
 			source: provider.id,
-			tokenSource: tokenSource,
-			uri: uri
+			tokenSource,
+			uri
 		};
 	}
 
@@ -120,6 +122,7 @@ export class TimelineService implements ITimelineService {
 		}
 
 		this.providers.delete(id);
+		this.providerSubscriptions.get(id)?.dispose();
 		this.providerSubscriptions.delete(id);
 
 		this.updateHasProviderContext();

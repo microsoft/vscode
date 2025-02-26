@@ -5,21 +5,22 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as path from 'vs/base/common/path';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType } from 'vs/platform/terminal/common/terminal';
-import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
-import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
-import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
+import { timeout } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import * as path from '../../../base/common/path.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { findExecutable } from '../../../base/node/processes.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { ILogService, LogLevel } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType } from '../common/terminal.js';
+import { ChildProcessMonitor } from './childProcessMonitor.js';
+import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from './terminalEnvironment.js';
+import { WindowsShellHelper } from './windowsShellHelper.js';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
-import { chunkInput } from 'vs/platform/terminal/common/terminalProcess';
+import { chunkInput } from '../common/terminalProcess.js';
 
 const enum ShutdownConstants {
 	/**
@@ -50,7 +51,7 @@ const enum Constants {
 	 */
 	KillSpawnThrottleInterval = 250,
 	/**
-	 * The amount of time to wait when a call is throttles beyond the exact amount, this is used to
+	 * The amount of time to wait when a call is throttled beyond the exact amount, this is used to
 	 * try prevent early timeouts causing a kill/spawn call to happen at double the regular
 	 * interval.
 	 */
@@ -77,9 +78,11 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 
 const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['pwsh', GeneralShellType.PowerShell],
+	['powershell', GeneralShellType.PowerShell],
 	['python', GeneralShellType.Python],
 	['julia', GeneralShellType.Julia],
 	['nu', GeneralShellType.NuShell],
+	['node', GeneralShellType.Node],
 
 ]);
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
@@ -388,6 +391,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (!isWindows || !('useConpty' in this._ptyOptions) || !this._ptyOptions.useConpty) {
 			return;
 		}
+		// Don't throttle when using conpty.dll as it seems to have been fixed in later versions
+		if (this._ptyOptions.useConptyDll) {
+			return;
+		}
 		// Use a loop to ensure multiple calls in a single interval space out
 		while (Date.now() - TerminalProcess._lastKillOrStart < Constants.KillSpawnThrottleInterval) {
 			this._logService.trace('Throttling kill/spawn call');
@@ -412,7 +419,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._currentTitle = (ptyProcess.process ?? '');
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
 		// If fig is installed it may change the title of the process
-		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
+		let sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
+		// Ensure any prefixed path is removed so that the executable name since we use this to
+		// detect the shell type
+		if (!isWindows) {
+			sanitizedTitle = path.basename(sanitizedTitle);
+		}
 
 		if (sanitizedTitle.toLowerCase().startsWith('python')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: GeneralShellType.Python });

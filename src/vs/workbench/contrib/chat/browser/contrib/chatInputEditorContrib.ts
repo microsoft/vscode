@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range } from 'vs/editor/common/core/range';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { dynamicVariableDecorationType } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { inputPlaceholderForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestParser } from '../../common/chatRequestParser.js';
+import { IChatWidget } from '../chat.js';
+import { ChatWidget } from '../chatWidget.js';
+import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -226,11 +226,6 @@ class InputEditorDecorations extends Disposable {
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 
 		const varDecorations: IDecorationOptions[] = [];
-		const variableParts = parsedRequest.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
-		for (const variable of variableParts) {
-			varDecorations.push({ range: variable.editorRange });
-		}
-
 		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
 		for (const tool of toolParts) {
 			varDecorations.push({ range: tool.editorRange });
@@ -309,7 +304,7 @@ class ChatTokenDeleter extends Disposable {
 				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionId, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
-				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestVariablePart || p instanceof ChatRequestToolPart);
+				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestToolPart);
 				deletableTokens.forEach(token => {
 					const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
 					// Part of this token was deleted, or the space after it was deleted, and the deletion range doesn't go off the front of the token, for simpler math
@@ -321,6 +316,7 @@ class ChatTokenDeleter extends Disposable {
 							range: rangeToDelete,
 							text: '',
 						}]);
+						this.widget.refreshParsedInput();
 					}
 				});
 			}

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import Severity from '../../../base/common/severity.js';
+import * as strings from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILocalizedString } from '../../action/common/action.js';
+import { ExtensionKind } from '../../environment/common/environment.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { getRemoteName } from '../../remote/common/remoteHosts.js';
 
 export const USER_MANIFEST_CACHE_FILE = 'extensions.user.cache';
 export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
@@ -111,9 +111,10 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string | undefined;
 	readonly media:
-	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never }
-	| { markdown: string; image?: never; svg?: never }
-	| { svg: string; altText: string; markdown?: never; image?: never };
+	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never; video?: never }
+	| { markdown: string; image?: never; svg?: never; video?: never }
+	| { svg: string; altText: string; markdown?: never; image?: never; video?: never }
+	| { video: string | { dark: string; light: string; hc: string }; poster: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; image?: never; svg?: never };
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
@@ -167,6 +168,22 @@ export interface ILocalizationContribution {
 	minimalTranslations?: { [key: string]: string };
 }
 
+export interface IChatParticipantContribution {
+	id: string;
+	name: string;
+	fullName: string;
+	description?: string;
+	isDefault?: boolean;
+	commands?: { name: string }[];
+}
+
+export interface IToolContribution {
+	name: string;
+	displayName: string;
+	modelDescription: string;
+	userDescription?: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: any;
@@ -192,7 +209,8 @@ export interface IExtensionContributions {
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
-	readonly chatParticipants?: ReadonlyArray<{ id: string }>;
+	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
+	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 }
 
 export interface IExtensionCapabilities {
@@ -318,6 +336,7 @@ export interface IExtension {
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
 	readonly validations: readonly [Severity, string][];
+	readonly preRelease: boolean;
 }
 
 /**
@@ -446,6 +465,20 @@ export class ExtensionIdentifierMap<T> {
 	}
 }
 
+/**
+ * An error that is clearly from an extension, identified by the `ExtensionIdentifier`
+ */
+export class ExtensionError extends Error {
+
+	readonly extension: ExtensionIdentifier;
+
+	constructor(extensionIdentifier: ExtensionIdentifier, cause: Error, message?: string) {
+		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${message ?? cause.message}`, { cause });
+		this.name = 'ExtensionError';
+		this.extension = extensionIdentifier;
+	}
+}
+
 export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
 	id?: string;
 	identifier: ExtensionIdentifier;
@@ -456,6 +489,7 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
+	preRelease: boolean;
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;

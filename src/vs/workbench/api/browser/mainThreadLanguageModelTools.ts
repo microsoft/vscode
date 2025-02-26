@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
 export class MainThreadLanguageModelTools extends Disposable implements MainThreadLanguageModelToolsShape {
@@ -30,12 +32,17 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
-		return this._languageModelToolsService.invokeTool(
+	async $invokeTool(dto: IToolInvocation, token?: CancellationToken): Promise<Dto<IToolResult>> {
+		const result = await this._languageModelToolsService.invokeTool(
 			dto,
 			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
-			token,
+			token ?? CancellationToken.None,
 		);
+
+		// Don't return extra metadata to EH
+		return {
+			content: result.content,
+		};
 	}
 
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
@@ -47,20 +54,22 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return fn(input, token);
 	}
 
-	$registerTool(name: string): void {
+	$registerTool(id: string): void {
 		const disposable = this._languageModelToolsService.registerToolImplementation(
-			name,
+			id,
 			{
 				invoke: async (dto, countTokens, token) => {
 					try {
 						this._countTokenCallbacks.set(dto.callId, countTokens);
-						return await this._proxy.$invokeTool(dto, token);
+						const resultDto = await this._proxy.$invokeTool(dto, token);
+						return revive(resultDto) as IToolResult;
 					} finally {
 						this._countTokenCallbacks.delete(dto.callId);
 					}
 				},
+				prepareToolInvocation: (parameters, token) => this._proxy.$prepareToolInvocation(id, parameters, token),
 			});
-		this._tools.set(name, disposable);
+		this._tools.set(id, disposable);
 	}
 
 	$unregisterTool(name: string): void {

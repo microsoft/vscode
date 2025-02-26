@@ -4,24 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { combinedDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerColor, transparent } from 'vs/platform/theme/common/colorUtils';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { terminalCommandGuideConfigSection, TerminalCommandGuideSettingId, type ITerminalCommandGuideConfiguration } from 'vs/workbench/contrib/terminalContrib/commandGuide/common/terminalCommandGuideConfiguration';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { combinedDisposable, Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { listInactiveSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { registerColor, transparent } from '../../../../../platform/theme/common/colorUtils.js';
+import { PANEL_BORDER } from '../../../../common/theme.js';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { terminalCommandGuideConfigSection, TerminalCommandGuideSettingId, type ITerminalCommandGuideConfiguration } from '../common/terminalCommandGuideConfiguration.js';
 
 // #region Terminal Contributions
 
 class TerminalCommandGuideContribution extends Disposable implements ITerminalContribution {
-	static readonly ID = 'terminal.highlight';
+	static readonly ID = 'terminal.commandGuide';
 
 	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalCommandGuideContribution | null {
 		return instance.getContribution<TerminalCommandGuideContribution>(TerminalCommandGuideContribution.ID);
@@ -31,9 +29,7 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 	private readonly _activeCommandGuide = this._register(new MutableDisposable());
 
 	constructor(
-		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
-		processManager: ITerminalProcessManager | ITerminalProcessInfo,
-		widgetManager: TerminalWidgetManager,
+		private readonly _ctx: ITerminalContributionContext | IDetachedCompatibleTerminalContributionContext,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
@@ -42,11 +38,11 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._xterm = xterm;
 		this._refreshActivatedState();
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalCommandGuideSettingId.ShowCommandGuide)) {
 				this._refreshActivatedState();
 			}
-		});
+		}));
 	}
 
 	private _refreshActivatedState() {
@@ -68,8 +64,9 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 			this._activeCommandGuide.value = combinedDisposable(
 				addDisposableListener(screenElement, 'mousemove', (e: MouseEvent) => this._tryShowHighlight(screenElement, xterm, e)),
 				addDisposableListener(viewportElement, 'mousemove', (e: MouseEvent) => this._tryShowHighlight(screenElement, xterm, e)),
-				addDisposableListener(xterm.raw.element!, 'mouseout', () => xterm.markTracker.showCommandGuide(undefined)),
+				addDisposableListener(xterm.raw.element!, 'mouseleave', () => xterm.markTracker.showCommandGuide(undefined)),
 				xterm.raw.onData(() => xterm.markTracker.showCommandGuide(undefined)),
+				toDisposable(() => xterm.markTracker.showCommandGuide(undefined)),
 			);
 		}
 	}
@@ -79,8 +76,8 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 		if (!rect) {
 			return;
 		}
-		const mouseCursorY = Math.floor(e.offsetY / (rect.height / xterm.raw.rows));
-		const command = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.getCommandForLine(xterm.raw.buffer.active.viewportY + mouseCursorY);
+		const mouseCursorY = Math.floor((e.clientY - rect.top) / (rect.height / xterm.raw.rows));
+		const command = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection)?.getCommandForLine(xterm.raw.buffer.active.viewportY + mouseCursorY);
 		if (command && 'getOutput' in command) {
 			xterm.markTracker.showCommandGuide(command);
 		} else {

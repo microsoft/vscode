@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SnippetCompletion, SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/languages';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
-import { EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { SnippetCompletion, SnippetCompletionProvider } from '../../browser/snippetCompletionProvider.js';
+import { IPosition, Position } from '../../../../../editor/common/core/position.js';
+import { createModelServices, instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { ISnippetsService } from '../../browser/snippets.js';
+import { Snippet, SnippetSource } from '../../browser/snippetsFile.js';
+import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { TestLanguageConfigurationService } from '../../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { CompletionModel } from '../../../../../editor/contrib/suggest/browser/completionModel.js';
+import { CompletionItem } from '../../../../../editor/contrib/suggest/browser/suggest.js';
+import { WordDistance } from '../../../../../editor/contrib/suggest/browser/wordDistance.js';
+import { EditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;

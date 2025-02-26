@@ -3,47 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { raceTimeout, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Language } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
-import { localize, localize2 } from 'vs/nls';
-import { isLocalizedString } from 'vs/platform/action/common/action';
-import { Action2, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { CommandsHistory, ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickAccess';
-import { TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
-import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { createKeybindingCommandQuery } from 'vs/workbench/services/preferences/browser/keybindingsEditorModel';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { isFirefox } from '../../../../base/browser/browser.js';
+import { raceTimeout, timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Language } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IEditor } from '../../../../editor/common/editorCommon.js';
+import { AbstractEditorCommandsQuickAccessProvider } from '../../../../editor/contrib/quickAccess/browser/commandsQuickAccess.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { isLocalizedString } from '../../../../platform/action/common/action.js';
+import { Action2, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { CommandsHistory, ICommandQuickPick } from '../../../../platform/quickinput/browser/commandsQuickAccess.js';
+import { TriggerAction } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { DefaultQuickAccessFilterValue } from '../../../../platform/quickinput/common/quickAccess.js';
+import { IQuickInputService, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchQuickAccessConfiguration } from '../../../browser/quickaccess.js';
+import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
+import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
+import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from '../../../services/aiRelatedInformation/common/aiRelatedInformation.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { createKeybindingCommandQuery } from '../../../services/preferences/browser/keybindingsEditorModel.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
 	private static AI_RELATED_INFORMATION_MAX_PICKS = 5;
-	private static AI_RELATED_INFORMATION_THRESHOLD = 0.8;
 	private static AI_RELATED_INFORMATION_DEBOUNCE = 200;
 
 	// If extensions are not yet registered, we wait for a little moment to give them
@@ -199,7 +198,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		const additionalPicks = new Array<ICommandQuickPick | IQuickPickSeparator>();
 
 		for (const info of relatedInformation) {
-			if (info.weight < CommandsQuickAccessProvider.AI_RELATED_INFORMATION_THRESHOLD || additionalPicks.length === CommandsQuickAccessProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
+			if (additionalPicks.length === CommandsQuickAccessProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
 				break;
 			}
 			const pick = allPicks.find(p => p.commandId === info.command && !setOfPicksSoFar.has(p.commandId));

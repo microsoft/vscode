@@ -3,23 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageIdCodec, ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { AbstractTokens } from 'vs/editor/common/model/tokens';
-import { IPosition } from 'vs/editor/common/core/position';
+import { ILanguageIdCodec, ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from '../languages.js';
+import { LineTokens } from '../tokens/lineTokens.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { TextModel } from './textModel.js';
+import { IModelContentChangedEvent } from '../textModelEvents.js';
+import { AbstractTokens } from './tokens.js';
+import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { ITreeSitterTokenizationStoreService } from './treeSitterTokenStoreService.js';
+import { Range } from '../core/range.js';
+import { BackgroundTokenizationState } from '../tokenizationTextModelPart.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;
-	private _lastLanguageId: string | undefined;
 
-	constructor(private readonly _treeSitterService: ITreeSitterParserService,
-		languageIdCodec: ILanguageIdCodec,
+	protected _backgroundTokenizationState: BackgroundTokenizationState = BackgroundTokenizationState.InProgress;
+	protected readonly _onDidChangeBackgroundTokenizationState: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
+
+	private _lastLanguageId: string | undefined;
+	private readonly _tokensChangedListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _firstTokenizationCompleteListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
+	constructor(languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
-		languageId: () => string) {
+		languageId: () => string,
+		@ITreeSitterTokenizationStoreService private readonly _tokenStore: ITreeSitterTokenizationStoreService) {
 		super(languageIdCodec, textModel, languageId);
 
 		this._initialize();
@@ -30,13 +40,25 @@ export class TreeSitterTokens extends AbstractTokens {
 		if (!this._tokenizationSupport || this._lastLanguageId !== newLanguage) {
 			this._lastLanguageId = newLanguage;
 			this._tokenizationSupport = TreeSitterTokenizationRegistry.get(newLanguage);
+			this._tokensChangedListener.value = this._tokenizationSupport?.onDidChangeTokens((e) => {
+				if (e.textModel === this._textModel) {
+					this._onDidChangeTokens.fire(e.changes);
+				}
+			});
+			this._firstTokenizationCompleteListener.value = this._tokenizationSupport?.onDidCompleteFirstTokenization(e => {
+				if (e.textModel === this._textModel) {
+					this._backgroundTokenizationState = BackgroundTokenizationState.Completed;
+					this._onDidChangeBackgroundTokenizationState.fire();
+					this._firstTokenizationCompleteListener.clear();
+				}
+			});
 		}
 	}
 
 	public getLineTokens(lineNumber: number): LineTokens {
 		const content = this._textModel.getLineContent(lineNumber);
 		if (this._tokenizationSupport) {
-			const rawTokens = this._tokenizationSupport.tokenizeEncoded(lineNumber, this._textModel);
+			const rawTokens = this._tokenStore.getTokens(this._textModel, lineNumber);
 			if (rawTokens) {
 				return new LineTokens(rawTokens, content, this._languageIdCodec);
 			}
@@ -71,16 +93,17 @@ export class TreeSitterTokens extends AbstractTokens {
 	}
 
 	public override forceTokenization(lineNumber: number): void {
-		// TODO @alexr00 implement
+		if (this._tokenizationSupport) {
+			this._tokenizationSupport.tokenizeEncoded(lineNumber, this._textModel);
+		}
 	}
 
 	public override hasAccurateTokensForLine(lineNumber: number): boolean {
-		// TODO @alexr00 update for background tokenization
-		return true;
+		return this._tokenStore.hasTokens(this._textModel, new Range(lineNumber, 1, lineNumber, this._textModel.getLineMaxColumn(lineNumber)));
 	}
 
 	public override isCheapToTokenize(lineNumber: number): boolean {
-		// TODO @alexr00 update for background tokenization
+		// TODO @alexr00 determine what makes it cheap to tokenize?
 		return true;
 	}
 
@@ -88,13 +111,11 @@ export class TreeSitterTokens extends AbstractTokens {
 		// TODO @alexr00 implement once we have custom parsing and don't just feed in the whole text model value
 		return StandardTokenType.Other;
 	}
-	public override tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
+	public override tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
 		// TODO @alexr00 understand what this is for and implement
 		return null;
 	}
 	public override get hasTokens(): boolean {
-		// TODO @alexr00 once we have a token store, implement properly
-		const hasTree = this._treeSitterService.getParseResult(this._textModel) !== undefined;
-		return hasTree;
+		return this._tokenStore.hasTokens(this._textModel);
 	}
 }

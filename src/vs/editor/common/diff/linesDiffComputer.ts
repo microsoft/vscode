@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DetailedLineRangeMapping, LineRangeMapping } from './rangeMapping';
+import { DetailedLineRangeMapping, LineRangeMapping } from './rangeMapping.js';
 
 export interface ILinesDiffComputer {
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff;
@@ -13,6 +13,7 @@ export interface ILinesDiffComputerOptions {
 	readonly ignoreTrimWhitespace: boolean;
 	readonly maxComputationTimeMs: number;
 	readonly computeMoves: boolean;
+	readonly extendToSubwords?: boolean;
 }
 
 export class LinesDiff {

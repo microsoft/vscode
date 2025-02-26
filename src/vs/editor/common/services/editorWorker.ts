@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { IColorInformation, IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
-import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import type { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { SectionHeader, FindSectionHeaderOptions } from 'vs/editor/common/services/findSectionHeaders';
+import { URI } from '../../../base/common/uri.js';
+import { IRange } from '../core/range.js';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
+import { IChange } from '../diff/legacyLinesDiffComputer.js';
+import { IColorInformation, IInplaceReplaceSupportResult, TextEdit } from '../languages.js';
+import { UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import type { BaseEditorSimpleWorker } from './editorSimpleWorker.js';
+import { SectionHeader, FindSectionHeaderOptions } from './findSectionHeaders.js';
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 

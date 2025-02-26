@@ -3,36 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extension';
-import { append, $, addDisposableListener } from 'vs/base/browser/dom';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { Event } from 'vs/base/common/event';
-import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import './media/extension.css';
+import { append, $, addDisposableListener } from '../../../../base/browser/dom.js';
+import { IDisposable, dispose, combinedDisposable } from '../../../../base/common/lifecycle.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
+import { Event } from '../../../../base/common/event.js';
+import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService, IExtensionsViewState } from '../common/extensions.js';
+import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from './extensionsActions.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, VerifiedPublisherWidget } from './extensionsWidgets.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { WORKBENCH_BACKGROUND } from '../../../common/theme.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { extensionVerifiedPublisherIconColor, verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 
 const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
-
-export interface IExtensionsViewState {
-	onFocus: Event<IExtension>;
-	onBlur: Event<IExtension>;
-}
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -63,7 +58,7 @@ export type ExtensionListRendererOptions = {
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
-		private extensionViewState: IExtensionsViewState,
+		private readonly extensionViewState: IExtensionsViewState,
 		private readonly options: ExtensionListRendererOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -119,7 +114,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			focusOnlyEnabledItems: true
 		});
 		actionbar.setFocusable(false);
-		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
+		const actionBarListener = actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const extensionStatusIconAction = this.instantiationService.createInstance(ExtensionStatusAction);
 		const actions = [
@@ -148,14 +143,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			verifiedPublisherWidget,
 			extensionHoverWidget,
 			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
-			this.instantiationService.createInstance(ExtensionActivationStatusWidget, activationStatus, true),
+			this.instantiationService.createInstance(ExtensionRuntimeStatusWidget, this.extensionViewState, activationStatus),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true),
 		];
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 
 		actionbar.push(actions, { icon: true, label: true });
-		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers);
+		const disposable = combinedDisposable(...actions, ...widgets, actionbar, actionBarListener, extensionContainers);
 
 		return {
 			root, element, icon, name, installCount, ratings, description, publisherDisplayName, disposables: [disposable], actionbar,
@@ -255,6 +250,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const verifiedPublisherIconColor = theme.getColor(extensionVerifiedPublisherIconColor);
 	if (verifiedPublisherIconColor) {
 		const disabledVerifiedPublisherIconColor = verifiedPublisherIconColor.transparent(.5).makeOpaque(WORKBENCH_BACKGROUND(theme));
-		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled:not(.selected) .author .verified-publisher ${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)} { color: ${disabledVerifiedPublisherIconColor}; }`);
+		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled:not(.selected) .author .verified-publisher ${ThemeIcon.asCSSSelector(verifiedPublisherIcon)} { color: ${disabledVerifiedPublisherIconColor}; }`);
 	}
 });

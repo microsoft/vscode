@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IColorPresentation } from 'vs/editor/common/languages';
+import { Color } from '../../../../base/common/color.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IColorPresentation } from '../../../common/languages.js';
 
 export class ColorPickerModel {
 

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { ExtensionHostManager, friendlyExtHostName } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManagers';
-import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
+import { Barrier } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { RemoteAuthorityResolverErrorCode } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { ExtensionHostKind } from './extensionHostKind.js';
+import { ExtensionHostManager, friendlyExtHostName } from './extensionHostManager.js';
+import { IExtensionHostManager } from './extensionHostManagers.js';
+import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
+import { IResolveAuthorityResult } from './extensionHostProxy.js';
+import { ExtensionRunningLocation } from './extensionRunningLocation.js';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from './extensions.js';
+import { ResponsiveState } from './rpcProtocol.js';
 
 /**
  * Waits until `start()` and only if it has extensions proceeds to really start.

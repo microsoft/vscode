@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISerializableCommandAction } from 'vs/platform/action/common/action';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { ISerializableCommandAction } from '../../action/common/action.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_WINDOW_SIZE, INativeWindowConfiguration } from '../common/window.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export interface IBaseWindow extends IDisposable {
 
@@ -33,8 +33,6 @@ export interface IBaseWindow extends IDisposable {
 
 	setDocumentEdited(edited: boolean): void;
 	isDocumentEdited(): boolean;
-
-	handleTitleDoubleClick(): void;
 
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
@@ -141,8 +139,8 @@ export interface IWindowState {
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
 	return {
-		width: 1024,
-		height: 768,
+		width: DEFAULT_WINDOW_SIZE.width,
+		height: DEFAULT_WINDOW_SIZE.height,
 		mode
 	};
 };
@@ -156,8 +154,8 @@ export const defaultAuxWindowState = function (): IWindowState {
 	// we need to set not only width and height but also x and y to
 	// a good location on the primary display.
 
-	const width = 800;
-	const height = 600;
+	const width = DEFAULT_AUX_WINDOW_SIZE.width;
+	const height = DEFAULT_AUX_WINDOW_SIZE.height;
 	const workArea = electron.screen.getPrimaryDisplay().workArea;
 	const x = Math.max(workArea.x + (workArea.width / 2) - (width / 2), 0);
 	const y = Math.max(workArea.y + (workArea.height / 2) - (height / 2), 0);

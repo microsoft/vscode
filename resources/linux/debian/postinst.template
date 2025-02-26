@@ -36,49 +36,60 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	eval $(apt-config shell APT_TRUSTED_PARTS Dir::Etc::trustedparts/d)
 	CODE_TRUSTED_PART=${APT_TRUSTED_PARTS}microsoft.gpg
 
-	RET=true
+	# RET seems to be true by default even after db_get is called on a first install.
+	RET='true'
 	if [ -e '/usr/share/debconf/confmodule' ]; then
 		. /usr/share/debconf/confmodule
 		db_get @@NAME@@/add-microsoft-repo || true
 	fi
 
-	# Determine whether to install the repository source list
-	WRITE_SOURCE=0
-	if [ "$RET" = false ]; then
-		# The user does not want to add the Microsoft repository
-		WRITE_SOURCE=0
+	# Determine whether to write the Microsoft repository source list
+	WRITE_SOURCE='no'
+	if [ "$RET" = 'false' ]; then
+		# The user specified in debconf not to add the Microsoft repository
+		WRITE_SOURCE='no'
 	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
 		# The user has migrated themselves to the DEB822 format
-		WRITE_SOURCE=0
+		WRITE_SOURCE='no'
 	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/vscode" $CODE_SOURCE_PART); then
 		# Migrate from old repository
-		WRITE_SOURCE=2
+		WRITE_SOURCE='yes'
 	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/code" $CODE_SOURCE_PART); then
 		# Migrate from old repository
-		WRITE_SOURCE=2
+		WRITE_SOURCE='yes'
 	elif apt-cache policy | grep -q "https://packages.microsoft.com/repos/code"; then
 		# The user is already on the new repository
-		WRITE_SOURCE=0
+		WRITE_SOURCE='no'
 	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
-		# Write source list if it does not exist and we're not running on Raspberry Pi OS
-		WRITE_SOURCE=1
+		# Source list does not exist and we're not running on Raspberry Pi OS
+		WRITE_SOURCE='ask'
 	elif grep -q "# disabled on upgrade to" $CODE_SOURCE_PART; then
-		# Write source list if it was disabled by OS upgrade
-		WRITE_SOURCE=1
+		# Source list was disabled by OS upgrade
+		WRITE_SOURCE='ask'
 	fi
 
-	if [ "$WRITE_SOURCE" -eq "1" ] && [ -e '/usr/share/debconf/confmodule' ]; then
-		# Ask the user whether to actually write the source list
-		db_input high @@NAME@@/add-microsoft-repo || true
-		db_go || true
+	if [ "$WRITE_SOURCE" = 'ask' ]; then
+		if ! [ -t 1 ]; then
+			# By default, write sources in a non-interactive terminal
+			# to match old behavior.
+			WRITE_SOURCE='yes'
+		elif [ -e '/usr/share/debconf/confmodule' ]; then
+			# Ask the user whether to actually write the source list
+			db_input high @@NAME@@/add-microsoft-repo || true
+			db_go || true
 
-		db_get @@NAME@@/add-microsoft-repo
-		if [ "$RET" = false ]; then
-			WRITE_SOURCE=0
+			db_get @@NAME@@/add-microsoft-repo
+			if [ "$RET" = false ]; then
+				WRITE_SOURCE='no'
+			fi
+		else
+			# The terminal is interactive but there is no debconf.
+			# Write sources to match old behavior.
+			WRITE_SOURCE='yes'
 		fi
 	fi
 
-	if [ "$WRITE_SOURCE" -ne "0" ]; then
+	if [ "$WRITE_SOURCE" != 'no' ]; then
 		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
 deb [arch=amd64,arm64,armhf] https://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART

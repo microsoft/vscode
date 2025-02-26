@@ -3,75 +3,75 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import { Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { distinct } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { localize } from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService, getLanguageTagSettingPlainKey } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsLabelAriaLabel } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
-import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, objectSettingSupportsRemoveDefaultValue, settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from 'vs/workbench/contrib/preferences/common/preferences';
-import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
-import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ISetting, ISettingsGroup, SETTINGS_AUTHORITY, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { URI } from 'vs/base/common/uri';
+import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
+import { IInputOptions, InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { CachedListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { DefaultStyleController, IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
+import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { IObjectTreeOptions } from '../../../../base/browser/ui/tree/objectTree.js';
+import { ObjectTreeModel } from '../../../../base/browser/ui/tree/objectTreeModel.js';
+import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isIOS } from '../../../../base/common/platform.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { isDefined, isUndefinedOrNull } from '../../../../base/common/types.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { localize } from '../../../../nls.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService, getLanguageTagSettingPlainKey } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IListService, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { editorBackground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { getIgnoredSettings } from '../../../../platform/userDataSync/common/settingsMerge.js';
+import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { settingsMoreActionIcon } from './preferencesIcons.js';
+import { SettingsTarget } from './preferencesWidgets.js';
+import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsLabelAriaLabel } from './settingsEditorSettingIndicators.js';
+import { ITOCEntry } from './settingsLayout.js';
+import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, objectSettingSupportsRemoveDefaultValue, settingKeyToDisplayFormat } from './settingsTreeModels.js';
+import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from './settingsWidgets.js';
+import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from '../common/preferences.js';
+import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ISetting, ISettingsGroup, SETTINGS_AUTHORITY, SettingValueType } from '../../../services/preferences/common/preferences.js';
+import { getInvalidTypeError } from '../../../services/preferences/common/preferencesValidation.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { URI } from '../../../../base/common/uri.js';
 
 const $ = DOM.$;
 
@@ -171,7 +171,8 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 	const data = element.isConfigured ?
 		{ ...elementDefaultValue, ...elementScopeValue } :
-		elementDefaultValue;
+		element.hasPolicyValue ? element.scopeValue :
+			elementDefaultValue;
 
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
 	const patternsAndSchemas = Object
@@ -491,11 +492,14 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 		const extension = await extensionService.getExtension(extensionId);
 		const extensionName = extension?.displayName ?? extension?.name ?? extensionId;
 
-		// Each group represents a single category of settings.
-		// If the extension author forgets to specify an id for the group,
-		// fall back to the title given to the group.
+		// There could be multiple groups with the same extension id that all belong to the same extension.
+		// To avoid highlighting all groups upon expanding the extension's ToC entry,
+		// use the group ID only if it is non-empty and isn't the extension ID.
+		// Ref https://github.com/microsoft/vscode/issues/241521.
+		const settingGroupId = (group.id && group.id !== extensionId) ? group.id : group.title;
+
 		const childEntry: ITOCEntry<ISetting> = {
-			id: group.id || group.title,
+			id: settingGroupId,
 			label: group.title,
 			order: group.order,
 			settings: flatSettings
@@ -689,6 +693,10 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 	validationErrorMessageElement: HTMLElement;
 }
 
+interface ISettingComplexObjectItemTemplate extends ISettingComplexItemTemplate {
+	objectSettingWidget: ObjectSettingDropdownWidget;
+}
+
 interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undefined> {
 	listWidget: ListSettingWidget<IListDataItem>;
 	validationErrorMessageElement: HTMLElement;
@@ -725,6 +733,7 @@ const SETTINGS_INCLUDE_TEMPLATE_ID = 'settings.include.template';
 const SETTINGS_OBJECT_TEMPLATE_ID = 'settings.object.template';
 const SETTINGS_BOOL_OBJECT_TEMPLATE_ID = 'settings.boolObject.template';
 const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
+const SETTINGS_COMPLEX_OBJECT_TEMPLATE_ID = 'settings.complexObject.template';
 const SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID = 'settings.newExtensions.template';
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.group.template';
 const SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID = 'settings.extensionToggle.template';
@@ -835,7 +844,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	) {
 		super();
 
-		this.markdownRenderer = this._register(_instantiationService.createInstance(MarkdownRenderer, {}));
+		this.markdownRenderer = _instantiationService.createInstance(MarkdownRenderer, {});
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -861,8 +870,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = toDispose.add(new SimpleIconLabel(labelElementContainer));
-		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
-		toDispose.add(indicatorsLabel);
+		const indicatorsLabel = toDispose.add(this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement));
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
@@ -902,19 +910,19 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected addSettingElementFocusHandler(template: ISettingItemTemplate): void {
 		const focusTracker = DOM.trackFocus(template.containerElement);
 		template.toDispose.add(focusTracker);
-		focusTracker.onDidBlur(() => {
+		template.toDispose.add(focusTracker.onDidBlur(() => {
 			if (template.containerElement.classList.contains('focused')) {
 				template.containerElement.classList.remove('focused');
 			}
-		});
+		}));
 
-		focusTracker.onDidFocus(() => {
+		template.toDispose.add(focusTracker.onDidFocus(() => {
 			template.containerElement.classList.add('focused');
 
 			if (template.context) {
 				this._onDidFocusSetting.fire(template.context);
 			}
-		});
+		}));
 	}
 
 	protected renderSettingToolbar(container: HTMLElement): ToolBar {
@@ -995,6 +1003,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.indicatorsLabel.updateWorkspaceTrust(element);
 		template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
 		template.indicatorsLabel.updateDefaultOverrideIndicator(element);
+		template.indicatorsLabel.updatePreviewIndicator(element);
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
 			template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
 		}));
@@ -1083,6 +1092,7 @@ class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElement, ne
 	}
 
 	disposeTemplate(templateData: IGroupTitleTemplate): void {
+		templateData.toDispose.dispose();
 	}
 }
 
@@ -1122,7 +1132,7 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 	}
 
 	disposeTemplate(template: IDisposableTemplate): void {
-		dispose(template.toDispose);
+		template.toDispose.dispose();
 	}
 }
 
@@ -1201,6 +1211,47 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		}
 
 		template.containerElement.classList.remove('invalid-input');
+	}
+}
+
+class SettingComplexObjectRenderer extends SettingComplexRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingComplexObjectItemTemplate> {
+
+	override templateId = SETTINGS_COMPLEX_OBJECT_TEMPLATE_ID;
+
+	override renderTemplate(container: HTMLElement): ISettingComplexObjectItemTemplate {
+		const common = this.renderCommonTemplate(null, container, 'list');
+
+		const objectSettingWidget = common.toDispose.add(this._instantiationService.createInstance(ObjectSettingDropdownWidget, common.controlElement));
+		objectSettingWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+
+		const openSettingsButton = DOM.append(DOM.append(common.controlElement, $('.complex-object-edit-in-settings-button-container')), $('a.complex-object.edit-in-settings-button'));
+		openSettingsButton.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		openSettingsButton.role = 'button';
+
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		common.containerElement.appendChild(validationErrorMessageElement);
+
+		const template: ISettingComplexObjectItemTemplate = {
+			...common,
+			button: openSettingsButton,
+			validationErrorMessageElement,
+			objectSettingWidget
+		};
+
+		this.addSettingElementFocusHandler(template);
+
+		return template;
+	}
+
+	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexObjectItemTemplate, onChange: (value: string) => void): void {
+		const items = getObjectDisplayValue(dataElement);
+		template.objectSettingWidget.setValue(items, {
+			settingKey: dataElement.setting.key,
+			showAddButton: false,
+			isReadOnly: true,
+		});
+		template.button.parentElement?.classList.toggle('hide', dataElement.hasPolicyValue);
+		super.renderValue(dataElement, template, onChange);
 	}
 }
 
@@ -2096,7 +2147,6 @@ export class SettingTreeRenderers extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super();
@@ -2128,6 +2178,7 @@ export class SettingTreeRenderers extends Disposable {
 			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingArrayRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingComplexRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingComplexObjectRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingMultilineTextRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions, actionFactory),
@@ -2159,7 +2210,7 @@ export class SettingTreeRenderers extends Disposable {
 
 	private getActionsForSetting(setting: ISetting, settingTarget: SettingsTarget): IAction[] {
 		const actions: IAction[] = [];
-		if (this._userDataProfilesService.isEnabled() && setting.scope !== ConfigurationScope.APPLICATION && settingTarget === ConfigurationTarget.USER_LOCAL) {
+		if (!(setting.scope && APPLICATION_SCOPES.includes(setting.scope)) && settingTarget === ConfigurationTarget.USER_LOCAL) {
 			actions.push(this._instantiationService.createInstance(ApplySettingToAllProfilesAction, setting));
 		}
 		if (this._userDataSyncEnablementService.isEnabled() && !setting.disallowSyncIgnore) {
@@ -2417,6 +2468,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 				return SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
 			}
 
+			if (element.valueType === SettingValueType.ComplexObject) {
+				return SETTINGS_COMPLEX_OBJECT_TEMPLATE_ID;
+			}
+
 			if (element.valueType === SettingValueType.LanguageTag) {
 				return SETTINGS_COMPLEX_TEMPLATE_ID;
 			}
@@ -2508,13 +2563,14 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
+				scrollToActiveElement: true,
 				identityProvider: {
 					getId(e) {
 						return e.id;
 					}
 				},
 				accessibilityProvider: new SettingsTreeAccessibilityProvider(configurationService, languageService, userDataProfilesService),
-				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
+				styleController: id => new DefaultStyleController(domStylesheetsJs.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
@@ -2559,8 +2615,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected override createModel(user: string, view: IList<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
-		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, view, options);
+	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, options);
 	}
 }
 

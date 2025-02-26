@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ShutdownReason, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { NativeLifecycleService } from 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
-import { workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
+import { timeout } from '../../../../../base/common/async.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ShutdownReason, WillShutdownJoinerOrder } from '../../common/lifecycle.js';
+import { NativeLifecycleService } from '../../electron-sandbox/lifecycleService.js';
+import { workbenchInstantiationService } from '../../../../test/electron-sandbox/workbenchTestServices.js';
 
 suite('Lifecycleservice', function () {
 

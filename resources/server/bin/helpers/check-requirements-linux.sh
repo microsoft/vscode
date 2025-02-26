@@ -125,6 +125,9 @@ elif [ -z "$(ldd --version 2>&1 | grep 'musl libc')" ]; then
     elif [ -f /usr/lib/libc.so.6 ]; then
         # Typical path
         libc_path='/usr/lib/libc.so.6'
+    elif [ -f /lib64/libc.so.6 ]; then
+        # Typical path (OpenSUSE)
+        libc_path='/lib64/libc.so.6'
     elif [ -f /usr/lib64/libc.so.6 ]; then
         # Typical path
         libc_path='/usr/lib64/libc.so.6'

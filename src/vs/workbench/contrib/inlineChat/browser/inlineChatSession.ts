@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { EditMode, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { IInlineChatSessionService } from './inlineChatSessionService';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { coalesceInPlace } from 'vs/base/common/arrays';
-import { Iterable } from 'vs/base/common/iterator';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ChatModel, IChatRequestModel, IChatTextEditGroupState } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
+import { URI } from '../../../../base/common/uri.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { CTX_INLINE_CHAT_HAS_STASHED_SESSION } from '../common/inlineChat.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
+import { IInlineChatSessionService } from './inlineChatSessionService.js';
+import { LineRange } from '../../../../editor/common/core/lineRange.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { coalesceInPlace } from '../../../../base/common/arrays.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ChatModel, IChatRequestModel, IChatTextEditGroupState } from '../../chat/common/chatModel.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IChatAgent } from '../../chat/common/chatAgents.js';
+import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 
 
 export type TelemetryData = {
@@ -36,7 +36,6 @@ export type TelemetryData = {
 	finishedByEdit: boolean;
 	startTime: string;
 	endTime: string;
-	editMode: string;
 	acceptedHunks: number;
 	discardedHunks: number;
 	responseTypes: string;
@@ -53,7 +52,6 @@ export type TelemetryDataClassification = {
 	finishedByEdit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits cause the session to terminate' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
-	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
 	acceptedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of accepted hunks' };
 	discardedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of discarded hunks' };
 	responseTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma separated list of response types like edits, message, mixed' };
@@ -81,12 +79,11 @@ export class SessionWholeRange {
 	}
 
 	fixup(changes: readonly DetailedLineRangeMapping[]): void {
-
 		const newDeco: IModelDeltaDecoration[] = [];
 		for (const { modified } of changes) {
-			const modifiedRange = modified.isEmpty
-				? new Range(modified.startLineNumber, 1, modified.startLineNumber, this._textModel.getLineLength(modified.startLineNumber))
-				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, this._textModel.getLineLength(modified.endLineNumberExclusive - 1));
+			const modifiedRange = this._textModel.validateRange(modified.isEmpty
+				? new Range(modified.startLineNumber, 1, modified.startLineNumber, Number.MAX_SAFE_INTEGER)
+				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER));
 
 			newDeco.push({ range: modifiedRange, options: SessionWholeRange._options });
 		}
@@ -126,7 +123,6 @@ export class Session {
 	private readonly _versionByRequest = new Map<string, number>();
 
 	constructor(
-		readonly editMode: EditMode,
 		readonly headless: boolean,
 		/**
 		 * The URI of the document which is being EditorEdit
@@ -155,7 +151,6 @@ export class Session {
 			finishedByEdit: false,
 			rounds: '',
 			undos: '',
-			editMode,
 			unstashed: 0,
 			acceptedHunks: 0,
 			discardedHunks: 0,
@@ -263,7 +258,7 @@ export class StashedSession {
 		// keep session for a little bit, only release when user continues to work (type, move cursor, etc.)
 		this._session = session;
 		this._ctxHasStashedSession.set(true);
-		this._listener = Event.once(Event.any(editor.onDidChangeCursorSelection, editor.onDidChangeModelContent, editor.onDidChangeModel))(() => {
+		this._listener = Event.once(Event.any(editor.onDidChangeCursorSelection, editor.onDidChangeModelContent, editor.onDidChangeModel, editor.onDidBlurEditorWidget))(() => {
 			this._session = undefined;
 			this._sessionService.releaseSession(session);
 			this._ctxHasStashedSession.reset();
@@ -298,8 +293,8 @@ export class StashedSession {
 
 function lineRangeAsRange(lineRange: LineRange, model: ITextModel): Range {
 	return lineRange.isEmpty
-		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
-		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
+		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, Number.MAX_SAFE_INTEGER)
+		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER);
 }
 
 export class HunkData {
@@ -360,27 +355,30 @@ export class HunkData {
 		// mirror textModelN changes to textModel0 execept for those that
 		// overlap with a hunk
 
-		type HunkRangePair = { rangeN: Range; range0: Range };
+		type HunkRangePair = { rangeN: Range; range0: Range; markAccepted: () => void };
 		const hunkRanges: HunkRangePair[] = [];
 
 		const ranges0: Range[] = [];
 
-		for (const { textModelNDecorations, textModel0Decorations, state } of this._data.values()) {
+		for (const entry of this._data.values()) {
 
-			if (state === HunkState.Pending) {
+			if (entry.state === HunkState.Pending) {
 				// pending means the hunk's changes aren't "sync'd" yet
-				for (let i = 1; i < textModelNDecorations.length; i++) {
-					const rangeN = this._textModelN.getDecorationRange(textModelNDecorations[i]);
-					const range0 = this._textModel0.getDecorationRange(textModel0Decorations[i]);
+				for (let i = 1; i < entry.textModelNDecorations.length; i++) {
+					const rangeN = this._textModelN.getDecorationRange(entry.textModelNDecorations[i]);
+					const range0 = this._textModel0.getDecorationRange(entry.textModel0Decorations[i]);
 					if (rangeN && range0) {
-						hunkRanges.push({ rangeN, range0 });
+						hunkRanges.push({
+							rangeN, range0,
+							markAccepted: () => entry.state = HunkState.Accepted
+						});
 					}
 				}
 
-			} else if (state === HunkState.Accepted) {
+			} else if (entry.state === HunkState.Accepted) {
 				// accepted means the hunk's changes are also in textModel0
-				for (let i = 1; i < textModel0Decorations.length; i++) {
-					const range = this._textModel0.getDecorationRange(textModel0Decorations[i]);
+				for (let i = 1; i < entry.textModel0Decorations.length; i++) {
+					const range = this._textModel0.getDecorationRange(entry.textModel0Decorations[i]);
 					if (range) {
 						ranges0.push(range);
 					}
@@ -399,16 +397,20 @@ export class HunkData {
 
 			let pendingChangesLen = 0;
 
-			for (const { rangeN, range0 } of hunkRanges) {
-				if (rangeN.getEndPosition().isBefore(Range.getStartPosition(change.range))) {
+			for (const entry of hunkRanges) {
+				if (entry.rangeN.getEndPosition().isBefore(Range.getStartPosition(change.range))) {
 					// pending hunk _before_ this change. When projecting into textModel0 we need to
 					// subtract that. Because diffing is relaxed it might include changes that are not
 					// actual insertions/deletions. Therefore we need to take the length of the original
 					// range into account.
-					pendingChangesLen += this._textModelN.getValueLengthInRange(rangeN);
-					pendingChangesLen -= this._textModel0.getValueLengthInRange(range0);
+					pendingChangesLen += this._textModelN.getValueLengthInRange(entry.rangeN);
+					pendingChangesLen -= this._textModel0.getValueLengthInRange(entry.range0);
 
-				} else if (Range.areIntersectingOrTouching(rangeN, change.range)) {
+				} else if (Range.areIntersectingOrTouching(entry.rangeN, change.range)) {
+					// an edit overlaps with a (pending) hunk. We take this as a signal
+					// to mark the hunk as accepted and to ignore the edit. The range of the hunk
+					// will be up-to-date because of decorations created for them
+					entry.markAccepted();
 					isOverlapping = true;
 					break;
 
@@ -447,24 +449,23 @@ export class HunkData {
 
 		diff ??= await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
-		if (!diff || diff.changes.length === 0) {
-			// return new HunkData([], session);
-			return;
-		}
+		let mergedChanges: DetailedLineRangeMapping[] = [];
 
-		// merge changes neighboring changes
-		const mergedChanges = [diff.changes[0]];
-		for (let i = 1; i < diff.changes.length; i++) {
-			const lastChange = mergedChanges[mergedChanges.length - 1];
-			const thisChange = diff.changes[i];
-			if (thisChange.modified.startLineNumber - lastChange.modified.endLineNumberExclusive <= HunkData._HUNK_THRESHOLD) {
-				mergedChanges[mergedChanges.length - 1] = new DetailedLineRangeMapping(
-					lastChange.original.join(thisChange.original),
-					lastChange.modified.join(thisChange.modified),
-					(lastChange.innerChanges ?? []).concat(thisChange.innerChanges ?? [])
-				);
-			} else {
-				mergedChanges.push(thisChange);
+		if (diff && diff.changes.length > 0) {
+			// merge changes neighboring changes
+			mergedChanges = [diff.changes[0]];
+			for (let i = 1; i < diff.changes.length; i++) {
+				const lastChange = mergedChanges[mergedChanges.length - 1];
+				const thisChange = diff.changes[i];
+				if (thisChange.modified.startLineNumber - lastChange.modified.endLineNumberExclusive <= HunkData._HUNK_THRESHOLD) {
+					mergedChanges[mergedChanges.length - 1] = new DetailedLineRangeMapping(
+						lastChange.original.join(thisChange.original),
+						lastChange.modified.join(thisChange.modified),
+						(lastChange.innerChanges ?? []).concat(thisChange.innerChanges ?? [])
+					);
+				} else {
+					mergedChanges.push(thisChange);
+				}
 			}
 		}
 

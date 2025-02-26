@@ -10,7 +10,11 @@
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.diffCommand.d.ts",
+		"../../src/vscode-dts/vscode.proposed.editSessionIdentityProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.quickDiffProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.quickInputButtonLocation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickPickSortByLabel.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmActionButton.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmHistoryProvider.d.ts",
@@ -18,10 +22,12 @@
 		"../../src/vscode-dts/vscode.proposed.scmValidation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmMultiDiffEditor.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmTextDocument.d.ts",
+		"../../src/vscode-dts/vscode.proposed.statusBarItemTooltip.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputMultiDiff.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputTextMerge.d.ts",
+		"../../src/vscode-dts/vscode.proposed.textDocumentEncoding.d.ts",
+		"../../src/vscode-dts/vscode.proposed.textEditorDiffInformation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.timeline.d.ts",
-		"../../src/vscode-dts/vscode.proposed.quickInputButtonLocation.d.ts",
 		"../types/lib.textEncoder.d.ts"
 	]
 }

@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, HandlerDetails, WebContents, app } from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowState, WindowMode, defaultAuxWindowState } from 'vs/platform/window/electron-main/window';
-import { IDefaultBrowserWindowOptionsOverrides, WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { AuxiliaryWindow, IAuxiliaryWindow } from './auxiliaryWindow.js';
+import { IAuxiliaryWindowsMainService } from './auxiliaryWindows.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IWindowState, WindowMode, defaultAuxWindowState } from '../../window/electron-main/window.js';
+import { IDefaultBrowserWindowOptionsOverrides, WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from '../../windows/electron-main/windows.js';
 
 export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
 
@@ -98,7 +98,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		const windowState: IWindowState = {};
 		const overrides: IDefaultBrowserWindowOptionsOverrides = {};
 
-		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=800,height=600
+		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=1024,height=768
 		for (const feature of features) {
 			const [key, value] = feature.split('=');
 			switch (key) {

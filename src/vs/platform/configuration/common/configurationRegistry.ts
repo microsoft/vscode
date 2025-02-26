@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as types from 'vs/base/common/types';
-import * as nls from 'vs/nls';
-import { getLanguageTagSettingPlainKey } from 'vs/platform/configuration/common/configuration';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { PolicyName } from 'vs/platform/policy/common/policy';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { distinct } from '../../../base/common/arrays.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import * as types from '../../../base/common/types.js';
+import * as nls from '../../../nls.js';
+import { getLanguageTagSettingPlainKey } from './configuration.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
+import { PolicyName } from '../../policy/common/policy.js';
+import { Registry } from '../../registry/common/platform.js';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',
@@ -126,13 +126,17 @@ export interface IConfigurationRegistry {
 
 export const enum ConfigurationScope {
 	/**
-	 * Application specific configuration, which can be configured only in local user settings.
+	 * Application specific configuration, which can be configured only in default profile user settings.
 	 */
 	APPLICATION = 1,
 	/**
 	 * Machine specific configuration, which can be configured only in local and remote user settings.
 	 */
 	MACHINE,
+	/**
+	 * An application machine specific configuration, which can be configured only in default profile user settings and remote user settings.
+	 */
+	APPLICATION_MACHINE,
 	/**
 	 * Window specific configuration, which can be configured in the user or workspace settings.
 	 */
@@ -182,7 +186,8 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	/**
 	 * List of tags associated to the property.
 	 *  - A tag can be used for filtering
-	 *  - Use `experimental` tag for marking the setting as experimental. **Note:** Defaults of experimental settings can be changed by the running experiments.
+	 *  - Use `experimental` tag for marking the setting as experimental.
+	 *  - Use `onExP` tag for marking that the default of the setting can be changed by running experiments.
 	 */
 	tags?: string[];
 
@@ -268,6 +273,7 @@ export interface IConfigurationDefaultOverrideValue {
 
 export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const applicationMachineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const machineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const machineOverridableSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const windowSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
@@ -743,6 +749,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			case ConfigurationScope.MACHINE:
 				machineSettings.properties[key] = property;
 				break;
+			case ConfigurationScope.APPLICATION_MACHINE:
+				applicationMachineSettings.properties[key] = property;
+				break;
 			case ConfigurationScope.MACHINE_OVERRIDABLE:
 				machineOverridableSettings.properties[key] = property;
 				break;
@@ -767,6 +776,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				break;
 			case ConfigurationScope.MACHINE:
 				delete machineSettings.properties[key];
+				break;
+			case ConfigurationScope.APPLICATION_MACHINE:
+				delete applicationMachineSettings.properties[key];
 				break;
 			case ConfigurationScope.MACHINE_OVERRIDABLE:
 				delete machineOverridableSettings.properties[key];
@@ -794,6 +806,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			this.updatePropertyDefaultValue(overrideIdentifierProperty, resourceLanguagePropertiesSchema);
 			allSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			applicationSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
+			applicationMachineSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			machineSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			machineOverridableSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			windowSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
@@ -810,6 +823,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		};
 		allSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		applicationSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		applicationMachineSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		machineSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		machineOverridableSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		windowSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
@@ -863,7 +877,7 @@ export function keyFromOverrideIdentifiers(overrideIdentifiers: string[]): strin
 	return overrideIdentifiers.reduce((result, overrideIdentifier) => `${result}[${overrideIdentifier}]`, '');
 }
 
-export function getDefaultValue(type: string | string[] | undefined): any {
+export function getDefaultValue(type: string | string[] | undefined) {
 	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
 	switch (t) {
 		case 'boolean':

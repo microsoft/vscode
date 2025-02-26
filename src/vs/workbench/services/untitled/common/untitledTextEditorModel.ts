@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISaveOptions } from 'vs/workbench/common/editor';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ITextModel } from 'vs/editor/common/model';
-import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getCharContainingOffset } from 'vs/base/common/strings';
-import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
-import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ISaveOptions } from '../../../common/editor.js';
+import { BaseTextEditorModel } from '../../../common/editor/textEditorModel.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IWorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackup.js';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { createTextBufferFactory, createTextBufferFactoryFromStream } from '../../../../editor/common/model/textModel.js';
+import { ITextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import { IWorkingCopyService } from '../../workingCopy/common/workingCopyService.js';
+import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID, IWorkingCopySaveEvent } from '../../workingCopy/common/workingCopy.js';
+import { IEncodingSupport, ILanguageSupport, ITextFileService } from '../../textfile/common/textfiles.js';
+import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ensureValidWordDefinition } from '../../../../editor/common/core/wordHelper.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { getCharContainingOffset } from '../../../../base/common/strings.js';
+import { UTF8 } from '../../textfile/common/encoding.js';
+import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { ILanguageDetectionService } from '../../languageDetection/common/languageDetectionWorkerService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, ILanguageSupport, IEncodingSupport, IWorkingCopy {
 

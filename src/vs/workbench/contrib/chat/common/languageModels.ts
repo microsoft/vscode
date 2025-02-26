@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { ChatContextKeys } from './chatContextKeys.js';
 
 export const enum ChatMessageRole {
 	System,
@@ -30,7 +32,7 @@ export interface IChatMessageTextPart {
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
 	toolCallId: string;
-	value: any;
+	value: (IChatResponseTextPart | IChatResponsePromptTsxPart)[];
 	isError?: boolean;
 }
 
@@ -45,6 +47,11 @@ export interface IChatMessage {
 export interface IChatResponseTextPart {
 	type: 'text';
 	value: string;
+}
+
+export interface IChatResponsePromptTsxPart {
+	type: 'prompt_tsx';
+	value: unknown;
 }
 
 export interface IChatResponseToolUsePart {
@@ -73,9 +80,16 @@ export interface ILanguageModelChatMetadata {
 	readonly maxOutputTokens: number;
 	readonly targetExtensions?: string[];
 
+	readonly isDefault?: boolean;
+	readonly isUserSelectable?: boolean;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
+	};
+	readonly capabilities?: {
+		readonly vision?: boolean;
+		readonly toolCalling?: boolean;
+		readonly agentMode?: boolean;
 	};
 }
 
@@ -92,7 +106,7 @@ export interface ILanguageModelChat {
 
 export interface ILanguageModelChatSelector {
 	readonly name?: string;
-	readonly identifier?: string;
+	readonly id?: string;
 	readonly vendor?: string;
 	readonly version?: string;
 	readonly family?: string;
@@ -102,11 +116,13 @@ export interface ILanguageModelChatSelector {
 
 export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
 
+export interface ILanguageModelChatMetadataAndIdentifier {
+	metadata: ILanguageModelChatMetadata;
+	identifier: string;
+}
+
 export interface ILanguageModelsChangeEvent {
-	added?: {
-		identifier: string;
-		metadata: ILanguageModelChatMetadata;
-	}[];
+	added?: ILanguageModelChatMetadataAndIdentifier[];
 	removed?: string[];
 }
 
@@ -174,10 +190,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onDidChangeProviders = this._store.add(new Emitter<ILanguageModelsChangeEvent>());
 	readonly onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent> = this._onDidChangeProviders.event;
 
+	private readonly _hasUserSelectableModels: IContextKey<boolean>;
+
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
+		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(this._contextKeyService);
 
 		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
 
@@ -251,7 +271,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			if ((selector.vendor === undefined || model.metadata.vendor === selector.vendor)
 				&& (selector.family === undefined || model.metadata.family === selector.family)
 				&& (selector.version === undefined || model.metadata.version === selector.version)
-				&& (selector.identifier === undefined || model.metadata.id === selector.identifier)
+				&& (selector.id === undefined || model.metadata.id === selector.id)
 				&& (!model.metadata.targetExtensions || model.metadata.targetExtensions.some(candidate => ExtensionIdentifier.equals(candidate, selector.extension)))
 			) {
 				result.push(identifier);
@@ -275,12 +295,21 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 		this._providers.set(identifier, provider);
 		this._onDidChangeProviders.fire({ added: [{ identifier, metadata: provider.metadata }] });
+		this.updateUserSelectableModelsContext();
 		return toDisposable(() => {
+			this.updateUserSelectableModelsContext();
 			if (this._providers.delete(identifier)) {
 				this._onDidChangeProviders.fire({ removed: [identifier] });
 				this._logService.trace('[LM] UNregistered language model chat', identifier, provider.metadata);
 			}
 		});
+	}
+
+	private updateUserSelectableModelsContext() {
+		// This context key to enable the picker is set when there is a default model, and there is at least one other model that is user selectable
+		const hasUserSelectableModels = Array.from(this._providers.values()).some(p => p.metadata.isUserSelectable && !p.metadata.isDefault);
+		const hasDefaultModel = Array.from(this._providers.values()).some(p => p.metadata.isDefault);
+		this._hasUserSelectableModels.set(hasUserSelectableModels && hasDefaultModel);
 	}
 
 	async sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {

@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, IReference, RefCountedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { TextEdit } from 'vs/editor/common/languages';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { IModelService } from 'vs/editor/common/services/model';
-import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
-import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
-import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import * as dom from '../../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
+import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { DefaultModelSHA1Computer } from '../../../../../editor/common/services/modelService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatListItemRendererOptions } from '../chat.js';
+import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatRendererDelegate } from '../chatListRenderer.js';
+import { ChatEditorOptions } from '../chatOptions.js';
+import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from '../codeBlockPart.js';
+import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from '../../common/chatModel.js';
+import { IChatService } from '../../common/chatService.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 
 const $ = dom.$;
 

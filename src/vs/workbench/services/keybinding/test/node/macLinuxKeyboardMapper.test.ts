@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { KeyChord, KeyCode, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { KeyCodeChord, decodeKeybinding, createSimpleKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
-import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
-import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveKeybinding, readRawMapping } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
-import { IMacLinuxKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { KeyChord, KeyCode, KeyMod, ScanCode, ScanCodeUtils } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord, decodeKeybinding, createSimpleKeybinding, ScanCodeChord, Keybinding } from '../../../../../base/common/keybindings.js';
+import { UserSettingsLabelProvider } from '../../../../../base/common/keybindingLabels.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { MacLinuxKeyboardMapper } from '../../common/macLinuxKeyboardMapper.js';
+import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveKeybinding, readRawMapping } from './keyboardMapperTestUtils.js';
+import { IMacLinuxKeyboardMapping } from '../../../../../platform/keyboardLayout/common/keyboardLayout.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 

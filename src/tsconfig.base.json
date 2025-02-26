@@ -1,7 +1,8 @@
 {
 	"compilerOptions": {
-		"module": "amd",
-		"moduleResolution": "node",
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"moduleDetection": "legacy",
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
 		"noImplicitOverride": true,
@@ -12,12 +13,6 @@
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"forceConsistentCasingInFileNames": true,
-		"baseUrl": ".",
-		"paths": {
-			"vs/*": [
-				"./vs/*"
-			]
-		},
 		"target": "es2022",
 		"useDefineForClassFields": false,
 		"lib": [
@@ -25,6 +20,7 @@
 			"DOM",
 			"DOM.Iterable",
 			"WebWorker.ImportScripts"
-		]
+		],
+		"allowSyntheticDefaultImports": true
 	}
 }

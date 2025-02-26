@@ -26,6 +26,9 @@ vscode-textmate/webpack.config.js
 @xterm/addon-image/src/**
 @xterm/addon-image/out/**
 
+@xterm/addon-ligatures/src/**
+@xterm/addon-ligatures/out/**
+
 @xterm/addon-search/src/**
 @xterm/addon-search/out/**
 @xterm/addon-search/fixtures/**

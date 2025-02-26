@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
-import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
-import { RGBA8 } from 'vs/editor/common/core/rgba';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MinimapCharRendererFactory } from '../../../browser/viewParts/minimap/minimapCharRendererFactory.js';
+import { Constants } from '../../../browser/viewParts/minimap/minimapCharSheet.js';
+import { RGBA8 } from '../../../common/core/rgba.js';
 
 suite('MinimapCharRenderer', () => {
 

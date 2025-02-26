@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../nls.js';
 
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { memoize } from 'vs/base/common/decorators';
-import { URI } from 'vs/base/common/uri';
+import { NativeEnvironmentService } from '../../platform/environment/node/environmentService.js';
+import { OPTIONS, OptionDescriptions } from '../../platform/environment/node/argv.js';
+import { refineServiceDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../platform/environment/common/environment.js';
+import { memoize } from '../../base/common/decorators.js';
+import { URI } from '../../base/common/uri.js';
 
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
@@ -69,6 +69,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'category': OPTIONS['category'],
 	'force': OPTIONS['force'],
 	'do-not-sync': OPTIONS['do-not-sync'],
+	'do-not-include-pack-dependencies': OPTIONS['do-not-include-pack-dependencies'],
 	'pre-release': OPTIONS['pre-release'],
 	'start-server': { type: 'boolean', cat: 'e', description: nls.localize('start-server', "Start the server when installing or uninstalling extensions. To be used in combination with 'install-extension', 'install-builtin-extension' and 'uninstall-extension'.") },
 
@@ -194,6 +195,8 @@ export interface ServerParsedArgs {
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
 	'pre-release'?: boolean; // used by install-extension
+	'do-not-include-pack-dependencies'?: boolean; // used by install-extension
+
 
 	'start-server'?: boolean;
 

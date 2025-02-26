@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows, platform } from 'vs/base/common/platform';
-import { GeneralShellType, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { timeout } from '../../../base/common/async.js';
+import { debounce } from '../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { isWindows, platform } from '../../../base/common/platform.js';
+import { GeneralShellType, TerminalShellType, WindowsShellType } from '../common/terminal.js';
 import type * as WindowsProcessTreeType from '@vscode/windows-process-tree';
 
 export interface IWindowsShellHelper extends IDisposable {
@@ -23,13 +23,21 @@ const SHELL_EXECUTABLES = [
 	'powershell.exe',
 	'pwsh.exe',
 	'bash.exe',
+	'git-cmd.exe',
 	'wsl.exe',
 	'ubuntu.exe',
 	'ubuntu1804.exe',
 	'kali.exe',
 	'debian.exe',
 	'opensuse-42.exe',
-	'sles-12.exe'
+	'sles-12.exe',
+	'julia.exe',
+	'nu.exe',
+	'node.exe',
+];
+
+const SHELL_EXECUTABLE_REGEXES = [
+	/^python(\d(\.\d{0,2})?)?\.exe$/,
 ];
 
 let windowsProcessTree: typeof WindowsProcessTreeType;
@@ -90,6 +98,11 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (SHELL_EXECUTABLES.indexOf(tree.name) === -1) {
 			return tree.name;
 		}
+		for (const regex of SHELL_EXECUTABLE_REGEXES) {
+			if (tree.name.match(regex)) {
+				return tree.name;
+			}
+		}
 		if (!tree.children || tree.children.length === 0) {
 			return tree.name;
 		}
@@ -143,8 +156,10 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			case 'bash.exe':
 			case 'git-cmd.exe':
 				return WindowsShellType.GitBash;
-			case 'julia.exe:':
+			case 'julia.exe':
 				return GeneralShellType.Julia;
+			case 'node.exe':
+				return GeneralShellType.Node;
 			case 'nu.exe':
 				return GeneralShellType.NuShell;
 			case 'wsl.exe':

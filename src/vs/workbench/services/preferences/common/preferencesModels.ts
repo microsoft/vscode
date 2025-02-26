@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { tail, coalesce } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { JSONVisitor, visit } from 'vs/base/common/json';
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationDefaultValueSource, ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
-import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { JSONVisitor, visit } from '../../../../base/common/json.js';
+import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { ITextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationDefaultValueSource, ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorModel } from '../../../common/editor/editorModel.js';
+import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from './preferences.js';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES } from '../../configuration/common/configuration.js';
+import { createValidator } from './preferencesValidation.js';
 
 export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
 function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
@@ -71,6 +71,7 @@ abstract class AbstractSettingsModel extends EditorModel {
 							setting,
 							matches: settingMatchResult && settingMatchResult.matches,
 							matchType: settingMatchResult?.matchType ?? SettingMatchType.None,
+							keyMatchScore: settingMatchResult?.keyMatchScore ?? 0,
 							score: settingMatchResult?.score ?? 0
 						});
 					}
@@ -95,7 +96,7 @@ abstract class AbstractSettingsModel extends EditorModel {
 		return undefined;
 	}
 
-	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> {
+	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> | null {
 		const metadata = Object.create(null);
 		let hasMetadata = false;
 		groups.forEach(g => {
@@ -208,7 +209,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,
-			metadata
+			metadata: metadata ?? undefined
 		};
 	}
 }
@@ -422,7 +423,8 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 	if (!model.isDisposed()) {
 		visit(model.getValue(), visitor);
 	}
-	return settings.length > 0 ? [<ISettingsGroup>{
+	return settings.length > 0 ? [{
+		id: model.isDisposed() ? '' : model.id,
 		sections: [
 			{
 				settings
@@ -431,7 +433,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		title: '',
 		titleRange: nullRange,
 		range
-	}] : [];
+	} satisfies ISettingsGroup] : [];
 }
 
 export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
@@ -839,16 +841,16 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			.sort((a, b) => a.order - b.order);
 		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
 
-		const startLine = tail(this.settingsGroups)!.range.endLineNumber + 2;
+		const startLine = this.settingsGroups.at(-1)!.range.endLineNumber + 2;
 		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
 
 		const metadata = this.collectMetadata(resultGroups);
 		return resultGroups.length ?
-			<IFilterResult>{
+			{
 				allGroups: this.settingsGroups,
 				filteredGroups,
 				matches,
-				metadata
+				metadata: metadata ?? undefined
 			} :
 			undefined;
 	}
@@ -894,9 +896,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		filterMatches = filterMatches
 			.map(filteredMatch => {
 				// Fix match ranges to offset from setting start line
-				return <ISettingMatch>{
+				return {
 					setting: filteredMatch.setting,
 					score: filteredMatch.score,
+					matchType: filteredMatch.matchType,
+					keyMatchScore: filteredMatch.keyMatchScore,
 					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
 						return new Range(
 							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
@@ -965,7 +969,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private getGroup(resultGroup: ISearchResultGroup): ISettingsGroup {
-		return <ISettingsGroup>{
+		return {
 			id: resultGroup.id,
 			range: nullRange,
 			title: resultGroup.label,

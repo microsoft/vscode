@@ -3,49 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayQueue, pushMany } from 'vs/base/common/arrays';
-import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { Color } from 'vs/base/common/color';
-import { BugIndicatingError, illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { listenStream } from 'vs/base/common/stream';
-import * as strings from 'vs/base/common/strings';
-import { ThemeColor } from 'vs/base/common/themables';
-import { Constants } from 'vs/base/common/uint';
-import { URI } from 'vs/base/common/uri';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { normalizeIndentation } from 'vs/editor/common/core/indentation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextChange } from 'vs/editor/common/core/textChange';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { FormattingOptions } from 'vs/editor/common/languages';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import * as model from 'vs/editor/common/model';
-import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
-import { ColorizedBracketPairsDecorationProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider';
-import { EditStack } from 'vs/editor/common/model/editStack';
-import { GuidesTextModelPart } from 'vs/editor/common/model/guidesTextModelPart';
-import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
-import { IntervalNode, IntervalTree, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
-import { TokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';
-import { AttachedViews } from 'vs/editor/common/model/tokens';
-import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
-import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
-import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { ArrayQueue, pushMany } from '../../../base/common/arrays.js';
+import { VSBuffer, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { Color } from '../../../base/common/color.js';
+import { BugIndicatingError, illegalArgument, onUnexpectedError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { Disposable, IDisposable, MutableDisposable, combinedDisposable } from '../../../base/common/lifecycle.js';
+import { listenStream } from '../../../base/common/stream.js';
+import * as strings from '../../../base/common/strings.js';
+import { ThemeColor } from '../../../base/common/themables.js';
+import { Constants } from '../../../base/common/uint.js';
+import { URI } from '../../../base/common/uri.js';
+import { ISingleEditOperation } from '../core/editOperation.js';
+import { countEOL } from '../core/eolCounter.js';
+import { normalizeIndentation } from '../core/indentation.js';
+import { IPosition, Position } from '../core/position.js';
+import { IRange, Range } from '../core/range.js';
+import { Selection } from '../core/selection.js';
+import { TextChange } from '../core/textChange.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { IWordAtPosition } from '../core/wordHelper.js';
+import { FormattingOptions } from '../languages.js';
+import { ILanguageSelection, ILanguageService } from '../languages/language.js';
+import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry.js';
+import * as model from '../model.js';
+import { BracketPairsTextModelPart } from './bracketPairsTextModelPart/bracketPairsImpl.js';
+import { ColorizedBracketPairsDecorationProvider } from './bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider.js';
+import { EditStack } from './editStack.js';
+import { GuidesTextModelPart } from './guidesTextModelPart.js';
+import { guessIndentation } from './indentationGuesser.js';
+import { IntervalNode, IntervalTree, recomputeMaxEnd } from './intervalTree.js';
+import { PieceTreeTextBuffer } from './pieceTreeTextBuffer/pieceTreeTextBuffer.js';
+import { PieceTreeTextBufferBuilder } from './pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
+import { SearchParams, TextModelSearch } from './textModelSearch.js';
+import { TokenizationTextModelPart } from './tokenizationTextModelPart.js';
+import { AttachedViews } from './tokens.js';
+import { IBracketPairsTextModelPart } from '../textModelBracketPairs.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../textModelEvents.js';
+import { IGuidesTextModelPart } from '../textModelGuides.js';
+import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IColorTheme } from '../../../platform/theme/common/themeService.js';
+import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
+import { TokenArray } from '../tokens/tokenArray.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -319,23 +320,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._buffer = textBuffer;
 		this._bufferDisposable = disposable;
 
-		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
-
-		const languageId = (typeof languageIdOrSelection === 'string' ? languageIdOrSelection : languageIdOrSelection.languageId);
-		if (typeof languageIdOrSelection !== 'string') {
-			this._languageSelectionListener.value = languageIdOrSelection.onDidChange(() => this._setLanguage(languageIdOrSelection.languageId));
-		}
-
-		this._bracketPairs = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
-		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
-		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
-		this._tokenizationTextModelPart = this.instantiationService.createInstance(TokenizationTextModelPart,
-			this,
-			this._bracketPairs,
-			languageId,
-			this._attachedViews
-		);
-
 		const bufferLineCount = this._buffer.getLineCount();
 		const bufferTextLength = this._buffer.getValueLengthInRange(new Range(1, 1, bufferLineCount, this._buffer.getLineLength(bufferLineCount) + 1), model.EndOfLinePreference.TextDefined);
 
@@ -353,6 +337,23 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._isTooLargeForTokenization = false;
 			this._isTooLargeForHeapOperation = false;
 		}
+
+		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
+
+		const languageId = (typeof languageIdOrSelection === 'string' ? languageIdOrSelection : languageIdOrSelection.languageId);
+		if (typeof languageIdOrSelection !== 'string') {
+			this._languageSelectionListener.value = languageIdOrSelection.onDidChange(() => this._setLanguage(languageIdOrSelection.languageId));
+		}
+
+		this._bracketPairs = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
+		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
+		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
+		this._tokenizationTextModelPart = this.instantiationService.createInstance(TokenizationTextModelPart,
+			this,
+			this._bracketPairs,
+			languageId,
+			this._attachedViews
+		);
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
 
@@ -453,7 +454,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._setValueFromTextBuffer(textBuffer, disposable);
 	}
 
-	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, rangeEndPosition: Position, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean): IModelContentChangedEvent {
 		return {
 			changes: [{
 				range: range,
@@ -499,7 +500,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true, false)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, true, false)
 		);
 	}
 
@@ -530,7 +531,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false, true)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, false, true)
 		);
 	}
 
@@ -1031,6 +1032,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 
 		return this._validatePosition(position.lineNumber, position.column, validationType);
+	}
+
+	public isValidRange(range: Range): boolean {
+		return this._isValidRange(range, StringOffsetValidationType.SurrogatePairs);
 	}
 
 	private _isValidRange(range: Range, validationType: StringOffsetValidationType): boolean {
@@ -1987,6 +1992,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		// Columns start with 1.
 		return indentOfLine(this.getLineContent(lineNumber)) + 1;
 	}
+
+	public override toString(): string {
+		return `TextModel(${this.uri.toString()})`;
+	}
 }
 
 export function indentOfLine(line: string): number {
@@ -2268,6 +2277,7 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 	}
 
 	public readonly content: string;
+	public readonly tokens: TokenArray | null;
 	readonly inlineClassName: string | null;
 	readonly inlineClassNameAffectsLetterSpacing: boolean;
 	readonly attachedData: unknown | null;
@@ -2275,6 +2285,7 @@ export class ModelDecorationInjectedTextOptions implements model.InjectedTextOpt
 
 	private constructor(options: model.InjectedTextOptions) {
 		this.content = options.content || '';
+		this.tokens = options.tokens ?? null;
 		this.inlineClassName = options.inlineClassName || null;
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
 		this.attachedData = options.attachedData || null;

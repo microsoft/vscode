@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from 'vs/base/common/assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { IObservable } from 'vs/base/common/observable';
-import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Location } from 'vs/editor/common/languages';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, IStartControllerTests, IStartControllerTestsResult, ITestItemContext, ResolvedTestRunRequest, TestControllerCapability, TestItemExpandState, TestMessageFollowupRequest, TestMessageFollowupResponse, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
+import { assert } from '../../../../base/common/assert.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IObservable } from '../../../../base/common/observable.js';
+import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../../base/common/prefixTree.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { MutableObservableValue } from './observableValue.js';
+import { TestExclusions } from './testExclusions.js';
+import { TestId } from './testId.js';
+import { ITestResult } from './testResult.js';
+import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, IStartControllerTests, IStartControllerTestsResult, ITestItemContext, ResolvedTestRunRequest, TestControllerCapability, TestItemExpandState, TestMessageFollowupRequest, TestMessageFollowupResponse, TestRunProfileBitset, TestsDiff } from './testTypes.js';
 
 export const ITestService = createDecorator<ITestService>('testService');
 
@@ -172,21 +173,40 @@ const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCol
  * in strictly descending order.
  */
 export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true): AsyncIterable<IncrementalTestCollectionItem> {
-	for (const test of testService.collection.all) {
-		if (!test.item.uri) {
-			continue;
-		}
+	const queue = new LinkedList<Iterable<string>>();
 
-		if (ident.extUri.isEqual(uri, test.item.uri)) {
-			yield test;
-		}
+	const existing = [...testService.collection.getNodeByUrl(uri)];
+	queue.push(existing.length ? existing.map(e => e.item.extId) : testService.collection.rootIds);
 
-		if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
-			if (test.expand === TestItemExpandState.Expandable) {
-				await testService.collection.expand(test.item.extId, 1);
+	let n = 0;
+	while (queue.size > 0) {
+		for (const id of queue.pop()!) {
+			n++;
+			const test = testService.collection.getNodeById(id);
+			if (!test) {
+				continue; // possible because we expand async and things could delete
 			}
-			if (waitForIdle) {
-				await waitForTestToBeIdle(testService, test);
+
+			if (!test.item.uri) {
+				queue.push(test.children);
+				continue;
+			}
+
+			if (ident.extUri.isEqual(uri, test.item.uri)) {
+				yield test;
+			}
+
+			if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+				if (test.expand === TestItemExpandState.Expandable) {
+					await testService.collection.expand(test.item.extId, 1);
+				}
+				if (waitForIdle) {
+					await waitForTestToBeIdle(testService, test);
+				}
+
+				if (test.children.size) {
+					queue.push(test.children);
+				}
 			}
 		}
 	}

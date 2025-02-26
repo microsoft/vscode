@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { InternalModelContentChangeEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { Disposable, DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { InternalModelContentChangeEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../../../common/textModelEvents.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
 
 // --------- utils
 

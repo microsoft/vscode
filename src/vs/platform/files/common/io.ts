@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { IDataTransformer, IErrorTransformer, WriteableStream } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createFileSystemProviderError, ensureFileSystemProviderError, IFileReadStreamOptions, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { canceled } from '../../../base/common/errors.js';
+import { IDataTransformer, IErrorTransformer, WriteableStream } from '../../../base/common/stream.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { createFileSystemProviderError, ensureFileSystemProviderError, IFileReadStreamOptions, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability } from './files.js';
 
 export interface ICreateReadStreamOptions extends IFileReadStreamOptions {
 

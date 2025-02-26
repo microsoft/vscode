@@ -129,6 +129,12 @@
 	align-items: center;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .input-header-container,
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
+	cursor: pointer;
+}
+
 .notebook-text-diff-editor .cell-diff-editor-container .input-header-container .property-toolbar,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-toolbar,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-toolbar {

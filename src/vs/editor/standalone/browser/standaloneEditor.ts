@@ -3,42 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { splitLines } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./standalone-tokens';
-import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/standalone/browser/standaloneWebWorker';
-import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { EditorType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { NullState, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
-import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
-import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor2, StandaloneEditor, createTextModel } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
-import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
-import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidget';
+import { mainWindow } from '../../../base/browser/window.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { splitLines } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import './standalone-tokens.css';
+import { FontMeasurements } from '../../browser/config/fontMeasurements.js';
+import { ICodeEditor } from '../../browser/editorBrowser.js';
+import { EditorCommand, ServicesAccessor } from '../../browser/editorExtensions.js';
+import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
+import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from './standaloneWebWorker.js';
+import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from '../../common/config/editorOptions.js';
+import { EditorZoom } from '../../common/config/editorZoom.js';
+import { BareFontInfo, FontInfo } from '../../common/config/fontInfo.js';
+import { IPosition } from '../../common/core/position.js';
+import { IRange } from '../../common/core/range.js';
+import { EditorType, IDiffEditor } from '../../common/editorCommon.js';
+import * as languages from '../../common/languages.js';
+import { ILanguageService } from '../../common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../common/languages/modesRegistry.js';
+import { NullState, nullTokenize } from '../../common/languages/nullTokenize.js';
+import { FindMatch, ITextModel, TextModelResolvedOptions } from '../../common/model.js';
+import { IModelService } from '../../common/services/model.js';
+import * as standaloneEnums from '../../common/standalone/standaloneEnums.js';
+import { Colorizer, IColorizerElementOptions, IColorizerOptions } from './colorizer.js';
+import { IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor2, StandaloneEditor, createTextModel } from './standaloneCodeEditor.js';
+import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from './standaloneServices.js';
+import { StandaloneThemeService } from './standaloneThemeService.js';
+import { IStandaloneThemeData, IStandaloneThemeService } from '../common/standaloneTheme.js';
+import { IMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandHandler } from '../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { ITextResourceEditorInput } from '../../../platform/editor/common/editor.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { IMarker, IMarkerData, IMarkerService } from '../../../platform/markers/common/markers.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { MultiDiffEditorWidget } from '../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 
 /**
  * Create a new editor under `domElement`.

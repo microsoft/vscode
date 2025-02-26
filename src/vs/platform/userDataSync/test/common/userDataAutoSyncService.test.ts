@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { joinPath } from 'vs/base/common/resources';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IUserDataSyncService, SyncResource, UserDataAutoSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
+import { IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { UserDataAutoSyncService } from '../../common/userDataAutoSyncService.js';
+import { IUserDataSyncService, SyncResource, UserDataAutoSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from '../../common/userDataSync.js';
+import { IUserDataSyncMachinesService } from '../../common/userDataSyncMachines.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 	protected override startAutoSync(): boolean { return false; }
 	protected override getSyncTriggerDelayTime(): number { return 50; }
 
 	sync(): Promise<void> {
-		return this.triggerSync(['sync'], false, false);
+		return this.triggerSync(['sync']);
 	}
 }
 
@@ -44,7 +44,7 @@ suite('UserDataAutoSyncService', () => {
 			const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
 
 			// Trigger auto sync with settings change
-			await testObject.triggerSync([SyncResource.Settings], false, false);
+			await testObject.triggerSync([SyncResource.Settings]);
 
 			// Filter out machine requests
 			const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
@@ -69,7 +69,7 @@ suite('UserDataAutoSyncService', () => {
 
 			// Trigger auto sync with settings change multiple times
 			for (let counter = 0; counter < 2; counter++) {
-				await testObject.triggerSync([SyncResource.Settings], false, false);
+				await testObject.triggerSync([SyncResource.Settings]);
 			}
 
 			// Filter out machine requests
@@ -96,7 +96,7 @@ suite('UserDataAutoSyncService', () => {
 			const testObject: UserDataAutoSyncService = disposableStore.add(client.instantiationService.createInstance(TestUserDataAutoSyncService));
 
 			// Trigger auto sync with window focus once
-			await testObject.triggerSync(['windowFocus'], true, false);
+			await testObject.triggerSync(['windowFocus']);
 
 			// Filter out machine requests
 			const actual = target.requests.filter(request => !request.url.startsWith(`${target.url}/v1/resource/machines`));
@@ -121,7 +121,7 @@ suite('UserDataAutoSyncService', () => {
 
 			// Trigger auto sync with window focus multiple times
 			for (let counter = 0; counter < 2; counter++) {
-				await testObject.triggerSync(['windowFocus'], true, false);
+				await testObject.triggerSync(['windowFocus'], { skipIfSyncedRecently: true });
 			}
 
 			// Filter out machine requests
@@ -164,6 +164,9 @@ suite('UserDataAutoSyncService', () => {
 				{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 				// Extensions
 				{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+				// Prompts
+				{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
+				{ type: 'POST', url: `${target.url}/v1/resource/prompts`, headers: { 'If-Match': '0' } },
 				// Profiles
 				{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 				// Manifest
@@ -214,6 +217,7 @@ suite('UserDataAutoSyncService', () => {
 			await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
 			await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
 			await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+			await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.promptsHome, 'h1.prompt.md'), VSBuffer.fromString(' '));
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
 			await testObject.sync();
 
@@ -228,6 +232,8 @@ suite('UserDataAutoSyncService', () => {
 				{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 				// Global state
 				{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
+				// Prompts
+				{ type: 'POST', url: `${target.url}/v1/resource/prompts`, headers: { 'If-Match': '1' } },
 			]);
 		});
 	});
@@ -440,7 +446,7 @@ suite('UserDataAutoSyncService', () => {
 			await testClient.setUp();
 			const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
 
-			await testObject.triggerSync(['some reason'], true, true);
+			await testObject.triggerSync(['some reason'], { disableCache: true });
 			assert.strictEqual(target.requestsWithAllHeaders[0].headers!['Cache-Control'], 'no-cache');
 		});
 	});
@@ -454,7 +460,7 @@ suite('UserDataAutoSyncService', () => {
 			await testClient.setUp();
 			const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
 
-			await testObject.triggerSync(['some reason'], true, false);
+			await testObject.triggerSync(['some reason']);
 			assert.strictEqual(target.requestsWithAllHeaders[0].headers!['Cache-Control'], undefined);
 		});
 	});

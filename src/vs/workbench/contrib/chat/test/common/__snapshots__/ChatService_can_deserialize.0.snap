@@ -4,9 +4,9 @@
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
-  welcomeMessage: undefined,
   requests: [
     {
+      requestId: undefined,
       message: {
         text: "@ChatProviderWithUsedContext test request",
         parts: [
@@ -56,10 +56,13 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
       followups: undefined,
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -94,7 +97,8 @@
         kind: "usedContext"
       },
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined
     }
   ]
 }

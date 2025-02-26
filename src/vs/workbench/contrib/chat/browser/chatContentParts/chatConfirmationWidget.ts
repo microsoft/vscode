@@ -3,25 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import 'vs/css!./media/chatConfirmationWidget';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import * as dom from '../../../../../base/browser/dom.js';
+import './media/chatConfirmationWidget.css';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 
 export interface IChatConfirmationButton {
 	label: string;
 	isSecondary?: boolean;
+	tooltip?: string;
 	data: any;
 }
 
-export class ChatConfirmationWidget extends Disposable {
+abstract class BaseChatConfirmationWidget extends Disposable {
 	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
 	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
+
+	protected _onDidChangeHeight = this._register(new Emitter<void>());
+	get onDidChangeHeight(): Event<void> { return this._onDidChangeHeight.event; }
 
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
@@ -32,11 +36,13 @@ export class ChatConfirmationWidget extends Disposable {
 		this.domNode.classList.toggle('hideButtons', !showButton);
 	}
 
+	private readonly messageElement: HTMLElement;
+	protected readonly markdownRenderer: MarkdownRenderer;
+
 	constructor(
 		title: string,
-		message: string,
 		buttons: IChatConfirmationButton[],
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -46,18 +52,50 @@ export class ChatConfirmationWidget extends Disposable {
 			dom.h('.chat-confirmation-buttons-container@buttonsContainer'),
 		]);
 		this._domNode = elements.root;
-		const renderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
+		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
-		const renderedTitle = this._register(renderer.render(new MarkdownString(title)));
-		elements.title.appendChild(renderedTitle.element);
-
-		const renderedMessage = this._register(renderer.render(new MarkdownString(message)));
-		elements.message.appendChild(renderedMessage.element);
-
+		const renderedTitle = this._register(this.markdownRenderer.render(new MarkdownString(title), {
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+		}));
+		elements.title.append(renderedTitle.element);
+		this.messageElement = elements.message;
 		buttons.forEach(buttonData => {
-			const button = new Button(elements.buttonsContainer, { ...defaultButtonStyles, secondary: buttonData.isSecondary });
+			const button = this._register(new Button(elements.buttonsContainer, { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip }));
 			button.label = buttonData.label;
 			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
 		});
+	}
+
+	protected renderMessage(element: HTMLElement): void {
+		this.messageElement.append(element);
+	}
+}
+
+export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
+	constructor(
+		title: string,
+		private readonly message: string | IMarkdownString,
+		buttons: IChatConfirmationButton[],
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(title, buttons, instantiationService);
+
+		const renderedMessage = this._register(this.markdownRenderer.render(
+			typeof this.message === 'string' ? new MarkdownString(this.message) : this.message,
+			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
+		));
+		this.renderMessage(renderedMessage.element);
+	}
+}
+
+export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
+	constructor(
+		title: string,
+		messageElement: HTMLElement,
+		buttons: IChatConfirmationButton[],
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(title, buttons, instantiationService);
+		this.renderMessage(messageElement);
 	}
 }

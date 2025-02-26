@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getAllMethodNames } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
-import { IWorkerDescriptor } from 'vs/base/common/worker/simpleWorker';
-import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { standaloneEditorWorkerDescriptor } from 'vs/editor/standalone/browser/standaloneServices';
+import { getAllMethodNames } from '../../../base/common/objects.js';
+import { URI } from '../../../base/common/uri.js';
+import { IWorkerDescriptor } from '../../../base/common/worker/simpleWorker.js';
+import { EditorWorkerClient } from '../../browser/services/editorWorkerService.js';
+import { IModelService } from '../../common/services/model.js';
+import { standaloneEditorWorkerDescriptor } from './standaloneServices.js';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
@@ -71,7 +71,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 
 	constructor(modelService: IModelService, opts: IWebWorkerOptions) {
 		const workerDescriptor: IWorkerDescriptor = {
-			amdModuleId: standaloneEditorWorkerDescriptor.amdModuleId,
+			moduleId: standaloneEditorWorkerDescriptor.moduleId,
 			esmModuleLocation: standaloneEditorWorkerDescriptor.esmModuleLocation,
 			label: opts.label,
 		};
@@ -113,7 +113,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 						};
 					};
 
-					const foreignProxy = {} as T;
+					const foreignProxy = {} as any as T;
 					for (const foreignMethod of foreignMethods) {
 						(<any>foreignProxy)[foreignMethod] = createProxyMethod(foreignMethod, proxyMethodRequest);
 					}

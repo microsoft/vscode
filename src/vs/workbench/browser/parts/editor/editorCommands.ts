@@ -3,43 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Schemas, matchesScheme } from 'vs/base/common/network';
-import { extname } from 'vs/base/common/resources';
-import { isNumber, isObject, isString, isUndefined } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize, localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
-import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
-import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorReplacement, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, DIFF_OPEN_SIDE, registerDiffEditorCommands } from './diffEditorCommands';
-import { IResolvedEditorCommandsContext, resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Schemas, matchesScheme } from '../../../../base/common/network.js';
+import { extname } from '../../../../base/common/resources.js';
+import { isNumber, isObject, isString, isUndefined } from '../../../../base/common/types.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandHandler, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IListService, IOpenEvent } from '../../../../platform/list/browser/listService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
+import { SideBySideEditor } from './sideBySideEditor.js';
+import { TextDiffEditor } from './textDiffEditor.js';
+import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
+import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
+import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { EditorGroupColumn, columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorReplacement, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
+import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, DIFF_OPEN_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
+import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
+import { prepareMoveCopyEditors } from './editor.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -108,13 +109,13 @@ export const EDITOR_CORE_NAVIGATION_COMMANDS = [
 	TOGGLE_MAXIMIZE_EDITOR_GROUP
 ];
 
-export interface ActiveEditorMoveCopyArguments {
+export interface SelectedEditorsMoveCopyArguments {
 	to?: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
 	by?: 'tab' | 'group';
 	value?: number;
 }
 
-const isActiveEditorMoveCopyArg = function (arg: ActiveEditorMoveCopyArguments): boolean {
+const isSelectedEditorsMoveCopyArg = function (arg: SelectedEditorsMoveCopyArguments): boolean {
 	if (!isObject(arg)) {
 		return false;
 	}
@@ -159,14 +160,14 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopyActiveEditor(true, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(true, args, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [
 				{
 					name: localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
 					description: localize('editorCommand.activeEditorMove.arg.description', "Argument Properties:\n\t* 'to': String value providing where to move.\n\t* 'by': String value providing the unit for move (by tab or by group).\n\t* 'value': Number value providing how many positions or an absolute position to move."),
-					constraint: isActiveEditorMoveCopyArg,
+					constraint: isSelectedEditorsMoveCopyArg,
 					schema: moveCopyJSONSchema
 				}
 			]
@@ -178,42 +179,55 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopyActiveEditor(false, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(false, args, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorCopy.description', "Copy the active editor by groups"),
 			args: [
 				{
 					name: localize('editorCommand.activeEditorCopy.arg.name', "Active editor copy argument"),
 					description: localize('editorCommand.activeEditorCopy.arg.description', "Argument Properties:\n\t* 'to': String value providing where to copy.\n\t* 'value': Number value providing how many positions or an absolute position to copy."),
-					constraint: isActiveEditorMoveCopyArg,
+					constraint: isSelectedEditorsMoveCopyArg,
 					schema: moveCopyJSONSchema
 				}
 			]
 		}
 	});
 
-	function moveCopyActiveEditor(isMove: boolean, args: ActiveEditorMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
+	function moveCopySelectedEditors(isMove: boolean, args: SelectedEditorsMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
 		args.to = args.to || 'right';
 		args.by = args.by || 'tab';
 		args.value = typeof args.value === 'number' ? args.value : 1;
 
-		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-		if (activeEditorPane) {
+		const activeGroup = accessor.get(IEditorGroupsService).activeGroup;
+		const selectedEditors = activeGroup.selectedEditors;
+		if (selectedEditors.length > 0) {
 			switch (args.by) {
 				case 'tab':
 					if (isMove) {
-						return moveActiveTab(args, activeEditorPane);
+						return moveTabs(args, activeGroup, selectedEditors);
 					}
 					break;
 				case 'group':
-					return moveCopyActiveEditorToGroup(isMove, args, activeEditorPane, accessor);
+					return moveCopyActiveEditorToGroup(isMove, args, activeGroup, selectedEditors, accessor);
 			}
 		}
 	}
 
-	function moveActiveTab(args: ActiveEditorMoveCopyArguments, control: IVisibleEditorPane): void {
-		const group = control.group;
-		let index = group.getIndexOfEditor(control.input);
+	function moveTabs(args: SelectedEditorsMoveCopyArguments, group: IEditorGroup, editors: EditorInput[]): void {
+		const to = args.to;
+		if (to === 'first' || to === 'right') {
+			editors = [...editors].reverse();
+		} else if (to === 'position' && (args.value ?? 1) < group.getIndexOfEditor(editors[0])) {
+			editors = [...editors].reverse();
+		}
+
+		for (const editor of editors) {
+			moveTab(args, group, editor);
+		}
+	}
+
+	function moveTab(args: SelectedEditorsMoveCopyArguments, group: IEditorGroup, editor: EditorInput): void {
+		let index = group.getIndexOfEditor(editor);
 		switch (args.to) {
 			case 'first':
 				index = 0;
@@ -236,14 +250,13 @@ function registerActiveEditorMoveCopyCommand(): void {
 		}
 
 		index = index < 0 ? 0 : index >= group.count ? group.count - 1 : index;
-		group.moveEditor(control.input, group, { index });
+		group.moveEditor(editor, group, { index });
 	}
 
-	function moveCopyActiveEditorToGroup(isMove: boolean, args: ActiveEditorMoveCopyArguments, control: IVisibleEditorPane, accessor: ServicesAccessor): void {
+	function moveCopyActiveEditorToGroup(isMove: boolean, args: SelectedEditorsMoveCopyArguments, sourceGroup: IEditorGroup, editors: EditorInput[], accessor: ServicesAccessor): void {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const sourceGroup = control.group;
 		let targetGroup: IEditorGroup | undefined;
 
 		switch (args.to) {
@@ -295,11 +308,13 @@ function registerActiveEditorMoveCopyCommand(): void {
 		}
 
 		if (targetGroup) {
+			const editorsWithOptions = prepareMoveCopyEditors(sourceGroup, editors);
 			if (isMove) {
-				sourceGroup.moveEditor(control.input, targetGroup);
+				sourceGroup.moveEditors(editorsWithOptions, targetGroup);
 			} else if (sourceGroup.id !== targetGroup.id) {
-				sourceGroup.copyEditor(control.input, targetGroup);
+				sourceGroup.copyEditors(editorsWithOptions, targetGroup);
 			}
+
 			targetGroup.focus();
 		}
 	}
@@ -325,7 +340,13 @@ function registerEditorGroupsLayoutCommands(): void {
 		id: 'vscode.setEditorLayout',
 		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
 		metadata: {
-			description: 'Set Editor Layout',
+			'description': `Set the editor layout. Editor layout is represented as a tree of groups in which the first group is the root group of the layout.
+					The orientation of the first group is 0 (horizontal) by default unless specified otherwise. The other orientations are 1 (vertical).
+					The orientation of subsequent groups is the opposite of the orientation of the group that contains it.
+					Here are some examples: A layout representing 1 row and 2 columns: { orientation: 0, groups: [{}, {}] }.
+					A layout representing 3 rows and 1 column: { orientation: 1, groups: [{}, {}, {}] }.
+					A layout representing 3 rows and 1 column in which the second row has 2 columns: { orientation: 1, groups: [{}, { groups: [{}, {}] }, {}] }
+					`,
 			args: [{
 				name: 'args',
 				schema: {
@@ -335,7 +356,12 @@ function registerEditorGroupsLayoutCommands(): void {
 						'orientation': {
 							'type': 'number',
 							'default': 0,
-							'enum': [0, 1]
+							'description': `The orientation of the root group in the layout. 0 for horizontal, 1 for vertical.`,
+							'enum': [0, 1],
+							'enumDescriptions': [
+								localize('editorGroupLayout.horizontal', "Horizontal"),
+								localize('editorGroupLayout.vertical', "Vertical")
+							],
 						},
 						'groups': {
 							'$ref': '#/definitions/editorGroupsSchema',
@@ -483,7 +509,7 @@ function registerOpenEditorAPICommands(): void {
 
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
-		await editorService.openEditor({ resource: URI.from(resource, true), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
+		await editorService.openEditor({ resource: URI.from(resource, true), options: { pinned: true, ...optionsArg, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
 	});
 
 	// partial, renderer-side API command to open diff editor
@@ -949,8 +975,8 @@ function registerFocusEditorGroupWihoutWrapCommands(): void {
 		CommandsRegistry.registerCommand(command.id, async (accessor: ServicesAccessor) => {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 
-			const group = editorGroupsService.findGroup({ direction: command.direction }, editorGroupsService.activeGroup, false);
-			group?.focus();
+			const group = editorGroupsService.findGroup({ direction: command.direction }, editorGroupsService.activeGroup, false) ?? editorGroupsService.activeGroup;
+			group.focus();
 		});
 	}
 }

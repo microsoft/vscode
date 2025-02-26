@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IHoverDelegate, IScopedHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { Lazy } from 'vs/base/common/lazy';
+import { IHoverDelegate, IScopedHoverDelegate } from './hoverDelegate.js';
+import { Lazy } from '../../../common/lazy.js';
 
 const nullHoverDelegateFactory = () => ({
 	get delay(): number { return -1; },

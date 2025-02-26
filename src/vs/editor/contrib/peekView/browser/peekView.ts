@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionBar, ActionsOrientation, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import 'vs/css!./media/peekViewWidget';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import * as nls from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { activeContrastBorder, contrastBorder, editorForeground, editorInfoForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import * as dom from '../../../../base/browser/dom.js';
+import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { ActionBar, ActionsOrientation, IActionBarOptions } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Color } from '../../../../base/common/color.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import * as objects from '../../../../base/common/objects.js';
+import './media/peekViewWidget.css';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { IOptions, IStyles, ZoneWidget } from '../../zoneWidget/browser/zoneWidget.js';
+import * as nls from '../../../../nls.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { activeContrastBorder, contrastBorder, editorForeground, editorInfoForeground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {
@@ -79,14 +79,6 @@ class PeekContextController implements IEditorContribution {
 
 registerEditorContribution(PeekContextController.ID, PeekContextController, EditorContributionInstantiation.Eager); // eager because it needs to define a context key
 
-export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor | null {
-	const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-	if (editor instanceof EmbeddedCodeEditorWidget) {
-		return editor.getParentEditor();
-	}
-	return editor;
-}
-
 export interface IPeekViewStyles extends IStyles {
 	headerBackgroundColor?: Color;
 	primaryHeadingColor?: Color;
@@ -126,6 +118,9 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	) {
 		super(editor, options);
 		objects.mixin(this.options, defaultOptions, false);
+
+		const e = observableCodeEditor(this.editor);
+		e.openedPeekWidgets.set(e.openedPeekWidgets.get() + 1, undefined);
 	}
 
 	override dispose(): void {
@@ -133,6 +128,9 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			this.disposed = true; // prevent consumers who dispose on onDidClose from looping
 			super.dispose();
 			this._onDidClose.fire(this);
+
+			const e = observableCodeEditor(this.editor);
+			e.openedPeekWidgets.set(e.openedPeekWidgets.get() - 1, undefined);
 		}
 	}
 
@@ -202,10 +200,10 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		this._disposables.add(this._actionbarWidget);
 
 		if (!noCloseAction) {
-			this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => {
+			this._actionbarWidget.push(this._disposables.add(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => {
 				this.dispose();
 				return Promise.resolve();
-			}), { label: false, icon: true });
+			})), { label: false, icon: true });
 		}
 	}
 

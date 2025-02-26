@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
+import { localize } from '../../../../nls.js';
+import { ExtensionToggleData } from '../common/preferences.js';
 
 export interface ITOCEntry<T> {
 	id: string;
@@ -319,3 +319,4 @@ knownTermMappings.set('power shell', 'PowerShell');
 knownTermMappings.set('powershell', 'PowerShell');
 knownTermMappings.set('javascript', 'JavaScript');
 knownTermMappings.set('typescript', 'TypeScript');
+knownTermMappings.set('github', 'GitHub');

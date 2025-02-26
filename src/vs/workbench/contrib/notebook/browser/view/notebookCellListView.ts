@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/base/common/range';
-import { ListView } from 'vs/base/browser/ui/list/listView';
-import { IItem, IRangeMap } from 'vs/base/browser/ui/list/rangeMap';
-import { ConstantTimePrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
+import { IRange } from '../../../../../base/common/range.js';
+import { ListView } from '../../../../../base/browser/ui/list/listView.js';
+import { IItem, IRangeMap } from '../../../../../base/browser/ui/list/rangeMap.js';
+import { ConstantTimePrefixSumComputer } from '../../../../../editor/common/model/prefixSumComputer.js';
 
 export interface IWhitespace {
 	id: string;
@@ -189,9 +189,7 @@ export class NotebookCellsLayout implements IRangeMap {
 		const index = afterPosition - 1;
 		const previousItemPosition = this._prefixSumComputer.getPrefixSum(index);
 		const previousItemSize = this._items[index].size;
-		const previousWhitespace = this._whitespace.filter(ws => (ws.afterPosition <= afterPosition - 1 && ws.afterPosition > 0));
-		const whitespaceBefore = previousWhitespace.reduce((acc, ws) => acc + ws.size, 0);
-		return previousItemPosition + previousItemSize + whitespaceBeforeFirstItem + this.paddingTop + whitespaceBefore;
+		return previousItemPosition + previousItemSize + whitespaceBeforeFirstItem + this.paddingTop;
 	}
 
 	indexAt(position: number): number {

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { localize } from 'vs/nls';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { ADD_CONFIGURATION_ID, DEBUG_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { debugConfigure, debugRemoveConfig } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { localize } from '../../../../nls.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IDebugService } from '../common/debug.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { matchesFuzzy } from '../../../../base/common/filters.js';
+import { ADD_CONFIGURATION_ID, DEBUG_QUICK_ACCESS_PREFIX } from './debugCommands.js';
+import { debugConfigure, debugRemoveConfig } from './debugIcons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -39,6 +39,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		picks.push({ type: 'separator', label: 'launch.json' });
 
 		const configManager = this.debugService.getConfigurationManager();
+		const selectedConfiguration = configManager.selectedConfiguration;
 
 		// Entries: configs
 		let lastGroup: string | undefined;
@@ -46,14 +47,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			const highlights = matchesFuzzy(filter, config.name, true);
 			if (highlights) {
 
-				// Separator
-				if (lastGroup !== config.presentation?.group) {
-					picks.push({ type: 'separator' });
-					lastGroup = config.presentation?.group;
-				}
-
-				// Launch entry
-				picks.push({
+				const pick = {
 					label: config.name,
 					description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? config.launch.name : '',
 					highlights: { label: highlights },
@@ -74,7 +68,24 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 							this.notificationService.error(error);
 						}
 					}
-				});
+				};
+
+				// Most recently used configuration
+				if (selectedConfiguration.name === config.name && selectedConfiguration.launch === config.launch) {
+					const separator: IQuickPickSeparator = { type: 'separator', label: localize('mostRecent', 'Most Recent') };
+					picks.unshift(separator, pick);
+					continue;
+				}
+
+				// Separator
+				if (lastGroup !== config.presentation?.group) {
+					picks.push({ type: 'separator' });
+					lastGroup = config.presentation?.group;
+				}
+
+				// Launch entry
+
+				picks.push(pick);
 			}
 		}
 

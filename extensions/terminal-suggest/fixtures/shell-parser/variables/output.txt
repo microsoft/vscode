@@ -1,0 +1,2439 @@
+// Case 1
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 7,
+  "text": "ENV=a b",
+  "innerText": "ENV=a b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 7,
+      "text": "ENV=a b",
+      "innerText": "ENV=a b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 5,
+          "text": "ENV=a",
+          "innerText": "ENV=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "word",
+              "endIndex": 5,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 6,
+          "type": "command",
+          "endIndex": 7,
+          "text": "b",
+          "innerText": "b",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 6,
+              "type": "word",
+              "endIndex": 7,
+              "text": "b",
+              "innerText": "b",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "hasCommand": true
+    }
+  ]
+}
+
+// Case 2
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 18,
+  "text": "ENV=a b c d --op=e",
+  "innerText": "ENV=a b c d --op=e",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 18,
+      "text": "ENV=a b c d --op=e",
+      "innerText": "ENV=a b c d --op=e",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 5,
+          "text": "ENV=a",
+          "innerText": "ENV=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "word",
+              "endIndex": 5,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 6,
+          "type": "command",
+          "endIndex": 18,
+          "text": "b c d --op=e",
+          "innerText": "b c d --op=e",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 6,
+              "type": "word",
+              "endIndex": 7,
+              "text": "b",
+              "innerText": "b",
+              "complete": true,
+              "children": []
+            },
+            {
+              "startIndex": 8,
+              "type": "word",
+              "endIndex": 9,
+              "text": "c",
+              "innerText": "c",
+              "complete": true,
+              "children": []
+            },
+            {
+              "startIndex": 10,
+              "type": "word",
+              "endIndex": 11,
+              "text": "d",
+              "innerText": "d",
+              "complete": true,
+              "children": []
+            },
+            {
+              "startIndex": 12,
+              "type": "word",
+              "endIndex": 18,
+              "text": "--op=e",
+              "innerText": "--op=e",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "hasCommand": true
+    }
+  ]
+}
+
+// Case 3
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 13,
+  "text": "ENV=a ENV=b a",
+  "innerText": "ENV=a ENV=b a",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 13,
+      "text": "ENV=a ENV=b a",
+      "innerText": "ENV=a ENV=b a",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 5,
+          "text": "ENV=a",
+          "innerText": "ENV=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "word",
+              "endIndex": 5,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 6,
+          "type": "assignment",
+          "endIndex": 11,
+          "text": "ENV=b",
+          "innerText": "ENV=b",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 10,
+              "type": "word",
+              "endIndex": 11,
+              "text": "b",
+              "innerText": "b",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 6,
+            "type": "variable_name",
+            "endIndex": 9,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 12,
+          "type": "command",
+          "endIndex": 13,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 12,
+              "type": "word",
+              "endIndex": 13,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "hasCommand": true
+    }
+  ]
+}
+
+// Case 4
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 24,
+  "text": "ENV=a ENV=b a && ENV=c c",
+  "innerText": "ENV=a ENV=b a && ENV=c c",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "list",
+      "endIndex": 24,
+      "text": "ENV=a ENV=b a && ENV=c c",
+      "innerText": "ENV=a ENV=b a && ENV=c c",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment_list",
+          "endIndex": 14,
+          "text": "ENV=a ENV=b a ",
+          "innerText": "ENV=a ENV=b a ",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 0,
+              "type": "assignment",
+              "endIndex": 5,
+              "text": "ENV=a",
+              "innerText": "ENV=a",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 4,
+                  "type": "word",
+                  "endIndex": 5,
+                  "text": "a",
+                  "innerText": "a",
+                  "complete": true,
+                  "children": []
+                }
+              ],
+              "name": {
+                "startIndex": 0,
+                "type": "variable_name",
+                "endIndex": 3,
+                "text": "ENV",
+                "innerText": "ENV",
+                "complete": true,
+                "children": []
+              },
+              "operator": "="
+            },
+            {
+              "startIndex": 6,
+              "type": "assignment",
+              "endIndex": 11,
+              "text": "ENV=b",
+              "innerText": "ENV=b",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 10,
+                  "type": "word",
+                  "endIndex": 11,
+                  "text": "b",
+                  "innerText": "b",
+                  "complete": true,
+                  "children": []
+                }
+              ],
+              "name": {
+                "startIndex": 6,
+                "type": "variable_name",
+                "endIndex": 9,
+                "text": "ENV",
+                "innerText": "ENV",
+                "complete": true,
+                "children": []
+              },
+              "operator": "="
+            },
+            {
+              "startIndex": 12,
+              "type": "command",
+              "endIndex": 14,
+              "text": "a ",
+              "innerText": "a ",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 12,
+                  "type": "word",
+                  "endIndex": 13,
+                  "text": "a",
+                  "innerText": "a",
+                  "complete": true,
+                  "children": []
+                }
+              ]
+            }
+          ],
+          "hasCommand": true
+        },
+        {
+          "startIndex": 17,
+          "type": "assignment_list",
+          "endIndex": 24,
+          "text": "ENV=c c",
+          "innerText": "ENV=c c",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 17,
+              "type": "assignment",
+              "endIndex": 22,
+              "text": "ENV=c",
+              "innerText": "ENV=c",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 21,
+                  "type": "word",
+                  "endIndex": 22,
+                  "text": "c",
+                  "innerText": "c",
+                  "complete": true,
+                  "children": []
+                }
+              ],
+              "name": {
+                "startIndex": 17,
+                "type": "variable_name",
+                "endIndex": 20,
+                "text": "ENV",
+                "innerText": "ENV",
+                "complete": true,
+                "children": []
+              },
+              "operator": "="
+            },
+            {
+              "startIndex": 23,
+              "type": "command",
+              "endIndex": 24,
+              "text": "c",
+              "innerText": "c",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 23,
+                  "type": "word",
+                  "endIndex": 24,
+                  "text": "c",
+                  "innerText": "c",
+                  "complete": true,
+                  "children": []
+                }
+              ]
+            }
+          ],
+          "hasCommand": true
+        }
+      ]
+    }
+  ]
+}
+
+// Case 5
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 11,
+  "text": "ENV=\"a b\" c",
+  "innerText": "ENV=\"a b\" c",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 11,
+      "text": "ENV=\"a b\" c",
+      "innerText": "ENV=\"a b\" c",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 9,
+          "text": "ENV=\"a b\"",
+          "innerText": "ENV=\"a b\"",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "string",
+              "endIndex": 9,
+              "text": "\"a b\"",
+              "innerText": "a b",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 10,
+          "type": "command",
+          "endIndex": 11,
+          "text": "c",
+          "innerText": "c",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 10,
+              "type": "word",
+              "endIndex": 11,
+              "text": "c",
+              "innerText": "c",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "hasCommand": true
+    }
+  ]
+}
+
+// Case 6
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 11,
+  "text": "ENV='a b' c",
+  "innerText": "ENV='a b' c",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 11,
+      "text": "ENV='a b' c",
+      "innerText": "ENV='a b' c",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 9,
+          "text": "ENV='a b'",
+          "innerText": "ENV='a b'",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "raw_string",
+              "endIndex": 9,
+              "text": "'a b'",
+              "innerText": "a b",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 10,
+          "type": "command",
+          "endIndex": 11,
+          "text": "c",
+          "innerText": "c",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 10,
+              "type": "word",
+              "endIndex": 11,
+              "text": "c",
+              "innerText": "c",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "hasCommand": true
+    }
+  ]
+}
+
+// Case 7
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 11,
+  "text": "ENV=`cmd` a",
+  "innerText": "ENV=`cmd` a",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 11,
+      "text": "ENV=`cmd` a",
+      "innerText": "ENV=`cmd` a",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 9,
+          "text": "ENV=`cmd`",
+          "innerText": "ENV=`cmd`",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "command_substitution",
+              "endIndex": 9,
+              "text": "`cmd`",
+              "innerText": "`cmd`",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 5,
+                  "type": "command",
+                  "endIndex": 8,
+                  "text": "cmd",
+                  "innerText": "cmd",
+                  "complete": true,
+                  "children": [
+                    {
+                      "startIndex": 5,
+                      "type": "word",
+                      "endIndex": 8,
+                      "text": "cmd",
+                      "innerText": "cmd",
+                      "complete": true,
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 10,
+          "type": "command",
+          "endIndex": 11,
+          "text": "a",
+          "innerText": "a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 10,
+              "type": "word",
+              "endIndex": 11,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "hasCommand": true
+    }
+  ]
+}
+
+// Case 8
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 12,
+  "text": "ENV+='100' b",
+  "innerText": "ENV+='100' b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 12,
+      "text": "ENV+='100' b",
+      "innerText": "ENV+='100' b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 10,
+          "text": "ENV+='100'",
+          "innerText": "ENV+='100'",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 5,
+              "type": "raw_string",
+              "endIndex": 10,
+              "text": "'100'",
+              "innerText": "100",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "+="
+        },
+        {
+          "startIndex": 11,
+          "type": "command",
+          "endIndex": 12,
+          "text": "b",
+          "innerText": "b",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 11,
+              "type": "word",
+              "endIndex": 12,
+              "text": "b",
+              "innerText": "b",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "hasCommand": true
+    }
+  ]
+}
+
+// Case 9
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 12,
+  "text": "ENV+=a ENV=b",
+  "innerText": "ENV+=a ENV=b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 12,
+      "text": "ENV+=a ENV=b",
+      "innerText": "ENV+=a ENV=b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 6,
+          "text": "ENV+=a",
+          "innerText": "ENV+=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 5,
+              "type": "word",
+              "endIndex": 6,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "+="
+        },
+        {
+          "startIndex": 7,
+          "type": "assignment",
+          "endIndex": 12,
+          "text": "ENV=b",
+          "innerText": "ENV=b",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 11,
+              "type": "word",
+              "endIndex": 12,
+              "text": "b",
+              "innerText": "b",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 7,
+            "type": "variable_name",
+            "endIndex": 10,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    }
+  ]
+}
+
+// Case 10
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 19,
+  "text": "ENV+=a ENV=b && foo",
+  "innerText": "ENV+=a ENV=b && foo",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "list",
+      "endIndex": 19,
+      "text": "ENV+=a ENV=b && foo",
+      "innerText": "ENV+=a ENV=b && foo",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment_list",
+          "endIndex": 12,
+          "text": "ENV+=a ENV=b",
+          "innerText": "ENV+=a ENV=b",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 0,
+              "type": "assignment",
+              "endIndex": 6,
+              "text": "ENV+=a",
+              "innerText": "ENV+=a",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 5,
+                  "type": "word",
+                  "endIndex": 6,
+                  "text": "a",
+                  "innerText": "a",
+                  "complete": true,
+                  "children": []
+                }
+              ],
+              "name": {
+                "startIndex": 0,
+                "type": "variable_name",
+                "endIndex": 3,
+                "text": "ENV",
+                "innerText": "ENV",
+                "complete": true,
+                "children": []
+              },
+              "operator": "+="
+            },
+            {
+              "startIndex": 7,
+              "type": "assignment",
+              "endIndex": 12,
+              "text": "ENV=b",
+              "innerText": "ENV=b",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 11,
+                  "type": "word",
+                  "endIndex": 12,
+                  "text": "b",
+                  "innerText": "b",
+                  "complete": true,
+                  "children": []
+                }
+              ],
+              "name": {
+                "startIndex": 7,
+                "type": "variable_name",
+                "endIndex": 10,
+                "text": "ENV",
+                "innerText": "ENV",
+                "complete": true,
+                "children": []
+              },
+              "operator": "="
+            }
+          ],
+          "hasCommand": false
+        },
+        {
+          "startIndex": 16,
+          "type": "command",
+          "endIndex": 19,
+          "text": "foo",
+          "innerText": "foo",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 16,
+              "type": "word",
+              "endIndex": 19,
+              "text": "foo",
+              "innerText": "foo",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+// Case 11
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 6,
+  "text": "ENV=\"a",
+  "innerText": "ENV=\"a",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 6,
+      "text": "ENV=\"a",
+      "innerText": "ENV=\"a",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 6,
+          "text": "ENV=\"a",
+          "innerText": "ENV=\"a",
+          "complete": false,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "string",
+              "endIndex": 6,
+              "text": "\"a",
+              "innerText": "a",
+              "complete": false,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    }
+  ]
+}
+
+// Case 12
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 6,
+  "text": "ENV='a",
+  "innerText": "ENV='a",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 6,
+      "text": "ENV='a",
+      "innerText": "ENV='a",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 6,
+          "text": "ENV='a",
+          "innerText": "ENV='a",
+          "complete": false,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "raw_string",
+              "endIndex": 6,
+              "text": "'a",
+              "innerText": "a",
+              "complete": false,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    }
+  ]
+}
+
+// Case 13
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 12,
+  "text": "ENV=a ENV=`b",
+  "innerText": "ENV=a ENV=`b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 12,
+      "text": "ENV=a ENV=`b",
+      "innerText": "ENV=a ENV=`b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 5,
+          "text": "ENV=a",
+          "innerText": "ENV=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "word",
+              "endIndex": 5,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 6,
+          "type": "assignment",
+          "endIndex": 12,
+          "text": "ENV=`b",
+          "innerText": "ENV=`b",
+          "complete": false,
+          "children": [
+            {
+              "startIndex": 10,
+              "type": "command_substitution",
+              "endIndex": 12,
+              "text": "`b",
+              "innerText": "`b",
+              "complete": false,
+              "children": [
+                {
+                  "startIndex": 11,
+                  "type": "command",
+                  "endIndex": 12,
+                  "text": "b",
+                  "innerText": "b",
+                  "complete": true,
+                  "children": [
+                    {
+                      "startIndex": 11,
+                      "type": "word",
+                      "endIndex": 12,
+                      "text": "b",
+                      "innerText": "b",
+                      "complete": true,
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "name": {
+            "startIndex": 6,
+            "type": "variable_name",
+            "endIndex": 9,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    }
+  ]
+}
+
+// Case 14
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 28,
+  "text": "ENV=`ENV=\"a\" b` && ENV=\"c\" d",
+  "innerText": "ENV=`ENV=\"a\" b` && ENV=\"c\" d",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "list",
+      "endIndex": 28,
+      "text": "ENV=`ENV=\"a\" b` && ENV=\"c\" d",
+      "innerText": "ENV=`ENV=\"a\" b` && ENV=\"c\" d",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment_list",
+          "endIndex": 15,
+          "text": "ENV=`ENV=\"a\" b`",
+          "innerText": "ENV=`ENV=\"a\" b`",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 0,
+              "type": "assignment",
+              "endIndex": 15,
+              "text": "ENV=`ENV=\"a\" b`",
+              "innerText": "ENV=`ENV=\"a\" b`",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 4,
+                  "type": "command_substitution",
+                  "endIndex": 15,
+                  "text": "`ENV=\"a\" b`",
+                  "innerText": "`ENV=\"a\" b`",
+                  "complete": true,
+                  "children": [
+                    {
+                      "startIndex": 5,
+                      "type": "assignment_list",
+                      "endIndex": 14,
+                      "text": "ENV=\"a\" b",
+                      "innerText": "ENV=\"a\" b",
+                      "complete": true,
+                      "children": [
+                        {
+                          "startIndex": 5,
+                          "type": "assignment",
+                          "endIndex": 12,
+                          "text": "ENV=\"a\"",
+                          "innerText": "ENV=\"a\"",
+                          "complete": true,
+                          "children": [
+                            {
+                              "startIndex": 9,
+                              "type": "string",
+                              "endIndex": 12,
+                              "text": "\"a\"",
+                              "innerText": "a",
+                              "complete": true,
+                              "children": []
+                            }
+                          ],
+                          "name": {
+                            "startIndex": 5,
+                            "type": "variable_name",
+                            "endIndex": 8,
+                            "text": "ENV",
+                            "innerText": "ENV",
+                            "complete": true,
+                            "children": []
+                          },
+                          "operator": "="
+                        },
+                        {
+                          "startIndex": 13,
+                          "type": "command",
+                          "endIndex": 14,
+                          "text": "b",
+                          "innerText": "b",
+                          "complete": true,
+                          "children": [
+                            {
+                              "startIndex": 13,
+                              "type": "word",
+                              "endIndex": 14,
+                              "text": "b",
+                              "innerText": "b",
+                              "complete": true,
+                              "children": []
+                            }
+                          ]
+                        }
+                      ],
+                      "hasCommand": true
+                    }
+                  ]
+                }
+              ],
+              "name": {
+                "startIndex": 0,
+                "type": "variable_name",
+                "endIndex": 3,
+                "text": "ENV",
+                "innerText": "ENV",
+                "complete": true,
+                "children": []
+              },
+              "operator": "="
+            }
+          ],
+          "hasCommand": false
+        },
+        {
+          "startIndex": 19,
+          "type": "assignment_list",
+          "endIndex": 28,
+          "text": "ENV=\"c\" d",
+          "innerText": "ENV=\"c\" d",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 19,
+              "type": "assignment",
+              "endIndex": 26,
+              "text": "ENV=\"c\"",
+              "innerText": "ENV=\"c\"",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 23,
+                  "type": "string",
+                  "endIndex": 26,
+                  "text": "\"c\"",
+                  "innerText": "c",
+                  "complete": true,
+                  "children": []
+                }
+              ],
+              "name": {
+                "startIndex": 19,
+                "type": "variable_name",
+                "endIndex": 22,
+                "text": "ENV",
+                "innerText": "ENV",
+                "complete": true,
+                "children": []
+              },
+              "operator": "="
+            },
+            {
+              "startIndex": 27,
+              "type": "command",
+              "endIndex": 28,
+              "text": "d",
+              "innerText": "d",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 27,
+                  "type": "word",
+                  "endIndex": 28,
+                  "text": "d",
+                  "innerText": "d",
+                  "complete": true,
+                  "children": []
+                }
+              ]
+            }
+          ],
+          "hasCommand": true
+        }
+      ]
+    }
+  ]
+}
+
+// Case 15
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 14,
+  "text": "c $(ENV=a foo)",
+  "innerText": "c $(ENV=a foo)",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "command",
+      "endIndex": 14,
+      "text": "c $(ENV=a foo)",
+      "innerText": "c $(ENV=a foo)",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "word",
+          "endIndex": 1,
+          "text": "c",
+          "innerText": "c",
+          "complete": true,
+          "children": []
+        },
+        {
+          "startIndex": 2,
+          "type": "command_substitution",
+          "endIndex": 14,
+          "text": "$(ENV=a foo)",
+          "innerText": "$(ENV=a foo)",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "assignment_list",
+              "endIndex": 13,
+              "text": "ENV=a foo",
+              "innerText": "ENV=a foo",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 4,
+                  "type": "assignment",
+                  "endIndex": 9,
+                  "text": "ENV=a",
+                  "innerText": "ENV=a",
+                  "complete": true,
+                  "children": [
+                    {
+                      "startIndex": 8,
+                      "type": "word",
+                      "endIndex": 9,
+                      "text": "a",
+                      "innerText": "a",
+                      "complete": true,
+                      "children": []
+                    }
+                  ],
+                  "name": {
+                    "startIndex": 4,
+                    "type": "variable_name",
+                    "endIndex": 7,
+                    "text": "ENV",
+                    "innerText": "ENV",
+                    "complete": true,
+                    "children": []
+                  },
+                  "operator": "="
+                },
+                {
+                  "startIndex": 10,
+                  "type": "command",
+                  "endIndex": 13,
+                  "text": "foo",
+                  "innerText": "foo",
+                  "complete": true,
+                  "children": [
+                    {
+                      "startIndex": 10,
+                      "type": "word",
+                      "endIndex": 13,
+                      "text": "foo",
+                      "innerText": "foo",
+                      "complete": true,
+                      "children": []
+                    }
+                  ]
+                }
+              ],
+              "hasCommand": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+// Case 16
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 8,
+  "text": "ENV=a; b",
+  "innerText": "ENV=a; b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 5,
+      "text": "ENV=a",
+      "innerText": "ENV=a",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 5,
+          "text": "ENV=a",
+          "innerText": "ENV=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "word",
+              "endIndex": 5,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    },
+    {
+      "startIndex": 7,
+      "type": "command",
+      "endIndex": 8,
+      "text": "b",
+      "innerText": "b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 7,
+          "type": "word",
+          "endIndex": 8,
+          "text": "b",
+          "innerText": "b",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 17
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 9,
+  "text": "ENV=a ; b",
+  "innerText": "ENV=a ; b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 5,
+      "text": "ENV=a",
+      "innerText": "ENV=a",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 5,
+          "text": "ENV=a",
+          "innerText": "ENV=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "word",
+              "endIndex": 5,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    },
+    {
+      "startIndex": 8,
+      "type": "command",
+      "endIndex": 9,
+      "text": "b",
+      "innerText": "b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 8,
+          "type": "word",
+          "endIndex": 9,
+          "text": "b",
+          "innerText": "b",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 18
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 9,
+  "text": "ENV=a & b",
+  "innerText": "ENV=a & b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 5,
+      "text": "ENV=a",
+      "innerText": "ENV=a",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 5,
+          "text": "ENV=a",
+          "innerText": "ENV=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "word",
+              "endIndex": 5,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    },
+    {
+      "startIndex": 8,
+      "type": "command",
+      "endIndex": 9,
+      "text": "b",
+      "innerText": "b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 8,
+          "type": "word",
+          "endIndex": 9,
+          "text": "b",
+          "innerText": "b",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 19
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 7,
+  "text": "ENV=a|b",
+  "innerText": "ENV=a|b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "pipeline",
+      "endIndex": 7,
+      "text": "ENV=a|b",
+      "innerText": "ENV=a|b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment_list",
+          "endIndex": 5,
+          "text": "ENV=a",
+          "innerText": "ENV=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 0,
+              "type": "assignment",
+              "endIndex": 5,
+              "text": "ENV=a",
+              "innerText": "ENV=a",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 4,
+                  "type": "word",
+                  "endIndex": 5,
+                  "text": "a",
+                  "innerText": "a",
+                  "complete": true,
+                  "children": []
+                }
+              ],
+              "name": {
+                "startIndex": 0,
+                "type": "variable_name",
+                "endIndex": 3,
+                "text": "ENV",
+                "innerText": "ENV",
+                "complete": true,
+                "children": []
+              },
+              "operator": "="
+            }
+          ],
+          "hasCommand": false
+        },
+        {
+          "startIndex": 6,
+          "type": "command",
+          "endIndex": 7,
+          "text": "b",
+          "innerText": "b",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 6,
+              "type": "word",
+              "endIndex": 7,
+              "text": "b",
+              "innerText": "b",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+// Case 20
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 10,
+  "text": "ENV[0]=a b",
+  "innerText": "ENV[0]=a b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 10,
+      "text": "ENV[0]=a b",
+      "innerText": "ENV[0]=a b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 8,
+          "text": "ENV[0]=a",
+          "innerText": "ENV[0]=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 7,
+              "type": "word",
+              "endIndex": 8,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "subscript",
+            "endIndex": 6,
+            "text": "ENV[0]",
+            "innerText": "ENV[0]",
+            "complete": true,
+            "children": [
+              {
+                "startIndex": 4,
+                "type": "word",
+                "endIndex": 5,
+                "text": "0",
+                "innerText": "0",
+                "complete": true,
+                "children": []
+              }
+            ],
+            "name": {
+              "startIndex": 0,
+              "type": "variable_name",
+              "endIndex": 3,
+              "text": "ENV",
+              "innerText": "ENV",
+              "complete": true,
+              "children": []
+            }
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 9,
+          "type": "command",
+          "endIndex": 10,
+          "text": "b",
+          "innerText": "b",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 9,
+              "type": "word",
+              "endIndex": 10,
+              "text": "b",
+              "innerText": "b",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "hasCommand": true
+    }
+  ]
+}
+
+// Case 21
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 11,
+  "text": "ENV[0]=a; b",
+  "innerText": "ENV[0]=a; b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 8,
+      "text": "ENV[0]=a",
+      "innerText": "ENV[0]=a",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 8,
+          "text": "ENV[0]=a",
+          "innerText": "ENV[0]=a",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 7,
+              "type": "word",
+              "endIndex": 8,
+              "text": "a",
+              "innerText": "a",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "subscript",
+            "endIndex": 6,
+            "text": "ENV[0]",
+            "innerText": "ENV[0]",
+            "complete": true,
+            "children": [
+              {
+                "startIndex": 4,
+                "type": "word",
+                "endIndex": 5,
+                "text": "0",
+                "innerText": "0",
+                "complete": true,
+                "children": []
+              }
+            ],
+            "name": {
+              "startIndex": 0,
+              "type": "variable_name",
+              "endIndex": 3,
+              "text": "ENV",
+              "innerText": "ENV",
+              "complete": true,
+              "children": []
+            }
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    },
+    {
+      "startIndex": 10,
+      "type": "command",
+      "endIndex": 11,
+      "text": "b",
+      "innerText": "b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 10,
+          "type": "word",
+          "endIndex": 11,
+          "text": "b",
+          "innerText": "b",
+          "complete": true,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+// Case 22
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 11,
+  "text": "ENV[1]=`a b",
+  "innerText": "ENV[1]=`a b",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 11,
+      "text": "ENV[1]=`a b",
+      "innerText": "ENV[1]=`a b",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 11,
+          "text": "ENV[1]=`a b",
+          "innerText": "ENV[1]=`a b",
+          "complete": false,
+          "children": [
+            {
+              "startIndex": 7,
+              "type": "command_substitution",
+              "endIndex": 11,
+              "text": "`a b",
+              "innerText": "`a b",
+              "complete": false,
+              "children": [
+                {
+                  "startIndex": 8,
+                  "type": "command",
+                  "endIndex": 11,
+                  "text": "a b",
+                  "innerText": "a b",
+                  "complete": true,
+                  "children": [
+                    {
+                      "startIndex": 8,
+                      "type": "word",
+                      "endIndex": 9,
+                      "text": "a",
+                      "innerText": "a",
+                      "complete": true,
+                      "children": []
+                    },
+                    {
+                      "startIndex": 10,
+                      "type": "word",
+                      "endIndex": 11,
+                      "text": "b",
+                      "innerText": "b",
+                      "complete": true,
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "subscript",
+            "endIndex": 6,
+            "text": "ENV[1]",
+            "innerText": "ENV[1]",
+            "complete": true,
+            "children": [
+              {
+                "startIndex": 4,
+                "type": "word",
+                "endIndex": 5,
+                "text": "1",
+                "innerText": "1",
+                "complete": true,
+                "children": []
+              }
+            ],
+            "name": {
+              "startIndex": 0,
+              "type": "variable_name",
+              "endIndex": 3,
+              "text": "ENV",
+              "innerText": "ENV",
+              "complete": true,
+              "children": []
+            }
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    }
+  ]
+}
+
+// Case 23
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 14,
+  "text": "ENV[2]+=\"a b \"",
+  "innerText": "ENV[2]+=\"a b \"",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 14,
+      "text": "ENV[2]+=\"a b \"",
+      "innerText": "ENV[2]+=\"a b \"",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 14,
+          "text": "ENV[2]+=\"a b \"",
+          "innerText": "ENV[2]+=\"a b \"",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 8,
+              "type": "string",
+              "endIndex": 14,
+              "text": "\"a b \"",
+              "innerText": "a b ",
+              "complete": true,
+              "children": []
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "subscript",
+            "endIndex": 6,
+            "text": "ENV[2]",
+            "innerText": "ENV[2]",
+            "complete": true,
+            "children": [
+              {
+                "startIndex": 4,
+                "type": "word",
+                "endIndex": 5,
+                "text": "2",
+                "innerText": "2",
+                "complete": true,
+                "children": []
+              }
+            ],
+            "name": {
+              "startIndex": 0,
+              "type": "variable_name",
+              "endIndex": 3,
+              "text": "ENV",
+              "innerText": "ENV",
+              "complete": true,
+              "children": []
+            }
+          },
+          "operator": "+="
+        }
+      ],
+      "hasCommand": false
+    }
+  ]
+}
+
+// Case 24
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 55,
+  "text": "MY_VAR='echo'hi$'quote'\"command: $(ps | VAR=2 grep ps)\"",
+  "innerText": "MY_VAR='echo'hi$'quote'\"command: $(ps | VAR=2 grep ps)\"",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 55,
+      "text": "MY_VAR='echo'hi$'quote'\"command: $(ps | VAR=2 grep ps)\"",
+      "innerText": "MY_VAR='echo'hi$'quote'\"command: $(ps | VAR=2 grep ps)\"",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 55,
+          "text": "MY_VAR='echo'hi$'quote'\"command: $(ps | VAR=2 grep ps)\"",
+          "innerText": "MY_VAR='echo'hi$'quote'\"command: $(ps | VAR=2 grep ps)\"",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 7,
+              "type": "concatenation",
+              "endIndex": 55,
+              "text": "'echo'hi$'quote'\"command: $(ps | VAR=2 grep ps)\"",
+              "innerText": "echohiquotecommand: $(ps | VAR=2 grep ps)",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 7,
+                  "type": "raw_string",
+                  "endIndex": 13,
+                  "text": "'echo'",
+                  "innerText": "echo",
+                  "complete": true,
+                  "children": []
+                },
+                {
+                  "startIndex": 13,
+                  "type": "word",
+                  "endIndex": 15,
+                  "text": "hi",
+                  "innerText": "hi",
+                  "complete": true,
+                  "children": []
+                },
+                {
+                  "startIndex": 15,
+                  "type": "ansi_c_string",
+                  "endIndex": 23,
+                  "text": "$'quote'",
+                  "innerText": "quote",
+                  "complete": true,
+                  "children": []
+                },
+                {
+                  "startIndex": 23,
+                  "type": "string",
+                  "endIndex": 55,
+                  "text": "\"command: $(ps | VAR=2 grep ps)\"",
+                  "innerText": "command: $(ps | VAR=2 grep ps)",
+                  "complete": true,
+                  "children": [
+                    {
+                      "startIndex": 33,
+                      "type": "command_substitution",
+                      "endIndex": 54,
+                      "text": "$(ps | VAR=2 grep ps)",
+                      "innerText": "$(ps | VAR=2 grep ps)",
+                      "complete": true,
+                      "children": [
+                        {
+                          "startIndex": 35,
+                          "type": "pipeline",
+                          "endIndex": 53,
+                          "text": "ps | VAR=2 grep ps",
+                          "innerText": "ps | VAR=2 grep ps",
+                          "complete": true,
+                          "children": [
+                            {
+                              "startIndex": 35,
+                              "type": "command",
+                              "endIndex": 38,
+                              "text": "ps ",
+                              "innerText": "ps ",
+                              "complete": true,
+                              "children": [
+                                {
+                                  "startIndex": 35,
+                                  "type": "word",
+                                  "endIndex": 37,
+                                  "text": "ps",
+                                  "innerText": "ps",
+                                  "complete": true,
+                                  "children": []
+                                }
+                              ]
+                            },
+                            {
+                              "startIndex": 40,
+                              "type": "assignment_list",
+                              "endIndex": 53,
+                              "text": "VAR=2 grep ps",
+                              "innerText": "VAR=2 grep ps",
+                              "complete": true,
+                              "children": [
+                                {
+                                  "startIndex": 40,
+                                  "type": "assignment",
+                                  "endIndex": 45,
+                                  "text": "VAR=2",
+                                  "innerText": "VAR=2",
+                                  "complete": true,
+                                  "children": [
+                                    {
+                                      "startIndex": 44,
+                                      "type": "word",
+                                      "endIndex": 45,
+                                      "text": "2",
+                                      "innerText": "2",
+                                      "complete": true,
+                                      "children": []
+                                    }
+                                  ],
+                                  "name": {
+                                    "startIndex": 40,
+                                    "type": "variable_name",
+                                    "endIndex": 43,
+                                    "text": "VAR",
+                                    "innerText": "VAR",
+                                    "complete": true,
+                                    "children": []
+                                  },
+                                  "operator": "="
+                                },
+                                {
+                                  "startIndex": 46,
+                                  "type": "command",
+                                  "endIndex": 53,
+                                  "text": "grep ps",
+                                  "innerText": "grep ps",
+                                  "complete": true,
+                                  "children": [
+                                    {
+                                      "startIndex": 46,
+                                      "type": "word",
+                                      "endIndex": 50,
+                                      "text": "grep",
+                                      "innerText": "grep",
+                                      "complete": true,
+                                      "children": []
+                                    },
+                                    {
+                                      "startIndex": 51,
+                                      "type": "word",
+                                      "endIndex": 53,
+                                      "text": "ps",
+                                      "innerText": "ps",
+                                      "complete": true,
+                                      "children": []
+                                    }
+                                  ]
+                                }
+                              ],
+                              "hasCommand": true
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 6,
+            "text": "MY_VAR",
+            "innerText": "MY_VAR",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    }
+  ]
+}
+
+// Case 25
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 13,
+  "text": "ENV=\"a\"'b'c d",
+  "innerText": "ENV=\"a\"'b'c d",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 13,
+      "text": "ENV=\"a\"'b'c d",
+      "innerText": "ENV=\"a\"'b'c d",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 11,
+          "text": "ENV=\"a\"'b'c",
+          "innerText": "ENV=\"a\"'b'c",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "concatenation",
+              "endIndex": 11,
+              "text": "\"a\"'b'c",
+              "innerText": "abc",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 4,
+                  "type": "string",
+                  "endIndex": 7,
+                  "text": "\"a\"",
+                  "innerText": "a",
+                  "complete": true,
+                  "children": []
+                },
+                {
+                  "startIndex": 7,
+                  "type": "raw_string",
+                  "endIndex": 10,
+                  "text": "'b'",
+                  "innerText": "b",
+                  "complete": true,
+                  "children": []
+                },
+                {
+                  "startIndex": 10,
+                  "type": "word",
+                  "endIndex": 11,
+                  "text": "c",
+                  "innerText": "c",
+                  "complete": true,
+                  "children": []
+                }
+              ]
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        },
+        {
+          "startIndex": 12,
+          "type": "command",
+          "endIndex": 13,
+          "text": "d",
+          "innerText": "d",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 12,
+              "type": "word",
+              "endIndex": 13,
+              "text": "d",
+              "innerText": "d",
+              "complete": true,
+              "children": []
+            }
+          ]
+        }
+      ],
+      "hasCommand": true
+    }
+  ]
+}
+
+// Case 26
+{
+  "startIndex": 0,
+  "type": "program",
+  "endIndex": 11,
+  "text": "ENV=a\"b\"'c'",
+  "innerText": "ENV=a\"b\"'c'",
+  "complete": true,
+  "children": [
+    {
+      "startIndex": 0,
+      "type": "assignment_list",
+      "endIndex": 11,
+      "text": "ENV=a\"b\"'c'",
+      "innerText": "ENV=a\"b\"'c'",
+      "complete": true,
+      "children": [
+        {
+          "startIndex": 0,
+          "type": "assignment",
+          "endIndex": 11,
+          "text": "ENV=a\"b\"'c'",
+          "innerText": "ENV=a\"b\"'c'",
+          "complete": true,
+          "children": [
+            {
+              "startIndex": 4,
+              "type": "concatenation",
+              "endIndex": 11,
+              "text": "a\"b\"'c'",
+              "innerText": "abc",
+              "complete": true,
+              "children": [
+                {
+                  "startIndex": 4,
+                  "type": "word",
+                  "endIndex": 5,
+                  "text": "a",
+                  "innerText": "a",
+                  "complete": true,
+                  "children": []
+                },
+                {
+                  "startIndex": 5,
+                  "type": "string",
+                  "endIndex": 8,
+                  "text": "\"b\"",
+                  "innerText": "b",
+                  "complete": true,
+                  "children": []
+                },
+                {
+                  "startIndex": 8,
+                  "type": "raw_string",
+                  "endIndex": 11,
+                  "text": "'c'",
+                  "innerText": "c",
+                  "complete": true,
+                  "children": []
+                }
+              ]
+            }
+          ],
+          "name": {
+            "startIndex": 0,
+            "type": "variable_name",
+            "endIndex": 3,
+            "text": "ENV",
+            "innerText": "ENV",
+            "complete": true,
+            "children": []
+          },
+          "operator": "="
+        }
+      ],
+      "hasCommand": false
+    }
+  ]
+}

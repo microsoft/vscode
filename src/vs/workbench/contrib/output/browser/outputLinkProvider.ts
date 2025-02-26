@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILink } from 'vs/editor/common/languages';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/services/output/common/output';
-import { OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { IWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
+import { URI } from '../../../../base/common/uri.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILink } from '../../../../editor/common/languages.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { OUTPUT_MODE_ID, LOG_MODE_ID } from '../../../services/output/common/output.js';
+import { OutputLinkComputer } from '../common/outputLinkComputer.js';
+import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { IWorkerClient } from '../../../../base/common/worker/simpleWorker.js';
+import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 
 export class OutputLinkProvider extends Disposable {
 

@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, IReference, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorCommentsOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as model from 'vs/editor/common/model';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CellEditState, CellFocusMode, CellLayoutChangeEvent, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookCellStatusBarItem, INotebookFindOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable, IReference, MutableDisposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { IEditorCommentsOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { IPosition } from '../../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import * as editorCommon from '../../../../../editor/common/editorCommon.js';
+import * as model from '../../../../../editor/common/model.js';
+import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { IWordWrapTransientState, readTransientState, writeTransientState } from '../../../codeEditor/browser/toggleWordWrap.js';
+import { CellEditState, CellFocusMode, CellLayoutChangeEvent, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from '../notebookBrowser.js';
+import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
+import { CellViewModelStateChangeEvent } from '../notebookViewEvents.js';
+import { ViewContext } from './viewContext.js';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
+import { CellKind, INotebookCellStatusBarItem, INotebookFindOptions } from '../../common/notebookCommon.js';
+import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -179,6 +179,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	private _isDisposed = false;
+	private _isReadonly = false;
 
 	constructor(
 		readonly viewType: string,
@@ -189,6 +190,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		private readonly _modelService: ITextModelService,
 		private readonly _undoRedoService: IUndoRedoService,
 		private readonly _codeEditorService: ICodeEditorService,
+		private readonly _inlineChatSessionService: IInlineChatSessionService
 		// private readonly _keymapService: INotebookKeymapService
 	) {
 		super();
@@ -228,7 +230,14 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 
-	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
+	updateOptions(e: NotebookOptionsChangeEvent): void {
+		if (this._textEditor && typeof e.readonly === 'boolean') {
+			this._textEditor.updateOptions({ readOnly: e.readonly });
+		}
+		if (typeof e.readonly === 'boolean') {
+			this._isReadonly = e.readonly;
+		}
+	}
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
 	abstract layoutChange(change: CellLayoutChangeEvent, source?: string): void;
@@ -262,7 +271,9 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
-
+		if (this._isReadonly) {
+			editor.updateOptions({ readOnly: this._isReadonly });
+		}
 		if (this._editorViewStates) {
 			this._restoreViewState(this._editorViewStates);
 		} else {
@@ -305,14 +316,11 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._editorListeners.push(editor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
-		const inlineChatController = InlineChatController.get(this._textEditor);
-		if (inlineChatController) {
-			this._editorListeners.push(inlineChatController.onWillStartSession(() => {
-				if (this.textBuffer.getLength() === 0) {
-					this.enableAutoLanguageDetection();
-				}
-			}));
-		}
+		this._editorListeners.push(this._inlineChatSessionService.onWillStartSession((e) => {
+			if (e === this._textEditor && this.textBuffer.getLength() === 0) {
+				this.enableAutoLanguageDetection();
+			}
+		}));
 
 		this._onDidChangeState.fire({ selectionChanged: true });
 		this._onDidChangeEditorAttachState.fire();

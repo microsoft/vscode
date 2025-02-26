@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { IWorkerClient, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
-import { IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps } from 'vs/workbench/services/search/common/search';
+import { UriComponents } from '../../../../base/common/uri.js';
+import { IWorkerClient, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps } from './search.js';
 
 export interface IWorkerTextSearchComplete {
 	results: IFileMatch<UriComponents>[];

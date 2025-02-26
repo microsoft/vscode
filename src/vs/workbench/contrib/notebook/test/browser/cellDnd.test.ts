@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { performCellDropEdits } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { performCellDropEdits } from '../../browser/view/cellParts/cellDnd.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { withTestNotebook } from './testNotebookEditor.js';
 import assert from 'assert';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ICellRange } from '../../common/notebookRange.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 interface IBeginningState {
 	startOrder: string[];

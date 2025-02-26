@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayQueue, CompareResult } from 'vs/base/common/arrays';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorunOpts } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ArrayQueue, CompareResult } from '../../../../base/common/arrays.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, autorunOpts } from '../../../../base/common/observable.js';
+import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export function setStyle(
 	element: HTMLElement,

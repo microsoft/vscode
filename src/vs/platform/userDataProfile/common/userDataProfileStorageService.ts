@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, MutableDisposable, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IStorage, IStorageDatabase, Storage } from 'vs/base/parts/storage/common/storage';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractStorageService, IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget, isProfileUsingDefaultStorage } from 'vs/platform/storage/common/storage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IRemoteService } from 'vs/platform/ipc/common/services';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
-import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Disposable, DisposableMap, MutableDisposable, isDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IStorage, IStorageDatabase, Storage } from '../../../base/parts/storage/common/storage.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AbstractStorageService, IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget, isProfileUsingDefaultStorage } from '../../storage/common/storage.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IRemoteService } from '../../ipc/common/services.js';
+import { ILogService } from '../../log/common/log.js';
+import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient } from '../../storage/common/storageIpc.js';
+import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from './userDataProfile.js';
 
 export interface IProfileStorageValueChanges {
 	readonly profile: IUserDataProfile;

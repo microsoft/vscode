@@ -3,37 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import 'vs/css!./referencesWidget';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
-import { Location } from 'vs/editor/common/languages';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { AccessibilityProvider, DataSource, Delegate, FileReferencesRenderer, IdentityProvider, OneReferenceRenderer, StringRepresentationProvider, TreeElement } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesTree';
-import * as peekView from 'vs/editor/contrib/peekView/browser/peekView';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
+import * as dom from '../../../../../base/browser/dom.js';
+import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
+import { Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
+import { Color } from '../../../../../base/common/color.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore, dispose, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basenameOrAuthority, dirname } from '../../../../../base/common/resources.js';
+import './referencesWidget.css';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EmbeddedCodeEditorWidget } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { IEditorOptions } from '../../../../common/config/editorOptions.js';
+import { IRange, Range } from '../../../../common/core/range.js';
+import { ScrollType } from '../../../../common/editorCommon.js';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from '../../../../common/model.js';
+import { ModelDecorationOptions, TextModel } from '../../../../common/model/textModel.js';
+import { Location } from '../../../../common/languages.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../common/languages/modesRegistry.js';
+import { ITextEditorModel, ITextModelService } from '../../../../common/services/resolverService.js';
+import { AccessibilityProvider, DataSource, Delegate, FileReferencesRenderer, IdentityProvider, OneReferenceRenderer, StringRepresentationProvider, TreeElement } from './referencesTree.js';
+import * as peekView from '../../../peekView/browser/peekView.js';
+import * as nls from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
+import { IColorTheme, IThemeChangeEvent, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { FileReferences, OneReference, ReferencesModel } from '../referencesModel.js';
+import { ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
+import { DataTransfers, IDragAndDropData } from '../../../../../base/browser/dnd.js';
+import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
+import { withSelection } from '../../../../../platform/opener/common/opener.js';
 
 class DecorationsManager implements IDisposable {
 
@@ -188,6 +192,51 @@ export interface SelectionEvent {
 
 class ReferencesTree extends WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore> { }
 
+class ReferencesDragAndDrop implements ITreeDragAndDrop<TreeElement> {
+
+	private readonly disposables = new DisposableStore();
+
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
+	getDragURI(element: TreeElement): string | null {
+		if (element instanceof FileReferences) {
+			return element.uri.toString();
+		} else if (element instanceof OneReference) {
+			return withSelection(element.uri, element.range).toString();
+		}
+		return null;
+	}
+
+	getDragLabel(elements: TreeElement[]): string | undefined {
+		if (elements.length === 0) {
+			return undefined;
+		}
+		const labels = elements.map(e => this.labelService.getUriBasenameLabel(e.uri));
+		return labels.join(', ');
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		if (!originalEvent.dataTransfer) {
+			return;
+		}
+
+		const elements = (data as ElementsDragAndDropData<TreeElement, TreeElement[]>).elements;
+		const resources = elements.map(e => this.getDragURI(e)).filter(Boolean);
+
+		if (resources.length) {
+			// Apply resources as resource-list
+			originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(resources));
+
+			// Also add as plain text for outside consumers
+			originalEvent.dataTransfer.setData(DataTransfers.TEXT, resources.join('\n'));
+		}
+	}
+
+	onDragOver(): boolean | ITreeDragOverReaction { return false; }
+	drop(): void { }
+	dispose(): void { this.disposables.dispose(); }
+}
+
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -227,7 +276,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, supportOnTitleClick: true }, _instantiationService);
 
 		this._applyTheme(themeService.getColorTheme());
-		this._callOnDispose.add(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
+		this._callOnDispose.add(themeService.onDidColorThemeChange(this._onDidColorThemeChange.bind(this)));
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this.create();
 	}
@@ -247,6 +296,10 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		dispose(this._previewModelReference);
 		this._splitView.dispose();
 		super.dispose();
+	}
+
+	private _onDidColorThemeChange(e: IThemeChangeEvent): void {
+		this._applyTheme(e.theme);
 	}
 
 	private _applyTheme(theme: IColorTheme) {
@@ -328,7 +381,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			selectionNavigation: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
-			}
+			},
+			dnd: this._instantiationService.createInstance(ReferencesDragAndDrop)
 		};
 		if (this._defaultTreeKeyboardSupport) {
 			// the tree will consume `Escape` and prevent the widget from closing

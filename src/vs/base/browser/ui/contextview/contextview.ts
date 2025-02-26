@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { Range } from 'vs/base/common/range';
-import { OmitOptional } from 'vs/base/common/types';
-import 'vs/css!./contextview';
+import { BrowserFeatures } from '../../canIUse.js';
+import * as DOM from '../../dom.js';
+import { StandardMouseEvent } from '../../mouseEvent.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import * as platform from '../../../common/platform.js';
+import { Range } from '../../../common/range.js';
+import { OmitOptional } from '../../../common/types.js';
+import './contextview.css';
 
 export const enum ContextViewDOMPosition {
 	ABSOLUTE = 1,
@@ -309,9 +309,9 @@ export class ContextView extends Disposable {
 		const viewSizeWidth = DOM.getTotalWidth(this.view);
 		const viewSizeHeight = DOM.getTotalHeight(this.view);
 
-		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
-		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
-		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment || AnchorAxisAlignment.VERTICAL;
+		const anchorPosition = this.delegate!.anchorPosition ?? AnchorPosition.BELOW;
+		const anchorAlignment = this.delegate!.anchorAlignment ?? AnchorAlignment.LEFT;
+		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment ?? AnchorAxisAlignment.VERTICAL;
 
 		let top: number;
 		let left: number;
@@ -414,7 +414,7 @@ const SHADOW_ROOT_CSS = /* css */ `
 	:host-context(.mac:lang(zh-Hans)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
 	:host-context(.mac:lang(zh-Hant)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
 	:host-context(.mac:lang(ja)) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif; }
 
 	:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
 	:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }

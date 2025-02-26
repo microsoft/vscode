@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../../../common/contributions.js';
+import { IDebugService } from '../../../../debug/common/debug.js';
+import { Thread } from '../../../../debug/common/debugModel.js';
+import { CellUri } from '../../../common/notebookCommon.js';
+import { CellExecutionUpdateType } from '../../../common/notebookExecutionService.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 
 class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	private readonly _pausedCells = new Set<string>();

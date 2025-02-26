@@ -132,8 +132,9 @@
 /* Action bar */
 
 .action-widget .action-widget-action-bar {
-	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
+	background-color: var(--vscode-editorActionList-background);
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+	margin-top: 2px;
 }
 
 .action-widget .action-widget-action-bar::before {
@@ -143,7 +144,7 @@
 }
 
 .action-widget .action-widget-action-bar .actions-container {
-	padding: 0 8px;
+	padding: 3px 8px 0;
 }
 
 .action-widget-action-bar .action-label {

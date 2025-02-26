@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IdleDeadline, DeferredPromise, runWhenGlobalIdle } from 'vs/base/common/async';
-import { mark } from 'vs/base/common/performance';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getOrSet } from 'vs/base/common/map';
-import { Disposable, DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
-import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
+import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from '../../platform/instantiation/common/instantiation.js';
+import { ILifecycleService, LifecyclePhase } from '../services/lifecycle/common/lifecycle.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IdleDeadline, DeferredPromise, runWhenGlobalIdle } from '../../base/common/async.js';
+import { mark } from '../../base/common/performance.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IEnvironmentService } from '../../platform/environment/common/environment.js';
+import { getOrSet } from '../../base/common/map.js';
+import { Disposable, DisposableStore, isDisposable } from '../../base/common/lifecycle.js';
+import { IEditorPaneService } from '../services/editor/common/editorPaneService.js';
 
 /**
  * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.

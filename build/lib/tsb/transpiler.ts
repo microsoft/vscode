@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as swc from '@swc/core';
-import * as ts from 'typescript';
-import * as threads from 'node:worker_threads';
-import * as Vinyl from 'vinyl';
+import esbuild from 'esbuild';
+import ts from 'typescript';
+import threads from 'node:worker_threads';
+import Vinyl from 'vinyl';
 import { cpus } from 'node:os';
 
 interface TranspileReq {
@@ -84,7 +84,7 @@ class OutputFileNameOracle {
 			} catch (err) {
 				console.error(file, cmdLine.fileNames);
 				console.error(err);
-				throw new err;
+				throw err;
 			}
 		};
 	}
@@ -291,20 +291,14 @@ export class TscTranspiler implements ITranspiler {
 	}
 }
 
-function _isDefaultEmpty(src: string): boolean {
-	return src
-		.replace('"use strict";', '')
-		.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1')
-		.trim().length === 0;
-}
-
-
-export class SwcTranspiler implements ITranspiler {
-
-	onOutfile?: ((file: Vinyl) => void) | undefined;
+export class ESBuildTranspiler implements ITranspiler {
 
 	private readonly _outputFileNames: OutputFileNameOracle;
 	private _jobs: Promise<any>[] = [];
+
+	onOutfile?: ((file: Vinyl) => void) | undefined;
+
+	private readonly _transformOpts: esbuild.TransformOptions;
 
 	constructor(
 		private readonly _logFn: (topic: string, message: string) => void,
@@ -312,8 +306,31 @@ export class SwcTranspiler implements ITranspiler {
 		configFilePath: string,
 		private readonly _cmdLine: ts.ParsedCommandLine
 	) {
-		_logFn('Transpile', `will use SWC to transpile source files`);
+		_logFn('Transpile', `will use ESBuild to transpile source files`);
 		this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
+
+		const isExtension = configFilePath.includes('extensions');
+
+		this._transformOpts = {
+			target: ['es2022'],
+			format: isExtension ? 'cjs' : 'esm',
+			platform: isExtension ? 'node' : undefined,
+			loader: 'ts',
+			sourcemap: 'inline',
+			tsconfigRaw: JSON.stringify({
+				compilerOptions: {
+					...this._cmdLine.options,
+					...{
+						module: isExtension ? ts.ModuleKind.CommonJS : undefined
+					} satisfies ts.CompilerOptions
+				}
+			}),
+			supported: {
+				'class-static-blocks': false, // SEE https://github.com/evanw/esbuild/issues/3823,
+				'dynamic-import': !isExtension, // see https://github.com/evanw/esbuild/issues/1281
+				'class-field': !isExtension
+			}
+		};
 	}
 
 	async join(): Promise<void> {
@@ -323,29 +340,18 @@ export class SwcTranspiler implements ITranspiler {
 	}
 
 	transpile(file: Vinyl): void {
-		if (this._cmdLine.options.noEmit) {
-			// not doing ANYTHING here
-			return;
+		if (!(file.contents instanceof Buffer)) {
+			throw Error('file.contents must be a Buffer');
 		}
-
-		const tsSrc = String(file.contents);
 		const t1 = Date.now();
-
-		let options: swc.Options = SwcTranspiler._swcrcEsm;
-		if (this._cmdLine.options.module === ts.ModuleKind.AMD) {
-			const isAmd = /\n(import|export)/m.test(tsSrc);
-			if (isAmd) {
-				options = SwcTranspiler._swcrcAmd;
-			}
-		} else if (this._cmdLine.options.module === ts.ModuleKind.CommonJS) {
-			options = SwcTranspiler._swcrcCommonJS;
-		}
-
-		this._jobs.push(swc.transform(tsSrc, options).then(output => {
+		this._jobs.push(esbuild.transform(file.contents, {
+			...this._transformOpts,
+			sourcefile: file.path,
+		}).then(result => {
 
 			// check if output of a DTS-files isn't just "empty" and iff so
 			// skip this file
-			if (file.path.endsWith('.d.ts') && _isDefaultEmpty(output.code)) {
+			if (file.path.endsWith('.d.ts') && _isDefaultEmpty(result.code)) {
 				return;
 			}
 
@@ -355,56 +361,21 @@ export class SwcTranspiler implements ITranspiler {
 			this.onOutfile!(new Vinyl({
 				path: outPath,
 				base: outBase,
-				contents: Buffer.from(output.code),
+				contents: Buffer.from(result.code),
 			}));
 
-			this._logFn('Transpile', `swc took ${Date.now() - t1}ms for ${file.path}`);
+			this._logFn('Transpile', `esbuild took ${Date.now() - t1}ms for ${file.path}`);
 
 		}).catch(err => {
 			this._onError(err);
 		}));
 	}
+}
 
-	// --- .swcrc
-
-
-	private static readonly _swcrcAmd: swc.Options = {
-		exclude: '\.js$',
-		jsc: {
-			parser: {
-				syntax: 'typescript',
-				tsx: false,
-				decorators: true
-			},
-			target: 'es2022',
-			loose: false,
-			minify: {
-				compress: false,
-				mangle: false
-			},
-			transform: {
-				useDefineForClassFields: false,
-			},
-		},
-		module: {
-			type: 'amd',
-			noInterop: false
-		},
-		minify: false,
-	};
-
-	private static readonly _swcrcCommonJS: swc.Options = {
-		...this._swcrcAmd,
-		module: {
-			type: 'commonjs',
-			importInterop: 'swc'
-		}
-	};
-
-	private static readonly _swcrcEsm: swc.Options = {
-		...this._swcrcAmd,
-		module: {
-			type: 'es6'
-		}
-	};
+function _isDefaultEmpty(src: string): boolean {
+	return src
+		.replace('"use strict";', '')
+		.replace(/\/\/# sourceMappingURL.*^/, '')
+		.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1')
+		.trim().length === 0;
 }

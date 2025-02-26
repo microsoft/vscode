@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
+import { IDisposable, IDisposableTracker, setDisposableTracker } from '../../common/lifecycle.js';
 
 class DisposableTracker implements IDisposableTracker {
 	allDisposables: [IDisposable, string][] = [];

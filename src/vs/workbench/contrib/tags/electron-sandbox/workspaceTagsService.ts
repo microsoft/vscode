@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sha1Hex } from 'vs/base/browser/hash';
-import { IFileService, IFileStatResult, IFileStat } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-sandbox/workspaceTags';
-import { splitLines } from 'vs/base/common/strings';
-import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from 'vs/workbench/contrib/tags/common/javaWorkspaceTags';
+import { IFileService, IFileStatResult, IFileStat } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ITextFileService, ITextFileContent } from '../../../services/textfile/common/textfiles.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkspaceTagsService, Tags } from '../common/workspaceTags.js';
+import { getHashedRemotesFromConfig } from './workspaceTags.js';
+import { splitLines } from '../../../../base/common/strings.js';
+import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from '../common/javaWorkspaceTags.js';
+import { hashAsync } from '../../../../base/common/hash.js';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -195,6 +195,8 @@ const ModulesToLookFor = [
 	'@langchain/anthropic',
 	'langsmith',
 	'llamaindex',
+	'@google-cloud/aiplatform',
+	'@mistralai/mistralai',
 	'mongodb',
 	'neo4j-driver',
 	'ollama',
@@ -362,6 +364,7 @@ const PyModulesToLookFor = [
 	'transformers',
 	'langchain',
 	'llama-index',
+	'google-cloud-aiplatform',
 	'guidance',
 	'openai',
 	'semantic-kernel',
@@ -446,7 +449,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> {
 		function createHash(uri: URI): Promise<string> {
-			return sha1Hex(uri.scheme === Schemas.file ? uri.fsPath : uri.toString());
+			return hashAsync(uri.scheme === Schemas.file ? uri.fsPath : uri.toString());
 		}
 
 		let workspaceId: string | undefined;
@@ -571,6 +574,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@langchain/anthropic" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.langsmith" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.llamaindex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@google-cloud/aiplatform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@mistralai/mistralai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.milvus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.mongodb" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.neo4j-driver" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -941,6 +946,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.langchain-fireworks" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.langchain-huggingface" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.llama-index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.google-cloud-aiplatform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.guidance" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.ollama" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.onnxruntime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

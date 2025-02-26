@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkerServer, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { IWorkerServer, IWorkerClient } from '../../../base/common/worker/simpleWorker.js';
 
 export abstract class EditorWorkerHost {
 	public static CHANNEL_NAME = 'editorWorkerHost';

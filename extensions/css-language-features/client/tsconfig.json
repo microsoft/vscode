@@ -4,11 +4,11 @@
 		"outDir": "./out",
 		"lib": [
 			"webworker"
-		]
+		],
+		"module": "Node16",
 	},
 	"include": [
 		"src/**/*",
-		"../../../src/vscode-dts/vscode.d.ts",
-		"../../../src/vscode-dts/vscode.proposed.documentPaste.d.ts"
+		"../../../src/vscode-dts/vscode.d.ts"
 	]
 }

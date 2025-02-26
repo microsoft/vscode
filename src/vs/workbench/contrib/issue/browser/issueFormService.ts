@@ -2,24 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { safeInnerHtml } from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import 'vs/css!./media/issueReporter';
-import { localize } from 'vs/nls';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IRectangle } from 'vs/platform/window/common/window';
-import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
-import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
-import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
-import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { safeInnerHtml } from '../../../../base/browser/dom.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import product from '../../../../platform/product/common/product.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
+import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IIssueFormService, IssueReporterData } from '../common/issue.js';
+import BaseHtml from './issueReporterPage.js';
+import { IssueWebReporter } from './issueReporterService.js';
+import './media/issueReporter.css';
 
 export interface IssuePassData {
 	issueTitle: string;
@@ -78,10 +79,12 @@ export class IssueFormService implements IIssueFormService {
 		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: issueReporterBounds, nativeTitlebar: true, disableFullscreen: true }));
 
+		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
+
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
-			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body');
+			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
 
 			// custom issue reporter wrapper
 			const div = document.createElement('div');
@@ -111,8 +114,8 @@ export class IssueFormService implements IIssueFormService {
 		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
 		for (const action of actions) {
 			try {
-				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-					this.extensionIdentifierSet.add(extensionId);
+				if (action.item && 'source' in action.item && action.item.source?.id.toLowerCase() === extensionId.toLowerCase()) {
+					this.extensionIdentifierSet.add(extensionId.toLowerCase());
 					await action.run();
 				}
 			} catch (error) {

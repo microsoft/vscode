@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { Color } from '../../../base/common/color.js';
+import { Event } from '../../../base/common/event.js';
+import { join } from '../../../base/common/path.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ServicesAccessor, createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -103,6 +103,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
 	addMode?: boolean;
+	removeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
@@ -150,7 +151,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098
 			enableBlinkFeatures: 'HighlightAPI',
-			sandbox: true
+			sandbox: true,
+			// TODO(deepak1556): Should be removed once migration is complete
+			// https://github.com/microsoft/vscode/issues/239228
+			enableDeprecatedPaste: true,
 		},
 		experimentalDarkMode: true
 	};
@@ -192,8 +196,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			// This logic will not perfectly guess the right colors
 			// to use on initialization, but prefer to keep things
 			// simple as it is temporary and not noticeable
+			// On macOS, only the presence of `titleBarOverlay` is
+			// considered, the properties are ignored.
 
-			const titleBarColor = themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
+			const titleBarColor = themeMainService.getWindowSplash(undefined)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
 			const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
 			options.titleBarOverlay = {

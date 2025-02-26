@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as files from 'vs/platform/files/common/files';
-import { Cache } from 'vs/workbench/api/common/cache';
-import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookPartialFileStatsWithMetadata, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ApiCommand, ApiCommandArgument, ApiCommandResult, CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { INotebookExclusiveDocumentFilter, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { localize } from '../../../nls.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IRelativePattern } from '../../../base/common/glob.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
+import { assertIsDefined } from '../../../base/common/types.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import * as files from '../../../platform/files/common/files.js';
+import { Cache } from './cache.js';
+import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookPartialFileStatsWithMetadata, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from './extHost.protocol.js';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, CommandsConverter, ExtHostCommands } from './extHostCommands.js';
+import { ExtHostDocuments } from './extHostDocuments.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import * as typeConverters from './extHostTypeConverters.js';
+import * as extHostTypes from './extHostTypes.js';
+import { INotebookExclusiveDocumentFilter, INotebookContributionData } from '../../contrib/notebook/common/notebookCommon.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import type * as vscode from 'vscode';
-import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
-import { ExtHostNotebookEditor } from './extHostNotebookEditor';
-import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
-import { filter } from 'vs/base/common/objects';
-import { Schemas } from 'vs/base/common/network';
-import { IFileQuery, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
-import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
-import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
-import { globMatchesResource, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument.js';
+import { ExtHostNotebookEditor } from './extHostNotebookEditor.js';
+import { IExtHostConsumerFileSystem } from './extHostFileSystemConsumer.js';
+import { filter } from '../../../base/common/objects.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IFileQuery, ITextQuery, QueryType } from '../../services/search/common/search.js';
+import { IExtHostSearch } from './extHostSearch.js';
+import { CellSearchModel } from '../../contrib/search/common/cellSearchModel.js';
+import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from '../../contrib/search/common/searchNotebookHelpers.js';
+import { NotebookPriorityInfo } from '../../contrib/search/common/search.js';
+import { globMatchesResource, RegisteredEditorPriority } from '../../services/editor/common/editorResolverService.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
@@ -211,7 +211,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				preserveFocus: options.preserveFocus,
 				selections: options.selections && options.selections.map(typeConverters.NotebookRange.from),
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
-				label: options?.label
+				label: typeof options.asRepl === 'string' ?
+					options.asRepl :
+					typeof options.asRepl === 'object' ?
+						options.asRepl.label :
+						undefined,
 			};
 		} else {
 			resolvedOptions = {
@@ -220,7 +224,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			};
 		}
 
-		const viewType = options?.asRepl ? 'repl' : notebook.notebookType;
+		const viewType = !!options?.asRepl ? 'repl' : notebook.notebookType;
 		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebook.uri, viewType, resolvedOptions);
 		const editor = editorId && this._editors.get(editorId)?.apiEditor;
 
@@ -588,7 +592,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			document,
 			data.visibleRanges.map(typeConverters.NotebookRange.to),
 			data.selections.map(typeConverters.NotebookRange.to),
-			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined
+			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined,
+			data.viewType
 		);
 
 		this._editors.set(editorId, editor);

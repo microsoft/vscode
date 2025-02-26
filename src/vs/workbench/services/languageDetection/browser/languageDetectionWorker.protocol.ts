@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkerClient, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
+import { IWorkerClient, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
 
 export abstract class LanguageDetectionWorkerHost {
 	public static CHANNEL_NAME = 'languageDetectionWorkerHost';

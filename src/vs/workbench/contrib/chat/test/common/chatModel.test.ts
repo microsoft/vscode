@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
-import { assertSnapshot } from 'vs/base/test/common/snapshot';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Range } from 'vs/editor/common/core/range';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, ISerializableChatData1, ISerializableChatData2, normalizeSerializableChatData, Response } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { timeout } from '../../../../../base/common/async.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { OffsetRange } from '../../../../../editor/common/core/offsetRange.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ChatAgentLocation, ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
+import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,7 +33,7 @@ suite('ChatModel', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 	});
 
 	test('Waits for initialization', async () => {
@@ -151,6 +151,21 @@ suite('ChatModel', () => {
 
 		assert.strictEqual(request1.response.response.toString(), 'Hello');
 	});
+
+	test('addCompleteRequest', async function () {
+		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
+
+		model1.startInitialize();
+		model1.initialize(undefined);
+
+		const text = 'hello';
+		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, true);
+
+		assert.strictEqual(request1.isCompleteAddedRequest, true);
+		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);
+		assert.strictEqual(request1.shouldBeRemovedOnSend, undefined);
+		assert.strictEqual(request1.response!.shouldBeRemovedOnSend, undefined);
+	});
 });
 
 suite('Response', () => {
@@ -176,10 +191,13 @@ suite('Response', () => {
 
 	test('inline reference', async () => {
 		const response = store.add(new Response([]));
-		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
-		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
-		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('text before '), kind: 'markdownContent' });
+		response.updateContent({ inlineReference: URI.parse('https://microsoft.com/'), kind: 'inlineReference' });
+		response.updateContent({ content: new MarkdownString(' text after'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+
+		assert.strictEqual(response.toString(), 'text before https://microsoft.com/ text after');
+
 	});
 });
 
@@ -197,7 +215,6 @@ suite('normalizeSerializableChatData', () => {
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
-			welcomeMessage: []
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
@@ -220,7 +237,6 @@ suite('normalizeSerializableChatData', () => {
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
-			welcomeMessage: [],
 			computedTitle: 'computed title'
 		};
 
@@ -229,5 +245,52 @@ suite('normalizeSerializableChatData', () => {
 		assert.strictEqual(newData.creationDate, v2Data.creationDate);
 		assert.strictEqual(newData.lastMessageDate, v2Data.lastMessageDate);
 		assert.strictEqual(newData.customTitle, v2Data.computedTitle);
+	});
+
+	test('old bad data', () => {
+		const v1Data: ISerializableChatData1 = {
+			// Testing the scenario where these are missing
+			sessionId: undefined!,
+			creationDate: undefined!,
+
+			initialLocation: undefined,
+			isImported: false,
+			requesterAvatarIconUri: undefined,
+			requesterUsername: 'me',
+			requests: [],
+			responderAvatarIconUri: undefined,
+			responderUsername: 'bot',
+		};
+
+		const newData = normalizeSerializableChatData(v1Data);
+		assert.strictEqual(newData.version, 3);
+		assert.ok(newData.creationDate > 0);
+		assert.ok(newData.lastMessageDate > 0);
+		assert.ok(newData.sessionId);
+	});
+
+	test('v3 with bug', () => {
+		const v3Data: ISerializableChatData3 = {
+			// Test case where old data was wrongly normalized and these fields were missing
+			creationDate: undefined!,
+			lastMessageDate: undefined!,
+
+			version: 3,
+			initialLocation: undefined,
+			isImported: false,
+			requesterAvatarIconUri: undefined,
+			requesterUsername: 'me',
+			requests: [],
+			responderAvatarIconUri: undefined,
+			responderUsername: 'bot',
+			sessionId: 'session1',
+			customTitle: 'computed title'
+		};
+
+		const newData = normalizeSerializableChatData(v3Data);
+		assert.strictEqual(newData.version, 3);
+		assert.ok(newData.creationDate > 0);
+		assert.ok(newData.lastMessageDate > 0);
+		assert.ok(newData.sessionId);
 	});
 });

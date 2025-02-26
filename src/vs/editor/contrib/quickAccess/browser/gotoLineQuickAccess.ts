@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { AbstractEditorNavigationQuickAccessProvider, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
-import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { getCodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
+import { IPosition } from '../../../common/core/position.js';
+import { IRange } from '../../../common/core/range.js';
+import { IEditor, ScrollType } from '../../../common/editorCommon.js';
+import { AbstractEditorNavigationQuickAccessProvider, IQuickAccessTextEditorContext } from './editorNavigationQuickAccess.js';
+import { localize } from '../../../../nls.js';
+import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 
 interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 

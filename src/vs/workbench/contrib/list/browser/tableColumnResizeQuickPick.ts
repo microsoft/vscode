@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { Disposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { localize } from 'vs/nls';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Table } from '../../../../base/browser/ui/table/tableWidget.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 
 interface IColumnResizeQuickPickItem extends IQuickPickItem {
 	index: number;

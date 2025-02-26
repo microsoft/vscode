@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/treeProjection';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
-import { TestTestItem } from 'vs/workbench/contrib/testing/test/common/testStubs';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TreeProjection } from '../../../browser/explorerProjections/treeProjection.js';
+import { TestId } from '../../../common/testId.js';
+import { TestResultItemChange, TestResultItemChangeReason } from '../../../common/testResult.js';
+import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from '../../../common/testTypes.js';
+import { TestTreeTestHarness } from '../testObjectTree.js';
+import { TestTestItem } from '../../common/testStubs.js';
 
 class TestHierarchicalByLocationProjection extends TreeProjection {
 }

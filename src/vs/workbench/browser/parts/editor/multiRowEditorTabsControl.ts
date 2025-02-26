@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
-import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
-import { IEditorPartOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
-import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
+import { IEditorTabsControl } from './editorTabsControl.js';
+import { MultiEditorTabsControl } from './multiEditorTabsControl.js';
+import { IEditorPartOptions } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../common/editor/filteredEditorGroupModel.js';
+import { IEditorTitleControlDimensions } from './editorTitleControl.js';
+import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 
 export class MultiRowEditorControl extends Disposable implements IEditorTabsControl {
 

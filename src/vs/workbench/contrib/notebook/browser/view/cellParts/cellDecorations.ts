@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellContentPart } from '../cellPart.js';
 
 export class CellDecorations extends CellContentPart {
 	constructor(
+		readonly notebookEditor: INotebookEditorDelegate,
 		readonly rootContainer: HTMLElement,
 		readonly decorationContainer: HTMLElement,
 	) {
@@ -46,5 +47,37 @@ export class CellDecorations extends CellContentPart {
 		}));
 
 		generateCellTopDecorations();
+		this.registerDecorations();
+	}
+
+	private registerDecorations() {
+		if (!this.currentCell) {
+			return;
+		}
+
+		this.cellDisposables.add(this.currentCell.onCellDecorationsChanged((e) => {
+			e.added.forEach(options => {
+				if (options.className && this.currentCell) {
+					this.rootContainer.classList.add(options.className);
+				}
+			});
+
+			e.removed.forEach(options => {
+				if (options.className && this.currentCell) {
+					this.rootContainer.classList.remove(options.className);
+				}
+			});
+		}));
+
+		this.currentCell.getCellDecorations().forEach(options => {
+			if (options.className && this.currentCell) {
+				this.rootContainer.classList.add(options.className);
+				this.notebookEditor.deltaCellContainerClassNames(this.currentCell.id, [options.className], []);
+			}
+
+			if (options.outputClassName && this.currentCell) {
+				this.notebookEditor.deltaCellContainerClassNames(this.currentCell.id, [options.outputClassName], []);
+			}
+		});
 	}
 }

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
-import { escapeIcons } from 'vs/base/common/iconLabels';
-import { isEqual } from 'vs/base/common/resources';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { illegalArgument } from './errors.js';
+import { escapeIcons } from './iconLabels.js';
+import { isEqual } from './resources.js';
+import { escapeRegExpCharacters } from './strings.js';
+import { URI, UriComponents } from './uri.js';
 
 export interface MarkdownStringTrustedOptions {
 	readonly enabledCommands: readonly string[];
@@ -34,6 +34,18 @@ export class MarkdownString implements IMarkdownString {
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
 	public baseUri?: URI;
+	public uris?: { [href: string]: UriComponents } | undefined;
+
+	public static lift(dto: IMarkdownString): MarkdownString {
+		if (dto instanceof MarkdownString) {
+			return dto;
+		}
+
+		const markdownString = new MarkdownString(dto.value, dto);
+		markdownString.uris = dto.uris;
+		markdownString.baseUri = dto.baseUri ? URI.revive(dto.baseUri) : undefined;
+		return markdownString;
+	}
 
 	constructor(
 		value: string = '',

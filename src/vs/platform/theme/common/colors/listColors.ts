@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
 // Import the effects we need
-import { Color } from 'vs/base/common/color';
-import { registerColor, darken, lighten, transparent, ifDefinedThenElse } from 'vs/platform/theme/common/colorUtils';
+import { Color } from '../../../../base/common/color.js';
+import { registerColor, darken, lighten, transparent, ifDefinedThenElse } from '../colorUtils.js';
 
 // Import the colors we need
-import { foreground, contrastBorder, activeContrastBorder, focusBorder, iconForeground } from 'vs/platform/theme/common/colors/baseColors';
-import { editorWidgetBackground, editorFindMatchHighlightBorder, editorFindMatchHighlight, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colors/editorColors';
+import { foreground, contrastBorder, activeContrastBorder, focusBorder, iconForeground } from './baseColors.js';
+import { editorWidgetBackground, editorFindMatchHighlightBorder, editorFindMatchHighlight, widgetShadow, editorWidgetForeground } from './editorColors.js';
 
 
 export const listFocusBackground = registerColor('list.focusBackground',

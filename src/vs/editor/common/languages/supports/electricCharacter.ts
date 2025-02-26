@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { ScopedLineTokens, ignoreBracketsInToken } from 'vs/editor/common/languages/supports';
-import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
+import { distinct } from '../../../../base/common/arrays.js';
+import { ScopedLineTokens, ignoreBracketsInToken } from '../supports.js';
+import { BracketsUtils, RichEditBrackets } from './richEditBrackets.js';
 
 /**
  * Interface used to support electric characters

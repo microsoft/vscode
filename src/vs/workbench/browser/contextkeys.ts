@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from 'vs/platform/contextkey/common/contextkeys';
-import { SplitEditorsVertically, InEditorZenModeContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, TitleBarVisibleContext, TitleBarStyleContext, IsAuxiliaryWindowFocusedContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorGroupLockedContext, MultipleEditorGroupsContext, EditorsVisibleContext } from 'vs/workbench/common/contextkeys';
-import { trackFocus, addDisposableListener, EventType, onDidRegisterWindow, getActiveWindow } from 'vs/base/browser/dom';
-import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { WorkbenchState, IWorkspaceContextService, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchLayoutService, Parts, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { getVirtualWorkspaceScheme } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { isNative } from 'vs/base/common/platform';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
-import { mainWindow } from 'vs/base/browser/window';
-import { isFullscreen, onDidChangeFullscreen } from 'vs/base/browser/browser';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Event } from '../../base/common/event.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from '../../platform/contextkey/common/contextkeys.js';
+import { SplitEditorsVertically, InEditorZenModeContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, TitleBarVisibleContext, TitleBarStyleContext, IsAuxiliaryWindowFocusedContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorGroupLockedContext, MultipleEditorGroupsContext, EditorsVisibleContext } from '../common/contextkeys.js';
+import { trackFocus, addDisposableListener, EventType, onDidRegisterWindow, getActiveWindow, isEditableElement } from '../../base/browser/dom.js';
+import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService.js';
+import { WorkbenchState, IWorkspaceContextService, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
+import { IWorkbenchLayoutService, Parts, positionToString } from '../services/layout/browser/layoutService.js';
+import { getRemoteName } from '../../platform/remote/common/remoteHosts.js';
+import { getVirtualWorkspaceScheme } from '../../platform/workspace/common/virtualWorkspace.js';
+import { IWorkingCopyService } from '../services/workingCopy/common/workingCopyService.js';
+import { isNative } from '../../base/common/platform.js';
+import { IPaneCompositePartService } from '../services/panecomposite/browser/panecomposite.js';
+import { WebFileSystemAccess } from '../../platform/files/browser/webFileSystemAccess.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { getTitleBarStyle } from '../../platform/window/common/window.js';
+import { mainWindow } from '../../base/browser/window.js';
+import { isFullscreen, onDidChangeFullscreen } from '../../base/browser/browser.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -300,7 +300,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private updateInputContextKeys(ownerDocument: Document): void {
 
 		function activeElementIsInput(): boolean {
-			return !!ownerDocument.activeElement && (ownerDocument.activeElement.tagName === 'INPUT' || ownerDocument.activeElement.tagName === 'TEXTAREA');
+			return !!ownerDocument.activeElement && isEditableElement(ownerDocument.activeElement);
 		}
 
 		const isInputFocused = activeElementIsInput();

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
-import { ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IWorkspaceFoldersChangeEvent } from '../../../../../platform/workspace/common/workspace.js';
+import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from '../../browser/explorerProjections/index.js';
+import { MainThreadTestCollection } from '../../common/mainThreadTestCollection.js';
+import { TestsDiff, TestsDiffOp } from '../../common/testTypes.js';
+import { ITestService } from '../../common/testService.js';
+import { testStubs } from '../common/testStubs.js';
+import { ITreeRenderer, ITreeSorter } from '../../../../../base/browser/ui/tree/tree.js';
 
 type SerializedTree = { e: string; children?: SerializedTree[]; data?: string };
 
@@ -55,10 +55,6 @@ class TestObjectTree<T> extends ObjectTree<T, any> {
 			}
 		);
 		this.layout(1000, 200);
-	}
-
-	public getModel() {
-		return this.model;
 	}
 
 	public getRendered(getProperty?: string) {

@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isMacintosh } from 'vs/base/common/platform';
-import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { Promises, raceCancellation } from 'vs/base/common/async';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { localize } from '../../../../nls.js';
+import { IWorkingCopyBackupService } from '../common/workingCopyBackup.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IFilesConfigurationService, AutoSaveMode } from '../../filesConfiguration/common/filesConfigurationService.js';
+import { IWorkingCopyService } from '../common/workingCopyService.js';
+import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from '../common/workingCopy.js';
+import { ILifecycleService, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
+import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from '../../../../platform/dialogs/common/dialogs.js';
+import { WorkbenchState, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { HotExitConfiguration } from '../../../../platform/files/common/files.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { WorkingCopyBackupTracker } from '../common/workingCopyBackupTracker.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { SaveReason } from '../../../common/editor.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { Promises, raceCancellation } from '../../../../base/common/async.js';
+import { IWorkingCopyEditorService } from '../common/workingCopyEditorService.js';
+import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 
 export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 

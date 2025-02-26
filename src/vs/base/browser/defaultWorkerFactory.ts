@@ -3,21 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { coalesce } from 'vs/base/common/arrays';
-import { getNLSLanguage, getNLSMessages } from 'vs/nls';
-
-// ESM-comment-begin
-const isESM = false;
-// ESM-comment-end
-// ESM-uncomment-begin
-// const isESM = true;
-// ESM-uncomment-end
+import { createTrustedTypesPolicy } from './trustedTypes.js';
+import { onUnexpectedError } from '../common/errors.js';
+import { AppResourcePath, COI, FileAccess } from '../common/network.js';
+import { URI } from '../common/uri.js';
+import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from '../common/worker/simpleWorker.js';
+import { Disposable, toDisposable } from '../common/lifecycle.js';
+import { coalesce } from '../common/arrays.js';
+import { getNLSLanguage, getNLSMessages } from '../../nls.js';
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
@@ -33,7 +26,7 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	if (!blobUrl.startsWith('blob:')) {
 		throw new URIError('Not a blob-url: ' + blobUrl);
 	}
-	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: isESM ? 'module' : undefined });
+	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: 'module' });
 }
 
 function getWorker(esmWorkerLocation: URI | undefined, label: string): Worker | Promise<Worker> {
@@ -49,31 +42,18 @@ function getWorker(esmWorkerLocation: URI | undefined, label: string): Worker | 
 		}
 		if (typeof monacoEnvironment.getWorkerUrl === 'function') {
 			const workerUrl = monacoEnvironment.getWorkerUrl('workerMain.js', label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
+			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
 		}
 	}
-	// ESM-comment-begin
-	if (typeof require === 'function') {
-		const workerMainLocation = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
-		const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation, workerBaseUrl);
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
-	}
-	// ESM-comment-end
 	if (esmWorkerLocation) {
 		const workerUrl = getWorkerBootstrapUrl(label, esmWorkerLocation.toString(true));
-		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
-		if (isESM) {
-			return whenESMWorkerReady(worker);
-		} else {
-			return worker;
-		}
+		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
+		return whenESMWorkerReady(worker);
 	}
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
-function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBaseUrl?: string): string {
+function getWorkerBootstrapUrl(label: string, workerScriptUrl: string): string {
 	if (/^((http:)|(https:)|(file:))/.test(workerScriptUrl) && workerScriptUrl.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
@@ -93,16 +73,18 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBas
 		}
 	}
 
+	// In below blob code, we are using JSON.stringify to ensure the passed
+	// in values are not breaking our script. The values may contain string
+	// terminating characters (such as ' or ").
 	const blob = new Blob([coalesce([
 		`/*${label}*/`,
-		workerBaseUrl ? `globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };` : undefined,
 		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(getNLSMessages())};`,
 		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(getNLSLanguage())};`,
-		`globalThis._VSCODE_FILE_ROOT = '${globalThis._VSCODE_FILE_ROOT}';`,
+		`globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(globalThis._VSCODE_FILE_ROOT)};`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
-		isESM ? `await import(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');` : `importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`, //
-		isESM ? `globalThis.postMessage({ type: 'vscode-worker-ready' });` : undefined, // in ESM signal we are ready after the async import
+		`await import(ttPolicy?.createScriptURL(${JSON.stringify(workerScriptUrl)}) ?? ${JSON.stringify(workerScriptUrl)});`,
+		`globalThis.postMessage({ type: 'vscode-worker-ready' });`,
 		`/*${label}*/`
 	]).join('')], { type: 'application/javascript' });
 	return URL.createObjectURL(blob);
@@ -137,7 +119,7 @@ class WebWorker extends Disposable implements IWorker {
 	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
-	constructor(esmWorkerLocation: URI | undefined, amdModuleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+	constructor(esmWorkerLocation: URI | undefined, moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		super();
 		this.id = id;
 		this.label = label;
@@ -147,7 +129,7 @@ class WebWorker extends Disposable implements IWorker {
 		} else {
 			this.worker = Promise.resolve(workerOrPromise);
 		}
-		this.postMessage(amdModuleId, []);
+		this.postMessage(moduleId, []);
 		this.worker.then((w) => {
 			w.onmessage = function (ev) {
 				onMessageCallback(ev.data);
@@ -189,10 +171,10 @@ export class WorkerDescriptor implements IWorkerDescriptor {
 	public readonly esmModuleLocation: URI | undefined;
 
 	constructor(
-		public readonly amdModuleId: string,
+		public readonly moduleId: string,
 		readonly label: string | undefined,
 	) {
-		this.esmModuleLocation = (isESM ? FileAccess.asBrowserUri(`${amdModuleId}.esm.js` as AppResourcePath) : undefined);
+		this.esmModuleLocation = FileAccess.asBrowserUri(`${moduleId}Main.js` as AppResourcePath);
 	}
 }
 
@@ -212,7 +194,7 @@ class DefaultWorkerFactory implements IWorkerFactory {
 			throw this._webWorkerFailedBeforeError;
 		}
 
-		return new WebWorker(desc.esmModuleLocation, desc.amdModuleId, workerId, desc.label || 'anonymous' + workerId, onMessageCallback, (err) => {
+		return new WebWorker(desc.esmModuleLocation, desc.moduleId, workerId, desc.label || 'anonymous' + workerId, onMessageCallback, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._webWorkerFailedBeforeError = err;
 			onErrorCallback(err);
@@ -220,7 +202,7 @@ class DefaultWorkerFactory implements IWorkerFactory {
 	}
 }
 
-export function createWebWorker<T extends object>(amdModuleId: string, label: string | undefined): IWorkerClient<T>;
+export function createWebWorker<T extends object>(moduleId: string, label: string | undefined): IWorkerClient<T>;
 export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor): IWorkerClient<T>;
 export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor, arg1?: string | undefined): IWorkerClient<T> {
 	const workerDescriptor = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);

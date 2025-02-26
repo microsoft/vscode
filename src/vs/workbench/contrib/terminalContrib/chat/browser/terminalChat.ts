@@ -3,16 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 
 export const enum TerminalChatCommandId {
 	Start = 'workbench.action.terminal.chat.start',
 	Close = 'workbench.action.terminal.chat.close',
-	FocusResponse = 'workbench.action.terminal.chat.focusResponse',
-	FocusInput = 'workbench.action.terminal.chat.focusInput',
-	Discard = 'workbench.action.terminal.chat.discard',
 	MakeRequest = 'workbench.action.terminal.chat.makeRequest',
 	Cancel = 'workbench.action.terminal.chat.cancel',
 	RunCommand = 'workbench.action.terminal.chat.runCommand',
@@ -20,12 +17,10 @@ export const enum TerminalChatCommandId {
 	InsertCommand = 'workbench.action.terminal.chat.insertCommand',
 	InsertFirstCommand = 'workbench.action.terminal.chat.insertFirstCommand',
 	ViewInChat = 'workbench.action.terminal.chat.viewInChat',
-	PreviousFromHistory = 'workbench.action.terminal.chat.previousFromHistory',
-	NextFromHistory = 'workbench.action.terminal.chat.nextFromHistory',
+	RerunRequest = 'workbench.action.terminal.chat.rerunRequest',
 }
 
-export const MENU_TERMINAL_CHAT_INPUT = MenuId.for('terminalChatInput');
-export const MENU_TERMINAL_CHAT_WIDGET = MenuId.for('terminalChatWidget');
+export const MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR = MenuId.for('terminalChatWidget');
 export const MENU_TERMINAL_CHAT_WIDGET_STATUS = MenuId.for('terminalChatWidget.status');
 export const MENU_TERMINAL_CHAT_WIDGET_TOOLBAR = MenuId.for('terminalChatWidget.toolbar');
 

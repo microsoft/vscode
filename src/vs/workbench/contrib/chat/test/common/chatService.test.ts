@@ -4,35 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { assertSnapshot } from 'vs/base/test/common/snapshot';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ChatAgentLocation, ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
-import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
-import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { NullWorkbenchAssignmentService } from 'vs/workbench/services/assignment/test/common/nullAssignmentService';
-import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ChatAgentLocation, ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatModel, ISerializableChatData } from '../../common/chatModel.js';
+import { IChatFollowup, IChatService } from '../../common/chatService.js';
+import { ChatService } from '../../common/chatServiceImpl.js';
+import { ChatSlashCommandService, IChatSlashCommandService } from '../../common/chatSlashCommands.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
+import { MockChatService } from './mockChatService.js';
+import { MockChatVariablesService } from './mockChatVariables.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -64,6 +65,27 @@ const chatAgentWithUsedContext: IChatAgent = {
 	},
 	async provideFollowups(sessionId, token) {
 		return [{ kind: 'reply', message: 'Something else', agentId: '', tooltip: 'a tooltip' } satisfies IChatFollowup];
+	},
+};
+
+const chatAgentWithMarkdownId = 'ChatProviderWithMarkdown';
+const chatAgentWithMarkdown: IChatAgent = {
+	id: chatAgentWithMarkdownId,
+	name: chatAgentWithMarkdownId,
+	extensionId: nullExtensionDescription.identifier,
+	publisherDisplayName: '',
+	extensionPublisherId: '',
+	extensionDisplayName: '',
+	locations: [ChatAgentLocation.Panel],
+	metadata: {},
+	slashCommands: [],
+	disambiguation: [],
+	async invoke(request, progress, history, token) {
+		progress({ kind: 'markdownContent', content: new MarkdownString('test') });
+		return { metadata: { metadataKey: 'value' } };
+	},
+	async provideFollowups(sessionId, token) {
+		return [];
 	},
 };
 
@@ -106,7 +128,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
 
-		chatAgentService = instantiationService.createInstance(ChatAgentService);
+		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
 		instantiationService.stub(IChatAgentService, chatAgentService);
 
 		const agent: IChatAgentImplementation = {
@@ -116,6 +138,7 @@ suite('ChatService', () => {
 		};
 		testDisposables.add(chatAgentService.registerAgent('testAgent', { ...getAgentData('testAgent'), isDefault: true }));
 		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, getAgentData(chatAgentWithUsedContextId)));
+		testDisposables.add(chatAgentService.registerAgent(chatAgentWithMarkdownId, getAgentData(chatAgentWithMarkdownId)));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
 		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' } });
 	});
@@ -160,7 +183,7 @@ suite('ChatService', () => {
 		assert(response);
 		await response.responseCompletePromise;
 
-		await assertSnapshot(model.toExport());
+		await assertSnapshot(toSnapshotExportData(model));
 	});
 
 	test('history', async () => {
@@ -210,7 +233,7 @@ suite('ChatService', () => {
 		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await assertSnapshot(model.toExport());
+		await assertSnapshot(toSnapshotExportData(model));
 
 		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
 		assert(response);
@@ -222,7 +245,7 @@ suite('ChatService', () => {
 		await response2.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 2);
 
-		await assertSnapshot(model.toExport());
+		await assertSnapshot(toSnapshotExportData(model));
 	});
 
 	test('can deserialize', async () => {
@@ -251,6 +274,50 @@ suite('ChatService', () => {
 		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
 		assert(chatModel2);
 
-		await assertSnapshot(chatModel2.toExport());
+		await assertSnapshot(toSnapshotExportData(chatModel2));
+	});
+
+	test('can deserialize with response', async () => {
+		let serializedChatData: ISerializableChatData;
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+
+		{
+			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+
+			const chatModel1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+			assert.strictEqual(chatModel1.getRequests().length, 0);
+
+			const response = await testService.sendRequest(chatModel1.sessionId, `@${chatAgentWithUsedContextId} test request`);
+			assert(response);
+
+			await response.responseCompletePromise;
+
+			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
+		}
+
+		// try deserializing the state into a new service
+
+		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
+		assert(chatModel2);
+
+		await assertSnapshot(toSnapshotExportData(chatModel2));
 	});
 });
+
+
+function toSnapshotExportData(model: IChatModel) {
+	const exp = model.toExport();
+	return {
+		...exp,
+		requests: exp.requests.map(r => {
+			return {
+				...r,
+				timestamp: undefined,
+				requestId: undefined, // id contains a random part
+				responseId: undefined, // id contains a random part
+			};
+		})
+	};
+}

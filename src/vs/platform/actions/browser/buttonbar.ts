@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ButtonBar, IButton } from 'vs/base/browser/ui/button/button';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ActionRunner, IAction, IActionRunner, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IToolBarRenderOptions } from 'vs/platform/actions/browser/toolbar';
-import { MenuId, IMenuService, MenuItemAction, IMenuActionOptions } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ButtonBar, IButton } from '../../../base/browser/ui/button/button.js';
+import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { ActionRunner, IAction, IActionRunner, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { localize } from '../../../nls.js';
+import { getActionBarActions } from './menuEntryActionViewItem.js';
+import { IToolBarRenderOptions } from './toolbar.js';
+import { MenuId, IMenuService, MenuItemAction, IMenuActionOptions } from '../common/actions.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../contextview/browser/contextView.js';
+import { IHoverService } from '../../hover/browser/hover.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 export type IButtonConfigProvider = (action: IAction, index: number) => {
 	showIcon?: boolean;
@@ -94,27 +94,36 @@ export class WorkbenchButtonBar extends ButtonBar {
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
-					ariaLabel: action.label
+					ariaLabel: action.label,
+					supportIcons: true,
 				});
 			} else {
 				action = actionOrSubmenu;
 				btn = this.addButton({
 					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
-					ariaLabel: action.label
+					ariaLabel: action.label,
+					supportIcons: true,
 				});
 			}
 
 			btn.enabled = action.enabled;
 			btn.checked = action.checked ?? false;
 			btn.element.classList.add('default-colors');
-			if (conifgProvider(action, i)?.showLabel ?? true) {
+			const showLabel = conifgProvider(action, i)?.showLabel ?? true;
+			if (showLabel) {
 				btn.label = action.label;
 			} else {
 				btn.element.classList.add('monaco-text-button');
 			}
 			if (conifgProvider(action, i)?.showIcon) {
 				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
-					btn.icon = action.item.icon;
+					if (!showLabel) {
+						btn.icon = action.item.icon;
+					} else {
+						// this is REALLY hacky but combining a codicon and normal text is ugly because
+						// the former define a font which doesn't work for text
+						btn.label = `$(${action.item.icon.id}) ${action.label}`;
+					}
 				} else if (action.class) {
 					btn.element.classList.add(...action.class.split(' '));
 				}
@@ -122,9 +131,9 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const kb = this._keybindingService.lookupKeybinding(action.id);
 			let tooltip: string;
 			if (kb) {
-				tooltip = localize('labelWithKeybinding', "{0} ({1})", action.label, kb.getLabel());
+				tooltip = localize('labelWithKeybinding', "{0} ({1})", action.tooltip || action.label, kb.getLabel());
 			} else {
-				tooltip = action.label;
+				tooltip = action.tooltip || action.label;
 			}
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
@@ -187,16 +196,12 @@ export class MenuWorkbenchButtonBar extends WorkbenchButtonBar {
 
 			this.clear();
 
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(
-				menu,
-				options?.menuOptions,
-				{ primary, secondary },
+			const actions = getActionBarActions(
+				menu.getActions(options?.menuOptions),
 				options?.toolbarOptions?.primaryGroup
 			);
 
-			super.update(primary, secondary);
+			super.update(actions.primary, actions.secondary);
 		};
 		this._store.add(menu.onDidChange(update));
 		update();

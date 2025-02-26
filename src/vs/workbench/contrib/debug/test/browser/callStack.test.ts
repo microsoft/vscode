@@ -5,25 +5,25 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Constants } from 'vs/base/common/uint';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { createDecorationsForStackFrame } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { getContext, getContextForContributedActions, getSpecificSourceName } from 'vs/workbench/contrib/debug/browser/callStackView';
-import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug/browser/debugService';
-import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { IDebugService, IDebugSessionOptions, State } from 'vs/workbench/contrib/debug/common/debug';
-import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Constants } from '../../../../../base/common/uint.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { createDecorationsForStackFrame } from '../../browser/callStackEditorContribution.js';
+import { getContext, getContextForContributedActions, getSpecificSourceName } from '../../browser/callStackView.js';
+import { debugStackframe, debugStackframeFocused } from '../../browser/debugIcons.js';
+import { getStackFrameThreadAndSessionToFocus } from '../../browser/debugService.js';
+import { DebugSession } from '../../browser/debugSession.js';
+import { IDebugService, IDebugSessionOptions, State } from '../../common/debug.js';
+import { DebugModel, StackFrame, Thread } from '../../common/debugModel.js';
+import { Source } from '../../common/debugSource.js';
+import { createMockDebugModel, mockUriIdentityService } from './mockDebugModel.js';
+import { MockRawSession } from '../common/mockDebug.js';
 
 const mockWorkspaceContextService = {
 	getWorkspace: () => {

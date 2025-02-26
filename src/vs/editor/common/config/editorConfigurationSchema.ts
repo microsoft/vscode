@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
-import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import * as nls from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { diffEditorDefaultOptions } from './diffEditor.js';
+import { editorOptionsRegistry } from './editorOptions.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import * as nls from '../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
 
 export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'editor',
@@ -25,6 +25,7 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: EDITOR_MODEL_DEFAULTS.tabSize,
 			minimum: 1,
+			maximum: 16,
 			markdownDescription: nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
 		},
 		'editor.indentSize': {
@@ -113,7 +114,19 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `editor.experimental.preferTreeSitter` for specific languages will take precedence."),
-			tags: ['experimental']
+			tags: ['experimental', 'onExP']
+		},
+		'editor.experimental.preferTreeSitter.typescript': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.typescript', "Controls whether tree sitter parsing should be turned on for typescript. This will take precedence over `editor.experimental.treeSitterTelemetry` for typescript."),
+			tags: ['experimental', 'onExP']
+		},
+		'editor.experimental.preferTreeSitter.ini': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.ini', "Controls whether tree sitter parsing should be turned on for ini. This will take precedence over `editor.experimental.treeSitterTelemetry` for ini."),
+			tags: ['experimental', 'onExP']
 		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
@@ -218,8 +231,7 @@ const editorConfiguration: IConfigurationNode = {
 			markdownEnumDescriptions: [
 				nls.localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
 				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
-			],
-			tags: ['experimental'],
+			]
 		},
 		'diffEditor.hideUnchangedRegions.enabled': {
 			type: 'boolean',

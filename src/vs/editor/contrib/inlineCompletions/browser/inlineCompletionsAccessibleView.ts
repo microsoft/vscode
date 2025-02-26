@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController';
-import { AccessibleViewType, AccessibleViewProviderId, IAccessibleViewContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { InlineCompletionContextKeys } from './controller/inlineCompletionContextKeys.js';
+import { InlineCompletionsController } from './controller/inlineCompletionsController.js';
+import { AccessibleViewType, AccessibleViewProviderId, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { InlineCompletionsModel } from './model/inlineCompletionsModel.js';
 
-export class InlineCompletionsAccessibleView implements IAccessibleViewImplentation {
+export class InlineCompletionsAccessibleView implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.View;
 	readonly priority = 95;
 	readonly name = 'inline-completions';
@@ -28,7 +28,7 @@ export class InlineCompletionsAccessibleView implements IAccessibleViewImplentat
 		}
 
 		const model = InlineCompletionsController.get(editor)?.model.get();
-		if (!model?.state.get()) {
+		if (!model?.inlineCompletionState.get()) {
 			return;
 		}
 
@@ -51,7 +51,7 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 	public readonly options = { language: this._editor.getModel()?.getLanguageId() ?? undefined, type: AccessibleViewType.View };
 
 	public provideContent(): string {
-		const state = this._model.state.get();
+		const state = this._model.inlineCompletionState.get();
 		if (!state) {
 			throw new Error('Inline completion is visible but state is not available');
 		}

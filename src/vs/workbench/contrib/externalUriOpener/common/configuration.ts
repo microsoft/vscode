@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import * as nls from 'vs/nls';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationNode, IConfigurationRegistry, Extensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import * as nls from '../../../../nls.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 
 export const defaultExternalUriOpenerId = 'default';
 

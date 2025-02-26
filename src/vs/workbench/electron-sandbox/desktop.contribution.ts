@@ -3,32 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize, localize2 } from 'vs/nls';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
-import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
-import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sandbox/window';
-import product from 'vs/platform/product/common/product';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { localize, localize2 } from '../../nls.js';
+import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/common/actions.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
+import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
+import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction } from './actions/developerActions.js';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from './actions/windowActions.js';
+import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
+import { CommandsRegistry } from '../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { IsMacContext } from '../../platform/contextkey/common/contextkeys.js';
+import { INativeHostService } from '../../platform/native/common/native.js';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { IJSONSchema } from '../../base/common/jsonSchema.js';
+import { InstallShellScriptAction, UninstallShellScriptAction } from './actions/installActions.js';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from '../common/contextkeys.js';
+import { TELEMETRY_SETTING_ID } from '../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ShutdownReason } from '../services/lifecycle/common/lifecycle.js';
+import { NativeWindow } from './window.js';
+import { ModifierKeyEmitter } from '../../base/browser/dom.js';
+import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from '../common/configuration.js';
+import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-sandbox/window.js';
 
 // Actions
 (function registerActions(): void {
@@ -109,6 +108,7 @@ import product from 'vs/platform/product/common/product';
 	registerAction2(ConfigureRuntimeArgumentsAction);
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
+	registerAction2(ShowGPUInfoAction);
 })();
 
 // Menu
@@ -232,15 +232,9 @@ import product from 'vs/platform/product/common/product';
 			'window.titleBarStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
-				'default': isLinux ? 'native' : 'custom',
+				'default': 'custom',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
-			},
-			'window.experimentalControlOverlay': {
-				'type': 'boolean',
-				'included': isLinux,
-				'markdownDescription': localize('window.experimentalControlOverlay', "Show the native window controls when {0} is set to `custom` (Linux only).", '`#window.titleBarStyle#`'),
-				'default': product.quality !== 'stable', // TODO@bpasero disable by default in stable for now (TODO@bpasero TODO@benibenj flip when custom title is default)
 			},
 			'window.customTitleBarVisibility': {
 				'type': 'string',
@@ -250,9 +244,9 @@ import product from 'vs/platform/product/common/product';
 					localize(`window.customTitleBarVisibility.windowed`, "Hide custom titlebar in full screen. When not in full screen, automatically change custom title bar visibility."),
 					localize(`window.customTitleBarVisibility.never`, "Hide custom titlebar when {0} is set to `native`.", '`#window.titleBarStyle#`'),
 				],
-				'default': isLinux ? 'never' : 'auto',
+				'default': 'auto',
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in none full screen mode with `never` when {0} is set to `native`.", '`#window.titleBarStyle#`'),
+				'markdownDescription': localize('window.customTitleBarVisibility', "Adjust when the custom title bar should be shown. The custom title bar can be hidden when in full screen mode with `windowed`. The custom title bar can only be hidden in non full screen mode with `never` when {0} is set to `native`.", '`#window.titleBarStyle#`'),
 			},
 			'window.dialogStyle': {
 				'type': 'string',

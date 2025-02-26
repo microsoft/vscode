@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostAiEmbeddingVectorShape, IMainContext, MainContext, MainThreadAiEmbeddingVectorShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtHostAiEmbeddingVectorShape, IMainContext, MainContext, MainThreadAiEmbeddingVectorShape } from './extHost.protocol.js';
 import type { CancellationToken, EmbeddingVectorProvider } from 'vscode';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable } from './extHostTypes.js';
 
 export class ExtHostAiEmbeddingVector implements ExtHostAiEmbeddingVectorShape {
 	private _AiEmbeddingVectorProviders: Map<number, EmbeddingVectorProvider> = new Map();

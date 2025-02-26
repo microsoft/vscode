@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok } from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
-import { AbstractProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { CommonTask, ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalStatusList, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from '../../browser/taskTerminalStatus.js';
+import { AbstractProblemCollector } from '../../common/problemCollectors.js';
+import { CommonTask, ITaskEvent, TaskEventKind, TaskRunType } from '../../common/tasks.js';
+import { ITaskService, Task } from '../../common/taskService.js';
+import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { ITerminalStatusList, TerminalStatusList } from '../../../terminal/browser/terminalStatusList.js';
+import { ITerminalStatus } from '../../../terminal/common/terminal.js';
 
 class TestTaskService implements Partial<ITaskService> {
 	private readonly _onDidStateChange: Emitter<ITaskEvent> = new Emitter();

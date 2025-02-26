@@ -3,91 +3,90 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/window';
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindows } from 'vs/base/browser/dom';
-import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowMinimumSize, IOpenFileRequest, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from 'vs/platform/window/common/window';
-import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { setFullscreen, getZoomLevel, onDidChangeZoomLevel, getZoomFactor } from 'vs/base/browser/browser';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ICommandAction } from 'vs/platform/action/common/action';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { coalesce } from 'vs/base/common/arrays';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IOpenerService, IResolvedExternalUri, OpenOptions } from 'vs/platform/opener/common/opener';
-import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { posix } from 'vs/base/common/path';
-import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping, extractQueryLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
-import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { Event } from 'vs/base/common/event';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IEditorGroupsService, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { whenEditorClosed } from 'vs/workbench/browser/editor';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname } from 'vs/base/common/resources';
-import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { Codicon } from 'vs/base/common/codicons';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
-import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
-import { mainWindow } from 'vs/base/browser/window';
-import { BaseWindow } from 'vs/workbench/browser/window';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { getWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DynamicWorkbenchSecurityConfiguration } from 'vs/workbench/common/configuration';
-import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { isESM } from 'vs/base/common/amd';
+import './media/window.css';
+import { localize } from '../../nls.js';
+import { URI } from '../../base/common/uri.js';
+import { onUnexpectedError } from '../../base/common/errors.js';
+import { equals } from '../../base/common/objects.js';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
+import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../base/common/actions.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from '../common/editor.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { WindowMinimumSize, IOpenFileRequest, IAddRemoveFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from '../../platform/window/common/window.js';
+import { ITitleService } from '../services/title/browser/titleService.js';
+import { IWorkbenchThemeService } from '../services/themes/common/workbenchThemeService.js';
+import { ApplyZoomTarget, applyZoom } from '../../platform/window/electron-sandbox/window.js';
+import { setFullscreen, getZoomLevel, onDidChangeZoomLevel, getZoomFactor } from '../../base/browser/browser.js';
+import { ICommandService, CommandsRegistry } from '../../platform/commands/common/commands.js';
+import { IResourceEditorInput } from '../../platform/editor/common/editor.js';
+import { ipcRenderer, process } from '../../base/parts/sandbox/electron-sandbox/globals.js';
+import { IWorkspaceEditingService } from '../services/workspaces/common/workspaceEditing.js';
+import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from '../../platform/actions/common/actions.js';
+import { ICommandAction } from '../../platform/action/common/action.js';
+import { getFlatActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
+import { RunOnceScheduler } from '../../base/common/async.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
+import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/workspaces.js';
+import { IIntegrityService } from '../services/integrity/common/integrity.js';
+import { isWindows, isMacintosh } from '../../base/common/platform.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
+import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
+import { INativeWorkbenchEnvironmentService } from '../services/environment/electron-sandbox/environmentService.js';
+import { IAccessibilityService, AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
+import { WorkbenchState, IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
+import { coalesce } from '../../base/common/arrays.js';
+import { ConfigurationTarget, IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
+import { IOpenerService, IResolvedExternalUri, OpenOptions } from '../../platform/opener/common/opener.js';
+import { Schemas } from '../../base/common/network.js';
+import { INativeHostService } from '../../platform/native/common/native.js';
+import { posix } from '../../base/common/path.js';
+import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping, extractQueryLocalHostUriMetaDataForPortMapping } from '../../platform/tunnel/common/tunnel.js';
+import { IWorkbenchLayoutService, positionFromString, Position } from '../services/layout/browser/layoutService.js';
+import { IWorkingCopyService } from '../services/workingCopy/common/workingCopyService.js';
+import { WorkingCopyCapabilities } from '../services/workingCopy/common/workingCopy.js';
+import { IFilesConfigurationService } from '../services/filesConfiguration/common/filesConfigurationService.js';
+import { Event } from '../../base/common/event.js';
+import { IRemoteAuthorityResolverService } from '../../platform/remote/common/remoteAuthorityResolver.js';
+import { IAddressProvider, IAddress } from '../../platform/remote/common/remoteAgentConnection.js';
+import { IEditorGroupsService, IEditorPart } from '../services/editor/common/editorGroupsService.js';
+import { IDialogService } from '../../platform/dialogs/common/dialogs.js';
+import { AuthInfo } from '../../base/parts/sandbox/electron-sandbox/electronTypes.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { whenEditorClosed } from '../browser/editor.js';
+import { ISharedProcessService } from '../../platform/ipc/electron-sandbox/services.js';
+import { IProgressService, ProgressLocation } from '../../platform/progress/common/progress.js';
+import { toErrorMessage } from '../../base/common/errorMessage.js';
+import { ILabelService } from '../../platform/label/common/label.js';
+import { dirname } from '../../base/common/resources.js';
+import { IBannerService } from '../services/banner/browser/bannerService.js';
+import { Codicon } from '../../base/common/codicons.js';
+import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
+import { IPreferencesService } from '../services/preferences/common/preferences.js';
+import { IUtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
+import { registerWindowDriver } from '../services/driver/electron-sandbox/driver.js';
+import { mainWindow } from '../../base/browser/window.js';
+import { BaseWindow } from '../browser/window.js';
+import { IHostService } from '../services/host/browser/host.js';
+import { IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from '../services/statusbar/browser/statusbar.js';
+import { ActionBar } from '../../base/browser/ui/actionbar/actionbar.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { getWorkbenchContribution } from '../common/contributions.js';
+import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.js';
+import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
 
 export class NativeWindow extends BaseWindow {
 
 	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
 
-	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
+	private readonly addRemoveFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddRemoveFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
+	private pendingFoldersToRemove: URI[] = [];
 
 	private isDocumentedEdited = false;
 
@@ -211,11 +210,11 @@ export class NativeWindow extends BaseWindow {
 		// Support openFiles event for existing and new files
 		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
 
-		// Support addFolders event if we have a workspace opened
-		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => { this.onAddFoldersRequest(request); });
+		// Support addRemoveFolders event for workspace management
+		ipcRenderer.on('vscode:addRemoveFolders', (event: unknown, request: IAddRemoveFoldersRequest) => this.onAddRemoveFoldersRequest(request));
 
 		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => { this.notificationService.info(message); });
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
 		// Shell Environment Issue Notifications
 		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => {
@@ -396,21 +395,6 @@ export class NativeWindow extends BaseWindow {
 			}
 
 			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.handleRepresentedFilename(part)));
-		}
-
-		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && !hasNativeTitlebar(this.configurationService)) {
-			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
-				const targetWindow = getWindow(container);
-				const targetWindowId = targetWindow.vscodeWindowId;
-				const titlePart = assertIsDefined(this.layoutService.getContainer(targetWindow, Parts.TITLEBAR_PART));
-
-				disposables.add(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
-					EventHelper.stop(e);
-
-					this.nativeHostService.handleTitleDoubleClick({ targetWindowId });
-				}));
-			}, { container: this.layoutService.mainContainer, disposables: this._store }));
 		}
 
 		// Document edited: indicate for dirty working copies
@@ -708,17 +692,6 @@ export class NativeWindow extends BaseWindow {
 
 	private async handleWarnings(): Promise<void> {
 
-		// Check for cyclic dependencies
-		if (!isESM && typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
-			if (isCI) {
-				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
-				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
-			} else {
-				this.dialogService.error(localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
-				this.nativeHostService.openDevTools();
-			}
-		}
-
 		// After restored phase is fine for the following ones
 		await this.lifecycleService.when(LifecyclePhase.Restored);
 
@@ -761,12 +734,11 @@ export class NativeWindow extends BaseWindow {
 			}
 		}
 
-		// macOS 10.13 and 10.14 warning
+		// macOS 10.15 warning
 		if (isMacintosh) {
 			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
 			const eolReleases = new Map<string, string>([
-				['17', 'macOS High Sierra'],
-				['18', 'macOS Mojave'],
+				['19', 'macOS Catalina'],
 			]);
 
 			if (eolReleases.has(majorVersion)) {
@@ -817,20 +789,6 @@ export class NativeWindow extends BaseWindow {
 		});
 	}
 
-	private async openTunnel(address: string, port: number): Promise<RemoteTunnel | string | undefined> {
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
-			getAddress: async (): Promise<IAddress> => {
-				return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
-			}
-		} : undefined;
-		const tunnel = await this.tunnelService.getExistingTunnel(address, port);
-		if (!tunnel || (typeof tunnel === 'string')) {
-			return this.tunnelService.openTunnel(addressProvider, address, port);
-		}
-		return tunnel;
-	}
-
 	async resolveExternalUri(uri: URI, options?: OpenOptions): Promise<IResolvedExternalUri | undefined> {
 		let queryTunnel: RemoteTunnel | string | undefined;
 		if (options?.allowTunneling) {
@@ -855,10 +813,11 @@ export class NativeWindow extends BaseWindow {
 					}
 				}
 			}
+
 			if (portMappingRequest) {
 				const tunnel = await this.openTunnel(portMappingRequest.address, portMappingRequest.port);
 				if (tunnel && (typeof tunnel !== 'string')) {
-					const addressAsUri = URI.parse(tunnel.localAddress);
+					const addressAsUri = URI.parse(tunnel.localAddress).with({ path: uri.path });
 					const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 					return {
 						resolved,
@@ -888,6 +847,22 @@ export class NativeWindow extends BaseWindow {
 		}
 
 		return undefined;
+	}
+
+	private async openTunnel(address: string, port: number): Promise<RemoteTunnel | string | undefined> {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
+			getAddress: async (): Promise<IAddress> => {
+				return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
+			}
+		} : undefined;
+
+		const tunnel = await this.tunnelService.getExistingTunnel(address, port);
+		if (!tunnel || (typeof tunnel === 'string')) {
+			return this.tunnelService.openTunnel(addressProvider, address, port);
+		}
+
+		return tunnel;
 	}
 
 	private setupOpenHandlers(): void {
@@ -944,14 +919,12 @@ export class NativeWindow extends BaseWindow {
 			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
 		}
 
-		const actions: Array<MenuItemAction | Separator> = [];
-
 		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
 		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
 		const ignoredItems = Array.isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
-		createAndFillInActionBarActions(this.touchBarMenu, undefined, actions);
+		const actions = getFlatActionBarActions(this.touchBarMenu.getActions());
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
@@ -992,27 +965,32 @@ export class NativeWindow extends BaseWindow {
 
 	//#endregion
 
-	private onAddFoldersRequest(request: IAddFoldersRequest): void {
+	private onAddRemoveFoldersRequest(request: IAddRemoveFoldersRequest): void {
 
 		// Buffer all pending requests
 		this.pendingFoldersToAdd.push(...request.foldersToAdd.map(folder => URI.revive(folder)));
+		this.pendingFoldersToRemove.push(...request.foldersToRemove.map(folder => URI.revive(folder)));
 
 		// Delay the adding of folders a bit to buffer in case more requests are coming
-		if (!this.addFoldersScheduler.isScheduled()) {
-			this.addFoldersScheduler.schedule();
+		if (!this.addRemoveFoldersScheduler.isScheduled()) {
+			this.addRemoveFoldersScheduler.schedule();
 		}
 	}
 
-	private doAddFolders(): void {
-		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
-
-		for (const folder of this.pendingFoldersToAdd) {
-			foldersToAdd.push(({ uri: folder }));
-		}
+	private async doAddRemoveFolders(): Promise<void> {
+		const foldersToAdd: IWorkspaceFolderCreationData[] = this.pendingFoldersToAdd.map(folder => ({ uri: folder }));
+		const foldersToRemove = this.pendingFoldersToRemove.slice(0);
 
 		this.pendingFoldersToAdd = [];
+		this.pendingFoldersToRemove = [];
 
-		this.workspaceEditingService.addFolders(foldersToAdd);
+		if (foldersToAdd.length) {
+			await this.workspaceEditingService.addFolders(foldersToAdd);
+		}
+
+		if (foldersToRemove.length) {
+			await this.workspaceEditingService.removeFolders(foldersToRemove);
+		}
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {

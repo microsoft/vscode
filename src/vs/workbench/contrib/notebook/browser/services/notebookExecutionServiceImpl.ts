@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { KernelPickerMRUStrategy } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionService, ICellExecutionParticipant } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import * as nls from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { KernelPickerMRUStrategy } from '../viewParts/notebookKernelQuickPickStrategy.js';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
+import { CellKind, INotebookTextModel, NotebookCellExecutionState } from '../../common/notebookCommon.js';
+import { INotebookExecutionService, ICellExecutionParticipant } from '../../common/notebookExecutionService.js';
+import { INotebookCellExecution, INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { INotebookKernelHistoryService, INotebookKernelService } from '../../common/notebookKernelService.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
 
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {

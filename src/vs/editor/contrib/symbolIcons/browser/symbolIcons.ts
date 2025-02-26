@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./symbolIcons';
-import { localize } from 'vs/nls';
-import { foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import './symbolIcons.css';
+import { localize } from '../../../../nls.js';
+import { foreground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 
 export const SYMBOL_ICON_ARRAY_FOREGROUND = registerColor('symbolIcon.arrayForeground', foreground, localize('symbolIcon.arrayForeground', 'The foreground color for array symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
@@ -35,6 +35,9 @@ export const SYMBOL_ICON_ENUMERATOR_FOREGROUND = registerColor('symbolIcon.enume
 	hcDark: '#EE9D28',
 	hcLight: '#D67E00'
 }, localize('symbolIcon.enumeratorForeground', 'The foreground color for enumerator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+
+export const SYMBOL_ICON_FLAG_FOREGROUND = registerColor('symbolIcon.flagForeground', SYMBOL_ICON_ENUMERATOR_FOREGROUND, localize('symbolIcon.enumeratorForeground', 'The foreground color for enumerator symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 
 export const SYMBOL_ICON_ENUMERATOR_MEMBER_FOREGROUND = registerColor('symbolIcon.enumeratorMemberForeground', {
 	dark: '#75BEFF',
@@ -85,6 +88,8 @@ export const SYMBOL_ICON_METHOD_FOREGROUND = registerColor('symbolIcon.methodFor
 	hcDark: '#B180D7',
 	hcLight: '#652D90'
 }, localize('symbolIcon.methodForeground', 'The foreground color for method symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
+
+export const SYMBOL_ICON_METHOD_ARROW_FOREGROUND = registerColor('symbolIcon.methodArrowForeground', SYMBOL_ICON_METHOD_FOREGROUND, localize('symbolIcon.methodArrowForeground', 'The foreground color for method with an arrow symbols. These symbols appear in the suggest widget.'));
 
 export const SYMBOL_ICON_MODULE_FOREGROUND = registerColor('symbolIcon.moduleForeground', foreground, localize('symbolIcon.moduleForeground', 'The foreground color for module symbols. These symbols appear in the outline, breadcrumb, and suggest widget.'));
 

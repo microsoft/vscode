@@ -3,43 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from 'vs/base/common/event';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem, QuickPickFocus } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IMatch } from 'vs/base/common/filters';
-import { IListAccessibilityProvider, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { OS } from 'vs/base/common/platform';
-import { memoize } from 'vs/base/common/decorators';
-import { IIconLabelValueOptions, IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { isDark } from 'vs/platform/theme/common/theme';
-import { URI } from 'vs/base/common/uri';
-import { quickInputButtonToAction } from 'vs/platform/quickinput/browser/quickInputUtils';
-import { Lazy } from 'vs/base/common/lazy';
-import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { compareAnything } from 'vs/base/common/comparers';
-import { ltrim } from 'vs/base/common/strings';
-import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { isCancellationError } from 'vs/base/common/errors';
-import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { observableValue, observableValueOpts, transaction } from 'vs/base/common/observable';
-import { equals } from 'vs/base/common/arrays';
+import * as dom from '../../../base/browser/dom.js';
+import * as cssJs from '../../../base/browser/cssValue.js';
+import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../base/common/event.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
+import { localize } from '../../../nls.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { WorkbenchObjectTree } from '../../list/browser/listService.js';
+import { IThemeService } from '../../theme/common/themeService.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem, QuickPickFocus } from '../common/quickInput.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IMatch } from '../../../base/common/filters.js';
+import { IListAccessibilityProvider, IListStyles } from '../../../base/browser/ui/list/listWidget.js';
+import { AriaRole } from '../../../base/browser/ui/aria/aria.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { OS } from '../../../base/common/platform.js';
+import { memoize } from '../../../base/common/decorators.js';
+import { IIconLabelValueOptions, IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
+import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { isDark } from '../../theme/common/theme.js';
+import { URI } from '../../../base/common/uri.js';
+import { quickInputButtonToAction } from './quickInputUtils.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { compareAnything } from '../../../base/common/comparers.js';
+import { escape, ltrim } from '../../../base/common/strings.js';
+import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
+import { equals } from '../../../base/common/arrays.js';
 
 const $ = dom.$;
 
@@ -428,7 +429,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			const icon = isDark(this.themeService.getColorTheme().type) ? mainItem.iconPath.dark : (mainItem.iconPath.light ?? mainItem.iconPath.dark);
 			const iconUrl = URI.revive(icon);
 			data.icon.className = 'quick-input-list-icon';
-			data.icon.style.backgroundImage = dom.asCSSUrl(iconUrl);
+			data.icon.style.backgroundImage = cssJs.asCSSUrl(iconUrl);
 		} else {
 			data.icon.style.backgroundImage = '';
 			data.icon.className = mainItem.iconClass ? `quick-input-list-icon ${mainItem.iconClass}` : '';
@@ -442,7 +443,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		if (!element.saneTooltip && element.saneDescription) {
 			descriptionTitle = {
 				markdown: {
-					value: element.saneDescription,
+					value: escape(element.saneDescription),
 					supportThemeIcons: true
 				},
 				markdownNotSupportedFallback: element.saneDescription
@@ -471,7 +472,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			if (!element.saneTooltip) {
 				title = {
 					markdown: {
-						value: element.saneDetail,
+						value: escape(element.saneDetail),
 						supportThemeIcons: true
 					},
 					markdownNotSupportedFallback: element.saneDetail
@@ -566,7 +567,7 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		element.element.classList.toggle('focus-inside', !!element.focusInsideSeparator);
 		const mainItem: IQuickPickSeparator = element.separator;
 
-		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
+		const { labelHighlights, descriptionHighlights } = element;
 
 		// Icon
 		data.icon.style.backgroundImage = '';
@@ -580,7 +581,7 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		if (!element.saneTooltip && element.saneDescription) {
 			descriptionTitle = {
 				markdown: {
-					value: element.saneDescription,
+					value: escape(element.saneDescription),
 					supportThemeIcons: true
 				},
 				markdownNotSupportedFallback: element.saneDescription
@@ -595,29 +596,6 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		};
 		data.entry.classList.add('quick-input-list-separator-as-item');
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
-
-		// Detail
-		if (element.saneDetail) {
-			let title: IManagedHoverTooltipMarkdownString | undefined;
-			// If we have a tooltip, we want that to be shown and not any other hover
-			if (!element.saneTooltip) {
-				title = {
-					markdown: {
-						value: element.saneDetail,
-						supportThemeIcons: true
-					},
-					markdownNotSupportedFallback: element.saneDetail
-				};
-			}
-			data.detail.element.style.display = '';
-			data.detail.setLabel(element.saneDetail, undefined, {
-				matches: detailHighlights,
-				title,
-				labelEscapeNewLines: true
-			});
-		} else {
-			data.detail.element.style.display = 'none';
-		}
 
 		// Separator
 		data.separator.style.display = 'none';
@@ -951,7 +929,7 @@ export class QuickInputTree extends Disposable {
 	}
 
 	private _registerHoverListeners() {
-		const delayer = this._register(new ThrottledDelayer(this.hoverDelegate.delay));
+		const delayer = this._register(new ThrottledDelayer(typeof this.hoverDelegate.delay === 'function' ? this.hoverDelegate.delay() : this.hoverDelegate.delay));
 		this._register(this._tree.onMouseOver(async e => {
 			// If we hover over an anchor element, we don't want to show the hover because
 			// the anchor may have a tooltip that we want to show instead.
@@ -1228,7 +1206,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				const currentFocus = this._tree.getFocus();
-				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[this._itemElements.length - 1]) {
+				if (prevFocus.length && prevFocus[0] === currentFocus[0]) {
 					this._onLeave.fire();
 				}
 				break;
@@ -1249,7 +1227,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				const currentFocus = this._tree.getFocus();
-				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[0]) {
+				if (prevFocus.length && prevFocus[0] === currentFocus[0]) {
 					this._onLeave.fire();
 				}
 				break;

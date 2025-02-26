@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import * as nls from 'vs/nls';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import * as nls from '../../../../nls.js';
 
 class ForceRetokenizeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.forceRetokenize',
-			label: nls.localize('forceRetokenize', "Developer: Force Retokenize"),
-			alias: 'Developer: Force Retokenize',
+			label: nls.localize2('forceRetokenize', "Developer: Force Retokenize"),
 			precondition: undefined
 		});
 	}

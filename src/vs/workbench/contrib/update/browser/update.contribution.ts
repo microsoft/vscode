@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/platform/update/common/update.config.contribution';
-import { localize, localize2 } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotesInEditor, DOWNLOAD_URL } from 'vs/workbench/contrib/update/browser/update';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/common/product';
-import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isWindows } from 'vs/base/common/platform';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from 'vs/workbench/contrib/update/common/update';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { URI } from 'vs/base/common/uri';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import '../../../../platform/update/common/update.config.contribution.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotesInEditor, DOWNLOAD_URL } from './update.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import product from '../../../../platform/product/common/product.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
+import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 

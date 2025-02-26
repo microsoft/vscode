@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SelectedLines } from 'vs/editor/contrib/folding/browser/folding';
+import { SelectedLines } from './folding.js';
 
 export interface ILineRange {
 	startLineNumber: number;

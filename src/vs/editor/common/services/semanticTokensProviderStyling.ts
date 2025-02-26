@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages';
-import { FontStyle, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { SemanticTokensLegend, SemanticTokens } from '../languages.js';
+import { FontStyle, MetadataConsts, TokenMetadata } from '../encodedTokenAttributes.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import { SparseMultilineTokens } from '../tokens/sparseMultilineTokens.js';
+import { ILanguageService } from '../languages/language.js';
 
 const enum SemanticTokensProviderStylingConstants {
 	NO_STYLING = 0b01111111111111111111111111111111

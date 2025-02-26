@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
-import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
-import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
-import * as dom from 'vs/base/browser/dom';
-import { HoverVerbosityAction } from 'vs/editor/common/languages';
-import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
-import { localize } from 'vs/nls';
-import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { EditorHoverStatusBar } from './contentHoverStatusBar.js';
+import { HoverStartSource } from './hoverOperation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { ContentHoverResult } from './contentHoverTypes.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { HoverVerbosityAction } from '../../../common/languages.js';
+import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
+import { HoverColorPickerParticipant } from '../../colorPicker/browser/hoverColorPicker/hoverColorPickerParticipant.js';
+import { localize } from '../../../../nls.js';
+import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IOffsetRange } from '../../../common/core/offsetRange.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -39,30 +40,32 @@ export class RenderedContentHover extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
-		hoverResult: HoverResult,
+		hoverResult: ContentHoverResult,
 		participants: IEditorHoverParticipant<IHoverPart>[],
-		computer: ContentHoverComputer,
 		context: IEditorHoverContext,
-		keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService
 	) {
 		super();
-		const anchor = hoverResult.anchor;
 		const parts = hoverResult.hoverParts;
 		this._renderedHoverParts = this._register(new RenderedContentHoverParts(
 			editor,
 			participants,
 			parts,
+			context,
 			keybindingService,
-			context
+			hoverService
 		));
+		const contentHoverComputerOptions = hoverResult.options;
+		const anchor = contentHoverComputerOptions.anchor;
 		const { showAtPosition, showAtSecondaryPosition } = RenderedContentHover.computeHoverPositions(editor, anchor.range, parts);
 		this.shouldAppearBeforeContent = parts.some(m => m.isBeforeContent);
 		this.showAtPosition = showAtPosition;
 		this.showAtSecondaryPosition = showAtSecondaryPosition;
 		this.initialMousePosX = anchor.initialMousePosX;
 		this.initialMousePosY = anchor.initialMousePosY;
-		this.shouldFocus = computer.shouldFocus;
-		this.source = computer.source;
+		this.shouldFocus = contentHoverComputerOptions.shouldFocus;
+		this.source = contentHoverComputerOptions.source;
 	}
 
 	public get domNode(): DocumentFragment {
@@ -75,6 +78,10 @@ export class RenderedContentHover extends Disposable {
 
 	public get focusedHoverPartIndex(): number {
 		return this._renderedHoverParts.focusedHoverPartIndex;
+	}
+
+	public get hoverPartsCount(): number {
+		return this._renderedHoverParts.hoverPartsCount;
 	}
 
 	public focusHoverPartWithIndex(index: number): void {
@@ -219,20 +226,21 @@ class RenderedContentHoverParts extends Disposable {
 	private readonly _context: IEditorHoverContext;
 
 	private _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
-	private _colorHoverParticipant: ColorHoverParticipant | undefined;
+	private _colorHoverParticipant: HoverColorPickerParticipant | undefined;
 	private _focusedHoverPartIndex: number = -1;
 
 	constructor(
 		editor: ICodeEditor,
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		hoverParts: IHoverPart[],
-		keybindingService: IKeybindingService,
-		context: IEditorHoverContext
+		context: IEditorHoverContext,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService
 	) {
 		super();
 		this._context = context;
 		this._fragment = document.createDocumentFragment();
-		this._register(this._renderParts(participants, hoverParts, context, keybindingService));
+		this._register(this._renderParts(participants, hoverParts, context, keybindingService, hoverService));
 		this._register(this._registerListenersOnRenderedParts());
 		this._register(this._createEditorDecorations(editor, hoverParts));
 		this._updateMarkdownAndColorParticipantInfo(participants);
@@ -257,14 +265,15 @@ class RenderedContentHoverParts extends Disposable {
 		});
 	}
 
-	private _renderParts(participants: IEditorHoverParticipant<IHoverPart>[], hoverParts: IHoverPart[], hoverContext: IEditorHoverContext, keybindingService: IKeybindingService): IDisposable {
-		const statusBar = new EditorHoverStatusBar(keybindingService);
+	private _renderParts(participants: IEditorHoverParticipant<IHoverPart>[], hoverParts: IHoverPart[], hoverContext: IEditorHoverContext, keybindingService: IKeybindingService, hoverService: IHoverService): IDisposable {
+		const statusBar = new EditorHoverStatusBar(keybindingService, hoverService);
 		const hoverRenderingContext: IEditorHoverRenderContext = {
 			fragment: this._fragment,
 			statusBar,
 			...hoverContext
 		};
 		const disposables = new DisposableStore();
+		disposables.add(statusBar);
 		for (const participant of participants) {
 			const renderedHoverParts = this._renderHoverPartsForParticipant(hoverParts, participant, hoverRenderingContext);
 			disposables.add(renderedHoverParts);
@@ -286,7 +295,7 @@ class RenderedContentHoverParts extends Disposable {
 				actions: renderedStatusBar.actions,
 			});
 		}
-		return toDisposable(() => { disposables.dispose(); });
+		return disposables;
 	}
 
 	private _renderHoverPartsForParticipant(hoverParts: IHoverPart[], participant: IEditorHoverParticipant<IHoverPart>, hoverRenderingContext: IEditorHoverRenderContext): IRenderedHoverParts<IHoverPart> {
@@ -329,7 +338,7 @@ class RenderedContentHoverParts extends Disposable {
 		if (markdownHoverParticipant) {
 			this._markdownHoverParticipant = markdownHoverParticipant as MarkdownHoverParticipant;
 		}
-		this._colorHoverParticipant = participants.find(p => p instanceof ColorHoverParticipant);
+		this._colorHoverParticipant = participants.find(p => p instanceof HoverColorPickerParticipant);
 	}
 
 	public focusHoverPartWithIndex(index: number): void {
@@ -371,20 +380,35 @@ class RenderedContentHoverParts extends Disposable {
 		if (!this._markdownHoverParticipant) {
 			return;
 		}
-		const normalizedMarkdownHoverIndex = this._normalizedIndexToMarkdownHoverIndexRange(this._markdownHoverParticipant, index);
-		if (normalizedMarkdownHoverIndex === undefined) {
-			return;
+		let rangeOfIndicesToUpdate: IOffsetRange;
+		if (index >= 0) {
+			rangeOfIndicesToUpdate = { start: index, endExclusive: index + 1 };
+		} else {
+			rangeOfIndicesToUpdate = this._findRangeOfMarkdownHoverParts(this._markdownHoverParticipant);
 		}
-		const renderedPart = await this._markdownHoverParticipant.updateMarkdownHoverVerbosityLevel(action, normalizedMarkdownHoverIndex, focus);
-		if (!renderedPart) {
-			return;
+		for (let i = rangeOfIndicesToUpdate.start; i < rangeOfIndicesToUpdate.endExclusive; i++) {
+			const normalizedMarkdownHoverIndex = this._normalizedIndexToMarkdownHoverIndexRange(this._markdownHoverParticipant, i);
+			if (normalizedMarkdownHoverIndex === undefined) {
+				continue;
+			}
+			const renderedPart = await this._markdownHoverParticipant.updateMarkdownHoverVerbosityLevel(action, normalizedMarkdownHoverIndex);
+			if (!renderedPart) {
+				continue;
+			}
+			this._renderedParts[i] = {
+				type: 'hoverPart',
+				participant: this._markdownHoverParticipant,
+				hoverPart: renderedPart.hoverPart,
+				hoverElement: renderedPart.hoverElement,
+			};
 		}
-		this._renderedParts[index] = {
-			type: 'hoverPart',
-			participant: this._markdownHoverParticipant,
-			hoverPart: renderedPart.hoverPart,
-			hoverElement: renderedPart.hoverElement,
-		};
+		if (focus) {
+			if (index >= 0) {
+				this.focusHoverPartWithIndex(index);
+			} else {
+				this._context.focus();
+			}
+		}
 		this._context.onContentsChanged();
 	}
 
@@ -422,6 +446,14 @@ class RenderedContentHoverParts extends Disposable {
 		return index - firstIndexOfMarkdownHovers;
 	}
 
+	private _findRangeOfMarkdownHoverParts(markdownHoverParticipant: MarkdownHoverParticipant): IOffsetRange {
+		const copiedRenderedParts = this._renderedParts.slice();
+		const firstIndexOfMarkdownHovers = copiedRenderedParts.findIndex(renderedPart => renderedPart.type === 'hoverPart' && renderedPart.participant === markdownHoverParticipant);
+		const inversedLastIndexOfMarkdownHovers = copiedRenderedParts.reverse().findIndex(renderedPart => renderedPart.type === 'hoverPart' && renderedPart.participant === markdownHoverParticipant);
+		const lastIndexOfMarkdownHovers = inversedLastIndexOfMarkdownHovers >= 0 ? copiedRenderedParts.length - inversedLastIndexOfMarkdownHovers : inversedLastIndexOfMarkdownHovers;
+		return { start: firstIndexOfMarkdownHovers, endExclusive: lastIndexOfMarkdownHovers + 1 };
+	}
+
 	public get domNode(): DocumentFragment {
 		return this._fragment;
 	}
@@ -432,5 +464,9 @@ class RenderedContentHoverParts extends Disposable {
 
 	public get focusedHoverPartIndex(): number {
 		return this._focusedHoverPartIndex;
+	}
+
+	public get hoverPartsCount(): number {
+		return this._renderedParts.length;
 	}
 }

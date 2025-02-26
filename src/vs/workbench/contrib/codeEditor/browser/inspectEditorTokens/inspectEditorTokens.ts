@@ -3,41 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inspectEditorTokens';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { CharCode } from 'vs/base/common/charCode';
-import { Color } from 'vs/base/common/color';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { SemanticTokensLegend, SemanticTokens, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
-import { FontStyle, ColorId, StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
-import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
+import './inspectEditorTokens.css';
+import * as nls from '../../../../../nls.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { CharCode } from '../../../../../base/common/charCode.js';
+import { Color } from '../../../../../base/common/color.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from '../../../../../editor/browser/editorExtensions.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { SemanticTokensLegend, SemanticTokens, TreeSitterTokenizationRegistry } from '../../../../../editor/common/languages.js';
+import { FontStyle, ColorId, StandardTokenType, TokenMetadata } from '../../../../../editor/common/encodedTokenAttributes.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { findMatchingThemeRule } from '../../../../services/textMate/common/TMHelper.js';
+import { ITextMateTokenizationService } from '../../../../services/textMate/browser/textMateTokenizationFeature.js';
 import type { IGrammar, IToken, StateStack } from 'vscode-textmate';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
-import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/contrib/semanticTokens/common/semanticTokensConfig';
-import { Schemas } from 'vs/base/common/network';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
-// eslint-disable-next-line local/code-import-patterns
-import type { Parser } from '@vscode/tree-sitter-wasm';
+import { IWorkbenchThemeService } from '../../../../services/themes/common/workbenchThemeService.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from '../../../../services/themes/common/colorThemeData.js';
+import { SemanticTokenRule, TokenStyleData, TokenStyle } from '../../../../../platform/theme/common/tokenClassificationRegistry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from '../../../../../editor/contrib/semanticTokens/common/semanticTokensConfig.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { ITreeSitterParserService } from '../../../../../editor/common/services/treeSitterParserService.js';
+import type * as Parser from '@vscode/tree-sitter-wasm';
 
 const $ = dom.$;
 
-class InspectEditorTokensController extends Disposable implements IEditorContribution {
+export class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.inspectEditorTokens';
 
@@ -121,8 +120,7 @@ class InspectEditorTokens extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inspectTMScopes',
-			label: nls.localize('inspectEditorTokens', "Developer: Inspect Editor Tokens and Scopes"),
-			alias: 'Developer: Inspect Editor Tokens and Scopes',
+			label: nls.localize2('inspectEditorTokens', "Developer: Inspect Editor Tokens and Scopes"),
 			precondition: undefined
 		});
 	}
@@ -407,7 +405,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			const tbody = dom.append(table, $('tbody'));
 
 			dom.append(tbody, $('tr', undefined,
-				$('td.tiw-metadata-key', undefined, 'tree-sitter token' as string),
+				$('td.tiw-metadata-key', undefined, `tree-sitter token ${treeSitterTokenInfo.id}` as string),
 				$('td.tiw-metadata-value', undefined, `${treeSitterTokenInfo.text}`)
 			));
 			const scopes = new Array<HTMLElement | string>();
@@ -430,7 +428,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'foreground'),
-					$('td.tiw-metadata-value', undefined, captures[0].name),
+					$('td.tiw-metadata-value', undefined, captures[captures.length - 1].name),
 				));
 			}
 		}
@@ -648,11 +646,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return null;
 	}
 
-	private _walkTreeforPosition(cursor: Parser.TreeCursor, pos: Position): Parser.SyntaxNode | null {
+	private _walkTreeforPosition(cursor: Parser.TreeCursor, pos: Position): Parser.Node | null {
 		const offset = this._model.getOffsetAt(pos);
 		cursor.gotoFirstChild();
 		let goChild: boolean = false;
-		let lastGoodNode: Parser.SyntaxNode | null = null;
+		let lastGoodNode: Parser.Node | null = null;
 		do {
 			if (cursor.currentNode.startIndex <= offset && offset < cursor.currentNode.endIndex) {
 				goChild = true;
@@ -664,7 +662,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return lastGoodNode;
 	}
 
-	private _getTreeSitterTokenAtPosition(tree: Parser.Tree, pos: Position): Parser.SyntaxNode | null {
+	private _getTreeSitterTokenAtPosition(tree: Parser.Tree, pos: Position): Parser.Node | null {
 		const cursor = tree.walk();
 
 		return this._walkTreeforPosition(cursor, pos);

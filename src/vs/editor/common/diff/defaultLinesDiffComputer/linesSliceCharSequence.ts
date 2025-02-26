@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLastIdxMonotonous, findLastMonotonous, findFirstMonotonous } from 'vs/base/common/arraysFind';
-import { CharCode } from 'vs/base/common/charCode';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ISequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
-import { isSpace } from 'vs/editor/common/diff/defaultLinesDiffComputer/utils';
+import { findLastIdxMonotonous, findLastMonotonous, findFirstMonotonous } from '../../../../base/common/arraysFind.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { OffsetRange } from '../../core/offsetRange.js';
+import { Position } from '../../core/position.js';
+import { Range } from '../../core/range.js';
+import { ISequence } from './algorithms/diffAlgorithm.js';
+import { isSpace } from './utils.js';
 
 export class LinesSliceCharSequence implements ISequence {
 	private readonly elements: number[] = [];
@@ -144,6 +144,31 @@ export class LinesSliceCharSequence implements ISequence {
 		return new OffsetRange(start, end);
 	}
 
+	/** fooBar has the two sub-words foo and bar */
+	public findSubWordContaining(offset: number): OffsetRange | undefined {
+		if (offset < 0 || offset >= this.elements.length) {
+			return undefined;
+		}
+
+		if (!isWordChar(this.elements[offset])) {
+			return undefined;
+		}
+
+		// find start
+		let start = offset;
+		while (start > 0 && isWordChar(this.elements[start - 1]) && !isUpperCase(this.elements[start])) {
+			start--;
+		}
+
+		// find end
+		let end = offset;
+		while (end < this.elements.length && isWordChar(this.elements[end]) && !isUpperCase(this.elements[end])) {
+			end++;
+		}
+
+		return new OffsetRange(start, end);
+	}
+
 	public countLinesIn(range: OffsetRange): number {
 		return this.translateOffset(range.endExclusive).lineNumber - this.translateOffset(range.start).lineNumber;
 	}
@@ -163,6 +188,10 @@ function isWordChar(charCode: number): boolean {
 	return charCode >= CharCode.a && charCode <= CharCode.z
 		|| charCode >= CharCode.A && charCode <= CharCode.Z
 		|| charCode >= CharCode.Digit0 && charCode <= CharCode.Digit9;
+}
+
+function isUpperCase(charCode: number): boolean {
+	return charCode >= CharCode.A && charCode <= CharCode.Z;
 }
 
 const enum CharBoundaryCategory {

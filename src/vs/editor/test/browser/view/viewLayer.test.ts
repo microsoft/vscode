@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ILine, RenderedLinesCollection } from '../../../browser/view/viewLayer.js';
 
 class TestLine implements ILine {
 

@@ -6,15 +6,15 @@
 import assert from 'assert';
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { FileAccess } from 'vs/base/common/network';
-import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
-import { Range } from 'vs/editor/common/core/range';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { AbstractText, ArrayText, SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
-import { LinesDiff } from 'vs/editor/common/diff/linesDiffComputer';
+import { setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { LegacyLinesDiffComputer } from '../../../common/diff/legacyLinesDiffComputer.js';
+import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { Range } from '../../../common/core/range.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { AbstractText, ArrayText, SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
+import { LinesDiff } from '../../../common/diff/linesDiffComputer.js';
 
 suite('diffing fixtures', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

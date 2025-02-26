@@ -60,7 +60,7 @@ where
 		}
 		let mut file = archive
 			.by_index(i)
-			.map_err(|e| wrap(e, format!("could not open zip entry {}", i)))?;
+			.map_err(|e| wrap(e, format!("could not open zip entry {i}")))?;
 
 		let outpath: PathBuf = match file.enclosed_name() {
 			Some(path) => {

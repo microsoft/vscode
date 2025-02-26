@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { ViewEvent } from 'vs/editor/common/viewEvents';
-import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
-import { Emitter } from 'vs/base/common/event';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { ViewEventHandler } from './viewEventHandler.js';
+import { ViewEvent } from './viewEvents.js';
+import { IContentSizeChangedEvent } from './editorCommon.js';
+import { Emitter } from '../../base/common/event.js';
+import { Selection } from './core/selection.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { CursorChangeReason } from './cursorEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from './textModelEvents.js';
 
 export class ViewModelEventDispatcher extends Disposable {
 

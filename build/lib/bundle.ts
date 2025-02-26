@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vm from 'vm';
+import fs from 'fs';
+import path from 'path';
+import vm from 'vm';
 
 interface IPosition {
 	line: number;
@@ -51,9 +51,9 @@ export interface IEntryPoint {
 	name: string;
 	include?: string[];
 	exclude?: string[];
+	/** @deprecated unsupported by ESM */
 	prepend?: IExtraFile[];
 	dest?: string;
-	target?: 'amd' | 'esm';
 }
 
 interface IEntryPointMap {
@@ -358,7 +358,7 @@ function removeAllDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[
 }
 
 export function removeAllTSBoilerplate(source: string) {
-	const seen = new Array<boolean>(BOILERPLATE.length).fill(true, 0, 10);
+	const seen = new Array<boolean>(BOILERPLATE.length).fill(true, 0, BOILERPLATE.length);
 	return removeDuplicateTSBoilerplate(source, seen);
 }
 
@@ -374,6 +374,8 @@ const BOILERPLATE = [
 	{ start: /^var __createBinding/, end: /^}\)\);$/ },
 	{ start: /^var __setModuleDefault/, end: /^}\);$/ },
 	{ start: /^var __importStar/, end: /^};$/ },
+	{ start: /^var __addDisposableResource/, end: /^};$/ },
+	{ start: /^var __disposeResources/, end: /^}\);$/ },
 ];
 
 function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {

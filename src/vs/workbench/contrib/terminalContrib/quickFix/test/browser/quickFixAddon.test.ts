@@ -5,30 +5,30 @@
 
 import type { Terminal } from '@xterm/xterm';
 import { strictEqual } from 'assert';
-import { importAMDNodeModule } from 'vs/amdX';
-import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
-import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
-import { getQuickFixesForCommand, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
-import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, gitPull, GitPullOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilar, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshGeneralError, PwshGeneralErrorOutputRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { IAction } from '../../../../../../base/common/actions.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestCommandService } from '../../../../../../editor/test/browser/editorTestServices.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextMenuService } from '../../../../../../platform/contextview/browser/contextMenuService.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { ITerminalOutputMatcher } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalQuickFixService } from '../../browser/quickFix.js';
+import { getQuickFixesForCommand, TerminalQuickFixAddon } from '../../browser/quickFixAddon.js';
+import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, gitFastForwardPull, GitFastForwardPullOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilar, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshGeneralError, PwshGeneralErrorOutputRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex } from '../../browser/terminalQuickFixBuiltinActions.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('QuickFixAddon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -181,37 +181,37 @@ suite('QuickFixAddon', () => {
 				});
 			});
 		});
-		suite('gitPull', () => {
+		suite('gitFastForwardPull', () => {
 			const expectedMap = new Map();
 			const command = `git checkout vnext`;
 			const output = 'Already on \'vnext\' \n Your branch is behind \'origin/vnext\' by 1 commit, and can be fast-forwarded.';
 			const exitCode = 0;
 			const actions = [{
-				id: 'Git Pull',
+				id: 'Git Fast Forward Pull',
 				enabled: true,
 				label: 'Run: git pull',
 				tooltip: 'Run: git pull',
 				command: 'git pull'
 			}];
 			setup(() => {
-				const command = gitPull();
+				const command = gitFastForwardPull();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
 				quickFixAddon.registerCommandFinishedListener(command);
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', async () => {
-					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, `invalid output`, GitPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), undefined);
+					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, `invalid output`, GitFastForwardPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), undefined);
 				});
 				test('command does not match', async () => {
-					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(`gt add`, output, GitPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), undefined);
+					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(`gt add`, output, GitFastForwardPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), undefined);
 				});
 				test('exit code does not match', async () => {
-					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitPullOutputRegex, 2), expectedMap, commandService, openerService, labelService)), undefined);
+					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitFastForwardPullOutputRegex, 2), expectedMap, commandService, openerService, labelService)), undefined);
 				});
 			});
 			suite('returns actions when', () => {
 				test('matching exit status, command, ouput', async () => {
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), actions);
+					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitFastForwardPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), actions);
 				});
 			});
 		});

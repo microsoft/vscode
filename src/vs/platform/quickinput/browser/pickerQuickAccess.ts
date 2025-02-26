@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
-import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { isFunction } from 'vs/base/common/types';
+import { timeout } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem, IQuickInputButton } from '../common/quickInput.js';
+import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
+import { isFunction } from '../../../base/common/types.js';
 
 export enum TriggerAction {
 
@@ -153,7 +153,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 			picker.busy = false;
 
 			// Create new cancellation source for this run
-			picksCts = new CancellationTokenSource(token);
+			picksCts = picksDisposables.add(new CancellationTokenSource(token));
 
 			// Collect picks and support both long running and short or combined
 			const picksToken = picksCts.token;
@@ -330,7 +330,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				if (!event.inBackground) {
 					picker.hide(); // hide picker unless we accept in background
 				}
-				runOptions.handleAccept?.(picker.activeItems[0]);
+				runOptions.handleAccept?.(picker.activeItems[0], event.inBackground);
 				return;
 			}
 

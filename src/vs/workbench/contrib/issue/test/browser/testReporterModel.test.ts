@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IssueReporterModel } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { IssueType } from 'vs/workbench/contrib/issue/common/issue';
-import { normalizeGitHubUrl } from 'vs/workbench/contrib/issue/common/issueReporterUtil';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IssueReporterModel } from '../../browser/issueReporterModel.js';
+import { IssueType } from '../../common/issue.js';
+import { normalizeGitHubUrl } from '../../common/issueReporterUtil.js';
 
 suite('IssueReporter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

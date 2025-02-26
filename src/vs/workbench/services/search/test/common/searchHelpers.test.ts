@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { ISearchRange, ITextQuery, ITextSearchContext, ITextSearchResult, QueryType } from 'vs/workbench/services/search/common/search';
-import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { FindMatch, ITextModel } from '../../../../../editor/common/model.js';
+import { ISearchRange, ITextQuery, ITextSearchContext, ITextSearchResult, QueryType } from '../../common/search.js';
+import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from '../../common/searchHelpers.js';
 
 suite('SearchHelpers', () => {
 	suite('editorMatchesToTextSearchResults', () => {

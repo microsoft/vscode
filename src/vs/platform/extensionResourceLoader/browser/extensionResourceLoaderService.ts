@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
+import { URI } from '../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { IFileService } from '../../files/common/files.js';
+import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IStorageService } from '../../storage/common/storage.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { ILogService } from '../../log/common/log.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from '../common/extensionResourceLoader.js';
 
 class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderService {
 

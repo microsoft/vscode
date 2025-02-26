@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteConnectionType, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractRemoteAgentService } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import * as nls from '../../../../nls.js';
+import { IRemoteAgentService } from '../common/remoteAgentService.js';
+import { IRemoteAuthorityResolverService, RemoteConnectionType, RemoteAuthorityResolverError } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { AbstractRemoteAgentService } from '../common/abstractRemoteAgentService.js';
+import { ISignService } from '../../../../platform/sign/common/sign.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IRemoteSocketFactoryService } from '../../../../platform/remote/common/remoteSocketFactoryService.js';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 	constructor(

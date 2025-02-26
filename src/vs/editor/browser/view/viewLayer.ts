@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNode.js';
+import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
+import { EditorOption } from '../../common/config/editorOptions.js';
+import { StringBuilder } from '../../common/core/stringBuilder.js';
+import * as viewEvents from '../../common/viewEvents.js';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 
 /**
  * Represents a visible line
@@ -277,9 +277,20 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		return false;
 	}
 
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent, flushDom?: boolean): boolean {
+		// No need to clear the dom node because a full .innerHTML will occur in
+		// ViewLayerRenderer._render, however the fallback mechanism in the
+		// GPU renderer may cause this to be necessary as the .innerHTML call
+		// may not happen depending on the new state, leaving stale DOM nodes
+		// around.
+		if (flushDom) {
+			const start = this._linesCollection.getStartLineNumber();
+			const end = this._linesCollection.getEndLineNumber();
+			for (let i = start; i <= end; i++) {
+				this._linesCollection.getLine(i).getDomNode()?.remove();
+			}
+		}
 		this._linesCollection.flush();
-		// No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
 		return true;
 	}
 

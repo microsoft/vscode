@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 //
-import { DeferredPromise } from 'vs/base/common/async';
-import * as errors from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { RemoteAuthorities } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, RemoteConnectionType, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ElectronRemoteResourceLoader } from 'vs/platform/remote/electron-sandbox/electronRemoteResourceLoader';
+import { DeferredPromise } from '../../../base/common/async.js';
+import * as errors from '../../../base/common/errors.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { RemoteAuthorities } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData, RemoteConnectionType, ResolvedAuthority, ResolvedOptions, ResolverResult } from '../common/remoteAuthorityResolver.js';
+import { ElectronRemoteResourceLoader } from './electronRemoteResourceLoader.js';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
