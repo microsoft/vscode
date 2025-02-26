@@ -6,8 +6,8 @@
 /* Overall */
 
 .chat-status-bar-entry-tooltip {
-	margin-top: 6px;
-	margin-bottom: 6px;
+	margin-top: 4px;
+	margin-bottom: 4px;
 }
 
 .chat-status-bar-entry-tooltip hr {
@@ -93,8 +93,8 @@
 /* Quota Indicator */
 
 .chat-status-bar-entry-tooltip .quota-indicator {
-	margin-top: 8px;
-	margin-bottom: 8px;
+	margin-top: 6px;
+	margin-bottom: 6px;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-label {

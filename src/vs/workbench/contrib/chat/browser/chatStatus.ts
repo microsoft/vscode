@@ -5,7 +5,7 @@
 
 import './media/chatStatus.css';
 import { safeIntl } from '../../../../base/common/date.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { language, OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -17,7 +17,7 @@ import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from '../../../../base/browser/dom.js';
 import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -167,30 +167,43 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				const container = $('div.chat-status-bar-entry-tooltip');
 
 				// Quota Indicator
-				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
+				{
+					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
 
-				container.appendChild($('div', undefined, localize('limitTitle', "You are using Copilot Free")));
-				container.appendChild($('hr'));
+					container.appendChild($('div.description', undefined, localize('usageTitle', "Copilot Free Usage")));
 
-				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats messages remaining"));
-				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions remaining"));
+					const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats messages"));
+					const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
 
-				this.chatEntitlementsService.resolve(CancellationToken.None).then(() => {
-					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
+					container.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
 
-					chatQuotaIndicator(chatTotal, chatRemaining);
-					completionsQuotaIndicator(completionsTotal, completionsRemaining);
-				});
+					const cts = new CancellationTokenSource();
+					disposables.add(toDisposable(() => cts.dispose(true)));
+					this.chatEntitlementsService.resolve(cts.token).then(() => {
+						if (cts.token.isCancellationRequested) {
+							return;
+						}
 
-				container.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
+						const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
+
+						chatQuotaIndicator(chatTotal, chatRemaining);
+						completionsQuotaIndicator(completionsTotal, completionsRemaining);
+					});
+				}
 
 				// Settings
-				container.appendChild($('hr'));
-				this.createSettings(container, disposables);
+				{
+					container.appendChild($('hr'));
+					container.appendChild($('div.description', undefined, localize('settingsTitle', "Settings")));
+					this.createSettings(container, disposables);
+				}
 
 				// Shortcuts
-				container.appendChild($('hr'));
-				this.createShortcuts(container, disposables);
+				{
+					container.appendChild($('hr'));
+					container.appendChild($('div.description', undefined, localize('keybindingsTitle', "Keybindings")));
+					this.createShortcuts(container, disposables);
+				}
 
 				return container;
 			};
@@ -202,17 +215,18 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			tooltip = () => {
 				const container = $('div.chat-status-bar-entry-tooltip');
 
-				if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.pro.key) === true) {
-					container.appendChild($('div', undefined, localize('proTitle', "You are using Copilot Pro")));
-					container.appendChild($('hr'));
+				// Settings
+				{
+					container.appendChild($('div.description', undefined, localize('settingsTitle', "Settings")));
+					this.createSettings(container, disposables);
 				}
 
-				// Settings
-				this.createSettings(container, disposables);
-
 				// Shortcuts
-				container.appendChild($('hr'));
-				this.createShortcuts(container, disposables);
+				{
+					container.appendChild($('hr'));
+					container.appendChild($('div.description', undefined, localize('keybindingsTitle', "Keybindings")));
+					this.createShortcuts(container, disposables);
+				}
 
 				return container;
 			};
@@ -246,9 +260,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		const update = (total: number | undefined, remaining: number | undefined) => {
 			if (typeof total === 'number' && typeof remaining === 'number') {
-				// TODO@bpasero: enable this label when we can track this better
-				//quotaText.textContent = localize('quotaDisplay', "{0} / {1}", remaining, total);
-				quotaBit.style.width = `${(remaining / total) * 100}%`;
+				const usedPercentage = Math.round(((total - remaining) / total) * 100);
+				quotaText.textContent = localize('quotaDisplay', "{0}%", usedPercentage);
+				quotaBit.style.width = `${usedPercentage}%`;
 			}
 		};
 
