@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { decodeBase64, encodeBase64, streamToBuffer, VSBuffer } from '../../../../../base/common/buffer.js';
+import { streamToBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
@@ -15,6 +15,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
@@ -40,7 +41,6 @@ import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRe
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
-import { ChatEditingNotebookFileSystemProvider } from '../../../notebook/browser/contrib/chatEdit/chatEditingNotebookFileSystemProvider.js';
 import { NotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditor.js';
 import { INotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
 import { CellDiffInfo, computeDiff } from '../../../notebook/browser/diff/notebookDiffViewModel.js';
@@ -48,22 +48,81 @@ import { CellEditState, getNotebookEditorFromEditorPane } from '../../../noteboo
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IOutputItemDto, IResolvedNotebookEditorModel, NotebookData, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../../notebook/common/services/notebookWorkerService.js';
-import { ChatEditKind, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IEditSessionEntryDiff, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry, pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
+import { createSnapshot, deserializeSnapshot, getNotebookSnapshotFileURI, restoreSnapshot } from './chatEditingModifiedNotebookSnapshot.js';
 import { ChatEditingNotebookDiffEditorIntegration, ChatEditingNotebookEditorIntegration, countChanges, ICellDiffInfo, sortCellChanges } from './chatEditingNotebookEditorIntegration.js';
-import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { ChatEditingNotebookFileSystemProvider } from './chatEditingNotebookFileSystemProvider.js';
 
 
 const noopKeep = () => Promise.resolve(true);
 const noopUndo = () => Promise.resolve(true);
+const SnapshotLanguageId = 'VSCodeChatNotebookSnapshotLanguage';
+
+export class ChatEditingModifiedNotebookDiff {
+	static NewModelCounter: number = 0;
+	constructor(
+		private readonly original: ISnapshotEntry,
+		private readonly modified: ISnapshotEntry,
+		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
+		@INotebookLoggingService private readonly notebookLoggingService: INotebookLoggingService,
+		@INotebookEditorModelResolverService private readonly notebookEditorModelService: INotebookEditorModelResolverService,
+	) {
+
+	}
+
+	async computeDiff(): Promise<IEditSessionEntryDiff> {
+
+		let added = 0;
+		let removed = 0;
+
+		const disposables = new DisposableStore();
+		try {
+			const [modifiedRef, originalRef] = await Promise.all([
+				this.notebookEditorModelService.resolve(this.modified.snapshotUri),
+				this.notebookEditorModelService.resolve(this.original.snapshotUri)
+			]);
+			disposables.add(modifiedRef);
+			disposables.add(originalRef);
+			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.original.snapshotUri, this.modified.snapshotUri);
+			const result = computeDiff(originalRef.object.notebook, modifiedRef.object.notebook, notebookDiff);
+			result.cellDiffInfo.forEach(diff => {
+				switch (diff.type) {
+					case 'modified':
+					case 'insert':
+						added++;
+						break;
+					case 'delete':
+						removed++;
+						break;
+					default:
+						break;
+				}
+			});
+		} catch (e) {
+			this.notebookLoggingService.error('Notebook Chat', 'Error computing diff:\n' + e);
+		} finally {
+			disposables.dispose();
+		}
+
+		return {
+			added,
+			removed,
+			identical: added === 0 && removed === 0,
+			quitEarly: false,
+			modifiedURI: this.modified.snapshotUri,
+			originalURI: this.original.snapshotUri,
+		};
+	}
+}
 
 export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifiedFileEntry {
 	static NewModelCounter: number = 0;
@@ -112,12 +171,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			const loggingService = accessor.get(INotebookLoggingService);
 			const resourceRef: IReference<IResolvedNotebookEditorModel> = await resolver.resolve(uri);
 			const notebook = resourceRef.object.notebook;
-			const originalUri = ChatEditingNotebookFileSystemProvider.getSnapshotFileURI(telemetryInfo.requestId, notebook.uri.scheme === Schemas.untitled ? `/${notebook.uri.path}` : notebook.uri.path);
+			const originalUri = getNotebookSnapshotFileURI(telemetryInfo.sessionId, telemetryInfo.requestId, generateUuid(), notebook.uri.scheme === Schemas.untitled ? `/${notebook.uri.path}` : notebook.uri.path, notebook.viewType);
 			const [options, buffer] = await Promise.all([
 				notebookService.withNotebookDataProvider(resourceRef.object.notebook.notebookType),
 				notebookService.createNotebookTextDocumentSnapshot(notebook.uri, SnapshotContext.Backup, CancellationToken.None).then(s => streamToBuffer(s))
 			]);
 			const disposables = new DisposableStore();
+			// Register so that we can load this from file system.
 			disposables.add(ChatEditingNotebookFileSystemProvider.registerFile(originalUri, buffer));
 			const originalRef = await resolver.resolve(originalUri, notebook.viewType);
 			const modifiedCells = new ResourceMap<ITextModel>();
@@ -151,7 +211,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		});
 	}
 
-	public static canHandleSnapshot(initialContent: string | undefined): boolean {
+	public static canHandleSnapshotContent(initialContent: string | undefined): boolean {
 		if (!initialContent) {
 			return false;
 		}
@@ -163,6 +223,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			// not a valid snapshot
 			return false;
 		}
+	}
+
+	public static canHandleSnapshot(snapshot: ISnapshotEntry): boolean {
+		if (snapshot.languageId === SnapshotLanguageId && ChatEditingModifiedNotebookEntry.canHandleSnapshotContent(snapshot.current)) {
+			return true;
+		}
+		return false;
 	}
 
 	constructor(
@@ -680,8 +747,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.cellEntryMap.forEach(entry => entry.isFirstEditAfterStartOrSnapshot = true);
 		return {
 			resource: this.modifiedURI,
-			languageId: 'notebook',
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path),
+			languageId: SnapshotLanguageId,
+			snapshotUri: getNotebookSnapshotFileURI(this._telemetryInfo.sessionId, requestId, undoStop, this.modifiedURI.path, this.modifiedModel.viewType),
 			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
 			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
 			originalToCurrentEdit: OffsetEdit.empty,
@@ -766,82 +833,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return cellEntry;
 	}
 }
-
-const BufferMarker = 'ArrayBuffer-4f56482b-5a03-49ba-8356-210d3b0c1c3d';
-function createSnapshot(notebook: NotebookTextModel, transientOptions: TransientOptions | undefined, configurationService: IConfigurationService): string {
-	const outputSizeLimit = configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
-	return serializeSnapshot(notebook.createSnapshot({ context: SnapshotContext.Backup, outputSizeLimit, transientOptions }), transientOptions);
-}
-
-function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): void {
-	try {
-		const { transientOptions, data } = deserializeSnapshot(snapshot);
-		notebook.restoreSnapshot(data, transientOptions);
-	}
-	catch (ex) {
-		console.error('Error restoring Notebook snapshot', ex);
-	}
-}
-
-export function serializeSnapshot(data: NotebookData, transientOptions: TransientOptions | undefined): string {
-	data.cells.forEach(cell => {
-		const outputs = cell.outputs.map(output => {
-			// Ensure we're in full control of the data being stored.
-			// Possible we have classes instead of plain objects.
-			return {
-				outputId: output.outputId,
-				metadata: output.metadata,
-				outputs: output.outputs.map(item => {
-					return {
-						data: item.data,
-						mime: item.mime,
-					} satisfies IOutputItemDto;
-				}),
-			};
-		});
-		// Ensure we're in full control of the data being stored.
-		// Possible we have classes instead of plain objects.
-		return {
-			cellKind: cell.cellKind,
-			language: cell.language,
-			metadata: cell.metadata,
-			outputs,
-			mime: cell.mime,
-			source: cell.source,
-			collapseState: cell.collapseState,
-			// No need to store the internal metadata, as this can contain unique information such as cell ids.
-			// Also its not something that can be persisted, hence no need to try to restore that either.
-			internalMetadata: undefined
-		} satisfies ICellDto2;
-	});
-	return JSON.stringify([
-		JSON.stringify(transientOptions)
-		, JSON.stringify(data, (_key, value) => {
-			if (value instanceof VSBuffer) {
-				return {
-					type: BufferMarker,
-					data: encodeBase64(value)
-				};
-			}
-			return value;
-		})
-	]);
-}
-
-function deserializeSnapshot(snapshot: string): { transientOptions: TransientOptions | undefined; data: NotebookData } {
-	const [transientOptionsStr, dataStr] = JSON.parse(snapshot);
-	const transientOptions = transientOptionsStr ? JSON.parse(transientOptionsStr) as TransientOptions : undefined;
-
-	const data: NotebookData = JSON.parse(dataStr, (_key, value) => {
-		if (value && value.type === BufferMarker) {
-			return decodeBase64(value.data);
-		}
-		return value;
-	});
-
-	return { transientOptions, data };
-}
-
 
 class ChatEditingNotebookCellEntry extends ObservableDisposable {
 	private static readonly _lastEditDecorationOptions = ModelDecorationOptions.register({
