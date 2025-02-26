@@ -21,6 +21,7 @@ import { SimpleDecoder, TSimpleToken } from '../../../common/codecs/simpleCodec/
 import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/tokens/brackets.js';
 import { LeftParenthesis, RightParenthesis } from '../../../common/codecs/simpleCodec/tokens/parentheses.js';
 import { LeftAngleBracket, RightAngleBracket } from '../../../common/codecs/simpleCodec/tokens/angleBrackets.js';
+import { ExclamationMark } from '../../../common/codecs/simpleCodec/tokens/exclamationMark.js';
 
 /**
  * A reusable test utility that asserts that a `SimpleDecoder` instance
@@ -62,14 +63,15 @@ suite('SimpleDecoder', () => {
 		);
 
 		await test.run(
-			' hello world\nhow are\t you?\v\n\n   (test)  [!@#$%^🦄&*_+=-]\f  \n\t<hi 👋>\t🤗❤ \t\n hey\v-\tthere\r\n\r\n',
+			' hello world!\nhow are\t you?\v\n\n   (test)  [!@#$%^🦄&*_+=-]\f  \n\t<hi 👋>\t🤗❤ \t\n hey\v-\tthere\r\n\r\n',
 			[
 				// first line
 				new Space(new Range(1, 1, 1, 2)),
 				new Word(new Range(1, 2, 1, 7), 'hello'),
 				new Space(new Range(1, 7, 1, 8)),
 				new Word(new Range(1, 8, 1, 13), 'world'),
-				new NewLine(new Range(1, 13, 1, 14)),
+				new ExclamationMark(new Range(1, 13, 1, 14)),
+				new NewLine(new Range(1, 14, 1, 15)),
 				// second line
 				new Word(new Range(2, 1, 2, 4), 'how'),
 				new Space(new Range(2, 4, 2, 5)),
@@ -91,7 +93,8 @@ suite('SimpleDecoder', () => {
 				new Space(new Range(4, 10, 4, 11)),
 				new Space(new Range(4, 11, 4, 12)),
 				new LeftBracket(new Range(4, 12, 4, 13)),
-				new Word(new Range(4, 13, 4, 13 + 2), '!@'),
+				new ExclamationMark(new Range(4, 13, 4, 14)),
+				new Word(new Range(4, 14, 4, 15), '@'),
 				new Hash(new Range(4, 15, 4, 16)),
 				new Word(new Range(4, 16, 4, 16 + 10), '$%^🦄&*_+='),
 				new Dash(new Range(4, 26, 4, 27)),
