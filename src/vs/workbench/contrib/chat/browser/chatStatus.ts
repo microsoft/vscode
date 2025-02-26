@@ -25,6 +25,17 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Command } from '../../../../editor/common/languages.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Lazy } from '../../../../base/common/lazy.js';
+import { registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../common/theme.js';
+
+const GAUGE_BACKGROUND = registerColor('gauge.background', ACTIVITY_BAR_BADGE_BACKGROUND, localize('gaugeBackground', "Gauge background color."));
+
+registerColor('gauge.foreground', {
+	dark: transparent(GAUGE_BACKGROUND, 0.3),
+	light: transparent(GAUGE_BACKGROUND, 0.3),
+	hcDark: ACTIVITY_BAR_BADGE_FOREGROUND,
+	hcLight: ACTIVITY_BAR_BADGE_FOREGROUND
+}, localize('gaugeForeground', "Gauge foreground color."));
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -148,7 +159,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 					completionsQuotaIndicator(completionsTotal, completionsRemaining);
 				});
 
-				container.appendChild($('div', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
+				container.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
 
 				// Settings
 				container.appendChild($('hr'));
