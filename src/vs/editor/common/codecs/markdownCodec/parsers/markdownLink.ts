@@ -15,11 +15,6 @@ import { ParserBase, TAcceptTokenResult } from '../../simpleCodec/parserBase.js'
 import { LeftParenthesis, RightParenthesis } from '../../simpleCodec/tokens/parentheses.js';
 
 /**
- * Tokens handled by this decoder.
- */
-export type TMarkdownToken = MarkdownLink | TSimpleToken;
-
-/**
  * List of characters that are not allowed in links so stop a markdown link sequence abruptly.
  */
 const MARKDOWN_LINK_STOP_CHARACTERS: readonly string[] = [CarriageReturn, NewLine, VerticalTab, FormFeed]
