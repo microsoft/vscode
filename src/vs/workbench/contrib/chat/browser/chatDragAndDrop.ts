@@ -351,12 +351,14 @@ export class ChatDragAndDrop extends Themable {
 			if (isImage) {
 				const buffer = convertStringToUInt8Array(src);
 				return [{
+					kind: 'image',
 					id: url.toString(),
 					name: finalDisplayName,
 					value: buffer,
 					isImage,
 					isFile: false,
 					isDirectory: false,
+					isURL: true,
 				}];
 			} else {
 				return [{

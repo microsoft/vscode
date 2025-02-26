@@ -80,6 +80,17 @@ export function convertStringToUInt8Array(data: string): Uint8Array {
 	return new TextEncoder().encode(data);
 }
 
+// Only used for URLs
+export function convertUint8ArrayToString(data: Uint8Array): string {
+	try {
+		const decoder = new TextDecoder();
+		const decodedString = decoder.decode(data);
+		return decodedString;
+	} catch {
+		return '';
+	}
+}
+
 function isValidBase64(str: string): boolean {
 	// checks if the string is a valid base64 string that is NOT encoded
 	return /^[A-Za-z0-9+/]*={0,2}$/.test(str) && (() => {
