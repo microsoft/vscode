@@ -649,7 +649,7 @@ export class AddDynamicVariableAction extends Action2 {
 }
 registerAction2(AddDynamicVariableAction);
 
-export async function createMarkersQuickPick(accessor: ServicesAccessor): Promise<IDiagnosticVariableEntryFilterData | undefined> {
+export async function createMarkersQuickPick(accessor: ServicesAccessor, onBackgroundAccept: (item: IDiagnosticVariableEntryFilterData[]) => void): Promise<IDiagnosticVariableEntryFilterData | undefined> {
 	const markers = accessor.get(IMarkerService).read();
 	if (!markers.length) {
 		return;
@@ -673,7 +673,7 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor): Promis
 			resource: marker.resource,
 			label: marker.message,
 			description: localize('markers.panel.at.ln.col.number', "[Ln {0}, Col {1}]", '' + marker.startLineNumber, '' + marker.startColumn),
-			entry: { filterUri: marker.resource, filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn } }
+			entry: IDiagnosticVariableEntryFilterData.fromMarker(marker),
 		});
 	}
 
@@ -695,10 +695,22 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor): Promis
 
 
 	const quickInputService = accessor.get(IQuickInputService);
-	const quickPick = quickInputService.createQuickPick({ useSeparators: true });
+	const quickPick = quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true });
+	quickPick.canAcceptInBackground = true;
 	quickPick.placeholder = localize('pickAProblem', 'Pick a problem to attach...');
 	quickPick.items = items;
 
-	return quickInputService.pick(items, { canPickMany: false }).then(v => v?.entry);
+	return new Promise<IDiagnosticVariableEntryFilterData | undefined>(resolve => {
+		quickPick.onDidHide(() => resolve(undefined));
+		quickPick.onDidAccept(ev => {
+			if (ev.inBackground) {
+				onBackgroundAccept(quickPick.selectedItems.map(i => i.entry));
+			} else {
+				resolve(quickPick.selectedItems[0]?.entry);
+				quickPick.dispose();
+			}
+		});
+		quickPick.show();
+	}).finally(() => quickPick.dispose());
 }
 

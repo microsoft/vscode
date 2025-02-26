@@ -692,7 +692,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 	margin-top: 6px;
 	flex-wrap: wrap;
-	overflow: hidden;
 }
 
 .chat-related-files {
@@ -700,6 +699,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
+	width: 100%;
 }
 
 .chat-related-files .monaco-button-dropdown .monaco-text-button {
@@ -1197,6 +1197,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-wrap: wrap;
 	cursor: default;
 	gap: 4px;
+	width: 100%;
 }
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {

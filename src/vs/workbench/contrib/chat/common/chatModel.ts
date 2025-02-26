@@ -5,6 +5,7 @@
 
 import { asArray } from '../../../../base/common/arrays.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -21,7 +22,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { Location, SymbolKind, TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent, reviveSerializedAgent } from './chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
@@ -94,27 +95,61 @@ export interface IImageVariableEntry extends Omit<IBaseChatRequestVariableEntry,
 }
 
 export interface IDiagnosticVariableEntryFilterData {
+	readonly owner?: string;
+	readonly problemMessage?: string;
 	readonly filterUri?: URI;
 	readonly filterSeverity?: MarkerSeverity;
 	readonly filterRange?: IRange;
 }
 
 export namespace IDiagnosticVariableEntryFilterData {
+	export const icon = Codicon.warning;
+
+	export function fromMarker(marker: IMarker): IDiagnosticVariableEntryFilterData {
+		return {
+			filterUri: marker.resource,
+			owner: marker.owner,
+			problemMessage: marker.message,
+			filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn }
+		};
+	}
+
+	export function toEntry(data: IDiagnosticVariableEntryFilterData) {
+		return {
+			id: id(data),
+			name: label(data),
+			icon,
+			value: data,
+			kind: 'diagnostic' as const,
+			range: data.filterRange ? new OffsetRange(data.filterRange.startLineNumber, data.filterRange.endLineNumber) : undefined,
+		};
+	}
+
 	export function id(data: IDiagnosticVariableEntryFilterData) {
-		return [data.filterUri, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
+		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
 	}
 
 	export function label(data: IDiagnosticVariableEntryFilterData) {
-		let labelStr: string;
-		if (data.filterSeverity) {
-			const sev = data.filterRange ? MarkerSeverity.toString(data.filterSeverity) : MarkerSeverity.toStringPlural(data.filterSeverity);
-			labelStr = data.filterUri
-				? localize('chat.attachment.problems.severity', "{0} in {1}", sev, basename(data.filterUri))
-				: localize('chat.attachment.problems.severity2', "All {0}", sev);
-		} else {
-			labelStr = data.filterUri
-				? localize('chat.attachment.problems.severity3', "Problems in {0}", basename(data.filterUri))
-				: localize('chat.attachment.problems.severity4', "All Problems");
+		const enum TrimThreshold {
+			MaxChars = 30,
+			MaxSpaceLookback = 10,
+		}
+		if (data.problemMessage) {
+			if (data.problemMessage.length < TrimThreshold.MaxChars) {
+				return data.problemMessage;
+			}
+
+			// Trim the message, on a space if it would not lose too much
+			// data (MaxSpaceLookback) or just blindly otherwise.
+			const lastSpace = data.problemMessage.lastIndexOf(' ', TrimThreshold.MaxChars);
+			if (lastSpace === -1 || lastSpace + TrimThreshold.MaxSpaceLookback < TrimThreshold.MaxChars) {
+				return data.problemMessage.substring(0, TrimThreshold.MaxChars) + '…';
+			}
+			return data.problemMessage.substring(0, lastSpace) + '…';
+		}
+		let labelStr = localize('chat.attachment.problems.all', "All Problems");
+		if (data.filterUri) {
+			labelStr = localize('chat.attachment.problems.inFile', "Problems in {0}", basename(data.filterUri));
 		}
 
 		return labelStr;
