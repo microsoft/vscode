@@ -30,6 +30,24 @@ export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
 export const ChatDoneActionId = 'workbench.action.chat.done';
 
+export interface INewEditSessionActionContext {
+	/**
+	 * An initial prompt to write to the chat.
+	 */
+	inputValue?: string;
+
+	/**
+	 * Selects opening in agent mode or not. If not set, the current mode is used.
+	 * This is ignored when coming from a chat view title context.
+	 */
+	agentMode?: boolean;
+
+	/**
+	 * Whether the inputValue is partial and should wait for further user input. If false or not set, the prompt is sent immediately.
+	 */
+	isPartialQuery?: boolean;
+}
+
 export function registerNewChatActions() {
 	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
@@ -175,7 +193,7 @@ export function registerNewChatActions() {
 		}
 
 		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]) {
-			const context = args[0];
+			const context: INewEditSessionActionContext | undefined = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const widgetService = accessor.get(IChatWidgetService);
 			const dialogService = accessor.get(IDialogService);
@@ -186,8 +204,10 @@ export function registerNewChatActions() {
 				return;
 			}
 
+			const isChatViewTitleAction = isChatViewTitleActionContext(context);
+
 			let widget: IChatWidget | undefined;
-			if (isChatViewTitleActionContext(context)) {
+			if (isChatViewTitleAction) {
 				// Is running in the Chat view title
 				widget = widgetService.getWidgetBySessionId(context.sessionId);
 			} else {
@@ -197,16 +217,28 @@ export function registerNewChatActions() {
 			}
 
 			announceChatCleared(accessibilitySignalService);
-			if (widget) {
-				await editingSession.stop(true);
-				widget.clear();
-				widget.attachmentModel.clear();
-				widget.focusInput();
 
-				agentService.toggleToolsAgentMode(typeof context?.agentMode === 'boolean' ? context.agentMode : undefined);
+			if (!widget) {
+				return;
+			}
 
-				if (context?.inputValue) {
-					// An input value was provided, so write it to the chat and submit automatically
+			await editingSession.stop(true);
+			widget.clear();
+			widget.attachmentModel.clear();
+			widget.focusInput();
+
+			if (!context) {
+				return;
+			}
+
+			if (!isChatViewTitleAction && typeof context.agentMode === 'boolean') {
+				agentService.toggleToolsAgentMode(context.agentMode);
+			}
+
+			if (context.inputValue) {
+				if (context.isPartialQuery) {
+					widget.setInput(context.inputValue);
+				} else {
 					widget.acceptInput(context.inputValue);
 				}
 			}
