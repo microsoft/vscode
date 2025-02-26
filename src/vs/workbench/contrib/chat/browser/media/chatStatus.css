@@ -18,6 +18,7 @@
 .chat-status-bar-entry-tooltip div.header {
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 4px;
+	font-weight: 600;
 }
 
 .chat-status-bar-entry-tooltip div.description {
