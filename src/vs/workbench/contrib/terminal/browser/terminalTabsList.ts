@@ -326,7 +326,7 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 
 		template.element.classList.toggle('has-text', hasText);
 		template.element.classList.toggle('is-active', this._terminalGroupService.activeInstance === instance);
-
+		template.element.setAttribute('id', `terminal-tab-instance-${instance.instanceId}`);	// ARIA
 		let prefix: string = '';
 		if (group.terminalInstances.length > 1) {
 			const terminalIndex = group.terminalInstances.indexOf(instance);
