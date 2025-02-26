@@ -12,7 +12,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorunWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -32,7 +32,6 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -42,7 +41,7 @@ import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { ChatPauseState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
-import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
+import { chatAgentLeader, ChatRequestAgentPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
@@ -238,7 +237,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -952,10 +950,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this.requestInProgress.set(this.viewModel.requestInProgress);
 			this.isRequestPaused.set(this.viewModel.requestPausibility === ChatPauseState.Paused);
-			// todo@connor4312: disabled for stable 1.97 release.
-			if (this.productService.quality !== 'stable') {
-				this.canRequestBePaused.set(this.viewModel.requestPausibility !== ChatPauseState.NotPausable);
-			}
+			this.canRequestBePaused.set(this.viewModel.requestPausibility !== ChatPauseState.NotPausable);
 
 			this.onDidChangeItems();
 			if (events.some(e => e?.kind === 'addRequest') && this.visible) {
@@ -1124,20 +1119,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 
-				// Then take any attachments that are not files
-				for (const attachment of this.attachmentModel.attachments) {
-					if (!URI.isUri(attachment.value)) {
-						editingSessionAttachedContext.push(attachment);
-					}
-				}
-
-				// add prompt instruction references to the attached context, if enabled
-				const promptInstructionUris = new ResourceSet(promptInstructions.chatAttachments.map((v) => v.value) as URI[]);
-				if (instructionsEnabled) {
-					editingSessionAttachedContext
-						.push(...promptInstructions.chatAttachments);
-				}
-
 				for (const file of uniqueWorkingSetEntries) {
 					// Make sure that any files that we sent are part of the working set
 					// but do not permanently add file variables from previous requests to the working set
@@ -1151,7 +1132,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					for (const variable of request.variableData.variables) {
 						if (URI.isUri(variable.value) && variable.isFile) {
 							const uri = variable.value;
-							if (!uniqueWorkingSetEntries.has(uri) && !promptInstructionUris.has(uri)) {
+							if (!uniqueWorkingSetEntries.has(uri)) {
 								editingSessionAttachedContext.push(variable);
 								uniqueWorkingSetEntries.add(variable.value);
 							}

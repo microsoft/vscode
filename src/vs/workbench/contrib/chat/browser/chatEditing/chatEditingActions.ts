@@ -148,6 +148,7 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 			id: 'chatEditing.removeFileFromWorkingSet',
 			title: localize2('removeFileFromWorkingSet', 'Remove File'),
 			icon: Codicon.close,
+			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
 				// when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
@@ -232,6 +233,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 			id: 'chatEditing.acceptFile',
 			title: localize2('accept.file', 'Keep'),
 			icon: Codicon.check,
+			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -257,6 +259,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 			id: 'chatEditing.discardFile',
 			title: localize2('discard.file', 'Undo'),
 			icon: Codicon.discard,
+			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,

@@ -2902,9 +2902,9 @@ export class DataTransferFile implements vscode.DataTransferFile {
 
 @es5ClassCompat
 export class DataTransfer implements vscode.DataTransfer {
-	#items = new Map<string, DataTransferItem[]>();
+	#items = new Map<string, vscode.DataTransferItem[]>();
 
-	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
+	constructor(init?: Iterable<readonly [string, vscode.DataTransferItem]>) {
 		for (const [mime, item] of init ?? []) {
 			const existing = this.#items.get(this.#normalizeMime(mime));
 			if (existing) {
@@ -2915,17 +2915,17 @@ export class DataTransfer implements vscode.DataTransfer {
 		}
 	}
 
-	get(mimeType: string): DataTransferItem | undefined {
+	get(mimeType: string): vscode.DataTransferItem | undefined {
 		return this.#items.get(this.#normalizeMime(mimeType))?.[0];
 	}
 
-	set(mimeType: string, value: DataTransferItem): void {
+	set(mimeType: string, value: vscode.DataTransferItem): void {
 		// This intentionally overwrites all entries for a given mimetype.
 		// This is similar to how the DOM DataTransfer type works
 		this.#items.set(this.#normalizeMime(mimeType), [value]);
 	}
 
-	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
+	forEach(callbackfn: (value: vscode.DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
 		for (const [mime, items] of this.#items) {
 			for (const item of items) {
 				callbackfn.call(thisArg, item, mime, this);

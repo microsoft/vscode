@@ -569,11 +569,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
-	margin-bottom: -14px;
+	margin-bottom: -13px;
 	padding: 6px 8px 18px 8px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
+	border-bottom: none;
 	border-radius: 4px;
 	display: flex;
 	flex-direction: column;
@@ -692,7 +693,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 	margin-top: 6px;
 	flex-wrap: wrap;
-	overflow: hidden;
 }
 
 .chat-related-files {
@@ -700,6 +700,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
+	width: 100%;
 }
 
 .chat-related-files .monaco-button-dropdown .monaco-text-button {
@@ -1197,6 +1198,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-wrap: wrap;
 	cursor: default;
 	gap: 4px;
+	width: 100%;
 }
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {
@@ -1265,6 +1267,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.predefined-file-icon::before {
 	padding: 0 0 0 2px;
+	align-content: center;
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
@@ -1659,6 +1662,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	user-select: none;
 	outline: none;
 	border: none;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+	display: inline-block;
 }
 
 .chat-attached-context-attachment.show-file-icons.warning .chat-attached-context-custom-text {
@@ -1722,4 +1730,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			margin: 0px;
 		}
 	}
+}
+
+.hideSuggestTextIcons .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
+	display: none;
 }

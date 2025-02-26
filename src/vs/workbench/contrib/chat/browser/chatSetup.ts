@@ -99,8 +99,8 @@ export class ChatEntitlementsService extends Disposable implements IChatEntitlem
 
 	declare _serviceBrand: undefined;
 
-	readonly context: ChatSetupContext | undefined;
-	readonly requests: ChatSetupRequests | undefined;
+	readonly context: Lazy<ChatSetupContext> | undefined;
+	readonly requests: Lazy<ChatSetupRequests> | undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -116,12 +116,12 @@ export class ChatEntitlementsService extends Disposable implements IChatEntitlem
 			return;
 		}
 
-		this.context = this._register(instantiationService.createInstance(ChatSetupContext));
-		this.requests = this._register(instantiationService.createInstance(ChatSetupRequests, this.context));
+		const context = this.context = new Lazy(() => this._register(instantiationService.createInstance(ChatSetupContext)));
+		this.requests = new Lazy(() => this._register(instantiationService.createInstance(ChatSetupRequests, context.value)));
 	}
 
 	async resolve(token: CancellationToken): Promise<IChatEntitlements | undefined> {
-		return this.requests?.forceResolveEntitlement(undefined, token);
+		return this.requests?.value.forceResolveEntitlement(undefined, token);
 	}
 }
 
@@ -143,8 +143,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		const context = chatEntitlementsService.context;
-		const requests = chatEntitlementsService.requests;
+		const context = chatEntitlementsService.context?.value;
+		const requests = chatEntitlementsService.requests?.value;
 		if (!context || !requests) {
 			return; // disabled
 		}
@@ -1186,35 +1186,36 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private async handleEnterpriseInstance(): Promise<boolean /* success */> {
+		const domainRegEx = /^[a-zA-Z\-_]+$/;
+		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
+
 		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
-		if (uri) {
-			return true; // already setup
+		if (typeof uri === 'string' && fullUriRegEx.test(uri)) {
+			return true; // already setup with a valid URI
 		}
 
 		let isSingleWord = false;
 		const result = await this.quickInputService.input({
 			prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.enterpriseProviderName),
 			placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			value: uri,
 			validateInput: async value => {
 				isSingleWord = false;
 				if (!value) {
 					return undefined;
 				}
 
-				if (/^[a-zA-Z\-_]+$/.test(value)) {
+				if (domainRegEx.test(value)) {
 					isSingleWord = true;
 					return {
 						content: localize('willResolveTo', "Will resolve to {0}", `https://${value}.ghe.com`),
 						severity: Severity.Info
 					};
-				} else {
-					const regex = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
-					if (!regex.test(value)) {
-						return {
-							content: localize('invalidEnterpriseInstance', 'Please enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.enterpriseProviderName),
-							severity: Severity.Error
-						};
-					}
+				} if (!fullUriRegEx.test(value)) {
+					return {
+						content: localize('invalidEnterpriseInstance', 'Please enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.enterpriseProviderName),
+						severity: Severity.Error
+					};
 				}
 
 				return undefined;

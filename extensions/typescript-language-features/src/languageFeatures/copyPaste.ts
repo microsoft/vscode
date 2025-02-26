@@ -15,6 +15,20 @@ import FileConfigurationManager from './fileConfigurationManager';
 import { conditionalRegistration, requireGlobalConfiguration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
 class CopyMetadata {
+
+	static parse(data: string): CopyMetadata | undefined {
+		try {
+
+			const parsedData = JSON.parse(data);
+			const resource = vscode.Uri.parse(parsedData.resource);
+			const ranges = parsedData.ranges.map((range: any) => new vscode.Range(range.start, range.end));
+			const copyOperation = parsedData.copyOperation ? Promise.resolve(parsedData.copyOperation) : undefined;
+			return new CopyMetadata(resource, ranges, copyOperation);
+		} catch (error) {
+			return undefined;
+		}
+	}
+
 	constructor(
 		public readonly resource: vscode.Uri,
 		public readonly ranges: readonly vscode.Range[],
@@ -213,7 +227,15 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider<TsPasteE
 			return undefined;
 		}
 
-		return metadata instanceof CopyMetadata ? metadata : undefined;
+		if (metadata instanceof CopyMetadata) {
+			return metadata;
+		}
+
+		if (typeof metadata === 'string') {
+			return CopyMetadata.parse(metadata);
+		}
+
+		return undefined;
 	}
 
 	private isEnabled(document: vscode.TextDocument) {

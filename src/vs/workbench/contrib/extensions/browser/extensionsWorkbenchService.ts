@@ -2333,6 +2333,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	async install(arg: string | URI | IExtension, installOptions: InstallExtensionOptions = {}, progressLocation?: ProgressLocation | string): Promise<IExtension> {
 		let installable: URI | IGalleryExtension | IResourceExtension | undefined;
 		let extension: IExtension | undefined;
+		let servers: IExtensionManagementServer[] | undefined;
 
 		if (arg instanceof URI) {
 			installable = arg;
@@ -2379,11 +2380,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// If requested to install everywhere
 				// then install the extension in all the servers where it is not installed
 				if (installOptions.installEverywhere) {
-					installOptions.servers = [];
+					servers = [];
 					const installableServers = await this.extensionManagementService.getInstallableServers(gallery);
 					for (const extensionsServer of this.extensionsServers) {
 						if (installableServers.includes(extensionsServer.server) && !extensionsServer.local.find(e => areSameExtensions(e.identifier, gallery.identifier))) {
-							installOptions.servers.push(extensionsServer.server);
+							servers.push(extensionsServer.server);
 						}
 					}
 				}
@@ -2391,17 +2392,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// Check if the extension is disabled because of extension kind
 				// If so, install the extension in the server that is compatible.
 				else if (installOptions.enable && extension?.local) {
-					installOptions.servers = [];
+					servers = [];
 					if (extension.enablementState === EnablementState.DisabledByExtensionKind) {
 						const [installableServer] = await this.extensionManagementService.getInstallableServers(gallery);
 						if (installableServer) {
-							installOptions.servers.push(installableServer);
+							servers.push(installableServer);
 						}
 					}
 				}
 			}
 
-			if (!installOptions.servers || installOptions.servers.length) {
+			if (!servers || servers.length) {
 				if (!installable) {
 					if (!gallery) {
 						const id = isString(arg) ? arg : (<IExtension>arg).identifier.id;
@@ -2458,7 +2459,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				if (extension.resourceExtension) {
 					extension = await this.doInstall(extension, () => this.extensionManagementService.installResourceExtension(installable as IResourceExtension, installOptions), progressLocation);
 				} else {
-					extension = await this.doInstall(extension, () => this.installFromGallery(extension!, installable as IGalleryExtension, installOptions), progressLocation);
+					extension = await this.doInstall(extension, () => this.installFromGallery(extension!, installable as IGalleryExtension, installOptions, servers), progressLocation);
 				}
 			}
 		}
@@ -2762,15 +2763,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.extensionManagementService.installVSIX(vsix, manifest, installOptions);
 	}
 
-	private installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallExtensionOptions): Promise<ILocalExtension> {
+	private installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions: InstallExtensionOptions, servers: IExtensionManagementServer[] | undefined): Promise<ILocalExtension> {
 		installOptions = installOptions ?? {};
 		installOptions.pinned = extension.local?.pinned || !this.shouldAutoUpdateExtension(extension);
-		if (extension.local && !installOptions.servers) {
+		if (extension.local && !servers) {
 			installOptions.productVersion = this.getProductVersion();
 			installOptions.operation = InstallOperation.Update;
 			return this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);
 		} else {
-			return this.extensionManagementService.installFromGallery(gallery, installOptions);
+			return this.extensionManagementService.installFromGallery(gallery, installOptions, servers);
 		}
 	}
 
