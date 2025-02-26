@@ -6,7 +6,7 @@
 import { BaseToken } from '../../baseToken.js';
 import { Range } from '../../../core/range.js';
 import { MarkdownToken } from './markdownToken.js';
-import { TSimpleToken } from '../../simpleCodec/simpleDecoder.js';
+import { assert } from '../../../../../base/common/assert.js';
 
 /**
  * A token that represent a `markdown comment` with a `range`. The `range`
@@ -15,51 +15,21 @@ import { TSimpleToken } from '../../simpleCodec/simpleDecoder.js';
 export class MarkdownComment extends MarkdownToken {
 	constructor(
 		range: Range,
-		public readonly tokens: readonly TSimpleToken[],
+		public readonly text: string,
 	) {
-		// TODO: @lego - validate tokens
+		assert(
+			text.startsWith('<!--'),
+			`The comment must start with '<!--', got '${text.substring(0, 10)}'.`,
+		);
+
 		super(range);
-		// assert(
-		// 	!isNaN(lineNumber),
-		// 	`The line number must not be a NaN.`,
-		// );
+	}
 
-		// assert(
-		// 	lineNumber > 0,
-		// 	`The line number must be >= 1, got "${lineNumber}".`,
-		// );
-
-		// assert(
-		// 	columnNumber > 0,
-		// 	`The column number must be >= 1, got "${columnNumber}".`,
-		// );
-
-		// assert(
-		// 	caption[0] === '[' && caption[caption.length - 1] === ']',
-		// 	`The caption must be enclosed in square brackets, got "${caption}".`,
-		// );
-
-		// assert(
-		// 	reference[0] === '(' && reference[reference.length - 1] === ')',
-		// 	`The reference must be enclosed in parentheses, got "${reference}".`,
-		// );
-
-		// super(
-		// 	new Range(
-		// 		lineNumber,
-		// 		columnNumber,
-		// 		lineNumber,
-		// 		columnNumber + caption.length + reference.length,
-		// 	),
-		// );
-
-		// // set up the `isURL` flag based on the current
-		// try {
-		// 	new URL(this.path);
-		// 	this.isURL = true;
-		// } catch {
-		// 	this.isURL = false;
-		// }
+	/**
+	 * Whether the comment has an end comment marker `-->`.
+	 */
+	public get hasEndMarker(): boolean {
+		return this.text.endsWith('-->');
 	}
 
 	/**
