@@ -58,6 +58,8 @@
 	height: 4px;
 	border-right-width: 2px;
 	border-bottom-width: 2px;
+}
+.monaco-workbench .workbench-hover-container:focus-within .workbench-hover-pointer:after {
 	border-right: 1px solid var(--vscode-focusBorder);
 	border-bottom: 1px solid var(--vscode-focusBorder);
 }
