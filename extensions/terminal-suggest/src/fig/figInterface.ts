@@ -263,11 +263,13 @@ export async function collectCompletionItemResult(
 			}
 
 			let itemKind = kind;
-			if (typeof item === 'object' && 'args' in item && (asArray(item.args ?? [])).length > 0) {
-				itemKind = vscode.TerminalCompletionItemKind.Option;
-			}
 			const lastArgType: string | undefined = parsedArguments?.annotations.at(-1)?.type;
-			if (lastArgType === 'option_arg') {
+			if (lastArgType === 'subcommand_arg') {
+				if (typeof item === 'object' && 'args' in item && (asArray(item.args ?? [])).length > 0) {
+					itemKind = vscode.TerminalCompletionItemKind.Option;
+				}
+			}
+			else if (lastArgType === 'option_arg') {
 				itemKind = vscode.TerminalCompletionItemKind.OptionValue;
 			}
 
