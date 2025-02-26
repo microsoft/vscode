@@ -35,6 +35,7 @@ import { Color } from '../../../../base/common/color.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 registerColor('gauge.background', {
 	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
@@ -67,7 +68,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -163,8 +165,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				container.appendChild($('div', undefined, localize('limitTitle', "You are using Copilot Free")));
 				container.appendChild($('hr'));
 
-				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats Messages Remaining"));
-				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code Completions Remaining"));
+				const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats messages remaining"));
+				const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions remaining"));
 
 				this.chatEntitlementsService.resolve(CancellationToken.None).then(() => {
 					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
@@ -298,34 +300,49 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private createSettings(container: HTMLElement, disposables: DisposableStore): HTMLElement {
+		const languageId = this.editorService.activeTextEditorLanguageId;
 		const settings = container.appendChild($('div.settings'));
 
-		const toggleCompletions = { text: localize('settings.toggleCompletions', "Code Completions"), id: 'editor.inlineSuggest.enabled' };
-		const toggleNextEditSuggestions = { text: localize('settings.toggleNextEditSuggestions', "Next Edit Suggestions (Preview)"), id: 'github.copilot.nextEditSuggestions.enabled' };
+		// --- Code Completions
+		{
+			const settingId = 'github.copilot.editor.enableAutoCompletions';
+			const globalSetting = append(settings, $('div.setting'));
+			this.createSetting(globalSetting, localize('settings.codeCompletions', "Enable code completions (all)"), { key: settingId, override: undefined }, disposables);
 
-		for (const entry of [toggleCompletions, toggleNextEditSuggestions]) {
-			const checked = Boolean(this.configurationService.getValue<boolean>(entry.id));
-
-			const setting = append(settings, $('div.setting'));
-
-			const checkbox = disposables.add(new Checkbox(entry.text, checked, defaultCheckboxStyles));
-			setting.appendChild(checkbox.domNode);
-
-			const settingLabel = append(setting, $('span.setting-label', undefined, entry.text));
-			disposables.add(addDisposableListener(settingLabel, EventType.CLICK, e => {
-				if (checkbox?.enabled && (e.target as HTMLElement).tagName !== 'A') {
-					checkbox.checked = !checkbox.checked;
-					this.configurationService.updateValue(entry.id, checkbox.checked);
-					checkbox.focus();
-				}
-			}));
-
-			disposables.add(checkbox.onChange(() => {
-				this.configurationService.updateValue(entry.id, checkbox.checked);
-			}));
+			if (languageId) {
+				const languageSetting = append(settings, $('div.setting'));
+				this.createSetting(languageSetting, localize('settings.codeCompletionsLanguage', "Enable code completions ({0})", languageId), { key: settingId, override: languageId }, disposables);
+			}
 		}
 
 		return settings;
+	}
+
+	private createSetting(container: HTMLElement, label: string, setting: { key: string; override: string | undefined }, disposables: DisposableStore): Checkbox {
+		const checked = Boolean(this.configurationService.getValue<boolean>(setting.key, { overrideIdentifier: setting.override }));
+
+		const settingCheckbox = disposables.add(new Checkbox(label, checked, defaultCheckboxStyles));
+		container.appendChild(settingCheckbox.domNode);
+
+		const settingLabel = append(container, $('span.setting-label', undefined, label));
+		disposables.add(Gesture.addTarget(settingLabel));
+		[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
+			disposables.add(addDisposableListener(settingLabel, eventType, e => {
+				if (settingCheckbox?.enabled) {
+					EventHelper.stop(e, true);
+
+					settingCheckbox.checked = !settingCheckbox.checked;
+					this.configurationService.updateValue(setting.key, settingCheckbox.checked, { overrideIdentifier: setting.override });
+					settingCheckbox.focus();
+				}
+			}));
+		});
+
+		disposables.add(settingCheckbox.onChange(() => {
+			this.configurationService.updateValue(setting.key, settingCheckbox.checked, { overrideIdentifier: setting.override });
+		}));
+
+		return settingCheckbox;
 	}
 
 	override dispose(): void {
