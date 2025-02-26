@@ -326,9 +326,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private createSetting(container: HTMLElement, label: string, setting: { key: string; override: string | undefined }, disposables: DisposableStore): Checkbox {
-		const checked = Boolean(this.configurationService.getValue<boolean>(setting.key, { overrideIdentifier: setting.override }));
+		const readSetting = () => Boolean(this.configurationService.getValue<boolean>(setting.key, { overrideIdentifier: setting.override }));
+		const writeSetting = (checkbox: Checkbox) => this.configurationService.updateValue(setting.key, checkbox.checked, { overrideIdentifier: setting.override });
 
-		const settingCheckbox = disposables.add(new Checkbox(label, checked, defaultCheckboxStyles));
+		const settingCheckbox = disposables.add(new Checkbox(label, readSetting(), defaultCheckboxStyles));
 		container.appendChild(settingCheckbox.domNode);
 
 		const settingLabel = append(container, $('span.setting-label', undefined, label));
@@ -339,14 +340,20 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 					EventHelper.stop(e, true);
 
 					settingCheckbox.checked = !settingCheckbox.checked;
-					this.configurationService.updateValue(setting.key, settingCheckbox.checked, { overrideIdentifier: setting.override });
+					writeSetting(settingCheckbox);
 					settingCheckbox.focus();
 				}
 			}));
 		});
 
 		disposables.add(settingCheckbox.onChange(() => {
-			this.configurationService.updateValue(setting.key, settingCheckbox.checked, { overrideIdentifier: setting.override });
+			writeSetting(settingCheckbox);
+		}));
+
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(setting.key, { overrideIdentifier: setting.override })) {
+				settingCheckbox.checked = readSetting();
+			}
 		}));
 
 		return settingCheckbox;
