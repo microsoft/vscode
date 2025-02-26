@@ -201,7 +201,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				{
 					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
 
-					container.appendChild($('div.description', undefined, localize('usageTitle', "Copilot Free Usage")));
+					container.appendChild($('div.header', undefined, localize('usageTitle', "Copilot Free Usage")));
 
 					const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats messages"));
 					const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
@@ -225,14 +225,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				// Settings
 				{
 					container.appendChild($('hr'));
-					container.appendChild($('div.description', undefined, localize('settingsTitle', "Settings")));
+					container.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
 					this.createSettings(container, disposables);
 				}
 
 				// Shortcuts
 				{
 					container.appendChild($('hr'));
-					container.appendChild($('div.description', undefined, localize('keybindingsTitle', "Keybindings")));
+					container.appendChild($('div.header', undefined, localize('keybindingsTitle', "Keybindings")));
 					this.createShortcuts(container, disposables);
 				}
 
@@ -248,14 +248,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 				// Settings
 				{
-					container.appendChild($('div.description', undefined, localize('settingsTitle', "Settings")));
+					container.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
 					this.createSettings(container, disposables);
 				}
 
 				// Shortcuts
 				{
 					container.appendChild($('hr'));
-					container.appendChild($('div.description', undefined, localize('keybindingsTitle', "Keybindings")));
+					container.appendChild($('div.header', undefined, localize('keybindingsTitle', "Keybindings")));
 					this.createShortcuts(container, disposables);
 				}
 

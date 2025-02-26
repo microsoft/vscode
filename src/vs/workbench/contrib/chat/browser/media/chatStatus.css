@@ -15,6 +15,11 @@
 	margin-bottom: 8px;
 }
 
+.chat-status-bar-entry-tooltip div.header {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+}
+
 .chat-status-bar-entry-tooltip div.description {
 	color: var(--vscode-descriptionForeground);
 }
@@ -93,7 +98,6 @@
 /* Quota Indicator */
 
 .chat-status-bar-entry-tooltip .quota-indicator {
-	margin-top: 6px;
 	margin-bottom: 6px;
 }
 
