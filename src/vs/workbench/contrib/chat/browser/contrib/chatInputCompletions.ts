@@ -755,6 +755,7 @@ class BuiltinDynamicCompletions extends Disposable {
 						id: 'vscode.folder',
 						prefix: 'folder',
 						isFile: false,
+						isDirectory: true,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: resource
 					})]

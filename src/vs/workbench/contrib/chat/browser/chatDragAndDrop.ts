@@ -508,15 +508,18 @@ async function resolveFilesInDirectory(resource: URI, fileSystemProvider: IFileS
 
 async function getResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
 	let isOmitted = false;
-	try {
-		const createdModel = await textModelService.createModelReference(resource);
-		createdModel.dispose();
-	} catch {
-		isOmitted = true;
-	}
 
-	if (/\.(svg)$/i.test(resource.path)) {
-		isOmitted = true;
+	if (!isDirectory) {
+		try {
+			const createdModel = await textModelService.createModelReference(resource);
+			createdModel.dispose();
+		} catch {
+			isOmitted = true;
+		}
+
+		if (/\.(svg)$/i.test(resource.path)) {
+			isOmitted = true;
+		}
 	}
 
 	return {

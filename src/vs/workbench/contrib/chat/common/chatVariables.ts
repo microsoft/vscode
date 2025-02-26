@@ -55,5 +55,6 @@ export interface IDynamicVariable {
 	prefix?: string;
 	modelDescription?: string;
 	isFile?: boolean;
+	isDirectory?: boolean;
 	data: IChatRequestVariableValue;
 }

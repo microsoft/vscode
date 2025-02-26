@@ -348,6 +348,7 @@ export class SelectAndInsertFolderAction extends Action2 {
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			id: 'vscode.folder',
 			isFile: false,
+			isDirectory: true,
 			prefix: 'folder',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
 			data: folder
