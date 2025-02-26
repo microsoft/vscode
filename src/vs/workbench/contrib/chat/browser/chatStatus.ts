@@ -25,8 +25,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Command } from '../../../../editor/common/languages.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { contrastBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND } from '../../../common/theme.js';
+import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CTX_INLINE_CHAT_POSSIBLE } from '../../inlineChat/common/inlineChat.js';
@@ -37,9 +36,11 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
+//#region --- colors
+
 const gaugeBackground = registerColor('gauge.background', {
-	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
-	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	dark: inputValidationInfoBorder,
+	light: inputValidationInfoBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('gaugeBackground', "Gauge background color."));
@@ -57,6 +58,36 @@ registerColor('gauge.border', {
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('gaugeBorder', "Gauge border color."));
+
+const gaugeWarningBackground = registerColor('gauge.warningBackground', {
+	dark: inputValidationWarningBorder,
+	light: inputValidationWarningBorder,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeWarningBackground', "Gauge warning background color."));
+
+registerColor('gauge.warningForeground', {
+	dark: transparent(gaugeWarningBackground, 0.3),
+	light: transparent(gaugeWarningBackground, 0.3),
+	hcDark: Color.white,
+	hcLight: Color.white
+}, localize('gaugeWarningForeground', "Gauge warning foreground color."));
+
+const gaugeErrorBackground = registerColor('gauge.errorBackground', {
+	dark: inputValidationErrorBorder,
+	light: inputValidationErrorBorder,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeErrorBackground', "Gauge error background color."));
+
+registerColor('gauge.errorForeground', {
+	dark: transparent(gaugeErrorBackground, 0.3),
+	light: transparent(gaugeErrorBackground, 0.3),
+	hcDark: Color.white,
+	hcLight: Color.white
+}, localize('gaugeErrorForeground', "Gauge error foreground color."));
+
+//#endregion
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -248,7 +279,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		const quotaText = $('span');
 		const quotaBit = $('div.quota-bit');
 
-		container.appendChild($('div.quota-indicator', undefined,
+		const quotaIndicator = container.appendChild($('div.quota-indicator', undefined,
 			$('div.quota-label', undefined,
 				$('span', undefined, label),
 				quotaText
@@ -259,10 +290,23 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		));
 
 		const update = (total: number | undefined, remaining: number | undefined) => {
+			quotaIndicator.classList.remove('error');
+			quotaIndicator.classList.remove('warning');
+
 			if (typeof total === 'number' && typeof remaining === 'number') {
-				const usedPercentage = Math.round(((total - remaining) / total) * 100);
+				let usedPercentage = Math.round(((total - remaining) / total) * 100);
+				if (total !== remaining && usedPercentage === 0) {
+					usedPercentage = 1; // indicate minimal usage as 1%
+				}
+
 				quotaText.textContent = localize('quotaDisplay', "{0}%", usedPercentage);
 				quotaBit.style.width = `${usedPercentage}%`;
+
+				if (usedPercentage >= 90) {
+					quotaIndicator.classList.add('error');
+				} else if (usedPercentage >= 75) {
+					quotaIndicator.classList.add('warning');
+				}
 			}
 		};
 

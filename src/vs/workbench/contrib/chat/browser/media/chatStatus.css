@@ -116,3 +116,19 @@
 	background-color: var(--vscode-gauge-background);
 	border-radius: 4px;
 }
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar {
+	background-color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-warningBackground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar {
+	background-color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-errorBackground);
+}
