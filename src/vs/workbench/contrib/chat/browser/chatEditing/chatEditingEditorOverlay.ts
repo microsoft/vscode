@@ -250,7 +250,7 @@ class ChatEditorOverlayWidget {
 						}
 
 						protected override getTooltip(): string | undefined {
-							return this._requestMessage.get()?.message;
+							return this._requestMessage.get()?.message || super.getTooltip();
 						}
 					};
 				}
