@@ -25,7 +25,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Command } from '../../../../editor/common/languages.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { contrastBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { contrastBorder, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from '../../../common/theme.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -33,7 +33,7 @@ import { CTX_INLINE_CHAT_POSSIBLE } from '../../inlineChat/common/inlineChat.js'
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { Color } from '../../../../base/common/color.js';
 
-const GAUGE_BACKGROUND = registerColor('gauge.background', {
+registerColor('gauge.background', {
 	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
 	light: ACTIVITY_BAR_BADGE_BACKGROUND,
 	hcDark: contrastBorder,
@@ -41,8 +41,8 @@ const GAUGE_BACKGROUND = registerColor('gauge.background', {
 }, localize('gaugeBackground', "Gauge background color."));
 
 registerColor('gauge.foreground', {
-	dark: transparent(GAUGE_BACKGROUND, 0.3),
-	light: transparent(GAUGE_BACKGROUND, 0.3),
+	dark: Color.black,
+	light: Color.white,
 	hcDark: Color.white,
 	hcLight: Color.white
 }, localize('gaugeForeground', "Gauge foreground color."));
