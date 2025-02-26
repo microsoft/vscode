@@ -49,7 +49,7 @@ import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISna
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
+import { ChatEditingModifiedNotebookEntry, isJupyterNotebook } from './chatEditingModifiedNotebookEntry.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -1065,7 +1065,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
 			this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
-			return this._createModifiedFileEntry(resource, telemetryInfo, true, initialContent);
+			if (isJupyterNotebook(resource)) {
+				return ChatEditingModifiedNotebookEntry.create(resource, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
+			} else {
+				return this._createModifiedFileEntry(resource, telemetryInfo, true, initialContent);
+			}
 		}
 	}
 
