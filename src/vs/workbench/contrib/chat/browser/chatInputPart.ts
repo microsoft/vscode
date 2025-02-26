@@ -786,7 +786,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
 		options.suggest = {
-			showIcons: false,
+			showIcons: true,
 			showSnippets: false,
 			showWords: true,
 			showStatusBar: false,
@@ -799,7 +799,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID, LinkDetector.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
+		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
+		this._inputEditorElement.classList.add('hideSuggestTextIcons');
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
