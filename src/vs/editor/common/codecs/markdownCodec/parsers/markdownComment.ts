@@ -50,8 +50,8 @@ export class PartialMarkdownCommentStart extends ParserBase<TSimpleToken, Partia
 			if (lastToken instanceof Dash) {
 				const token1: TSimpleToken | undefined = this.currentTokens[0];
 				const token2: TSimpleToken | undefined = this.currentTokens[1];
-				const token3: TSimpleToken | undefined = this.currentTokens[3];
-				const token4: TSimpleToken | undefined = this.currentTokens[4];
+				const token3: TSimpleToken | undefined = this.currentTokens[2];
+				const token4: TSimpleToken | undefined = this.currentTokens[3];
 
 				// sanity checks
 				assert(
