@@ -13,11 +13,10 @@
 	resize: none;
 	border: none;
 	overflow: hidden;
-	color: black;
-	background-color: white;
-	z-index: 10;
+	color: transparent;
+	background-color: transparent;
+	z-index: -10;
 }
-
 /*.monaco-editor .inputarea {
 	position: fixed !important;
 	width: 800px !important;

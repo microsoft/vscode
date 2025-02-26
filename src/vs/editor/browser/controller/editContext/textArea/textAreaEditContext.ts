@@ -708,7 +708,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	private _render(): void {
-		console.log('_render');
 		if (this._visibleTextArea) {
 			// The text area is visible for composition reasons
 
@@ -757,7 +756,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 				this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
 				this.textArea.domNode.scrollLeft = scrollLeft;
 
-				console.log('render 1');
 				this._doRender({
 					lastRenderPosition: null,
 					top: top,
@@ -800,7 +798,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		if (platform.isMacintosh || this._accessibilitySupport === AccessibilitySupport.Enabled) {
 			// For the popup emoji input, we will make the text area as high as the line height
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
-			console.log('render 2');
 			this._doRender({
 				lastRenderPosition: this._primaryCursorPosition,
 				top,
@@ -817,7 +814,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 			return;
 		}
 
-		console.log('render 3');
 		this._doRender({
 			lastRenderPosition: this._primaryCursorPosition,
 			top: top,
@@ -842,11 +838,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 	}
 
 	private _doRender(renderData: IRenderData): void {
-		console.log('renderData.top : ', renderData.top);
-		console.log('renderData.left : ', renderData.left);
-		console.log('renderData.width : ', renderData.width);
-		console.log('renderData.height : ', renderData.height);
-
 		this._lastRenderPosition = renderData.lastRenderPosition;
 
 		const ta = this.textArea;

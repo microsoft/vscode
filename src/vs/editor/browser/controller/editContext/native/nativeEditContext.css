@@ -7,6 +7,8 @@
 	margin: 0;
 	padding: 0;
 	position: absolute;
+	overflow-y: scroll;
+	scrollbar-width: none;
 	z-index: -10;
 	white-space: pre-wrap;
 }
