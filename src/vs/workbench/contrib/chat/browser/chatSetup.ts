@@ -99,8 +99,8 @@ export class ChatEntitlementsService extends Disposable implements IChatEntitlem
 
 	declare _serviceBrand: undefined;
 
-	readonly context: ChatSetupContext | undefined;
-	readonly requests: ChatSetupRequests | undefined;
+	readonly context: Lazy<ChatSetupContext> | undefined;
+	readonly requests: Lazy<ChatSetupRequests> | undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -116,12 +116,12 @@ export class ChatEntitlementsService extends Disposable implements IChatEntitlem
 			return;
 		}
 
-		this.context = this._register(instantiationService.createInstance(ChatSetupContext));
-		this.requests = this._register(instantiationService.createInstance(ChatSetupRequests, this.context));
+		const context = this.context = new Lazy(() => this._register(instantiationService.createInstance(ChatSetupContext)));
+		this.requests = new Lazy(() => this._register(instantiationService.createInstance(ChatSetupRequests, context.value)));
 	}
 
 	async resolve(token: CancellationToken): Promise<IChatEntitlements | undefined> {
-		return this.requests?.forceResolveEntitlement(undefined, token);
+		return this.requests?.value.forceResolveEntitlement(undefined, token);
 	}
 }
 
@@ -143,8 +143,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		const context = chatEntitlementsService.context;
-		const requests = chatEntitlementsService.requests;
+		const context = chatEntitlementsService.context?.value;
+		const requests = chatEntitlementsService.requests?.value;
 		if (!context || !requests) {
 			return; // disabled
 		}

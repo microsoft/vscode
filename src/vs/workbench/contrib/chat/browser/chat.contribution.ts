@@ -497,5 +497,4 @@ registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, Instant
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);
 registerSingleton(IChatEntitlementsService, ChatEntitlementsService, InstantiationType.Delayed);
-
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
