@@ -314,11 +314,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		{
 			const settingId = 'github.copilot.editor.enableAutoCompletions';
 			const globalSetting = append(settings, $('div.setting'));
-			this.createSetting(globalSetting, localize('settings.codeCompletions', "Enable code completions (all)"), { key: settingId, override: undefined }, disposables);
+			this.createSetting(globalSetting, localize('settings.codeCompletions', "Code completions (all)"), { key: settingId, override: undefined }, disposables);
 
 			if (languageId) {
 				const languageSetting = append(settings, $('div.setting'));
-				this.createSetting(languageSetting, localize('settings.codeCompletionsLanguage', "Enable code completions ({0})", languageId), { key: settingId, override: languageId }, disposables);
+				this.createSetting(languageSetting, localize('settings.codeCompletionsLanguage', "Code completions ({0})", languageId), { key: settingId, override: languageId }, disposables);
 			}
 		}
 
