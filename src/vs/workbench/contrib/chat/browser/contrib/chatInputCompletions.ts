@@ -560,7 +560,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				sortText: 'z',
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-						id: 'vscode.file',
+						id: 'vscode.selection',
 						prefix: 'file',
 						isFile: true,
 						range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
