@@ -13,7 +13,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 
 export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chatEdits.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
@@ -120,7 +120,10 @@ class ContextKeyGroup {
 			this._ctxHasEditorModification.set(isInlineChat || entry?.state.read(r) === WorkingSetEntryState.Modified);
 			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);
 			this._ctxReviewModeEnabled.set(entry ? entry.reviewMode.read(r) : false);
-			this._ctxHasRequestInProgress.set(session.state.read(r) === ChatEditingSessionState.StreamingEdits || isRequestInProgress.read(r) || !entry);
+			this._ctxHasRequestInProgress.set(
+				Boolean(entry?.isCurrentlyBeingModifiedBy.read(r)) // any entry changing
+				|| (isInlineChat && isRequestInProgress.read(r)) // inline chat request
+			);
 
 			// number of requests
 			const requestCount = chatModel
