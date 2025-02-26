@@ -61,7 +61,7 @@ suite('MarkdownDecoder', () => {
 		);
 
 		await test.run(
-			' hello world\nhow are\t you [caption text](./some/file/path/refer🎨nce.md)?\v\n\n[(example)](another/path/with[-and-]-chars/folder)\t \n\t[#file:something.txt](/absolute/path/to/something.txt)',
+			' hello world\nhow are\t you [caption text](./some/file/path/refer🎨nce.md)?\v\n\n[(example!)](another/path/with[-and-]-chars/folder)\t \n\t[#file:something.txt](/absolute/path/to/something.txt)',
 			[
 				// first line
 				new Space(new Range(1, 1, 1, 2)),
@@ -84,10 +84,10 @@ suite('MarkdownDecoder', () => {
 				// third line
 				new NewLine(new Range(3, 1, 3, 2)),
 				// fourth line
-				new MarkdownLink(4, 1, '[(example)]', '(another/path/with[-and-]-chars/folder)'),
-				new Tab(new Range(4, 51, 4, 52)),
-				new Space(new Range(4, 52, 4, 53)),
-				new NewLine(new Range(4, 53, 4, 54)),
+				new MarkdownLink(4, 1, '[(example!)]', '(another/path/with[-and-]-chars/folder)'),
+				new Tab(new Range(4, 52, 4, 53)),
+				new Space(new Range(4, 53, 4, 54)),
+				new NewLine(new Range(4, 54, 4, 55)),
 				// fifth line
 				new Tab(new Range(5, 1, 5, 2)),
 				new MarkdownLink(5, 2, '[#file:something.txt]', '(/absolute/path/to/something.txt)'),
@@ -103,15 +103,15 @@ suite('MarkdownDecoder', () => {
 		const inputLines = [
 			// tests that the link caption contain a chat prompt `#file:` reference, while
 			// the file path can contain other `graphical characters`
-			'\v\t[#file:./another/path/to/file.txt](./real/filepath/file◆name.md)',
+			'\v\t[#file:./another/path/to/file.txt](./real/file!path/file◆name.md)',
 			// tests that the link file path contain a chat prompt `#file:` reference,
 			// `spaces`, `emojies`, and other `graphical characters`
 			' [reference ∘ label](/absolute/pa th/to-#file:file.txt/f🥸⚡️le.md)',
 			// tests that link caption and file path can contain `parentheses`, `spaces`, and
 			// `emojies`
-			'\f[!(hello)!](./w(())rld/nice-🦚-filen(a)me.git))\n\t',
+			'\f[!(hello)!](./w(())rld/nice-🦚-filen(a)<me>.git))\n\t',
 			// tests that the link caption can be empty, while the file path can contain `square brackets`
-			'[](./s[]me/pa[h!) ',
+			'[<test>](./s[]me/pa[h!) ',
 		];
 
 		await test.run(
@@ -120,23 +120,23 @@ suite('MarkdownDecoder', () => {
 				// `1st` line
 				new VerticalTab(new Range(1, 1, 1, 2)),
 				new Tab(new Range(1, 2, 1, 3)),
-				new MarkdownLink(1, 3, '[#file:./another/path/to/file.txt]', '(./real/filepath/file◆name.md)'),
-				new NewLine(new Range(1, 67, 1, 68)),
+				new MarkdownLink(1, 3, '[#file:./another/path/to/file.txt]', '(./real/file!path/file◆name.md)'),
+				new NewLine(new Range(1, 68, 1, 69)),
 				// `2nd` line
 				new Space(new Range(2, 1, 2, 2)),
 				new MarkdownLink(2, 2, '[reference ∘ label]', '(/absolute/pa th/to-#file:file.txt/f🥸⚡️le.md)'),
 				new NewLine(new Range(2, 67, 2, 68)),
 				// `3rd` line
 				new FormFeed(new Range(3, 1, 3, 2)),
-				new MarkdownLink(3, 2, '[!(hello)!]', '(./w(())rld/nice-🦚-filen(a)me.git)'),
-				new RightParenthesis(new Range(3, 48, 3, 49)),
-				new NewLine(new Range(3, 49, 3, 50)),
+				new MarkdownLink(3, 2, '[!(hello)!]', '(./w(())rld/nice-🦚-filen(a)<me>.git)'),
+				new RightParenthesis(new Range(3, 50, 3, 51)),
+				new NewLine(new Range(3, 51, 3, 52)),
 				// `4th` line
 				new Tab(new Range(4, 1, 4, 2)),
 				new NewLine(new Range(4, 2, 4, 3)),
 				// `5th` line
-				new MarkdownLink(5, 1, '[]', '(./s[]me/pa[h!)'),
-				new Space(new Range(5, 18, 5, 19)),
+				new MarkdownLink(5, 1, '[<test>]', '(./s[]me/pa[h!)'),
+				new Space(new Range(5, 24, 5, 25)),
 			],
 		);
 	});

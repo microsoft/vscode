@@ -23,11 +23,6 @@ import { LeftParenthesis, RightParenthesis, TParenthesis } from './tokens/parent
 import { LeftAngleBracket, RightAngleBracket, TAngleBracket } from './tokens/angleBrackets.js';
 
 /**
- * TODO: @legomushroom - list
- *  - add `comment` token support in the markdown decoder
- */
-
-/**
  * A token type that this decoder can handle.
  */
 export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed
