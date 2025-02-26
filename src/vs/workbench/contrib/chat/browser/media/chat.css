@@ -1732,6 +1732,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.chat-input-overflow .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
+.hideSuggestTextIcons .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
 	display: none;
 }

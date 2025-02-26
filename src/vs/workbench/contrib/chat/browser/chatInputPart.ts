@@ -775,7 +775,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
-		options.overflowWidgetsDomNode?.classList.add('chat-input-overflow');
 		options.pasteAs = EditorOptions.pasteAs.defaultValue;
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
@@ -800,7 +799,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID, LinkDetector.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
+		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
+		this._inputEditorElement.classList.add('hideSuggestTextIcons');
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
