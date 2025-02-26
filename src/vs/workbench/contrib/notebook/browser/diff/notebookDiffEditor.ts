@@ -302,6 +302,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this.layout(this._lastLayoutProperties?.dimension, this._lastLayoutProperties?.position);
 			this.inlineDiffWidget?.hide();
 		}
+
+		this.updateLayout(CancellationToken.None);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
