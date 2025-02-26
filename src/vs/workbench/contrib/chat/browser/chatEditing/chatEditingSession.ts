@@ -49,7 +49,7 @@ import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISna
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { ChatEditingModifiedNotebookEntry, isJupyterNotebook } from './chatEditingModifiedNotebookEntry.js';
+import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -1049,8 +1049,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	private async _createModifiedFileEntry(resource: URI, telemetryInfo: IModifiedEntryTelemetryInfo, mustExist = false, initialContent: string | undefined): Promise<AbstractChatEditingModifiedFileEntry> {
 		const multiDiffEntryDelegate = { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) };
 		const chatKind = mustExist ? ChatEditKind.Created : ChatEditKind.Modified;
+		const notebookUri = CellUri.parse(resource)?.notebook || resource;
 		try {
-			const notebookUri = CellUri.parse(resource)?.notebook || resource;
 			// If a notebook isn't open, then use the old synchronization approach.
 			if (this._notebookService.hasSupportedNotebooks(notebookUri) && (this._notebookService.getNotebookTextModel(notebookUri) || ChatEditingModifiedNotebookEntry.canHandleSnapshot(initialContent))) {
 				return ChatEditingModifiedNotebookEntry.create(notebookUri, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
@@ -1065,7 +1065,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
 			this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
-			if (isJupyterNotebook(resource)) {
+			if (this._notebookService.hasSupportedNotebooks(notebookUri)) {
 				return ChatEditingModifiedNotebookEntry.create(resource, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
 			} else {
 				return this._createModifiedFileEntry(resource, telemetryInfo, true, initialContent);

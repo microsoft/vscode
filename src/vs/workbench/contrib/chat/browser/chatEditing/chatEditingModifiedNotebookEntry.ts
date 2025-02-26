@@ -64,10 +64,6 @@ import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextMo
 const noopKeep = () => Promise.resolve(true);
 const noopUndo = () => Promise.resolve(true);
 
-export function isJupyterNotebook(uri: URI) {
-	return uri.path.endsWith('.ipynb');
-}
-
 export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifiedFileEntry {
 	static NewModelCounter: number = 0;
 	private readonly modifiedModel: NotebookTextModel;
