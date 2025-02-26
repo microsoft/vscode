@@ -2254,7 +2254,15 @@ export namespace DataTransfer {
 		return new types.DataTransfer(init);
 	}
 
-	export async function from(dataTransfer: Iterable<readonly [string, IDataTransferItem]>): Promise<extHostProtocol.DataTransferDTO> {
+	export async function from(dataTransfer: vscode.DataTransfer): Promise<extHostProtocol.DataTransferDTO> {
+		const items = await Promise.all(Array.from(dataTransfer, async ([mime, value]) => {
+			return [mime, await DataTransferItem.from(mime, value)] as const;
+		}));
+
+		return { items };
+	}
+
+	export async function fromList(dataTransfer: Iterable<readonly [string, IDataTransferItem]>): Promise<extHostProtocol.DataTransferDTO> {
 		const items = await Promise.all(Array.from(dataTransfer, async ([mime, value]) => {
 			return [mime, await DataTransferItem.from(mime, value, value.id)] as const;
 		}));
