@@ -44,37 +44,6 @@ export interface IAcceptTokenFailure extends IAcceptTokenResult {
 export type TAcceptTokenResult<T> = IAcceptTokenSuccess<T> | IAcceptTokenFailure;
 
 /**
- * Decorator that validates that the current parser object was not yet consumed,
- * hence can still be used to accept new tokens in the parsing process.
- *
- * @throws the resulting decorated method throws if the parser object was already consumed.
- */
-export function assertNotConsumed<T extends ParserBase<any, any>>(
-	_target: T,
-	propertyKey: 'accept',
-	descriptor: PropertyDescriptor,
-) {
-	// store the original method reference
-	const originalMethod = descriptor.value;
-
-	// validate that the current parser object was not yet consumed
-	// before invoking the original accept method
-	descriptor.value = function (
-		this: T,
-		...args: Parameters<T[typeof propertyKey]>
-	): ReturnType<T[typeof propertyKey]> {
-		assert(
-			this.isConsumed === false,
-			`The parser object is already consumed and should not be used anymore.`,
-		);
-
-		return originalMethod.apply(this, args);
-	};
-
-	return descriptor;
-}
-
-/**
  * An abstract parser class that is able to parse a sequence of
  * tokens into a new single entity.
  */
@@ -120,4 +89,36 @@ export abstract class ParserBase<TToken extends BaseToken, TNextObject> {
 			`The parser object is already consumed and should not be used anymore.`,
 		);
 	}
+}
+
+/**
+ * Decorator that validates that the current parser object was not yet consumed,
+ * hence can still be used to accept new tokens in the parsing process.
+ *
+ * @throws the resulting decorated method throws if the parser object was already consumed.
+ */
+// TODO: @legomushroom - use in all parsers
+export function assertNotConsumed<T extends ParserBase<any, any>>(
+	_target: T,
+	propertyKey: 'accept',
+	descriptor: PropertyDescriptor,
+) {
+	// store the original method reference
+	const originalMethod = descriptor.value;
+
+	// validate that the current parser object was not yet consumed
+	// before invoking the original accept method
+	descriptor.value = function (
+		this: T,
+		...args: Parameters<T[typeof propertyKey]>
+	): ReturnType<T[typeof propertyKey]> {
+		assert(
+			this.isConsumed === false,
+			`The parser object is already consumed and should not be used anymore.`,
+		);
+
+		return originalMethod.apply(this, args);
+	};
+
+	return descriptor;
 }

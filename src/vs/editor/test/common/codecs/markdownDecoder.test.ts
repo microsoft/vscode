@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { TestDecoder } from '../utils/testDecoder.js';
 import { Range } from '../../../common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -11,15 +12,15 @@ import { Tab } from '../../../common/codecs/simpleCodec/tokens/tab.js';
 import { Word } from '../../../common/codecs/simpleCodec/tokens/word.js';
 import { Space } from '../../../common/codecs/simpleCodec/tokens/space.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
+import { FormFeed } from '../../../common/codecs/simpleCodec/tokens/formFeed.js';
 import { VerticalTab } from '../../../common/codecs/simpleCodec/tokens/verticalTab.js';
 import { MarkdownLink } from '../../../common/codecs/markdownCodec/tokens/markdownLink.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { MarkdownDecoder, TMarkdownToken } from '../../../common/codecs/markdownCodec/markdownDecoder.js';
-import { FormFeed } from '../../../common/codecs/simpleCodec/tokens/formFeed.js';
-import { LeftParenthesis, RightParenthesis } from '../../../common/codecs/simpleCodec/tokens/parentheses.js';
-import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/tokens/brackets.js';
 import { CarriageReturn } from '../../../common/codecs/linesCodec/tokens/carriageReturn.js';
-import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/tokens/brackets.js';
+import { MarkdownDecoder, TMarkdownToken } from '../../../common/codecs/markdownCodec/markdownDecoder.js';
+import { LeftParenthesis, RightParenthesis } from '../../../common/codecs/simpleCodec/tokens/parentheses.js';
+import { MarkdownComment } from '../../../common/codecs/markdownCodec/tokens/markdownComment.js';
 
 /**
  * A reusable test utility that asserts that a `TestMarkdownDecoder` instance
@@ -61,7 +62,20 @@ suite('MarkdownDecoder', () => {
 		);
 
 		await test.run(
-			' hello world\nhow are\t you [caption text](./some/file/path/refer🎨nce.md)?\v\n\n[(example!)](another/path/with[-and-]-chars/folder)\t \n\t[#file:something.txt](/absolute/path/to/something.txt)',
+			[
+				// basic text
+				' hello world',
+				// text with markdown link and special characters in the filename
+				'how are\t you [caption text](./some/file/path/refer🎨nce.md)?\v',
+				// empty line
+				'',
+				// markdown link with special characters in the link caption and path
+				'[(example!)](another/path/with[-and-]-chars/folder)\t ',
+				// markdown link `#file` variable in the caption and with absolute path
+				'\t[#file:something.txt](/absolute/path/to/something.txt)',
+				// text with a commented out markdown link
+				'\v\f machines must <!-- [computer rights](/do/not/exist) --> suffer',
+			],
 			[
 				// first line
 				new Space(new Range(1, 1, 1, 2)),
@@ -91,6 +105,18 @@ suite('MarkdownDecoder', () => {
 				// fifth line
 				new Tab(new Range(5, 1, 5, 2)),
 				new MarkdownLink(5, 2, '[#file:something.txt]', '(/absolute/path/to/something.txt)'),
+				new NewLine(new Range(5, 56, 5, 57)),
+				// sixth line
+				new VerticalTab(new Range(6, 1, 6, 2)),
+				new FormFeed(new Range(6, 2, 6, 3)),
+				new Space(new Range(6, 3, 6, 4)),
+				new Word(new Range(6, 4, 6, 12), 'machines'),
+				new Space(new Range(6, 12, 6, 13)),
+				new Word(new Range(6, 13, 6, 17), 'must'),
+				new Space(new Range(6, 17, 6, 18)),
+				new MarkdownComment(new Range(6, 18, 6, 18 + 41), '<!-- [computer rights](/do/not/exist) -->'),
+				new Space(new Range(6, 59, 6, 60)),
+				new Word(new Range(6, 60, 6, 66), 'suffer'),
 			],
 		);
 	});
