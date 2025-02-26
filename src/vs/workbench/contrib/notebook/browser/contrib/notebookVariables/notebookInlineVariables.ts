@@ -468,19 +468,27 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			for (let tokenIndex = 0; tokenIndex < lineTokens.getCount(); tokenIndex++) {
 				const tokenType = lineTokens.getStandardTokenType(tokenIndex);
 
-				if (tokenType === StandardTokenType.Comment) {
+				if (tokenType === StandardTokenType.Comment || tokenType === StandardTokenType.String || tokenType === StandardTokenType.RegEx) {
 					if (startCharacter === undefined) {
-						// Start of a comment
+						// Start of a comment or string
 						startCharacter = lineTokens.getStartOffset(tokenIndex);
 					}
 
 					const endCharacter = lineTokens.getEndOffset(tokenIndex);
 
-					if (tokenIndex === lineTokens.getCount() - 1 || lineTokens.getStandardTokenType(tokenIndex + 1) !== StandardTokenType.Comment) {
-						// End of comment section (either end of line or different token type follows)
+					// Check if this is the end of the comment/string section (either end of line or different token type follows)
+					const isLastToken = tokenIndex === lineTokens.getCount() - 1;
+					const nextTokenDifferent = !isLastToken &&
+						lineTokens.getStandardTokenType(tokenIndex + 1) !== tokenType;
+
+					if (isLastToken || nextTokenDifferent) {
+						// End of comment/string section
 						commentRanges.push(new Range(lineNumber, startCharacter + 1, lineNumber, endCharacter + 1));
 						startCharacter = undefined;
 					}
+				} else {
+					// Reset when we hit a non-comment, non-string token
+					startCharacter = undefined;
 				}
 			}
 		}
