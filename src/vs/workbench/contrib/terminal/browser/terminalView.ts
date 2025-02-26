@@ -11,7 +11,6 @@ import { Action, IAction } from '../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from './terminalActions.js';
@@ -35,7 +34,7 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { getColorForSeverity } from './terminalStatusList.js';
 import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { getColorClass, getUriClasses } from './terminalIcon.js';
@@ -67,6 +66,7 @@ export class TerminalViewPane extends ViewPane {
 	private readonly _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
 	private readonly _disposableStore = this._register(new DisposableStore());
+	private readonly _actionDisposables: DisposableMap<TerminalCommandId> = this._register(new DisposableMap());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -80,7 +80,6 @@ export class TerminalViewPane extends ViewPane {
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -91,7 +90,7 @@ export class TerminalViewPane extends ViewPane {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, hoverService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
 			this._onDidChangeViewWelcomeState.fire();
 		}));
@@ -251,12 +250,12 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override createActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
-		this._disposableStore.clear();
 		switch (action.id) {
 			case TerminalCommandId.Split: {
 				// Split needs to be special cased to force splitting within the panel, not the editor
 				const that = this;
-				const panelOnlySplitAction = new class extends Action {
+				const store = new DisposableStore();
+				const panelOnlySplitAction = store.add(new class extends Action {
 					constructor() {
 						super(action.id, action.label, action.class, action.enabled);
 						this.checked = action.checked;
@@ -270,17 +269,22 @@ export class TerminalViewPane extends ViewPane {
 						}
 						return;
 					}
-				};
-				this._disposableStore.add(panelOnlySplitAction);
-				return this._disposableStore.add(new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) }));
+				});
+				const item = store.add(new ActionViewItem(action, panelOnlySplitAction, { ...options, icon: true, label: false, keybinding: this._getKeybindingLabel(action) }));
+				this._actionDisposables.set(action.id, store);
+				return item;
 			}
 			case TerminalCommandId.SwitchTerminal: {
-				return this._disposableStore.add(this._instantiationService.createInstance(SwitchTerminalActionViewItem, action));
+				const item = this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
+				this._actionDisposables.set(action.id, item);
+				return item;
 			}
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
 					const actions = getFlatContextMenuActions(this._singleTabMenu.getActions({ shouldForwardArgs: true }));
-					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
+					const item = this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
+					this._actionDisposables.set(action.id, item);
+					return item;
 				}
 				break;
 			}
@@ -541,15 +545,17 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	private _openContextMenu() {
+		const actionRunner = new TerminalContextActionRunner();
 		this._contextMenuService.showContextMenu({
-			actionRunner: new TerminalContextActionRunner(),
+			actionRunner,
 			getAnchor: () => this.element!,
 			getActions: () => this._actions,
 			// The context is always the active instance in the terminal view
 			getActionsContext: () => {
 				const instance = this._terminalGroupService.activeInstance;
 				return instance ? [new InstanceContext(instance)] : [];
-			}
+			},
+			onHide: () => actionRunner.dispose()
 		});
 	}
 }
@@ -634,9 +640,9 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
-				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
+				// exclude status icons (file-icon) and inline action icons (trashcan, horizontalSplit, rerunTask)
 				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
+					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):not(.codicon-rerun-task)` +
 					`{ color: ${color} !important; }`
 				);
 			}

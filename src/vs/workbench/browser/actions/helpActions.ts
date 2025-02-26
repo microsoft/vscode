@@ -309,7 +309,9 @@ class OpenPrivacyStatementUrlAction extends Action2 {
 }
 
 class GetStartedWithAccessibilityFeatures extends Action2 {
+
 	static readonly ID = 'workbench.action.getStartedWithAccessibilityFeatures';
+
 	constructor() {
 		super({
 			id: GetStartedWithAccessibilityFeatures.ID,
@@ -326,6 +328,30 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const commandService = accessor.get(ICommandService);
 		commandService.executeCommand('workbench.action.openWalkthrough', 'SetupAccessibility');
+	}
+}
+
+class GetStartedWithCopilot extends Action2 {
+
+	static readonly ID = 'workbench.action.getStartedWithCopilot';
+	static readonly AVAILABE = !!product.defaultChatAgent?.documentationUrl;
+
+	constructor() {
+		super({
+			id: GetStartedWithCopilot.ID,
+			title: localize2('getStartedWithCopilot', 'Get Started with Copilot'),
+			category: Categories.Help,
+			f1: true,
+			menu: {
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 7
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const openerService = accessor.get(IOpenerService);
+		openerService.open(URI.parse(product.defaultChatAgent!.documentationUrl));
 	}
 }
 
@@ -368,3 +394,7 @@ if (OpenPrivacyStatementUrlAction.AVAILABE) {
 }
 
 registerAction2(GetStartedWithAccessibilityFeatures);
+
+if (GetStartedWithCopilot.AVAILABE) {
+	registerAction2(GetStartedWithCopilot);
+}

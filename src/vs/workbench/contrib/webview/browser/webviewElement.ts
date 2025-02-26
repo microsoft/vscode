@@ -595,7 +595,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 			type Classification = {
 				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension that created the webview.' };
-				owner: 'mjbz';
+				owner: 'mjbvz';
 				comment: 'Helps find which extensions are contributing webviews with invalid CSPs';
 			};
 

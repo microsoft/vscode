@@ -48,7 +48,6 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
-import { IStateService } from '../../state/node/state.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -71,8 +70,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStateService private readonly stateService: IStateService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -262,21 +260,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return window?.win?.isMaximized() ?? false;
 	}
 
-	async maximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.maximize();
-	}
-
-	async unmaximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.unmaximize();
-	}
-
-	async minimizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.minimize();
-	}
-
 	async moveWindowTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.moveTop();
@@ -326,14 +309,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.codeWindowById(windowId);
 
 		this.themeMainService.saveWindowSplash(windowId, window?.openedWorkspace, splash);
-	}
-
-	async overrideDefaultTitlebarStyle(windowId: number | undefined, style: 'custom' | undefined): Promise<void> {
-		if (style === 'custom') {
-			this.stateService.setItem('window.titleBarStyleOverride', style);
-		} else {
-			this.stateService.removeItem('window.titleBarStyleOverride');
-		}
 	}
 
 	//#endregion

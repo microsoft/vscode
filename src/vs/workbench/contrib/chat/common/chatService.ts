@@ -14,13 +14,14 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
 import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolConfirmationMessages } from './languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -132,6 +133,11 @@ export interface IChatTask extends IChatTaskDto {
 	isSettled: () => boolean;
 }
 
+export interface IChatUndoStop {
+	kind: 'undoStop';
+	id: string;
+}
+
 export interface IChatTaskDto {
 	content: IMarkdownString;
 	kind: 'progressTask';
@@ -181,6 +187,13 @@ export interface IChatTextEdit {
 	done?: boolean;
 }
 
+export interface IChatNotebookEdit {
+	uri: URI;
+	edits: ICellEditOperation[];
+	kind: 'notebookEdit';
+	done?: boolean;
+}
+
 export interface IChatConfirmation {
 	title: string;
 	message: string;
@@ -190,7 +203,15 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatTerminalToolInvocationData {
+	kind: 'terminal';
+	command: string;
+	language: string;
+}
+
 export interface IChatToolInvocation {
+	presentation: IPreparedToolInvocation['presentation'];
+	toolSpecificData?: IChatTerminalToolInvocationData;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -198,10 +219,11 @@ export interface IChatToolInvocation {
 	isConfirmed: boolean | undefined;
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
-	tooltip: string | IMarkdownString | undefined;
+	resultDetails: IToolResult['toolResultDetails'];
 
+	isCompletePromise: Promise<void>;
 	isComplete: boolean;
-	isCompleteDeferred: DeferredPromise<void>;
+	complete(result: IToolResult): void;
 	kind: 'toolInvocation';
 }
 
@@ -209,10 +231,12 @@ export interface IChatToolInvocation {
  * This is a IChatToolInvocation that has been serialized, like after window reload, so it is no longer an active tool invocation.
  */
 export interface IChatToolInvocationSerialized {
+	presentation: IPreparedToolInvocation['presentation'];
+	toolSpecificData?: IChatTerminalToolInvocationData;
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
-	tooltip: string | IMarkdownString | undefined;
-	isConfirmed: boolean;
+	resultDetails: IToolResult['toolResultDetails'];
+	isConfirmed: boolean | undefined;
 	isComplete: boolean;
 	kind: 'toolInvocationSerialized';
 }
@@ -231,11 +255,13 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatNotebookEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
 	| IChatToolInvocation
-	| IChatToolInvocationSerialized;
+	| IChatToolInvocationSerialized
+	| IChatUndoStop;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -377,6 +403,8 @@ export interface IChatProviderInfo {
 export interface IChatTransferredSessionData {
 	sessionId: string;
 	inputValue: string;
+	location: ChatAgentLocation;
+	toolsAgentModeEnabled: boolean;
 }
 
 export interface IChatSendRequestResponseState {
@@ -418,7 +446,6 @@ export interface IChatSendRequestOptions {
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
-	workingSet?: URI[];
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
@@ -440,6 +467,8 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
+
+	onDidSubmitRequest: Event<{ chatSessionId: string }>;
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;

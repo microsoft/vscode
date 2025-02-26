@@ -12,12 +12,14 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -45,9 +47,9 @@ import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/cha
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from '../common/inlineChat.js';
 import { HunkInformation, Session, StashedSession } from './inlineChatSession.js';
-import { IInlineChatSessionService } from './inlineChatSessionService.js';
+import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatError } from './inlineChatSessionServiceImpl.js';
 import { HunkAction, IEditObserver, LiveStrategy, ProgressingEditsOptions } from './inlineChatStrategies.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
@@ -99,8 +101,66 @@ export abstract class InlineChatRunOptions {
 
 export class InlineChatController implements IEditorContribution {
 
+	static ID = 'editor.contrib.inlineChatController';
+
 	static get(editor: ICodeEditor) {
-		return editor.getContribution<InlineChatController>(INLINE_CHAT_ID);
+		return editor.getContribution<InlineChatController>(InlineChatController.ID);
+	}
+
+	private readonly _delegate: IObservable<InlineChatController1 | InlineChatController2>;
+
+	constructor(
+		editor: ICodeEditor,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+
+		const inlineChat2 = observableFromEvent(this, Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(CTX_INLINE_CHAT_HAS_AGENT2.keys()))), () => contextKeyService.contextMatchesRules(CTX_INLINE_CHAT_HAS_AGENT2));
+
+		this._delegate = derived(r => {
+			if (inlineChat2.read(r)) {
+				return InlineChatController2.get(editor)!;
+			} else {
+				return InlineChatController1.get(editor)!;
+			}
+		});
+	}
+
+	dispose(): void {
+
+	}
+
+	get isActive(): boolean {
+		return this._delegate.get().isActive;
+	}
+
+	async run(arg?: InlineChatRunOptions): Promise<boolean> {
+		return this._delegate.get().run(arg);
+	}
+
+	focus() {
+		return this._delegate.get().focus();
+	}
+
+	get widget(): EditorBasedInlineChatWidget {
+		return this._delegate.get().widget;
+	}
+
+	getWidgetPosition() {
+		return this._delegate.get().getWidgetPosition();
+	}
+
+	acceptSession() {
+		return this._delegate.get().acceptSession();
+	}
+}
+
+/**
+ * @deprecated
+ */
+export class InlineChatController1 implements IEditorContribution {
+
+	static get(editor: ICodeEditor) {
+		return editor.getContribution<InlineChatController1>(INLINE_CHAT_ID);
 	}
 
 	private _isDisposed: boolean = false;
@@ -645,7 +705,7 @@ export class InlineChatController implements IEditorContribution {
 					CancellationToken.None); // TODO@ulugbekna: add proper cancellation?
 
 
-				InlineChatController.get(newEditor)?.run({ existingSession: newSession });
+				InlineChatController1.get(newEditor)?.run({ existingSession: newSession });
 
 				next = State.CANCEL;
 				responsePromise.complete();
@@ -1102,8 +1162,257 @@ export class InlineChatController implements IEditorContribution {
 	joinCurrentRun(): Promise<void> | undefined {
 		return this._currentRun;
 	}
+
+	get isActive() {
+		return Boolean(this._currentRun);
+	}
 }
 
+export class InlineChatController2 implements IEditorContribution {
+
+	static readonly ID = 'editor.contrib.inlineChatController2';
+
+	static get(editor: ICodeEditor): InlineChatController2 | undefined {
+		return editor.getContribution<InlineChatController2>(InlineChatController2.ID) ?? undefined;
+	}
+
+	private readonly _store = new DisposableStore();
+	private readonly _showWidgetOverrideObs = observableValue(this, false);
+	private readonly _isActiveController = observableValue(this, false);
+	private readonly _zone: Lazy<InlineChatZoneWidget>;
+
+	private readonly _currentSession: IObservable<IInlineChatSession2 | undefined>;
+
+	get widget(): EditorBasedInlineChatWidget {
+		return this._zone.value.widget;
+	}
+
+	get isActive() {
+		return Boolean(this._currentSession.get());
+	}
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
+		@IInlineChatSessionService private readonly _inlineChatSessions: IInlineChatSessionService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+
+		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
+
+		this._zone = new Lazy<InlineChatZoneWidget>(() => {
+
+
+			const location: IChatWidgetLocationOptions = {
+				location: ChatAgentLocation.Editor,
+				resolveData: () => {
+					assertType(this._editor.hasModel());
+
+					return {
+						type: ChatAgentLocation.Editor,
+						selection: this._editor.getSelection(),
+						document: this._editor.getModel().uri,
+						wholeRange: this._editor.getSelection(),
+					};
+				}
+			};
+
+			// inline chat in notebooks
+			// check if this editor is part of a notebook editor
+			// and iff so, use the notebook location but keep the resolveData
+			// talk about editor data
+			for (const notebookEditor of this._notebookEditorService.listNotebookEditors()) {
+				for (const [, codeEditor] of notebookEditor.codeEditors) {
+					if (codeEditor === this._editor) {
+						location.location = ChatAgentLocation.Notebook;
+						break;
+					}
+				}
+			}
+
+			const result = this._instaService.createInstance(InlineChatZoneWidget,
+				location,
+				{
+					enableWorkingSet: 'implicit',
+					rendererOptions: {
+						renderCodeBlockPills: true,
+						renderTextEditsAsSummary: uri => isEqual(uri, _editor.getModel()?.uri)
+					}
+				},
+				this._editor
+			);
+
+			result.domNode.classList.add('inline-chat-2');
+
+			return result;
+		});
+
+
+		const editorObs = observableCodeEditor(_editor);
+
+		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessions.onDidChangeSessions);
+
+		this._currentSession = derived(r => {
+			sessionsSignal.read(r);
+			const model = editorObs.model.read(r);
+			const value = model && _inlineChatSessions.getSession2(model.uri);
+			return value ?? undefined;
+		});
+
+
+		this._store.add(autorun(r => {
+			const session = this._currentSession.read(r);
+			if (!session) {
+				this._isActiveController.set(false, undefined);
+				return;
+			}
+			let foundOne = false;
+			for (const editor of codeEditorService.listCodeEditors()) {
+				if (Boolean(InlineChatController2.get(editor)?._isActiveController.get())) {
+					foundOne = true;
+					break;
+				}
+			}
+			if (!foundOne && _editor.hasWidgetFocus()) {
+				this._isActiveController.set(true, undefined);
+			}
+		}));
+
+		const visibleSessionObs = observableValue<IInlineChatSession2 | undefined>(this, undefined);
+
+		this._store.add(autorunWithStore((r, store) => {
+
+			const model = editorObs.model.read(r);
+			const session = this._currentSession.read(r);
+			const isActive = this._isActiveController.read(r);
+
+			if (!session || !isActive || !model) {
+				visibleSessionObs.set(undefined, undefined);
+				return;
+			}
+
+			const { chatModel } = session;
+			const showShowUntil = this._showWidgetOverrideObs.read(r);
+			const hasNoRequests = chatModel.getRequests().length === 0;
+
+
+			const responseListener = store.add(new MutableDisposable());
+
+			store.add(chatModel.onDidChange(e => {
+				if (e.kind === 'addRequest') {
+					transaction(tx => {
+						this._showWidgetOverrideObs.set(false, tx);
+						visibleSessionObs.set(undefined, tx);
+					});
+					const { response } = e.request;
+					if (!response) {
+						return;
+					}
+					responseListener.value = response.onDidChange(async e => {
+
+						if (!response.isComplete) {
+							return;
+						}
+
+						const shouldShow = response.isCanceled // cancelled
+							|| response.result?.errorDetails // errors
+							|| !response.response.value.find(part => part.kind === 'textEditGroup'
+								&& part.edits.length > 0
+								&& isEqual(part.uri, model.uri)); // NO edits for file
+
+						if (shouldShow) {
+							visibleSessionObs.set(session, undefined);
+						}
+					});
+				}
+			}));
+
+			if (showShowUntil || hasNoRequests) {
+				visibleSessionObs.set(session, undefined);
+			} else {
+				visibleSessionObs.set(undefined, undefined);
+			}
+		}));
+
+		this._store.add(autorun(r => {
+
+			const session = visibleSessionObs.read(r);
+
+			if (!session) {
+				this._zone.rawValue?.hide();
+				_editor.focus();
+				ctxInlineChatVisible.reset();
+			} else {
+				ctxInlineChatVisible.set(true);
+				this._zone.value.widget.setChatModel(session.chatModel);
+				if (!this._zone.value.position) {
+					this._zone.value.show(session.initialPosition);
+				}
+				this._zone.value.reveal(this._zone.value.position!);
+				this._zone.value.widget.focus();
+				session.editingSession.getEntry(session.uri)?.autoAcceptController.get()?.cancel();
+			}
+		}));
+	}
+
+	dispose(): void {
+		this._store.dispose();
+	}
+
+	toggleWidgetUntilNextRequest() {
+		const value = this._showWidgetOverrideObs.get();
+		this._showWidgetOverrideObs.set(!value, undefined);
+	}
+
+	getWidgetPosition(): Position | undefined {
+		return this._zone.rawValue?.position;
+	}
+
+	focus() {
+		this._zone.rawValue?.widget.focus();
+	}
+
+	markActiveController() {
+		this._isActiveController.set(true, undefined);
+	}
+
+	async run(arg?: InlineChatRunOptions): Promise<boolean> {
+		assertType(this._editor.hasModel());
+
+		this.markActiveController();
+
+		const uri = this._editor.getModel().uri;
+		const session = this._inlineChatSessions.getSession2(uri)
+			?? await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
+
+		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
+			if (arg.initialRange) {
+				this._editor.revealRange(arg.initialRange);
+			}
+			if (arg.initialSelection) {
+				this._editor.setSelection(arg.initialSelection);
+			}
+			if (arg.message) {
+				this._zone.value.widget.chatWidget.setInput(arg.message);
+				if (arg.autoSend) {
+					await this._zone.value.widget.chatWidget.acceptInput();
+				}
+			}
+		}
+
+		await Event.toPromise(session.editingSession.onDidDispose);
+
+		const rejected = session.editingSession.getEntry(uri)?.state.get() === WorkingSetEntryState.Rejected;
+		return !rejected;
+	}
+
+	acceptSession() {
+		const value = this._currentSession.get();
+		value?.editingSession.accept();
+	}
+}
 
 export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEditor, stream: AsyncIterable<TextEdit[]>, token: CancellationToken): Promise<boolean> {
 	if (!editor.hasModel()) {
@@ -1141,13 +1450,16 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 		chatRequest.response.complete();
 	}
 
-	const whenDecided = new Promise(resolve => {
-		store.add(autorun(r => {
-			if (!editSession.entries.read(r).some(e => e.state.read(r) === WorkingSetEntryState.Modified)) {
-				resolve(undefined);
-			}
-		}));
+	const isSettled = derived(r => {
+		const entry = editSession.readEntry(uri, r);
+		if (!entry) {
+			return false;
+		}
+		const state = entry.state.read(r);
+		return state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected;
 	});
+
+	const whenDecided = waitForState(isSettled, Boolean);
 
 	await raceCancellation(whenDecided, token);
 

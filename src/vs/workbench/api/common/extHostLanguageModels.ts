@@ -6,7 +6,6 @@
 import type * as vscode from 'vscode';
 import { AsyncIterableObject, AsyncIterableSource } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
@@ -325,6 +324,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				family: data.metadata.family,
 				version: data.metadata.version,
 				name: data.metadata.name,
+				capabilities: {
+					supportsImageToText: data.metadata.capabilities?.vision ?? false,
+					supportsToolCalling: data.metadata.capabilities?.toolCalling ?? false,
+				},
 				maxInputTokens: data.metadata.maxInputTokens,
 				countTokens(text, token) {
 					if (!that._allLanguageModelData.has(identifier)) {
@@ -383,33 +386,21 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 		}
 
+		const requestId = (Math.random() * 1e6) | 0;
+		const res = new LanguageModelResponse();
+		this._pendingRequest.set(requestId, { languageModelId, res });
+
 		try {
-			const requestId = (Math.random() * 1e6) | 0;
-			const res = new LanguageModelResponse();
-			this._pendingRequest.set(requestId, { languageModelId, res });
-
-			try {
-				await this._proxy.$tryStartChatRequest(from, languageModelId, requestId, internalMessages, options, token);
-
-			} catch (error) {
-				// error'ing here means that the request could NOT be started/made, e.g. wrong model, no access, etc, but
-				// later the response can fail as well. Those failures are communicated via the stream-object
-				this._pendingRequest.delete(requestId);
-				throw extHostTypes.LanguageModelError.tryDeserialize(error) ?? error;
-			}
-
-			return res.apiObject;
+			await this._proxy.$tryStartChatRequest(from, languageModelId, requestId, internalMessages, options, token);
 
 		} catch (error) {
-			if (error.name === extHostTypes.LanguageModelError.name) {
-				throw error;
-			}
-			throw new extHostTypes.LanguageModelError(
-				`Language model '${languageModelId}' errored: ${toErrorMessage(error)}`,
-				'Unknown',
-				error
-			);
+			// error'ing here means that the request could NOT be started/made, e.g. wrong model, no access, etc, but
+			// later the response can fail as well. Those failures are communicated via the stream-object
+			this._pendingRequest.delete(requestId);
+			throw extHostTypes.LanguageModelError.tryDeserialize(error) ?? error;
 		}
+
+		return res.apiObject;
 	}
 
 	private _convertMessages(extension: IExtensionDescription, messages: vscode.LanguageModelChatMessage[]) {

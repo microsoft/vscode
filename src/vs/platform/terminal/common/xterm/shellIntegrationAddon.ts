@@ -233,17 +233,33 @@ const enum VSCodeOscPt {
 	 *
 	 * - `Environment` - A stringified JSON object containing the shell's complete environment. The
 	 *    variables and values use the same encoding rules as the {@link CommandLine} sequence.
-	 * - `Nonce` - An _mandatory_ nonce to ensure the sequence is not malicious.
+	 * - `Nonce` - An _mandatory_ nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	EnvJson = 'EnvJson',
 
 	/**
-	 * The start of the collecting user's environment variables individually.
-	 * Clears any environment residuals in previous sessions.
+	 * Delete a single environment variable from cached environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleStart ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	EnvSingleDelete = 'EnvSingleDelete',
+
+	/**
+	 * The start of the collecting user's environment variables individually.
+	 *
+	 * Format: `OSC 633 ; EnvSingleStart ; <Clear> [; <Nonce>]`
+	 *
+	 * - `Clear` - An _mandatory_ flag indicating any cached environment variables will be cleared.
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -252,7 +268,10 @@ const enum VSCodeOscPt {
 	/**
 	 * Sets an entry of single environment variable to transactional pending map of environment variables.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -262,7 +281,10 @@ const enum VSCodeOscPt {
 	 * The end of the collecting user's environment variables individually.
 	 * Clears any pending environment variables and fires an event that contains user's environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEnd ; <Nonce>`
+	 * Format: `OSC 633 ; EnvSingleEnd [; <Nonce>]`
+	 *
+	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
+	 *   to enable some features. This helps ensure no malicious command injection has occurred.
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -401,7 +423,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		this._activationTimeout = setTimeout(() => {
 			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
-				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
+				this._telemetryService?.publicLog2<{}, { owner: 'meganrogge'; comment: 'Indicates shell integration activation timeout' }>('terminal/shellIntegrationActivationTimeout');
 				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
 			}
 			this._hasUpdatedTelemetry = true;
@@ -475,7 +497,18 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.EnvSingleStart: {
-				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === this._nonce);
+				this._createOrGetShellEnvDetection().startEnvironmentSingleVar(args[0] === '1', args[1] === this._nonce);
+				return true;
+			}
+			case VSCodeOscPt.EnvSingleDelete: {
+				const arg0 = args[0];
+
+				const arg1 = args[1];
+				const arg2 = args[2];
+				if (arg0 !== undefined && arg1 !== undefined) {
+					const env = deserializeMessage(arg1);
+					this._createOrGetShellEnvDetection().deleteEnvironmentSingleVar(arg0, env, arg2 === this._nonce);
+				}
 				return true;
 			}
 			case VSCodeOscPt.EnvSingleEntry: {

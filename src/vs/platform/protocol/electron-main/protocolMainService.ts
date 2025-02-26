@@ -5,7 +5,7 @@
 
 import { session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { COI, FileAccess, Schemas } from '../../../base/common/network.js';
+import { COI, FileAccess, Schemas, CacheControlheaders } from '../../../base/common/network.js';
 import { basename, extname, normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
@@ -104,6 +104,15 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 			}
 		}
 
+		// In OSS, evict resources from the memory cache in the renderer process
+		// Refs https://github.com/microsoft/vscode/issues/148541#issuecomment-2670891511
+		if (!this.environmentService.isBuilt) {
+			headers = {
+				...headers,
+				...CacheControlheaders
+			};
+		}
+
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
 			return callback({ path, headers });
@@ -111,7 +120,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// then check by validExtensions
 		if (this.validExtensions.has(extname(path).toLowerCase())) {
-			return callback({ path });
+			return callback({ path, headers });
 		}
 
 		// finally block to load the resource

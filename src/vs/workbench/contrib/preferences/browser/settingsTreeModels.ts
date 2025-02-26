@@ -15,7 +15,7 @@ import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatch
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from '../../../services/configuration/common/configuration.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -42,7 +42,7 @@ export abstract class SettingsTreeElement extends Disposable {
 	parent?: SettingsTreeGroupElement;
 
 	private _tabbable = false;
-	protected readonly _onDidChangeTabbable = new Emitter<void>();
+	protected readonly _onDidChangeTabbable = this._register(new Emitter<void>());
 	readonly onDidChangeTabbable = this._onDidChangeTabbable.event;
 
 	constructor(_id: string) {
@@ -510,7 +510,7 @@ function createSettingMatchRegExp(pattern: string): RegExp {
 	return new RegExp(`^${pattern}$`, 'i');
 }
 
-export class SettingsTreeModel {
+export class SettingsTreeModel implements IDisposable {
 	protected _root!: SettingsTreeGroupElement;
 	private _tocRoot!: ITOCEntry<ISetting>;
 	private readonly _treeElementsBySettingName = new Map<string, SettingsTreeSettingElement[]>();
@@ -540,6 +540,7 @@ export class SettingsTreeModel {
 		if (this._root) {
 			this.disposeChildren(this._root.children);
 			this._root.children = newRoot.children;
+			newRoot.dispose();
 		} else {
 			this._root = newRoot;
 		}
@@ -552,11 +553,11 @@ export class SettingsTreeModel {
 
 	private disposeChildren(children: SettingsTreeGroupChild[]) {
 		for (const child of children) {
-			this.recursiveDispose(child);
+			this.disposeChildAndRecurse(child);
 		}
 	}
 
-	private recursiveDispose(element: SettingsTreeElement) {
+	private disposeChildAndRecurse(element: SettingsTreeElement) {
 		if (element instanceof SettingsTreeGroupElement) {
 			this.disposeChildren(element.children);
 		}
@@ -593,9 +594,14 @@ export class SettingsTreeModel {
 
 		const children: SettingsTreeGroupChild[] = [];
 		if (tocEntry.settings) {
-			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element))
-				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-			children.push(...settingChildren);
+			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element));
+			for (const child of settingChildren) {
+				if (!child.setting.deprecationMessage || child.isConfigured) {
+					children.push(child);
+				} else {
+					child.dispose();
+				}
+			}
 		}
 
 		if (tocEntry.children) {
@@ -632,6 +638,11 @@ export class SettingsTreeModel {
 		nameElements.push(element);
 		this._treeElementsBySettingName.set(setting.key, nameElements);
 		return element;
+	}
+
+	dispose() {
+		this._treeElementsBySettingName.clear();
+		this.disposeChildAndRecurse(this._root);
 	}
 }
 
@@ -960,10 +971,10 @@ export class SearchResultModel extends SettingsTreeModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
-			} else if (a.matchType === SettingMatchType.KeyMatch) {
-				// The match types are the same and are KeyMatch.
-				// Sort by the number of words matched in the key.
-				return b.keyMatchScore - a.keyMatchScore;
+			} else if ((a.matchType & SettingMatchType.NonContiguousWordsInSettingsLabel) || (a.matchType & SettingMatchType.ContiguousWordsInSettingsLabel)) {
+				// The match types of a and b are the same and can be sorted by their number of matched words.
+				// If those numbers are the same, sort by the order in the table of contents.
+				return (b.keyMatchScore - a.keyMatchScore) || compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder);
 			} else if (a.matchType === SettingMatchType.RemoteMatch) {
 				// The match types are the same and are RemoteMatch.
 				// Sort by score.
@@ -1045,11 +1056,24 @@ export class SearchResultModel extends SettingsTreeModel {
 			settings: this.getFlatSettings()
 		});
 
-		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
+		// Save time by filtering children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
 		const isRemote = !!this.environmentService.remoteAuthority;
 
-		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && child.matchesAnyFeature(this._viewState.featureFilters) && child.matchesAllLanguages(this._viewState.languageFilter));
+		const newChildren = [];
+		for (const child of this.root.children) {
+			if (child instanceof SettingsTreeSettingElement
+				&& child.matchesAllTags(this._viewState.tagFilters)
+				&& child.matchesScope(this._viewState.settingsTarget, isRemote)
+				&& child.matchesAnyExtension(this._viewState.extensionFilters)
+				&& child.matchesAnyId(this._viewState.idFilters)
+				&& child.matchesAnyFeature(this._viewState.featureFilters)
+				&& child.matchesAllLanguages(this._viewState.languageFilter)) {
+				newChildren.push(child);
+			} else {
+				child.dispose();
+			}
+		}
+		this.root.children = newChildren;
 		this.searchResultCount = this.root.children.length;
 
 		if (this.newExtensionSearchResults?.filterMatches.length) {

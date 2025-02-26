@@ -342,6 +342,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
+			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
 			editingSession.reject();
 			this._sessions2.delete(uri);
 			this._onDidChangeSessions.fire(this);

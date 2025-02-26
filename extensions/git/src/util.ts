@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri } from 'vscode';
+import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env } from 'vscode';
 import { dirname, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
@@ -11,6 +11,7 @@ import byline from 'byline';
 
 export const isMacintosh = process.platform === 'darwin';
 export const isWindows = process.platform === 'win32';
+export const isRemote = env.remoteName !== undefined;
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -771,4 +772,16 @@ export function getCommitShortHash(scope: Uri, hash: string): string {
 	const config = workspace.getConfiguration('git', scope);
 	const shortHashLength = config.get<number>('commitShortHashLength', 7);
 	return hash.substring(0, shortHashLength);
+}
+
+export type DiagnosticSeverityConfig = 'error' | 'warning' | 'information' | 'hint' | 'none';
+
+export function toDiagnosticSeverity(value: DiagnosticSeverityConfig): DiagnosticSeverity {
+	return value === 'error'
+		? DiagnosticSeverity.Error
+		: value === 'warning'
+			? DiagnosticSeverity.Warning
+			: value === 'information'
+				? DiagnosticSeverity.Information
+				: DiagnosticSeverity.Hint;
 }

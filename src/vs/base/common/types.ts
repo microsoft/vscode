@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from './uri.js';
 import { assert } from './assert.js';
 
 /**
@@ -202,10 +203,9 @@ export function assertOneOf<TType, TSubtype extends TType>(
 }
 
 /**
- * Simple compile-time type check function to validate a type of
- * a provided object.
+ * Compile-time type check of a variable.
  */
-export function typeCheck<T extends unknown>(_thing: T): asserts _thing is T { }
+export function typeCheck<T = never>(_thing: NoInfer<T>): void { }
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -341,3 +341,8 @@ export type DeepPartial<T> = {
  * Represents a type that is a partial version of a given type `T`, except a subset.
  */
 export type PartialExcept<T, K extends keyof T> = Partial<Omit<T, K>> & Pick<T, K>;
+
+/**
+ * Type for an `object` with its `value` property being a {@link URI}.
+ */
+export type WithUriValue<T extends object> = T & { value: URI };

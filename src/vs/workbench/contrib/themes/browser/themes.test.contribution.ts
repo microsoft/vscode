@@ -137,7 +137,7 @@ class Snapper {
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const token = tokens[i];
 			const scopes = token.t.split(' ');
-			const metadata = findMetadata(colorThemeData, scopes, this.languageService.languageIdCodec.encodeLanguageId(languageId));
+			const metadata = findMetadata(colorThemeData, scopes, this.languageService.languageIdCodec.encodeLanguageId(languageId), false);
 			const color = TokenMetadata.getForeground(metadata);
 
 			result[i] = {
@@ -284,10 +284,9 @@ class Snapper {
 		do {
 			if (cursor.currentNode.childCount === 0) {
 				const capture = tokenizationSupport?.captureAtPositionTree(cursor.currentNode.startPosition.row + 1, cursor.currentNode.startPosition.column + 1, tree);
-
 				tokens.push({
-					c: cursor.currentNode.text.replace(/\r\n/g, '\n'),
-					t: capture?.map(cap => cap.name).join(' ') ?? '',
+					c: cursor.currentNode.text.replace(/\r/g, ''),
+					t: capture && capture.length > 0 ? capture[capture.length - 1].name : '',
 					r: {
 						dark_plus: undefined,
 						light_plus: undefined,
