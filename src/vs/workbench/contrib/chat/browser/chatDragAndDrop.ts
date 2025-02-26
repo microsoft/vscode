@@ -29,8 +29,7 @@ import { UntitledTextEditorInput } from '../../../services/untitled/common/untit
 import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry } from '../common/chatModel.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
-import { imageToHash } from './chatPasteProviders.js';
-import { convertStringToUInt8Array, resizeImage } from './imageUtils.js';
+import { resizeImage } from './imageUtils.js';
 
 enum ChatDragAndDropType {
 	FILE_INTERNAL,
@@ -171,8 +170,8 @@ export class ChatDragAndDrop extends Themable {
 		// This is an esstimation based on the datatransfer types/items
 		if (this.isImageDnd(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
-		} else if (containsDragType(e, 'text/html')) {
-			return ChatDragAndDropType.HTML;
+			// } else if (containsDragType(e, 'text/html')) {
+			// 	return ChatDragAndDropType.HTML;
 		} else if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
 			return ChatDragAndDropType.SYMBOL;
 		} else if (containsDragType(e, CodeDataTransfers.MARKERS)) {
@@ -244,10 +243,11 @@ export class ChatDragAndDrop extends Themable {
 			return this.resolveSymbolsAttachContext(data);
 		}
 
-		if (containsDragType(e, 'text/html')) {
-			const data = e.dataTransfer?.getData('text/html');
-			return data ? this.resolveHTMLAttachContext(data) : [];
-		}
+		// Removing HTML support for now
+		// if (containsDragType(e, 'text/html')) {
+		// 	const data = e.dataTransfer?.getData('text/html');
+		// 	return data ? this.resolveHTMLAttachContext(data) : [];
+		// }
 
 		const data = extractEditorsDropData(e);
 		return coalesce(await Promise.all(data.map(editorInput => {
@@ -324,55 +324,55 @@ export class ChatDragAndDrop extends Themable {
 		});
 	}
 
-	private async resolveHTMLAttachContext(data: string): Promise<IChatRequestVariableEntry[]> {
-		const displayName = localize('dragAndDroppedImageName', 'Image from URL');
-		let finalDisplayName = displayName;
+	// private async resolveHTMLAttachContext(data: string): Promise<IChatRequestVariableEntry[]> {
+	// 	const displayName = localize('dragAndDroppedImageName', 'Image from URL');
+	// 	let finalDisplayName = displayName;
 
-		for (let appendValue = 2; this.attachmentModel.attachments.some(attachment => attachment.name === finalDisplayName); appendValue++) {
-			finalDisplayName = `${displayName} ${appendValue}`;
-		}
+	// 	for (let appendValue = 2; this.attachmentModel.attachments.some(attachment => attachment.name === finalDisplayName); appendValue++) {
+	// 		finalDisplayName = `${displayName} ${appendValue}`;
+	// 	}
 
-		const { src, alt } = extractImageAttributes(data);
-		finalDisplayName = alt ?? finalDisplayName;
+	// 	const { src, alt } = extractImageAttributes(data);
+	// 	finalDisplayName = alt ?? finalDisplayName;
 
-		if (/^data:image\/[a-z]+;base64,/.test(src)) {
-			const resizedImage = await resizeImage(src);
-			return [{
-				id: await imageToHash(resizedImage),
-				name: finalDisplayName,
-				value: resizedImage,
-				isImage: true,
-				isFile: false,
-				isDirectory: false
-			}];
-		} else if (/^https?:\/\/.+/.test(src)) {
-			const url = new URL(src);
-			const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(url.pathname);
-			if (isImage) {
-				const buffer = convertStringToUInt8Array(src);
-				return [{
-					kind: 'image',
-					id: url.toString(),
-					name: finalDisplayName,
-					value: buffer,
-					isImage,
-					isFile: false,
-					isDirectory: false,
-					isURL: true,
-				}];
-			} else {
-				return [{
-					kind: 'link',
-					id: url.toString(),
-					name: finalDisplayName,
-					value: URI.parse(url.toString()),
-					isFile: false,
-					isDirectory: false,
-				}];
-			}
-		}
-		return [];
-	}
+	// 	if (/^data:image\/[a-z]+;base64,/.test(src)) {
+	// 		const resizedImage = await resizeImage(src);
+	// 		return [{
+	// 			id: await imageToHash(resizedImage),
+	// 			name: finalDisplayName,
+	// 			value: resizedImage,
+	// 			isImage: true,
+	// 			isFile: false,
+	// 			isDirectory: false
+	// 		}];
+	// 	} else if (/^https?:\/\/.+/.test(src)) {
+	// 		const url = new URL(src);
+	// 		const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(url.pathname);
+	// 		if (isImage) {
+	// 			const buffer = convertStringToUInt8Array(src);
+	// 			return [{
+	// 				kind: 'image',
+	// 				id: url.toString(),
+	// 				name: finalDisplayName,
+	// 				value: buffer,
+	// 				isImage,
+	// 				isFile: false,
+	// 				isDirectory: false,
+	// 				isURL: true,
+	// 			}];
+	// 		} else {
+	// 			return [{
+	// 				kind: 'link',
+	// 				id: url.toString(),
+	// 				name: finalDisplayName,
+	// 				value: URI.parse(url.toString()),
+	// 				isFile: false,
+	// 				isDirectory: false,
+	// 			}];
+	// 		}
+	// 	}
+	// 	return [];
+	// }
 
 	private resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[] {
 		return markers.map((marker): IDiagnosticVariableEntry => {
@@ -571,16 +571,16 @@ function symbolId(resource: URI, range?: IRange): string {
 	return resource.fsPath + rangePart;
 }
 
-function extractImageAttributes(html: string): { src: string; alt?: string } {
-	const imgTagRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/;
-	const altRegex = /alt=["']([^"']+)["']/;
+// function extractImageAttributes(html: string): { src: string; alt?: string } {
+// 	const imgTagRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/;
+// 	const altRegex = /alt=["']([^"']+)["']/;
 
-	const match = imgTagRegex.exec(html);
-	if (match) {
-		const src = match[1];
-		const altMatch = match[0].match(altRegex);
-		return { src, alt: altMatch ? altMatch[1] : undefined };
-	}
+// 	const match = imgTagRegex.exec(html);
+// 	if (match) {
+// 		const src = match[1];
+// 		const altMatch = match[0].match(altRegex);
+// 		return { src, alt: altMatch ? altMatch[1] : undefined };
+// 	}
 
-	return { src: '', alt: undefined };
-}
+// 	return { src: '', alt: undefined };
+// }
