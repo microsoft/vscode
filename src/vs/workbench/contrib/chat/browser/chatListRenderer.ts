@@ -144,7 +144,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	/**
 	 * Tool invocations get their own so that the ChatViewModel doesn't overwrite it.
-	 * TODO@roblourens @mjbvz is there a better solution?
+	 * TODO@roblourens shouldn't use the CodeBlockModelCollection at all
 	 */
 	private readonly _toolInvocationCodeBlockCollection: CodeBlockModelCollection;
 
