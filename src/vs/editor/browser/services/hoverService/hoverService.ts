@@ -291,8 +291,8 @@ export class HoverService extends Disposable implements IHoverService {
 		);
 	}
 
-	hideHover(): void {
-		if (this._currentHover?.isLocked || !this._currentHoverOptions) {
+	hideHover(force?: boolean): void {
+		if ((!force && this._currentHover?.isLocked) || !this._currentHoverOptions) {
 			return;
 		}
 		this.doHideHover();

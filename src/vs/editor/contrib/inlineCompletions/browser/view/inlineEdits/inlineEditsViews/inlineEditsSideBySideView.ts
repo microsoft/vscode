@@ -125,6 +125,9 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	private readonly _editorContainer = n.div({
 		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.useGutterIndicator && 'showHover')],
 		style: { position: 'absolute', overflow: 'hidden', cursor: 'pointer' },
+		onmousedown: e => {
+			e.preventDefault(); // This prevents that the editor loses focus
+		},
 		onclick: (e) => {
 			this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
 		}

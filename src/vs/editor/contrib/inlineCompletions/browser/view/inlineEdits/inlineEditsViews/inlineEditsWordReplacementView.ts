@@ -186,6 +186,9 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 							cursor: 'pointer',
 							pointerEvents: 'auto',
 						},
+						onmousedown: e => {
+							e.preventDefault(); // This prevents that the editor loses focus
+						},
 						onmouseup: (e) => this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)),
 						obsRef: (elem) => {
 							this._hoverableElement.set(elem, undefined);

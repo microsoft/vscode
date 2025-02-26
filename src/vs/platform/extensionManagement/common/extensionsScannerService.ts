@@ -35,7 +35,12 @@ import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfil
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { localizeManifest } from './extensionNls.js';
 
-export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
+export type ManifestMetadata = Partial<{
+	installedTimestamp: number;
+	size: number;
+}>;
+
+export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: ManifestMetadata };
 
 interface IRelaxedScannedExtension {
 	type: ExtensionType;
@@ -136,7 +141,7 @@ export interface IExtensionsScannerService {
 	scanMultipleExtensions(extensionLocations: URI[], extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]>;
 	scanOneOrMultipleExtensions(extensionLocation: URI, extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]>;
 
-	updateMetadata(extensionLocation: URI, metadata: Partial<Metadata>): Promise<void>;
+	updateManifestMetadata(extensionLocation: URI, metadata: ManifestMetadata): Promise<void>;
 	initializeDefaultProfileExtensions(): Promise<void>;
 }
 
@@ -270,18 +275,10 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		return this.applyScanOptions(extensions, extensionType, { includeInvalid: scanOptions.includeInvalid, pickLatest: true });
 	}
 
-	async updateMetadata(extensionLocation: URI, metaData: Partial<Metadata>): Promise<void> {
+	async updateManifestMetadata(extensionLocation: URI, metaData: ManifestMetadata): Promise<void> {
 		const manifestLocation = joinPath(extensionLocation, 'package.json');
 		const content = (await this.fileService.readFile(manifestLocation)).value.toString();
 		const manifest: IScannedExtensionManifest = JSON.parse(content);
-
-		// unset if false
-		if (metaData.isMachineScoped === false) {
-			delete metaData.isMachineScoped;
-		}
-		if (metaData.isBuiltin === false) {
-			delete metaData.isBuiltin;
-		}
 		manifest.__metadata = { ...manifest.__metadata, ...metaData };
 
 		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
@@ -665,10 +662,20 @@ class ExtensionsScanner extends Disposable {
 		if (!manifest.publisher) {
 			manifest.publisher = UNDEFINED_PUBLISHER;
 		}
-		const metadata = scannedProfileExtension?.metadata ?? manifest.__metadata;
-		if (metadata && !metadata?.size && manifest.__metadata?.size) {
-			metadata.size = manifest.__metadata?.size;
+
+		let metadata: Metadata | undefined;
+		if (scannedProfileExtension) {
+			metadata = {
+				...scannedProfileExtension.metadata,
+				size: manifest.__metadata?.size,
+			};
+		} else if (manifest.__metadata) {
+			metadata = {
+				installedTimestamp: manifest.__metadata.installedTimestamp,
+				size: manifest.__metadata.size,
+			};
 		}
+
 		delete manifest.__metadata;
 		const id = getGalleryExtensionId(manifest.publisher, manifest.name);
 		const identifier = metadata?.id ? { id, uuid: metadata.id } : { id };

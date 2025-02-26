@@ -17,6 +17,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -132,6 +133,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
 
 	private readonly _editorPool: EditorPool;
+	private readonly _toolEditorPool: EditorPool;
 	private readonly _diffEditorPool: DiffEditorPool;
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
@@ -142,7 +144,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	/**
 	 * Tool invocations get their own so that the ChatViewModel doesn't overwrite it.
-	 * TODO@roblourens @mjbvz is there a better solution?
+	 * TODO@roblourens shouldn't use the CodeBlockModelCollection at all
 	 */
 	private readonly _toolInvocationCodeBlockCollection: CodeBlockModelCollection;
 
@@ -166,6 +168,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.renderer = this.instantiationService.createInstance(ChatMarkdownRenderer, undefined);
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode));
+		this._toolEditorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode));
 		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined));
@@ -179,7 +182,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	editorsInUse(): Iterable<CodeBlockPart> {
-		return this._editorPool.inUse();
+		return Iterable.concat(this._editorPool.inUse(), this._toolEditorPool.inUse());
 	}
 
 	private traceLayout(method: string, message: string) {
@@ -243,6 +246,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._currentLayoutWidth = width - (this.rendererOptions.noPadding ? 0 : 40); // padding
 		for (const editor of this._editorPool.inUse()) {
 			editor.layout(this._currentLayoutWidth);
+		}
+		for (const toolEditor of this._toolEditorPool.inUse()) {
+			toolEditor.layout(this._currentLayoutWidth);
 		}
 		for (const diffEditor of this._diffEditorPool.inUse()) {
 			diffEditor.layout(this._currentLayoutWidth);
@@ -816,6 +822,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		if (element.model.isPaused.get()) {
+			return true;
+		}
+
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = partsToRender.at(-1);
 		if (!lastPart || lastPart.kind === 'references' || (lastPart.kind === 'toolInvocation' && lastPart.isComplete) || (lastPart.kind === 'textEditGroup' && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete))) {
@@ -994,7 +1004,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
-		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.renderer, this._contentReferencesListPool, this._editorPool, () => this._currentLayoutWidth, this._toolInvocationCodeBlockCollection, codeBlockStartIndex);
+		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.renderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth, this._toolInvocationCodeBlockCollection, codeBlockStartIndex);
 		part.addDisposable(part.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
 		}));

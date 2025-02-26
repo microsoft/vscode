@@ -59,10 +59,6 @@ export type UninstallExtensionOnServerEvent = UninstallExtensionEvent & { server
 export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
 export type DidChangeProfileForServerEvent = DidChangeProfileEvent & { server: IExtensionManagementServer };
 
-export interface IWorkbenchInstallOptions extends InstallOptions {
-	servers?: IExtensionManagementServer[];
-}
-
 export interface IPublisherInfo {
 	readonly publisher: string;
 	readonly publisherDisplayName: string;
@@ -91,7 +87,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 
 	getInstallableServers(extension: IGalleryExtension): Promise<IExtensionManagementServer[]>;
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallOptions): Promise<ILocalExtension>;
-	installFromGallery(gallery: IGalleryExtension, installOptions?: IWorkbenchInstallOptions): Promise<ILocalExtension>;
+	installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions, servers?: IExtensionManagementServer[]): Promise<ILocalExtension>;
 	installFromLocation(location: URI): Promise<ILocalExtension>;
 	installResourceExtension(extension: IResourceExtension, installOptions: InstallOptions): Promise<ILocalExtension>;
 

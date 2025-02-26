@@ -15,6 +15,7 @@ import { IResourceDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { NotebookDeletedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
 import { NotebookInsertedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookInsertedCellDecorator.js';
+import { NotebookModifiedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookModifiedCellDecorator.js';
 import { INotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
@@ -66,7 +67,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
 
-	private readonly insertDeleteDecorators: IObservable<{ insertedCellDecorator: NotebookInsertedCellDecorator; deletedCellDecorator: NotebookDeletedCellDecorator } | undefined>;
+	private readonly insertDeleteDecorators: IObservable<{ insertedCellDecorator: NotebookInsertedCellDecorator; modifiedCellDecorator: NotebookModifiedCellDecorator; deletedCellDecorator: NotebookDeletedCellDecorator } | undefined>;
 
 	constructor(
 		private readonly _entry: IModifiedFileEntry,
@@ -183,6 +184,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			}
 
 			const insertedCellDecorator = store.add(this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor));
+			const modifiedCellDecorator = store.add(this.instantiationService.createInstance(NotebookModifiedCellDecorator, this.notebookEditor));
 			const deletedCellDecorator = store.add(this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor, {
 				className: 'chat-diff-change-content-widget',
 				telemetrySource: 'chatEditingNotebookHunk',
@@ -209,6 +211,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 			return {
 				insertedCellDecorator,
+				modifiedCellDecorator,
 				deletedCellDecorator
 			};
 		});
@@ -219,6 +222,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			const decorators = this.insertDeleteDecorators.read(r);
 			if (decorators) {
 				decorators.insertedCellDecorator.apply(changes);
+				decorators.modifiedCellDecorator.apply(changes);
 				decorators.deletedCellDecorator.apply(changes, originalModel);
 			}
 		}));
