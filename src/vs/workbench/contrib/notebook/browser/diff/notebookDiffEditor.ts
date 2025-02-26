@@ -289,6 +289,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	async toggleInlineView(): Promise<void> {
+		this._layoutCancellationTokenSource?.dispose();
+
 		this._inlineView = !this._inlineView;
 
 		if (!this._lastLayoutProperties) {
@@ -303,7 +305,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this.inlineDiffWidget?.hide();
 		}
 
-		this.updateLayout(CancellationToken.None);
+		this._layoutCancellationTokenSource = new CancellationTokenSource();
+		this.updateLayout(this._layoutCancellationTokenSource.token);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
