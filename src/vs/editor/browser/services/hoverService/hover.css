@@ -33,12 +33,8 @@
 .monaco-workbench .workbench-hover-container.locked .workbench-hover {
 	outline: 1px solid var(--vscode-editorHoverWidget-border);
 }
-.monaco-workbench .workbench-hover-container.locked .workbench-hover:focus,
-.monaco-workbench .workbench-hover-lock:focus {
+.monaco-workbench .workbench-hover-container.locked .workbench-hover:focus {
 	outline: 1px solid var(--vscode-focusBorder);
-}
-.monaco-workbench .workbench-hover-container.locked .workbench-hover-lock:hover {
-	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-workbench .workbench-hover-pointer {
@@ -62,6 +58,8 @@
 	height: 4px;
 	border-right-width: 2px;
 	border-bottom-width: 2px;
+	border-right: 1px solid var(--vscode-focusBorder);
+	border-bottom: 1px solid var(--vscode-focusBorder);
 }
 
 .monaco-workbench .workbench-hover-pointer.left   { left: -3px; }
