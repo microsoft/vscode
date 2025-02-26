@@ -197,7 +197,6 @@ export class MarkdownCommentStart extends ParserBase<TSimpleToken, MarkdownComme
  * );
  * ```
  */
-// TODO: @legomushroom - move to common utils?
 const pick = <TObject, TKeyName extends keyof TObject>(
 	key: TKeyName,
 ) => {

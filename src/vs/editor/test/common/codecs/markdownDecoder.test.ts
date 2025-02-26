@@ -59,8 +59,8 @@ export class TestMarkdownDecoder extends TestDecoder<TMarkdownToken, MarkdownDec
 suite('MarkdownDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('general', () => {
-		test('produces expected tokens', async () => {
+	suite('• general', () => {
+		test('• base cases', async () => {
 			const test = testDisposables.add(
 				new TestMarkdownDecoder(),
 			);
@@ -125,7 +125,7 @@ suite('MarkdownDecoder', () => {
 			);
 		});
 
-		test('handles complex cases', async () => {
+		test('• nuanced', async () => {
 			const test = testDisposables.add(
 				new TestMarkdownDecoder(),
 			);
@@ -172,9 +172,9 @@ suite('MarkdownDecoder', () => {
 		});
 	});
 
-	suite('links', () => {
-		suite('broken links', () => {
-			test('incomplete/invalid links', async () => {
+	suite('• links', () => {
+		suite('• broken', () => {
+			test('• invalid', async () => {
 				const test = testDisposables.add(
 					new TestMarkdownDecoder(),
 				);
@@ -214,7 +214,7 @@ suite('MarkdownDecoder', () => {
 				);
 			});
 
-			suite('stop characters inside caption/reference (new lines)', () => {
+			suite('• stop characters inside caption/reference (new lines)', () => {
 				for (const stopCharacter of [CarriageReturn, NewLine]) {
 					let characterName = '';
 
@@ -230,7 +230,7 @@ suite('MarkdownDecoder', () => {
 						'The "characterName" must be set, got "empty line".',
 					);
 
-					test(`stop character - "${characterName}"`, async () => {
+					test(`• stop character - "${characterName}"`, async () => {
 						const test = testDisposables.add(
 							new TestMarkdownDecoder(),
 						);
@@ -289,7 +289,7 @@ suite('MarkdownDecoder', () => {
 			/**
 			 * Same as above but these stop characters do not move the caret to the next line.
 			 */
-			suite('stop characters inside caption/reference (same line)', () => {
+			suite('• stop characters inside caption/reference (same line)', () => {
 				for (const stopCharacter of [VerticalTab, FormFeed]) {
 					let characterName = '';
 
@@ -305,7 +305,7 @@ suite('MarkdownDecoder', () => {
 						'The "characterName" must be set, got "empty line".',
 					);
 
-					test(`stop character - "${characterName}"`, async () => {
+					test(`• stop character - "${characterName}"`, async () => {
 						const test = testDisposables.add(
 							new TestMarkdownDecoder(),
 						);
@@ -363,9 +363,9 @@ suite('MarkdownDecoder', () => {
 		});
 	});
 
-	suite('comments', () => {
-		suite('general', () => {
-			test('base cases', async () => {
+	suite('• comments', () => {
+		suite('• general', () => {
+			test('• base cases', async () => {
 				const test = testDisposables.add(
 					new TestMarkdownDecoder(),
 				);
@@ -425,7 +425,7 @@ suite('MarkdownDecoder', () => {
 				);
 			});
 
-			test('nuanced cases', async () => {
+			test('• nuanced', async () => {
 				const test = testDisposables.add(
 					new TestMarkdownDecoder(),
 				);
@@ -474,7 +474,7 @@ suite('MarkdownDecoder', () => {
 		});
 
 
-		test('not valid comments', async () => {
+		test('• invalid', async () => {
 			const test = testDisposables.add(
 				new TestMarkdownDecoder(),
 			);
