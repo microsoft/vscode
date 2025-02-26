@@ -130,9 +130,13 @@ export class MarkdownCommentStart extends ParserBase<TSimpleToken, MarkdownComme
 	public asMarkdownComment(): MarkdownComment {
 		this.isConsumed = true;
 
+		const text = this.currentTokens
+			.map(pick('text'))
+			.join('');
+
 		return new MarkdownComment(
 			this.range,
-			Object.freeze(this.currentTokens),
+			text,
 		);
 	}
 
@@ -170,3 +174,34 @@ export class MarkdownCommentStart extends ParserBase<TSimpleToken, MarkdownComme
 		return true;
 	}
 }
+
+/**
+ * Utility that helps to pick a property from an object.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * interface IObject = {
+ *   a: number,
+ *   b: string,
+ * };
+ *
+ * const list: IObject[] = [
+ *   { a: 1, b: 'foo' },
+ *   { a: 2, b: 'bar' },
+ * ];
+ *
+ * assert.deepStrictEqual(
+ *   list.map(pick('a')),
+ *   [1, 2],
+ * );
+ * ```
+ */
+// TODO: @legomushroom - move to common utils?
+const pick = <TObject, TKeyName extends keyof TObject>(
+	key: TKeyName,
+) => {
+	return (obj: TObject): TObject[TKeyName] => {
+		return obj[key];
+	};
+};
