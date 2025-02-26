@@ -775,6 +775,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
+		options.overflowWidgetsDomNode?.classList.add('chat-input-overflow');
 		options.pasteAs = EditorOptions.pasteAs.defaultValue;
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
@@ -786,7 +787,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
 		options.suggest = {
-			showIcons: false,
+			showIcons: true,
 			showSnippets: false,
 			showWords: true,
 			showStatusBar: false,
