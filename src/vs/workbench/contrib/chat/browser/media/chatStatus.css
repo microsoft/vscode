@@ -6,13 +6,19 @@
 /* Overall */
 
 .chat-status-bar-entry-tooltip {
-	margin-top: 6px;
-	margin-bottom: 6px;
+	margin-top: 4px;
+	margin-bottom: 4px;
 }
 
 .chat-status-bar-entry-tooltip hr {
 	margin-top: 8px;
 	margin-bottom: 8px;
+}
+
+.chat-status-bar-entry-tooltip div.header {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+	font-weight: 600;
 }
 
 .chat-status-bar-entry-tooltip div.description {
@@ -93,8 +99,7 @@
 /* Quota Indicator */
 
 .chat-status-bar-entry-tooltip .quota-indicator {
-	margin-top: 8px;
-	margin-bottom: 8px;
+	margin-bottom: 6px;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-label {
@@ -115,4 +120,20 @@
 	height: 100%;
 	background-color: var(--vscode-gauge-background);
 	border-radius: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar {
+	background-color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-warningBackground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar {
+	background-color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-errorBackground);
 }
