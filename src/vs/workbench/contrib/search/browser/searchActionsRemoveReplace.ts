@@ -380,6 +380,7 @@ export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibl
 			if (navigator.current() instanceof AITextSearchHeadingImpl) {
 				return navigator.current();
 			}
+			await viewer.expand(navigator.current());
 		}
 	} else {
 		while (navigator.next() && (!isSearchTreeMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
