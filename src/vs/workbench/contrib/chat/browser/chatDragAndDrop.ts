@@ -171,8 +171,8 @@ export class ChatDragAndDrop extends Themable {
 		// This is an esstimation based on the datatransfer types/items
 		if (this.isImageDnd(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
-		} else if (containsDragType(e, 'text/html')) {
-			return ChatDragAndDropType.HTML;
+			// } else if (containsDragType(e, 'text/html')) {
+			// 	return ChatDragAndDropType.HTML;
 		} else if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
 			return ChatDragAndDropType.SYMBOL;
 		} else if (containsDragType(e, CodeDataTransfers.MARKERS)) {
@@ -244,10 +244,11 @@ export class ChatDragAndDrop extends Themable {
 			return this.resolveSymbolsAttachContext(data);
 		}
 
-		if (containsDragType(e, 'text/html')) {
-			const data = e.dataTransfer?.getData('text/html');
-			return data ? this.resolveHTMLAttachContext(data) : [];
-		}
+		// Removing HTML support for now
+		// if (containsDragType(e, 'text/html')) {
+		// 	const data = e.dataTransfer?.getData('text/html');
+		// 	return data ? this.resolveHTMLAttachContext(data) : [];
+		// }
 
 		const data = extractEditorsDropData(e);
 		return coalesce(await Promise.all(data.map(editorInput => {
