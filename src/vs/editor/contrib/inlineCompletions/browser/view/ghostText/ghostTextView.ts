@@ -224,7 +224,10 @@ export class GhostTextView extends Disposable {
 					after: {
 						content: p.text,
 						tokens: p.tokens,
-						inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' + extraClassNames + p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
+						inlineClassName: (p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration')
+							+ (this._isClickable ? ' clickable' : '')
+							+ extraClassNames
+							+ p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
 						cursorStops: InjectedTextCursorStops.Left,
 						attachedData: new GhostTextAttachedData(),
 					},
