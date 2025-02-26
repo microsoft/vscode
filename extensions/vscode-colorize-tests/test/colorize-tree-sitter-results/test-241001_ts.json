@@ -1261,7 +1261,7 @@
 	},
 	{
 		"c": "rest",
-		"t": "variable",
+		"t": "variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
