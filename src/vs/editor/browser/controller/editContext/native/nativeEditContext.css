@@ -7,7 +7,6 @@
 	margin: 0;
 	padding: 0;
 	position: absolute;
-	overflow: hidden;
 	z-index: -10;
 	white-space: pre-wrap;
 }

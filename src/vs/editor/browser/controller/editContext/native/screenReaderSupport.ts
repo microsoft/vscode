@@ -123,13 +123,19 @@ export class ScreenReaderSupport {
 
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
 		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._screenReaderContentState.startPositionWithinEditor.lineNumber) - editorScrollTop;
+		// const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber) - editorScrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
 			return;
 		}
 
-		this._doRender(top, this._contentLeft, this._contentWidth, this._lineHeight);
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const wrappingColumn = layoutInfo.wrappingColumn;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const width = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
+		this._doRender(top, this._contentLeft, width, this._lineHeight);
 		this._setScrollTop();
 	}
 
