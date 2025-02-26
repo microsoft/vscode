@@ -60,7 +60,6 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 
 		// if there is a current parser object, submit the token to it
 		// so it can progress with parsing the tokens sequence
-		// TODO: @lego - handle `accept` errors thrown
 		const parseResult = this.current.accept(token);
 		if (parseResult.result === 'success') {
 			const { nextParser } = parseResult;
@@ -94,8 +93,18 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 
 	protected override onStreamEnd(): void {
 		// if the stream has ended and there is a current incomplete parser
-		// object present, then re-emit its tokens as standalone entities
+		// object present, handle the remaining parser object
 		if (this.current) {
+			// if a `markdown comment` does not have an end marker `-->`
+			// it is still a comment that extends to the end of the file
+			// so re-emit the current parser as a comment token
+			if (this.current instanceof MarkdownCommentStart) {
+				this._onData.fire(this.current.asMarkdownComment());
+				delete this.current;
+				return this.onStreamEnd();
+			}
+
+			// in all other cases, re-emit existing parser tokens
 			const { tokens } = this.current;
 			delete this.current;
 
