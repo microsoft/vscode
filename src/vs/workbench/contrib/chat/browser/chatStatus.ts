@@ -36,6 +36,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 const gaugeBackground = registerColor('gauge.background', {
 	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
@@ -76,7 +77,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -87,6 +89,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	private async create(): Promise<void> {
 		if (this.configurationService.getValue<boolean>('chat.experimental.statusIndicator.enabled') === true) {
 			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */);
+			this.statusbarService.updateEntryVisibility(`${this.productService.defaultChatAgent?.extensionId}.status`, false); // TODO@bpasero: remove this eventually
 		} else {
 			this.entry?.dispose();
 			this.entry = undefined;
