@@ -324,6 +324,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				family: data.metadata.family,
 				version: data.metadata.version,
 				name: data.metadata.name,
+				capabilities: {
+					supportsImageToText: data.metadata.capabilities?.vision ?? false,
+					supportsToolCalling: data.metadata.capabilities?.toolCalling ?? false,
+				},
 				maxInputTokens: data.metadata.maxInputTokens,
 				countTokens(text, token) {
 					if (!that._allLanguageModelData.has(identifier)) {

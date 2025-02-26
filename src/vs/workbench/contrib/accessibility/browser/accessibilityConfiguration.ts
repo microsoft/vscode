@@ -14,7 +14,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Event } from '../../../../base/common/event.js';
 import { isDefined } from '../../../../base/common/types.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -507,6 +506,16 @@ const configuration: IConfigurationNode = {
 				}
 			}
 		},
+		'accessibility.signals.chatEditModifiedFile': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.chatEditModifiedFile', "Plays a sound / audio cue when revealing a file with changes from chat edits"),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatEditModifiedFile.sound', "Plays a sound when revealing a file with changes from chat edits"),
+					...soundFeatureBase
+				}
+			}
+		},
 		'accessibility.signals.notebookCellCompleted': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.notebookCellCompleted', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a notebook cell execution is successfully completed."),
@@ -719,7 +728,12 @@ const configuration: IConfigurationNode = {
 			enum: ['none', 'input', 'lastExecution'],
 			default: 'input',
 			description: localize('replEditor.autoFocusAppendedCell', "Control whether focus should automatically be sent to the REPL when code is executed."),
-		}
+		},
+		'accessibility.windowTitleOptimized': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.windowTitleOptimized', "Controls whether the {0} should be optimized for screen readers when in screen reader mode. When enabled, the window title will have {1} appended to the end.", '`#window.title#`', '`activeEditorState`')
+		},
 	}
 };
 
@@ -765,8 +779,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 	static readonly ID = 'workbench.contrib.dynamicSpeechAccessibilityConfiguration';
 
 	constructor(
-		@ISpeechService private readonly speechService: ISpeechService,
-		@IProductService private readonly productService: IProductService
+		@ISpeechService private readonly speechService: ISpeechService
 	) {
 		super();
 
@@ -817,7 +830,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 						localize('accessibility.voice.autoSynthesize.off', "Disable the feature."),
 					],
 					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
-					'default': this.productService.quality !== 'stable' ? 'on' : 'off',
+					'default': 'off',
 					'tags': ['accessibility']
 				}
 			}

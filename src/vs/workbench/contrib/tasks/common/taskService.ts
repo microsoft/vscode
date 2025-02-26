@@ -77,6 +77,7 @@ export interface ITaskService {
 	getBusyTasks(): Promise<Task[]>;
 	terminate(task: Task): Promise<ITaskTerminateResponse>;
 	tasks(filter?: ITaskFilter): Promise<Task[]>;
+	rerun(terminalInstanceId: number): void;
 	/**
 	 * Gets tasks currently known to the task system. Unlike {@link tasks},
 	 * this does not activate extensions or prompt for workspace trust.

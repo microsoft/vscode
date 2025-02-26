@@ -52,8 +52,9 @@ export const chatSubcommandLeader = '/';
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
+ * @deprecated, but kept for backwards compatibility with old persisted chat requests
  */
-export class ChatRequestVariablePart implements IParsedChatRequestPart {
+class ChatRequestVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'var';
 	readonly kind = ChatRequestVariablePart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string, readonly variableId: string) { }
@@ -142,7 +143,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean, readonly isDirectory?: boolean) { }
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
@@ -211,7 +212,8 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					revive((part as ChatRequestDynamicVariablePart).data),
 					(part as ChatRequestDynamicVariablePart).fullName,
 					(part as ChatRequestDynamicVariablePart).icon,
-					(part as ChatRequestDynamicVariablePart).isFile
+					(part as ChatRequestDynamicVariablePart).isFile,
+					(part as ChatRequestDynamicVariablePart).isDirectory
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

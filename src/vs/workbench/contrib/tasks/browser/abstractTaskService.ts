@@ -2007,7 +2007,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._contextService, this._environmentService,
 			AbstractTaskService.OutputChannelId, this._fileService, this._terminalProfileResolverService,
 			this._pathService, this._viewDescriptorService, this._logService, this._notificationService,
-			this._instantiationService,
+			this._contextKeyService, this._instantiationService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
 					return this._getTaskSystemInfo(workspaceFolder.uri.scheme);
@@ -2503,17 +2503,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const workspaceFolder: IWorkspaceFolder = this._contextService.getWorkspace().folders[0];
 			workspaceFolders.push(workspaceFolder);
 			executionEngine = this._computeExecutionEngine(workspaceFolder);
-			const telemetryData: { [key: string]: any } = {
-				executionEngineVersion: executionEngine
-			};
-			/* __GDPR__
-				"taskService.engineVersion" : {
-					"owner": "alexr00",
-					"comment": "The engine version of tasks. Used to determine if a user is using a deprecated version.",
-					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The engine version of tasks." }
-				}
-			*/
-			this._telemetryService.publicLog('taskService.engineVersion', telemetryData);
 			schemaVersion = this._computeJsonSchemaVersion(workspaceFolder);
 		} else if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			workspace = this._contextService.getWorkspace();
@@ -2523,7 +2512,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					ignoredWorkspaceFolders.push(workspaceFolder);
 					this._log(nls.localize(
-						'taskService.ignoreingFolder',
+						'taskService.ignoringFolder',
 						'Ignoring task configurations for workspace folder {0}. Multi folder workspace task support requires that all folders use task version 2.0.0',
 						workspaceFolder.uri.fsPath));
 				}
@@ -2948,7 +2937,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private _reRunTaskCommand(): void {
+
+	rerun(terminalInstanceId: number): void {
+		const task = this._taskSystem?.getTaskForTerminal(terminalInstanceId);
+		if (task) {
+			this._restart(task);
+		} else {
+			this._reRunTaskCommand(true);
+		}
+	}
+
+	private _reRunTaskCommand(onlyRerun?: boolean): void {
 
 		ProblemMatcherRegistry.onReady().then(() => {
 			return this._editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
@@ -2956,7 +2955,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);
 				} else {
-					if (!this._taskRunningState.get()) {
+					if (!onlyRerun && !this._taskRunningState.get()) {
 						// No task running, prompt to ask which to run
 						this._doRunTaskCommand();
 					}

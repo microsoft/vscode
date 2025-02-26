@@ -54,9 +54,9 @@ export function assert(
 /**
  * Like assert, but doesn't throw.
  */
-export function softAssert(condition: boolean): void {
+export function softAssert(condition: boolean, message = 'Soft Assertion Failed'): void {
 	if (!condition) {
-		onUnexpectedError(new BugIndicatingError('Soft Assertion Failed'));
+		onUnexpectedError(new BugIndicatingError(message));
 	}
 }
 

@@ -15,7 +15,7 @@
 }
 
 .chat-inline-anchor-widget .icon-label {
-	padding-right: 3px;
+	padding: 0 3px;
 }
 
 .interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget {
@@ -45,7 +45,6 @@
 	background-repeat: no-repeat;
 
 	padding: 0 !important;
-	margin-right: 3px;
 	margin-bottom: 1px;
 
 	flex-shrink: 0;

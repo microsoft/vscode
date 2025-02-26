@@ -14,7 +14,6 @@ import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
@@ -1330,18 +1329,6 @@ export class Repository {
 			.filter(entry => !!entry);
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
-		const stdout = await this.buffer(object);
-
-		if (autoGuessEncoding) {
-			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
-		}
-
-		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-
-		return iconv.decode(stdout, encoding);
-	}
-
 	async buffer(object: string): Promise<Buffer> {
 		const child = this.stream(['show', '--textconv', object]);
 
@@ -1392,7 +1379,7 @@ export class Repository {
 		}
 
 		const { mode, object, size } = elements[0];
-		return { mode, object, size: parseInt(size) };
+		return { mode, object, size: parseInt(size) || 0 };
 	}
 
 	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {
@@ -1894,16 +1881,6 @@ export class Repository {
 
 	async mergeAbort(): Promise<void> {
 		await this.exec(['merge', '--abort']);
-	}
-
-	async mergeContinue(): Promise<void> {
-		const args = ['merge', '--continue'];
-
-		try {
-			await this.exec(args, { env: { GIT_EDITOR: 'true' } });
-		} catch (commitErr) {
-			await this.handleCommitError(commitErr);
-		}
 	}
 
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {

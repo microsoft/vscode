@@ -18,9 +18,11 @@ import { mkdirTestSuiteSpec } from './completions/upstream/mkdir.test';
 import { rmTestSuiteSpec } from './completions/upstream/rm.test';
 import { rmdirTestSuiteSpec } from './completions/upstream/rmdir.test';
 import { touchTestSuiteSpec } from './completions/upstream/touch.test';
+import { gitTestSuiteSpec } from './completions/upstream/git.test';
 import { osIsWindows } from '../helpers/os';
 import codeCompletionSpec from '../completions/code';
 import { figGenericTestSuites } from './fig.test';
+import { IFigExecuteExternals } from '../fig/execute';
 
 const testSpecs2: ISuiteSpec[] = [
 	{
@@ -49,6 +51,7 @@ const testSpecs2: ISuiteSpec[] = [
 	rmTestSuiteSpec,
 	rmdirTestSuiteSpec,
 	touchTestSuiteSpec,
+	gitTestSuiteSpec,
 ];
 
 if (osIsWindows()) {
@@ -90,23 +93,48 @@ suite('Terminal Suggest', () => {
 					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
 					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
 					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const terminalContext = { commandLine, cursorPosition };
+					const terminalContext = { commandLine, cursorPosition, allowFallbackCompletions: true };
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
 						terminalContext,
 						availableCommands.map(c => { return { label: c }; }),
 						prefix,
 						getTokenType(terminalContext, undefined),
-						testPaths.cwd
+						testPaths.cwd,
+						{},
+						'testName',
+						undefined,
+						new MockFigExecuteExternals()
 					);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
-					strictEqual(result.filesRequested, filesRequested);
-					strictEqual(result.foldersRequested, foldersRequested);
+					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
+					strictEqual(result.foldersRequested, foldersRequested, 'Folders requested different than expected, got: ' + result.foldersRequested);
 					if (testSpec.expectedResourceRequests?.cwd) {
-						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath);
+						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath, 'Non matching cwd');
 					}
 				});
 			}
 		});
 	}
 });
+
+
+class MockFigExecuteExternals implements IFigExecuteExternals {
+	public async executeCommand(input: Fig.ExecuteCommandInput): Promise<Fig.ExecuteCommandOutput> {
+		return this.executeCommandTimeout(input);
+	}
+	async executeCommandTimeout(input: Fig.ExecuteCommandInput): Promise<Fig.ExecuteCommandOutput> {
+		const command = [input.command, ...input.args].join(' ');
+		try {
+			return {
+				status: 0,
+				stdout: input.command,
+				stderr: '',
+			};
+		} catch (err) {
+			console.error(`Error running shell command '${command}'`, { err });
+			throw err;
+		}
+	}
+}
+

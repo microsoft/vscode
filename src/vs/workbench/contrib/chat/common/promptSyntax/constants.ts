@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PROMPT_FILE_EXTENSION } from '../../../../../platform/prompts/common/constants.js';
+
 /**
  * Documentation link for the reusable prompts feature.
  */
 export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
-
-/**
- * File extension for the reusable prompt files.
- */
-export const PROMPT_FILE_EXTENSION = '.prompt.md';
 
 /**
  * Prompt files language selector.

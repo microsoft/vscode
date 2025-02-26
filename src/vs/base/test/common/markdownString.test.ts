@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MarkdownString } from '../../common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { URI } from '../../common/uri.js';
 
 suite('MarkdownString', () => {
 
@@ -63,6 +64,27 @@ suite('MarkdownString', () => {
 			'foo)', 'hello]', 'title"',
 			'[hello\\]](foo\\) "title\\"")'
 		);
+	});
+
+	test('lift', () => {
+		const dto: IMarkdownString = {
+			value: 'hello',
+			baseUri: URI.file('/foo/bar'),
+			supportThemeIcons: true,
+			isTrusted: true,
+			supportHtml: true,
+			uris: {
+				[URI.file('/foo/bar2').toString()]: URI.file('/foo/bar2'),
+				[URI.file('/foo/bar3').toString()]: URI.file('/foo/bar3')
+			}
+		};
+		const mds = MarkdownString.lift(dto);
+		assert.strictEqual(mds.value, dto.value);
+		assert.strictEqual(mds.baseUri?.toString(), dto.baseUri?.toString());
+		assert.strictEqual(mds.supportThemeIcons, dto.supportThemeIcons);
+		assert.strictEqual(mds.isTrusted, dto.isTrusted);
+		assert.strictEqual(mds.supportHtml, dto.supportHtml);
+		assert.deepStrictEqual(mds.uris, dto.uris);
 	});
 
 	suite('appendCodeBlock', () => {

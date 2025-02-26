@@ -262,11 +262,11 @@ class ObjectPolicy extends BasePolicy {
 	}
 
 	protected renderADMXElements(): string[] {
-		return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
+		return [`<multiText id="${this.name}" valueName="${this.name}" required="true" />`];
 	}
 
 	renderADMLPresentationContents() {
-		return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+		return `<multiTextBox refId="${this.name}" />`;
 	}
 }
 

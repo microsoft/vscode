@@ -102,9 +102,9 @@ export interface IHoverDelegate2 {
 
 	/**
 	 * Hides the hover if it was visible. This call will be ignored if the hover is currently
-	 * "locked" via the alt/option key.
+	 * "locked" via the alt/option key unless `force` is set.
 	 */
-	hideHover(): void;
+	hideHover(force?: boolean): void;
 
 	/**
 	 * This should only be used until we have the ability to show multiple context views
@@ -380,6 +380,11 @@ export interface IHoverTarget extends Partial<IDisposable> {
 export interface IManagedHoverTooltipMarkdownString {
 	markdown: IMarkdownString | string | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
 	markdownNotSupportedFallback: string | undefined;
+}
+
+export function isManagedHoverTooltipMarkdownString(obj: unknown): obj is IManagedHoverTooltipMarkdownString {
+	const candidate = obj as IManagedHoverTooltipMarkdownString;
+	return typeof candidate === 'object' && 'markdown' in candidate && 'markdownNotSupportedFallback' in candidate;
 }
 
 export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | HTMLElement | undefined;

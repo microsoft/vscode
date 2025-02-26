@@ -705,11 +705,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			return; // method is called as part of state restore very early
 		}
 
-		if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
-			this.unmaximizeGroup();
-		}
-
 		try {
+			if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
+				this.unmaximizeGroup();
+			}
+
 			const viewSize = this.gridWidget.getViewSize(group);
 			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
 				this.arrangeGroups(GroupsArrangement.EXPAND, group);
@@ -1159,8 +1159,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	centerLayout(active: boolean): void {
 		this.centeredLayoutWidget.activate(active);
-
-		this._activeGroup.focus();
 	}
 
 	isLayoutCentered(): boolean {

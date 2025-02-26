@@ -22,7 +22,7 @@ import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatAcceptInputOptions, showChatView } from '../../../chat/browser/chat.js';
-import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
+import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../../chat/common/chatModel.js';
 import { IChatService, IChatProgress } from '../../../chat/common/chatService.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -382,7 +382,6 @@ export class TerminalChatWidget extends Disposable {
 		this._activeRequestCts = new CancellationTokenSource();
 		const store = new DisposableStore();
 		this._requestActiveContextKey.set(true);
-		let responseContent = '';
 		const response = await this._inlineChatWidget.chatWidget.acceptInput(lastInput, { isVoiceInput: options?.isVoiceInput });
 		this._currentRequestId = response?.requestId;
 		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
@@ -390,7 +389,6 @@ export class TerminalChatWidget extends Disposable {
 			this._requestActiveContextKey.set(true);
 			if (response) {
 				store.add(response.onDidChange(async () => {
-					responseContent += response.response.value;
 					if (response.isCanceled) {
 						this._requestActiveContextKey.set(false);
 						responsePromise.complete(undefined);
@@ -447,6 +445,22 @@ export class TerminalChatWidget extends Disposable {
 						edits: group,
 						uri: item.uri
 					});
+				}
+			} else if (item.kind === 'notebookEditGroup') {
+				for (const group of item.edits) {
+					if (isCellTextEditOperation(group)) {
+						message.push({
+							kind: 'textEdit',
+							edits: [group.edit],
+							uri: group.uri
+						});
+					} else {
+						message.push({
+							kind: 'notebookEdit',
+							edits: [group],
+							uri: item.uri
+						});
+					}
 				}
 			} else {
 				message.push(item);
