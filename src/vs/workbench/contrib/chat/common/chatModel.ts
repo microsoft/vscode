@@ -92,6 +92,7 @@ export interface ILinkVariableEntry extends Omit<IBaseChatRequestVariableEntry, 
 export interface IImageVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'image';
 	readonly isPasted?: boolean;
+	readonly isURL?: boolean;
 }
 
 export interface IDiagnosticVariableEntryFilterData {
