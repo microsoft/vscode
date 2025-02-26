@@ -10,20 +10,20 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { newWriteableStream } from '../../../../base/common/stream.js';
 import { Tab } from '../../../common/codecs/simpleCodec/tokens/tab.js';
 import { Word } from '../../../common/codecs/simpleCodec/tokens/word.js';
+import { Dash } from '../../../common/codecs/simpleCodec/tokens/dash.js';
 import { Space } from '../../../common/codecs/simpleCodec/tokens/space.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
 import { FormFeed } from '../../../common/codecs/simpleCodec/tokens/formFeed.js';
 import { VerticalTab } from '../../../common/codecs/simpleCodec/tokens/verticalTab.js';
 import { MarkdownLink } from '../../../common/codecs/markdownCodec/tokens/markdownLink.js';
 import { CarriageReturn } from '../../../common/codecs/linesCodec/tokens/carriageReturn.js';
+import { ExclamationMark } from '../../../common/codecs/simpleCodec/tokens/exclamationMark.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MarkdownComment } from '../../../common/codecs/markdownCodec/tokens/markdownComment.js';
 import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/tokens/brackets.js';
 import { MarkdownDecoder, TMarkdownToken } from '../../../common/codecs/markdownCodec/markdownDecoder.js';
 import { LeftParenthesis, RightParenthesis } from '../../../common/codecs/simpleCodec/tokens/parentheses.js';
-import { MarkdownComment } from '../../../common/codecs/markdownCodec/tokens/markdownComment.js';
 import { LeftAngleBracket, RightAngleBracket } from '../../../common/codecs/simpleCodec/tokens/angleBrackets.js';
-import { ExclamationMark } from '../../../common/codecs/simpleCodec/tokens/exclamationMark.js';
-import { Dash } from '../../../common/codecs/simpleCodec/tokens/dash.js';
 
 /**
  * A reusable test utility that asserts that a `TestMarkdownDecoder` instance
@@ -371,15 +371,15 @@ suite('MarkdownDecoder', () => {
 				);
 
 				const inputData = [
-					// markdown comment with text inside it
+					// comment with text inside it
 					'\t<!-- hello world -->',
-					// markdown comment with a link inside
+					// comment with a link inside
 					'some text<!-- \v[link label](/some/path/to/file.md)\f --> and more text ',
-					// markdown comment new lines inside it
+					// comment new lines inside it
 					'<!-- comment\r\ntext\n\ngoes here --> usual text follows',
 					// an empty comment
 					'\t<!---->\t',
-					// markdown comment that was not closed properly
+					// comment that was not closed properly
 					'haalo\t<!-- [link label](/some/path/to/file.md)',
 				];
 
@@ -421,6 +421,53 @@ suite('MarkdownDecoder', () => {
 						new Word(new Range(8, 1, 8, 6), 'haalo'),
 						new Tab(new Range(8, 6, 8, 7)),
 						new MarkdownComment(new Range(8, 7, 8, 7 + 40), '<!-- [link label](/some/path/to/file.md)'),
+					],
+				);
+			});
+
+			test('nuanced cases', async () => {
+				const test = testDisposables.add(
+					new TestMarkdownDecoder(),
+				);
+
+				const inputData = [
+					// comment inside `<>` brackets
+					' \f <<!--commen\t-->>',
+					// comment contains `<[]>` brackets and `!`
+					'<!--<[!c⚽︎mment!]>-->\t\t',
+					// comment contains `<!--` and new lines
+					'\v<!--some\r\ntext\n\t<!--inner\r\ntext-->\t\t',
+					// comment contains `<!--` and never closed properly
+					' <!--<!--inner\r\ntext-- >\t\v\f ',
+				];
+
+				await test.run(
+					inputData,
+					[
+						// `1st`
+						new Space(new Range(1, 1, 1, 2)),
+						new FormFeed(new Range(1, 2, 1, 3)),
+						new Space(new Range(1, 3, 1, 4)),
+						new LeftAngleBracket(new Range(1, 4, 1, 5)),
+						new MarkdownComment(new Range(1, 5, 1, 5 + 14), '<!--commen\t-->'),
+						new RightAngleBracket(new Range(1, 19, 1, 20)),
+						new NewLine(new Range(1, 20, 1, 21)),
+						// `2nd`
+						new MarkdownComment(new Range(2, 1, 2, 1 + 21), '<!--<[!c⚽︎mment!]>-->'),
+						new Tab(new Range(2, 22, 2, 23)),
+						new Tab(new Range(2, 23, 2, 24)),
+						new NewLine(new Range(2, 24, 2, 25)),
+						// `3rd`
+						new VerticalTab(new Range(3, 1, 3, 2)),
+						new MarkdownComment(new Range(3, 2, 3 + 3, 1 + 7), '<!--some\r\ntext\n\t<!--inner\r\ntext-->'),
+						new Tab(new Range(6, 8, 6, 9)),
+						new Tab(new Range(6, 9, 6, 10)),
+						new NewLine(new Range(6, 10, 6, 11)),
+						// `4rd`
+						new Space(new Range(7, 1, 7, 2)),
+						// note! comment does not have correct closing `-->`, hence the comment extends
+						//       to the end of the text, and therefore includes the \t\v\f and space at the end
+						new MarkdownComment(new Range(7, 2, 8, 1 + 12), '<!--<!--inner\r\ntext-- >\t\v\f '),
 					],
 				);
 			});
@@ -488,7 +535,7 @@ suite('MarkdownDecoder', () => {
 					new FormFeed(new Range(3, 17, 3, 18)),
 					new NewLine(new Range(3, 18, 3, 19)),
 					// `4rd`
-					// note! it does not have correct closing `-->`, hence the comment extends
+					// note! comment does not have correct closing `-->`, hence the comment extends
 					//       to the end of the text, and therefore includes the `space` at the end
 					new MarkdownComment(new Range(4, 1, 4, 1 + 15), '<!--mundo - -> '),
 				],

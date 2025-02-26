@@ -213,10 +213,24 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 			);
 		}
 
-		assert.strictEqual(
-			receivedTokens.length,
-			expectedTokens.length,
-			'Must produce correct number of tokens.',
+		if (receivedTokens.length === expectedTokens.length) {
+			return;
+		}
+
+		// sanity check - if received/expected list lengths are not equal, the received
+		// list must be longer than the expected one, because the other way around case
+		// must have been caught by the comparison loop above
+		assert(
+			receivedTokens.length > expectedTokens.length,
+			'Must have received more tokens than expected.',
+		);
+
+		const index = expectedTokens.length;
+		throw new Error(
+			[
+				`Expected no '${index}' token present, got '${receivedTokens[index]}'.`,
+				`(received ${receivedTokens.length} tokens in total)`,
+			].join(' '),
 		);
 	}
 }
