@@ -15,7 +15,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowToolti
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
-import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from '../../../../base/browser/dom.js';
 import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
@@ -32,6 +32,9 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { CTX_INLINE_CHAT_POSSIBLE } from '../../inlineChat/common/inlineChat.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { Color } from '../../../../base/common/color.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 
 registerColor('gauge.background', {
 	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
@@ -258,25 +261,37 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			)) ? { text: localize('shortcuts.inlineChat', "Inline Chat"), id: 'inlineChat.start' } : undefined
 		]);
 
+		const onTrigger = (commandId: string, e: EventLike) => {
+			EventHelper.stop(e, true);
+
+			this.hoverService.hideHover(true);
+			this.commandService.executeCommand(commandId);
+		};
+
 		for (const entry of entries) {
 			const keys = this.keybindingService.lookupKeybinding(entry.id);
 			if (!keys) {
 				continue;
 			}
 
-			const shortcut = append(shortcuts, $('div.shortcut'));
+			const shortcut = append(shortcuts, $('div.shortcut', { tabIndex: 0, role: 'button', 'aria-label': entry.text }));
 
-			const shortcutLabel = append(shortcut, $('span.shortcut-label', undefined, entry.text));
+			append(shortcut, $('span.shortcut-label', undefined, entry.text));
 
 			const shortcutKey = disposables.add(new KeybindingLabel(shortcut, OS, { ...defaultKeybindingLabelStyles }));
 			shortcutKey.set(keys);
 
-			for (const element of [shortcutLabel, shortcutKey.element]) {
-				disposables.add(addDisposableListener(element, EventType.CLICK, () => {
-					this.hoverService.hideHover(true);
-					this.commandService.executeCommand(entry.id);
-				}));
-			}
+			disposables.add(Gesture.addTarget(shortcut));
+			[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
+				disposables.add(addDisposableListener(shortcuts, eventType, e => onTrigger(entry.id, e)));
+			});
+
+			disposables.add(addDisposableListener(shortcut, EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
+					onTrigger(entry.id, e);
+				}
+			}));
 		}
 
 		return shortcuts;
