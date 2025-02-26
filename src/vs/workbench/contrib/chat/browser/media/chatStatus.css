@@ -27,8 +27,19 @@
 	gap: 5px;
 }
 
+.chat-status-bar-entry-tooltip .settings .setting {
+	display: flex;
+	align-items: center;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .monaco-checkbox {
+	height: 14px;
+	width: 14px;
+	margin-right: 5px;
+}
+
 .chat-status-bar-entry-tooltip .settings .setting .codicon {
-	font-size: 16px;
+	font-size: 12px;
 }
 
 .chat-status-bar-entry-tooltip .settings .setting .setting-label {
