@@ -6,8 +6,8 @@
 /* Overall */
 
 .chat-status-bar-entry-tooltip {
-	margin-top: 8px;
-	margin-bottom: 8px;
+	margin-top: 6px;
+	margin-bottom: 6px;
 }
 
 .chat-status-bar-entry-tooltip hr {
@@ -59,10 +59,10 @@
 	gap: 10px;
 
 	/** Make room for the hover feedback */
-	margin-left: -5px;
-	margin-right: -5px;
-	padding-left: 5px;
-	padding-right: 5px;
+	margin-left: -3px;
+	margin-right: -3px;
+	padding-left: 3px;
+	padding-right: 3px;
 	margin-top: -1px;
 	margin-bottom: -1px;
 	padding-top: 1px;
@@ -83,6 +83,11 @@
 
 .chat-status-bar-entry-tooltip .shortcuts .shortcut .monaco-keybinding {
 	cursor: pointer;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut .monaco-keybinding > .monaco-keybinding-key {
+	padding: 2px 4px;
+	font-size: 10px;
 }
 
 /* Quota Indicator */
