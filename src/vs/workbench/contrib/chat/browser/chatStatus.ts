@@ -383,7 +383,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		return settings;
 	}
 
-	private createSetting(container: HTMLElement, label: string, setting: { key: string; override: string | undefined }, disposables: DisposableStore): Checkbox {
+	private createSetting(container: HTMLElement, label: string, setting: { key: string; override: string | undefined }, disposables: DisposableStore): void {
 		const readSetting = () => Boolean(this.configurationService.getValue<boolean>(setting.key, { overrideIdentifier: setting.override }));
 		const writeSetting = (checkbox: Checkbox) => this.configurationService.updateValue(setting.key, checkbox.checked, { overrideIdentifier: setting.override });
 
@@ -413,8 +413,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				settingCheckbox.checked = readSetting();
 			}
 		}));
-
-		return settingCheckbox;
 	}
 
 	override dispose(): void {
