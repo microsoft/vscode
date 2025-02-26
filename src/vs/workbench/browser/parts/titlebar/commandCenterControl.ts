@@ -167,10 +167,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 								labelElement.innerText = this._getLabel();
 							}));
 
-							this._store.add(that._accessibilityService.onDidChangeScreenReaderOptimized(() => {
-								// update label & tooltip when screen reader optimized changes
-								labelElement.innerText = this._getLabel(true);
-							}));
+							this._store.add(that._accessibilityService.onDidChangeScreenReaderOptimized(() => labelElement.innerText = this._getLabel(true)));
 
 
 							// update label & tooltip when tabs visibility changes
