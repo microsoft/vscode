@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 import * as semver from '../../../../base/common/semver/semver.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { index } from '../../../../base/common/arrays.js';
-import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from '../../../../base/common/async.js';
+import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise, timeout } from '../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IPager, singlePagePager } from '../../../../base/common/paging.js';
@@ -21,7 +21,8 @@ import {
 	TargetPlatformToString,
 	IAllowedExtensionsService,
 	AllowedExtensionsConfigKey,
-	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT
+	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT,
+	EXTENSION_UNINSTALL_MALICIOUS_CONTEXT,
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -1045,6 +1046,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.updateExtensionsNotificaiton();
 			this.reportProgressFromOtherSources();
 		}));
+
+		this.loopCheckForMaliciousExtensions();
 	}
 
 	private initializeAutoUpdate(): void {
@@ -1517,7 +1520,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	async updateRunningExtensions(auto: boolean = false): Promise<void> {
+	async updateRunningExtensions(auto: boolean = false, reason: string = nls.localize('restart', "Updating Extensions")): Promise<void> {
 		const toAdd: ILocalExtension[] = [];
 		const toRemove: string[] = [];
 
@@ -1558,7 +1561,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (toAdd.length || toRemove.length) {
-			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Changing extension enablement"), auto)) {
+			if (await this.extensionService.stopExtensionHosts(reason, auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 				if (auto) {
 					this.notificationService.notify({
@@ -2526,9 +2529,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.localeService.setLocale({ id: locale, galleryExtension: extension.gallery, extensionId: extension.identifier.id, label: localizedLanguageName ?? extension.displayName });
 	}
 
-	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {
+	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState, force: boolean = false): Promise<void> {
 		extensions = Array.isArray(extensions) ? extensions : [extensions];
-		return this.promptAndSetEnablement(extensions, enablementState);
+		return this.promptAndSetEnablement(extensions, enablementState, force);
 	}
 
 	async uninstall(e: IExtension): Promise<void> {
@@ -2786,43 +2789,45 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		});
 	}
 
-	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<any> {
+	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState, force: boolean): Promise<any> {
 		const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 		if (enable) {
 			const allDependenciesAndPackedExtensions = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: true, pack: true });
-			return this.checkAndSetEnablement(extensions, allDependenciesAndPackedExtensions, enablementState);
+			return this.checkAndSetEnablement(extensions, allDependenciesAndPackedExtensions, enablementState, force);
 		} else {
 			const packedExtensions = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: false, pack: true });
 			if (packedExtensions.length) {
-				return this.checkAndSetEnablement(extensions, packedExtensions, enablementState);
+				return this.checkAndSetEnablement(extensions, packedExtensions, enablementState, force);
 			}
-			return this.checkAndSetEnablement(extensions, [], enablementState);
+			return this.checkAndSetEnablement(extensions, [], enablementState, force);
 		}
 	}
 
-	private async checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): Promise<any> {
+	private async checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState, force: boolean): Promise<any> {
 		const allExtensions = [...extensions, ...otherExtensions];
 		const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 		if (!enable) {
 			for (const extension of extensions) {
 				const dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
 				if (dependents.length) {
-					const { result } = await this.dialogService.prompt({
-						title: nls.localize('disableDependents', "Disable Extension with Dependents"),
-						type: Severity.Warning,
-						message: this.getDependentsErrorMessageForDisablement(extension, allExtensions, dependents),
-						buttons: [{
-							label: nls.localize('disable all', 'Disable All'),
-							run: () => true
-						}],
-						cancelButton: {
-							run: () => false
+					if (!force) {
+						const { result } = await this.dialogService.prompt({
+							title: nls.localize('disableDependents', "Disable Extension with Dependents"),
+							type: Severity.Warning,
+							message: this.getDependentsErrorMessageForDisablement(extension, allExtensions, dependents),
+							buttons: [{
+								label: nls.localize('disable all', 'Disable All'),
+								run: () => true
+							}],
+							cancelButton: {
+								run: () => false
+							}
+						});
+						if (!result) {
+							throw new CancellationError();
 						}
-					});
-					if (!result) {
-						throw new CancellationError();
 					}
-					await this.checkAndSetEnablement(dependents, [extension], enablementState);
+					await this.checkAndSetEnablement(dependents, [extension], enablementState, force);
 				}
 			}
 		}
@@ -2945,6 +2950,56 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		this.notificationService.error(err);
+	}
+
+	private loopCheckForMaliciousExtensions(): void {
+		this.checkForMaliciousExtensions()
+			.then(() => timeout(1000 * 60 * 5)) // every five minutes
+			.then(() => this.checkForMaliciousExtensions());
+	}
+
+	private async checkForMaliciousExtensions(): Promise<void> {
+		try {
+			await this.queryLocal();
+
+			const maliciousExtensions = this.installed.filter(e => e.isMalicious);
+
+			if (maliciousExtensions.length) {
+
+				// First disable them
+				await this.setEnablement(maliciousExtensions, EnablementState.DisabledGlobally, true);
+
+				await Promises.settled([
+					// Update running extensions to remove them
+					this.updateRunningExtensions(false, nls.localize('remove malicious', "Removing problematic extensions")),
+					// Uninstall them
+					...maliciousExtensions.map(async e => {
+						if (!e.local) {
+							return;
+						}
+						await this.extensionManagementService.uninstallExtensions([{
+							extension: e.local,
+							options: {
+								remove: true,
+								donotCheckDependents: true,
+								context: { [EXTENSION_UNINSTALL_MALICIOUS_CONTEXT]: true }
+							}
+						}]);
+						this.notificationService.prompt(
+							Severity.Warning,
+							nls.localize('malicious warning', "The extension '{0}' was found to be problematic and has been removed.", e.identifier.id),
+							[],
+							{
+								sticky: true,
+								priority: NotificationPriority.URGENT
+							}
+						);
+					})
+				]);
+			}
+		} catch (err) {
+			this.logService.error(err);
+		}
 	}
 
 	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
