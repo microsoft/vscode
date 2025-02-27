@@ -7,6 +7,7 @@ import { CHAT_CATEGORY } from '../chatActions.js';
 import { localize2 } from '../../../../../../nls.js';
 import { Action2 } from '../../../../../../platform/actions/common/actions.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/types.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
@@ -45,6 +46,7 @@ export class AttachPromptAction extends Action2 {
 		accessor: ServicesAccessor,
 		options: IChatAttachPromptActionOptions,
 	): Promise<void> {
+		const fileService = accessor.get(IFileService);
 		const labelService = accessor.get(ILabelService);
 		const viewsService = accessor.get(IViewsService);
 		const openerService = accessor.get(IOpenerService);
@@ -54,11 +56,17 @@ export class AttachPromptAction extends Action2 {
 		// find all prompt files in the user workspace
 		const promptFiles = await promptsService.listPromptFiles();
 
+		// if no prompt files found, show instructions on how to create one
+		if (promptFiles.length === 0) {
+			return await showHowToCreateLink(openerService, quickInputService);
+		}
+
 		await askToSelectPrompt({
 			...options,
 			promptFiles,
-			labelService,
+			fileService,
 			viewsService,
+			labelService,
 			openerService,
 			quickInputService,
 		});
