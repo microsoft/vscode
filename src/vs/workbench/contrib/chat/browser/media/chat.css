@@ -650,6 +650,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-button-foreground);
 }
 
+.chat-attached-context .monaco-icon-label-container {
+	overflow: hidden !important;
+}
+
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
@@ -1635,7 +1639,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	padding: 2px 0 2px 0px;
 	border-radius: 2px;
-	margin-right: 1px;
+	margin-right: 3px;
 	user-select: none;
 	outline: none;
 	border: none;
@@ -1647,8 +1651,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {
-	width: 14px;
-	height: 14px;
+	width: 12px;
+	height: 12px;
 	border-radius: 2px;
 }
 
