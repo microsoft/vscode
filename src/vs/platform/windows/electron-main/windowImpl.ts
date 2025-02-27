@@ -146,19 +146,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 		}
 
-		// Windows Custom System Context Menu
-		// See https://github.com/electron/electron/issues/24893
-		//
-		// The purpose of this is to allow for the context menu in the Windows Title Bar
-		//
-		// Currently, all mouse events in the title bar are captured by the OS
-		// thus we need to capture them here with a window hook specific to Windows
-		// and then forward them to the correct window.
+		// Setup windows system context menu so it only is allowed in certain cases
 		if (isWindows && useCustomTitleStyle) {
-			const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
-
-			// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
-			win.hookWindowMessage(WM_INITMENU, () => {
+			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))((e) => {
 				const [x, y] = win.getPosition();
 				const cursorPos = electron.screen.getCursorScreenPoint();
 				const cx = cursorPos.x - x;
@@ -180,16 +170,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				};
 
 				if (!shouldTriggerDefaultSystemContextMenu()) {
-
-					// This is necessary to make sure the native system context menu does not show up.
-					win.setEnabled(false);
-					win.setEnabled(true);
+					e.event.preventDefault();
 
 					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
 				}
-
-				return 0;
-			});
+			}));
 		}
 
 		// Open devtools if instructed from command line args
