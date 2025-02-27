@@ -117,8 +117,8 @@ interface IInventoryIcon {
 
 class InventoryIcons {
 	private static readonly icons: readonly IInventoryIcon[] = [
-		{ id: 'chat', icon: 'inventory-chat-icon', label: 'Chat', command: 'pearai.chatView.focus', width: 10, containerId: 'pearaichat' },
 		{ id: 'agent', icon: 'inventory-creator-icon', label: 'Agent', command: 'pearai-roo-cline.SidebarProvider.focus', width: 80, containerId: 'pearaiagent' },
+		{ id: 'chat', icon: 'inventory-chat-icon', label: 'Chat', command: 'pearai.chatView.focus', width: 10, containerId: 'pearaichat' },
 		{ id: 'search', icon: 'inventory-search-icon', label: 'Search', command: 'pearai.searchView.focus', width: 75, containerId: 'pearaisearch' },
 		{ id: 'memory', icon: 'inventory-memory-icon', label: 'Memory', command: 'pearai.mem0View.focus', width: 85, containerId: 'pearaimemory' }
 	] as const;
@@ -164,7 +164,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private blockOpening = false;
 	protected contentDimension: Dimension | undefined;
 
-	private activeInventoryIcon: string | undefined = 'chat';
+	private activeInventoryIcon: string | undefined = 'agent';
 
 	constructor(
 		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,

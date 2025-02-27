@@ -60,6 +60,11 @@ export interface IPearOverlayService extends IDisposable {
 	 * Returns true if the PearAI popup is locked.
 	 */
 	isLocked(): boolean;
+
+	/**
+	 * Hides the loading overlay message.
+	 */
+	hideOverlayLoadingMessage(): void;
 }
 
 export class PearOverlayService
@@ -134,6 +139,11 @@ export class PearOverlayService
 			const overlayService = accessor.get(IPearOverlayService);
 			return overlayService.isLocked();
 		});
+
+		CommandsRegistry.registerCommand("pearai.hideOverlayLoadingMessage", (accessor) => {
+			const overlayService = accessor.get(IPearOverlayService);
+			overlayService.hideOverlayLoadingMessage();
+		});
 	}
 
 	get pearOverlayPart(): PearOverlayPart {
@@ -146,6 +156,10 @@ export class PearOverlayService
 
 	hide(): void {
 		this._pearOverlayPart.hide();
+	}
+
+	hideOverlayLoadingMessage(): void {
+		this._pearOverlayPart.hideOverlayLoadingMessage();
 	}
 
 	toggle(): void {
