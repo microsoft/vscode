@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
@@ -119,7 +119,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private async create(): Promise<void> {
 		if (this.configurationService.getValue<boolean>('chat.experimental.statusIndicator.enabled') === true) {
-			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, Number.NEGATIVE_INFINITY /* the end of the right hand side */);
+			this.entry ||= this.statusbarService.addEntry(this.getEntryProps(), ChatStatusBarEntry.ID, StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			this.statusbarService.updateEntryVisibility(`${this.productService.defaultChatAgent?.extensionId}.status`, false); // TODO@bpasero: remove this eventually
 		} else {
 			this.entry?.dispose();
@@ -161,6 +161,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let command: string | Command = TOGGLE_CHAT_ACTION_ID;
 		let tooltip: TooltipContent = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
+		let kind: StatusbarEntryKind | undefined;
 
 		// Quota Exceeded
 		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
@@ -178,6 +179,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			ariaLabel = quotaWarning;
 			command = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
 			tooltip = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
+			kind = 'prominent';
 		}
 
 		// Copilot Not Installed
@@ -273,7 +275,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			ariaLabel,
 			command,
 			showInAllWindows: true,
-			kind: 'copilot',
+			kind,
 			tooltip
 		};
 	}
