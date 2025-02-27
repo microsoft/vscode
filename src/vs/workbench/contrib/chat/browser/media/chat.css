@@ -1042,14 +1042,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-style: dashed;
 	opacity: 0.75;
 }
-.chat-attached-context .chat-prompt-attachment .monaco-button {
-	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	margin-left: 3px;
-}
-.chat-attached-context .chat-prompt-attachment.error .monaco-button,
-.chat-attached-context .chat-prompt-attachment.warning .monaco-button {
-	border-left-color: currentColor;
-}
 .chat-attached-context .chat-prompt-attachment:focus .monaco-button {
 	border-color: var(--vscode-focusBorder);
 }

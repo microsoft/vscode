@@ -157,7 +157,8 @@ export class PromptAttachmentWidget extends Disposable {
 				},
 			),
 		);
-		removeButton.icon = Codicon.x;
+
+		removeButton.icon = Codicon.close;
 		this.renderDisposables.add(removeButton.onDidClick((e) => {
 			e.stopPropagation();
 			this.model.dispose();
