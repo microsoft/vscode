@@ -92,6 +92,9 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				widget.input.implicitContext.setValue(undefined, false);
 			}
 		}));
+		this._register(this.chatWidgetService.onDidAddWidget(async (widget) => {
+			await this.updateImplicitContext(widget);
+		}));
 	}
 
 	private findActiveCodeEditor(): ICodeEditor | undefined {

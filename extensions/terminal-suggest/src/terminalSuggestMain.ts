@@ -170,7 +170,7 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 	}
 
 	// If the prefix is not a folder, return the current cwd
-	return currentCwd;
+	return undefined;
 }
 
 function getPrefix(commandLine: string, cursorPosition: number): string {
@@ -277,7 +277,7 @@ export async function getCompletionItemsFromSpecs(
 
 	let cwd: vscode.Uri | undefined;
 	if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
-		cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
+		cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd);
 	}
 
 	return { items, filesRequested, foldersRequested, fileExtensions, cwd };

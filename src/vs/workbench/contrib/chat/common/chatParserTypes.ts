@@ -8,8 +8,9 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from './chatModel.js';
 import { IChatSlashData } from './chatSlashCommands.js';
-import { IChatRequestVariableValue } from './chatVariables.js';
+import { IChatRequestProblemsVariable, IChatRequestVariableValue } from './chatVariables.js';
 import { IToolData } from './languageModelToolsService.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
@@ -84,6 +85,10 @@ export class ChatRequestToolPart implements IParsedChatRequestPart {
 	get promptText(): string {
 		return this.text;
 	}
+
+	toVariableEntry(): IChatRequestVariableEntry {
+		return { id: this.toolId, name: this.toolName, range: this.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(this.icon) ? this.icon : undefined, fullName: this.displayName };
+	}
 }
 
 /**
@@ -151,6 +156,14 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 
 	get promptText(): string {
 		return this.text;
+	}
+
+	toVariableEntry(): IChatRequestVariableEntry {
+		if (this.id === 'vscode.problems') {
+			return IDiagnosticVariableEntryFilterData.toEntry((this.data as IChatRequestProblemsVariable).filter);
+		}
+
+		return { id: this.id, name: this.referenceText, range: this.range, value: this.data, fullName: this.fullName, icon: this.icon, isFile: this.isFile, isDirectory: this.isDirectory };
 	}
 }
 

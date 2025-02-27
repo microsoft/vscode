@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
-import { findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../base/common/errors.js';
@@ -14,7 +13,6 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { derived, IObservable, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType, isString } from '../../../../../base/common/types.js';
@@ -245,11 +243,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// each of them. Note that text edit groups can be updated
 		// multiple times during the process of response streaming.
 		const editsSeen: ({ seen: number; streaming: IStreamingEdits } | undefined)[] = [];
-		// Same deal as above, but for code block URIs. Code block URIs preceed a
-		// text edit group, and are used to allow us to start an editing state
-		// prior to the code actually streaming in. When a new edit block it seen,
-		// it'll look back and 'claim' the last unclaimed matchin codeblock URI.
-		const codeBlockUrisSeen: ({ uri: URI; streaming?: IStreamingEdits } | undefined)[] = [];
 
 		const editedFilesExist = new ResourceMap<Promise<void>>();
 		const ensureEditorOpen = (partUri: URI) => {
@@ -295,28 +288,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					continue;
 				}
 
-				if (part.kind === 'codeblockUri') {
-					ensureEditorOpen(part.uri);
-					codeBlockUrisSeen[i] ??= { uri: part.uri, streaming: session.startStreamingEdits(part.uri, responseModel, undoStop) };
-					continue;
-				}
-
 				if (part.kind !== 'textEditGroup' && part.kind !== 'notebookEditGroup') {
 					continue;
 				}
 
+				ensureEditorOpen(part.uri);
 
 				// get new edits and start editing session
 				let entry = editsSeen[i];
 				if (!entry) {
-					const codeBlockIndex = findLastIdx(codeBlockUrisSeen, e => e?.streaming && isEqual(e.uri, part.uri), i - 1);
-					if (codeBlockIndex !== -1) {
-						entry = { seen: 0, streaming: codeBlockUrisSeen[codeBlockIndex]!.streaming! };
-						codeBlockUrisSeen[codeBlockIndex]!.streaming = undefined;
-					} else {
-						entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, responseModel, undoStop) };
-					}
-
+					entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, responseModel, undoStop) };
 					editsSeen[i] = entry;
 				}
 

@@ -453,8 +453,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return true;
 			}
 
+			const supportsToolsAgent = typeof model.metadata.capabilities?.agentMode === 'undefined' || model.metadata.capabilities.agentMode;
+
 			// Filter out models that don't support tool calling, and models that don't support enough context to have a good experience with the tools agent
-			return !!model.metadata.capabilities?.toolCalling && model.metadata.maxInputTokens > 40000;
+			return supportsToolsAgent && !!model.metadata.capabilities?.toolCalling;
 		}
 
 		return true;
@@ -786,7 +788,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
 		options.suggest = {
-			showIcons: false,
+			showIcons: true,
 			showSnippets: false,
 			showWords: true,
 			showStatusBar: false,
@@ -799,7 +801,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID, LinkDetector.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
+		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
+		this._inputEditorElement.classList.add('hideSuggestTextIcons');
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
@@ -837,6 +842,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const hoverDelegate = this._register(createInstantHoverDelegate());
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
+		this._register(dom.addStandardDisposableListener(this.attachmentsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },

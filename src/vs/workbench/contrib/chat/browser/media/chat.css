@@ -1178,8 +1178,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container .monaco-highlighted-label {
-	display: flex !important;
+	display: block !important;
 	align-items: center !important;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
@@ -1730,4 +1733,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			margin: 0px;
 		}
 	}
+}
+
+.hideSuggestTextIcons .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
+	display: none;
 }

@@ -585,7 +585,7 @@ const unescapeInfo = new Map<string, string>([
 	['&gt;', '>'],
 ]);
 
-function createRenderer(): marked.Renderer {
+function createPlainTextRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
@@ -647,10 +647,10 @@ function createRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>(createRenderer);
+const plainTextRenderer = new Lazy<marked.Renderer>(createPlainTextRenderer);
 
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
-	const renderer = createRenderer();
+	const renderer = createPlainTextRenderer();
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
 		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
 	};

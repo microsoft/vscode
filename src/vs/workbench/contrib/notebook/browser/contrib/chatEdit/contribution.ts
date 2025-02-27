@@ -9,13 +9,9 @@ import { registerNotebookContribution } from '../../notebookEditorExtensions.js'
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
 import { NotebookChatEditorControllerContrib } from './notebookChatEditController.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
-import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditingNotebookFileSystemProvider.js';
 
 
 registerNotebookContribution(NotebookChatEditorControllerContrib.ID, NotebookChatEditorControllerContrib);
 registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
 registerSingleton(INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory, InstantiationType.Delayed);
 registerSingleton(INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory, InstantiationType.Delayed);
-
-registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);

@@ -6,13 +6,19 @@
 /* Overall */
 
 .chat-status-bar-entry-tooltip {
-	margin-top: 8px;
-	margin-bottom: 8px;
+	margin-top: 4px;
+	margin-bottom: 4px;
 }
 
 .chat-status-bar-entry-tooltip hr {
 	margin-top: 8px;
 	margin-bottom: 8px;
+}
+
+.chat-status-bar-entry-tooltip div.header {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+	font-weight: 600;
 }
 
 .chat-status-bar-entry-tooltip div.description {
@@ -59,10 +65,10 @@
 	gap: 10px;
 
 	/** Make room for the hover feedback */
-	margin-left: -5px;
-	margin-right: -5px;
-	padding-left: 5px;
-	padding-right: 5px;
+	margin-left: -3px;
+	margin-right: -3px;
+	padding-left: 3px;
+	padding-right: 3px;
 	margin-top: -1px;
 	margin-bottom: -1px;
 	padding-top: 1px;
@@ -85,11 +91,15 @@
 	cursor: pointer;
 }
 
+.chat-status-bar-entry-tooltip .shortcuts .shortcut .monaco-keybinding > .monaco-keybinding-key {
+	padding: 2px 4px;
+	font-size: 10px;
+}
+
 /* Quota Indicator */
 
 .chat-status-bar-entry-tooltip .quota-indicator {
-	margin-top: 8px;
-	margin-bottom: 8px;
+	margin-bottom: 6px;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-label {
@@ -103,11 +113,27 @@
 	height: 4px;
 	background-color: var(--vscode-gauge-foreground);
 	border-radius: 4px;
-	border: 1px solid var(--vscode-gauge-background);
+	border: 1px solid var(--vscode-gauge-border);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {
 	height: 100%;
 	background-color: var(--vscode-gauge-background);
 	border-radius: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar {
+	background-color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-warningBackground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar {
+	background-color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-errorBackground);
 }
