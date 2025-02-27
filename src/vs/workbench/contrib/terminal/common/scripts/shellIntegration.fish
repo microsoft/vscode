@@ -151,8 +151,8 @@ function __vsc_update_cwd --on-event fish_prompt
 	end
 end
 
-function __vsc_update_env --on-event fish_prompt
-	if test $__vscode_shell_env_reporting -eq 1
+if test "$__vscode_shell_env_reporting" = "1"
+	function __vsc_update_env --on-event fish_prompt
 		__vsc_esc EnvSingleStart 1
 		for line in (env)
 			set myVar (echo $line | awk -F= '{print $1}')
