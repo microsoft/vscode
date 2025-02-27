@@ -1806,6 +1806,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextSearchContext2: TextSearchContext2,
 			TextSearchMatch2: TextSearchMatch2,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
+			ChatErrorLevel: extHostTypes.ChatErrorLevel,
 		};
 	};
 }
