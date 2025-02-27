@@ -142,7 +142,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			};
 
 			if (!this._runningTasksStatusItem) {
-				this._runningTasksStatusItem = this._statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
+				this._runningTasksStatusItem = this._statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, { location: { id: 'status.problems', priority: 50 }, alignment: StatusbarAlignment.RIGHT });
 			} else {
 				this._runningTasksStatusItem.update(itemProps);
 			}

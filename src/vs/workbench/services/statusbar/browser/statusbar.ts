@@ -113,8 +113,8 @@ export interface IStatusbarStyleOverride {
 	readonly border?: ColorIdentifier;
 }
 
-export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline' | 'copilot';
-export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline', 'copilot'];
+export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
+export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
 
 export type TooltipContent = IMarkdownString | IManagedHoverContentOrFactory;
 
