@@ -206,7 +206,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 					container.appendChild($('div.header', undefined, localize('usageTitle', "Copilot Free Usage")));
 
-					const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chats messages"));
+					const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
 					const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
 
 					container.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
