@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -1450,13 +1450,16 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 		chatRequest.response.complete();
 	}
 
-	const whenDecided = new Promise(resolve => {
-		store.add(autorun(r => {
-			if (!editSession.entries.read(r).some(e => e.state.read(r) === WorkingSetEntryState.Modified)) {
-				resolve(undefined);
-			}
-		}));
+	const isSettled = derived(r => {
+		const entry = editSession.readEntry(uri, r);
+		if (!entry) {
+			return false;
+		}
+		const state = entry.state.read(r);
+		return state === WorkingSetEntryState.Accepted || state === WorkingSetEntryState.Rejected;
 	});
+
+	const whenDecided = waitForState(isSettled, Boolean);
 
 	await raceCancellation(whenDecided, token);
 

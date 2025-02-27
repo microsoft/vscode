@@ -98,6 +98,8 @@ import { PROMPT_FILE_EXTENSION } from '../../../../platform/prompts/common/const
 import { DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
+import product from '../../../../platform/product/common/product.js';
+import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/chatEditingNotebookFileSystemProvider.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -140,7 +142,7 @@ configurationRegistry.registerConfiguration({
 		'chat.implicitContext.enabled': {
 			type: 'object',
 			tags: ['experimental'],
-			description: nls.localize('chat.implicitContext.enabled', "Enables the implicit context widget for specified chat locations."),
+			description: nls.localize('chat.implicitContext.enabled.1', "Enables automatically using the active editor as chat context for specified chat locations."),
 			additionalProperties: {
 				type: 'string',
 				enum: ['never', 'first', 'always'],
@@ -190,6 +192,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
+		},
+		'chat.experimental.statusIndicator.enabled': { // TODO@bpasero remove this eventually
+			type: 'boolean',
+			description: nls.localize('chat.statusIndicator', "Controls whether a Copilot related status indicator appears in the lower right corner."),
+			default: product.quality !== 'stable',
+			tags: ['experimental', 'onExp']
 		},
 		[PromptsConfig.CONFIG_KEY]: {
 			type: 'object',
@@ -490,5 +498,6 @@ registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, Instant
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);
 registerSingleton(IChatEntitlementsService, ChatEntitlementsService, InstantiationType.Delayed);
-
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
+
+registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);

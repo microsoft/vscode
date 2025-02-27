@@ -210,7 +210,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 		const right = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
 		const prefixLeftOffset = this._maxPrefixTrim.read(reader).prefixLeftOffset ?? 0 /* fix due to observable bug? */;
-		const left = editorLayout.contentLeft + prefixLeftOffset;
+		const left = editorLayout.contentLeft + prefixLeftOffset - horizontalScrollOffset;
 		if (right <= left) {
 			return null;
 		}
@@ -222,14 +222,14 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		const top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop + topTrim;
 		const bottom = top + height;
 
-		const PADDING = 3;
-		const overlay = new Rect(left, top, right, bottom).withMargin(PADDING);
+		const overlay = new Rect(left, top, right, bottom);
 
 		return {
 			overlay,
-			horizontalScrollOffset,
+			contentLeft: editorLayout.contentLeft,
 			minContentWidthRequired: prefixLeftOffset + overlay.width + verticalScrollbarWidth,
 			borderRadius: 4,
+			padding: 3
 		};
 	}).recomputeInitiallyAndOnChange(this._store);
 
@@ -241,16 +241,18 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		if (!overlayLayoutObs) { return undefined; }
 
 		const layoutInfo = overlayLayoutObs.read(reader);
+		const overlay = layoutInfo.overlay;
+		const croppedOverlay = new Rect(Math.max(overlay.left, layoutInfo.contentLeft), overlay.top, overlay.right, overlay.bottom);
 
 		const rectangleOverlay = createRectangle(
 			{
-				topLeft: layoutInfo.overlay.getLeftTop(),
-				width: layoutInfo.overlay.width + 1,
-				height: layoutInfo.overlay.height + 1,
+				topLeft: croppedOverlay.getLeftTop(),
+				width: croppedOverlay.width + 1,
+				height: croppedOverlay.height + 1,
 			},
-			0,
+			layoutInfo.padding,
 			layoutInfo.borderRadius,
-			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
+			{ hideLeft: croppedOverlay.left !== overlay.left }
 		);
 
 		const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);

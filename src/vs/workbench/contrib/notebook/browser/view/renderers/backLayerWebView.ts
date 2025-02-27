@@ -404,6 +404,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						background-color: var(--theme-notebook-symbol-highlight-background);
 					}
 
+					#container .markup > div.nb-insertHighlight {
+						background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
+					}
+
 					#container .nb-symbolHighlight .output_container .output {
 						background-color: var(--theme-notebook-symbol-highlight-background);
 					}

@@ -12,6 +12,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { format } from '../../../../../../base/common/strings.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { StandardTokenType } from '../../../../../../editor/common/encodedTokenAttributes.js';
 import { InlineValueContext, InlineValueText, InlineValueVariableLookup } from '../../../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
@@ -41,6 +42,8 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 	private cellContentListeners = new ResourceMap<IDisposable>();
 
 	private currentCancellationTokenSources = new ResourceMap<CancellationTokenSource>();
+
+	private static readonly MAX_CELL_LINES = 5000; // Skip extremely large cells
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -236,10 +239,18 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 				return;
 			}
 
+			// Skip processing for extremely large cells
+			if (document.getLineCount() > NotebookInlineVariablesController.MAX_CELL_LINES) {
+				return;
+			}
+
 			const inlineDecorations: IModelDeltaDecoration[] = [];
 			const processedVars = new Set<string>();
 
+			// Get both function ranges and comment ranges
 			const functionRanges = this.getFunctionRanges(document);
+			const commentedRanges = this.getCommentedRanges(document);
+			const ignoredRanges = [...functionRanges, ...commentedRanges];
 			const lineDecorations = new Map<number, InlineSegment[]>();
 
 			// For each variable name found in the kernel results
@@ -248,46 +259,47 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 					continue;
 				}
 
-				// Look for variable usage globally
-				const regex = new RegExp(`\\b${varName}\\b`, 'g');
-				let lastMatchOutsideFunction: { line: number; column: number } | null = null;
+				// Look for variable usage globally - using word boundaries to ensure exact matches
+				const regex = new RegExp(`\\b${varName}\\b(?!\\w)`, 'g');
+				let lastMatchOutsideIgnored: { line: number; column: number } | null = null;
+				let foundMatch = false;
 
+				// Scan lines in reverse to find last occurrence first
 				const lines = document.getValue().split('\n');
-				for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
+				for (let lineNumber = lines.length - 1; lineNumber >= 0; lineNumber--) {
 					const line = lines[lineNumber];
 					let match: RegExpExecArray | null;
 
 					while ((match = regex.exec(line)) !== null) {
-						const pos = new Position(lineNumber + 1, match.index + 1);
-						let isInFunction = false;
+						const startIndex = match.index;
+						const pos = new Position(lineNumber + 1, startIndex + 1);
 
-						// Check if this usage is within any function range
-						for (const range of functionRanges) {
-							if (range.containsPosition(pos)) {
-								isInFunction = true;
-								break;
-							}
-						}
-
-						if (!isInFunction) {
-							lastMatchOutsideFunction = {
+						// Check if this position is in any ignored range (function or comment)
+						if (!this.isPositionInRanges(pos, ignoredRanges)) {
+							lastMatchOutsideIgnored = {
 								line: lineNumber + 1,
-								column: match.index + 1
+								column: startIndex + 1
 							};
+							foundMatch = true;
+							break; // Take first match in reverse order (which is last chronologically)
 						}
+					}
+
+					if (foundMatch) {
+						break; // We found our last valid occurrence, no need to check earlier lines
 					}
 				}
 
-				if (lastMatchOutsideFunction) {
+				if (lastMatchOutsideIgnored) {
 					const inlineVal = varName + ' = ' + vars.find(v => v.name === varName)?.value;
 
-					let lineSegments = lineDecorations.get(lastMatchOutsideFunction.line);
+					let lineSegments = lineDecorations.get(lastMatchOutsideIgnored.line);
 					if (!lineSegments) {
 						lineSegments = [];
-						lineDecorations.set(lastMatchOutsideFunction.line, lineSegments);
+						lineDecorations.set(lastMatchOutsideIgnored.line, lineSegments);
 					}
 					if (!lineSegments.some(iv => iv.text === inlineVal)) { // de-dupe
-						lineSegments.push(new InlineSegment(lastMatchOutsideFunction.column, inlineVal));
+						lineSegments.push(new InlineSegment(lastMatchOutsideIgnored.column, inlineVal));
 					}
 				}
 
@@ -414,6 +426,157 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		return functionRanges;
 	}
 
+	private getCommentedRanges(document: ITextModel): Range[] {
+		return this._getCommentedRanges(document);
+	}
+
+	private _getCommentedRanges(document: ITextModel): Range[] {
+		try {
+			return this.getCommentedRangesByAccurateTokenization(document);
+		} catch (e) {
+			// Fall back to manual parsing if tokenization fails
+			return this.getCommentedRangesByManualParsing(document);
+		}
+	}
+
+	private getCommentedRangesByAccurateTokenization(document: ITextModel): Range[] {
+		const commentRanges: Range[] = [];
+		const lineCount = document.getLineCount();
+
+		// Skip processing for extremely large documents
+		if (lineCount > NotebookInlineVariablesController.MAX_CELL_LINES) {
+			return commentRanges;
+		}
+
+		// Process each line - force tokenization if needed and process tokens in a single pass
+		for (let lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
+			// Force tokenization if needed
+			if (!document.tokenization.hasAccurateTokensForLine(lineNumber)) {
+				document.tokenization.forceTokenization(lineNumber);
+			}
+
+			const lineTokens = document.tokenization.getLineTokens(lineNumber);
+
+			// Skip lines with no tokens
+			if (lineTokens.getCount() === 0) {
+				continue;
+			}
+
+			let startCharacter: number | undefined;
+
+			// Check each token in the line
+			for (let tokenIndex = 0; tokenIndex < lineTokens.getCount(); tokenIndex++) {
+				const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+
+				if (tokenType === StandardTokenType.Comment || tokenType === StandardTokenType.String || tokenType === StandardTokenType.RegEx) {
+					if (startCharacter === undefined) {
+						// Start of a comment or string
+						startCharacter = lineTokens.getStartOffset(tokenIndex);
+					}
+
+					const endCharacter = lineTokens.getEndOffset(tokenIndex);
+
+					// Check if this is the end of the comment/string section (either end of line or different token type follows)
+					const isLastToken = tokenIndex === lineTokens.getCount() - 1;
+					const nextTokenDifferent = !isLastToken &&
+						lineTokens.getStandardTokenType(tokenIndex + 1) !== tokenType;
+
+					if (isLastToken || nextTokenDifferent) {
+						// End of comment/string section
+						commentRanges.push(new Range(lineNumber, startCharacter + 1, lineNumber, endCharacter + 1));
+						startCharacter = undefined;
+					}
+				} else {
+					// Reset when we hit a non-comment, non-string token
+					startCharacter = undefined;
+				}
+			}
+		}
+
+		return commentRanges;
+	}
+
+	private getCommentedRangesByManualParsing(document: ITextModel): Range[] {
+		const commentRanges: Range[] = [];
+		const lines = document.getValue().split('\n');
+		const languageId = document.getLanguageId();
+
+		// Different comment patterns by language
+		const lineCommentToken =
+			languageId === 'python' ? '#' :
+				languageId === 'javascript' || languageId === 'typescript' ? '//' :
+					null;
+
+		const blockComments =
+			(languageId === 'javascript' || languageId === 'typescript') ? { start: '/*', end: '*/' } :
+				null;
+
+		let inBlockComment = false;
+		let blockCommentStartLine = -1;
+		let blockCommentStartCol = -1;
+
+		for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
+			const line = lines[lineNumber];
+			const trimmedLine = line.trim();
+
+			// Skip empty lines
+			if (trimmedLine.length === 0) {
+				continue;
+			}
+
+			if (blockComments) {
+				if (!inBlockComment) {
+					const startIndex = line.indexOf(blockComments.start);
+					if (startIndex !== -1) {
+						inBlockComment = true;
+						blockCommentStartLine = lineNumber;
+						blockCommentStartCol = startIndex;
+					}
+				}
+
+				if (inBlockComment) {
+					const endIndex = line.indexOf(blockComments.end);
+					if (endIndex !== -1) {
+						commentRanges.push(new Range(
+							blockCommentStartLine + 1,
+							blockCommentStartCol + 1,
+							lineNumber + 1,
+							endIndex + blockComments.end.length + 1
+						));
+						inBlockComment = false;
+					}
+					continue;
+				}
+			}
+
+			if (!inBlockComment && lineCommentToken && line.trimLeft().startsWith(lineCommentToken)) {
+				const startCol = line.indexOf(lineCommentToken);
+				commentRanges.push(new Range(
+					lineNumber + 1,
+					startCol + 1,
+					lineNumber + 1,
+					line.length + 1
+				));
+			}
+		}
+
+		// Handle block comment at end of file
+		if (inBlockComment) {
+			commentRanges.push(new Range(
+				blockCommentStartLine + 1,
+				blockCommentStartCol + 1,
+				lines.length,
+				lines[lines.length - 1].length + 1
+			));
+		}
+
+		return commentRanges;
+	}
+
+	private isPositionInRanges(position: Position, ranges: Range[]): boolean {
+		return ranges.some(range => range.containsPosition(position));
+	}
+
 	private updateCellInlineDecorations(cell: ICellViewModel, decorations: IModelDeltaDecoration[]) {
 		const oldDecorations = this.cellDecorationIds.get(cell) ?? [];
 		this.cellDecorationIds.set(cell, cell.deltaModelDecorations(
@@ -428,6 +591,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 			return; // should not happen
 		}
 
+		// Clear decorations on content change
 		this.cellContentListeners.set(cell.uri, cellModel.onDidChangeContent(() => {
 			this.clearCellInlineDecorations(cell);
 		}));
@@ -462,6 +626,8 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		this._clearNotebookInlineDecorations();
 		this.currentCancellationTokenSources.forEach(source => source.cancel());
 		this.currentCancellationTokenSources.clear();
+		this.cellContentListeners.forEach(listener => listener.dispose());
+		this.cellContentListeners.clear();
 	}
 }
 

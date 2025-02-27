@@ -456,7 +456,7 @@ CommandsRegistry.registerCommand({
 				}
 			} else {
 				const vsix = URI.revive(arg);
-				await extensionsWorkbenchService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX, installGivenVersion: true });
+				await extensionsWorkbenchService.install(vsix, { installGivenVersion: true });
 			}
 		} catch (e) {
 			onUnexpectedError(e);

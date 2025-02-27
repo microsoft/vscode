@@ -28,12 +28,19 @@ export interface IChatRequest {
 	variables: Record<string, IChatRequestVariableValue[]>;
 }
 
+export enum ChatErrorLevel {
+	Info = 0,
+	Warning = 1,
+	Error = 2
+}
+
 export interface IChatResponseErrorDetails {
 	message: string;
 	responseIsIncomplete?: boolean;
 	responseIsFiltered?: boolean;
 	responseIsRedacted?: boolean;
 	isQuotaExceeded?: boolean;
+	level?: ChatErrorLevel;
 }
 
 export interface IChatResponseProgressFileTreeData {

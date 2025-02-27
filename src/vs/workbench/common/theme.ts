@@ -599,17 +599,6 @@ export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.r
 export const EXTENSION_BADGE_REMOTE_FOREGROUND = registerColor('extensionBadge.remoteForeground', ACTIVITY_BAR_BADGE_FOREGROUND, localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view."));
 
 
-// < --- Copilot --- >
-
-export const STATUS_BAR_COPILOT_ITEM_BACKGROUND = registerColor('statusBarItem.copilotBackground', STATUS_BAR_REMOTE_ITEM_BACKGROUND, localize('statusBarItemCopilotBackground', "Background color for the Copilot indicator on the status bar."));
-
-export const STATUS_BAR_COPILOT_ITEM_FOREGROUND = registerColor('statusBarItem.copilotForeground', STATUS_BAR_REMOTE_ITEM_FOREGROUND, localize('statusBarItemCopilotForeground', "Foreground color for the Copilot indicator on the status bar."));
-
-export const STATUS_BAR_COPILOT_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.copilotHoverForeground', STATUS_BAR_REMOTE_ITEM_HOVER_FOREGROUND, localize('statusBarCopilotItemHoverForeground', "Foreground color for the Copilot indicator on the status bar when hovering."));
-
-export const STATUS_BAR_COPILOT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.copilotHoverBackground', STATUS_BAR_REMOTE_ITEM_HOVER_BACKGROUND, localize('statusBarAiItemHoverBackground', "Background color for the Copilot indicator on the status bar when hovering."));
-
-
 // < --- Side Bar --- >
 
 export const SIDE_BAR_BACKGROUND = registerColor('sideBar.background', {
