@@ -181,15 +181,29 @@ const createPlaceholderText = (options: ISelectPromptOptions): string => {
 		'Select a prompt to use',
 	);
 
-	// if no widget reference is provided, add the note about
-	// the `alt`/`option` key modifier users can use
+	// if no widget reference is provided, add the note about `options`
+	// and `cmd` modifiers users can use to alter the command behavior
 	if (!widget) {
-		const key = (isWindows || isLinux) ? 'alt' : 'option';
+		const altOptionkey = (isWindows || isLinux) ? 'Alt' : 'Option';
 
-		text += ' ' + localize(
+		const altOptionModifierNote = localize(
 			'commands.prompts.use.select-dialog.alt-modifier-note',
-			'(hold `{0}` to use in Edits)',
-			key,
+			'{0}-key to use in Edits',
+			altOptionkey,
+		);
+
+		const cmdCtrlkey = (isWindows || isLinux) ? 'Ctrl' : 'Cmd';
+		const superModifierNote = localize(
+			'commands.prompts.use.select-dialog.super-modifier-note',
+			'{0}-key to open in editor',
+			cmdCtrlkey,
+		);
+
+		text += localize(
+			'commands.prompts.use.select-dialog.modifier-notes',
+			' (hold {0} or {1})',
+			altOptionModifierNote,
+			superModifierNote,
 		);
 	}
 
