@@ -223,7 +223,7 @@ export class PearOverlayPart extends Part {
 
 			const loadingText = $('div.loading-text');
 			loadingText.textContent = 'Getting ready to make something great...';
-			loadingText.style.color = 'white';
+			loadingText.style.color = '#839497';
 			loadingText.style.fontSize = '20px';
 			// loadingText.addEventListener('click', () => {
 			// 	this.hideOverlayLoadingMessage();
