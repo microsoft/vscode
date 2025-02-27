@@ -63,8 +63,6 @@ import { areApiProposalsCompatible, isEngineValid } from '../../../../platform/e
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -1020,28 +1018,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		urlService.registerHandler(this);
 
-		if (this.productService.quality !== 'stable') {
-			this.registerAutoRestartConfig();
-		}
-
 		this.whenInitialized = this.initialize();
-	}
-
-	private registerAutoRestartConfig(): void {
-		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.registerConfiguration({
-				id: 'extensions',
-				order: 30,
-				title: nls.localize('extensionsConfigurationTitle', "Extensions"),
-				type: 'object',
-				properties: {
-					[AutoRestartConfigurationKey]: {
-						type: 'boolean',
-						description: nls.localize('autoRestart', "If activated, extensions will automatically restart following an update if the window is not in focus. There can be a data loss if you have open Notebooks or Custom Editors."),
-						default: false,
-					}
-				}
-			});
 	}
 
 	private async initialize(): Promise<void> {
