@@ -163,7 +163,8 @@ export class ViewLine implements IVisibleLine {
 			options.renderWhitespace,
 			options.renderControlCharacters,
 			options.fontLigatures !== EditorFontLigatures.OFF,
-			selectionsOnLine
+			selectionsOnLine,
+			lineHeight
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -174,6 +175,8 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
+		sb.appendString(String(lineHeight));
+		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
