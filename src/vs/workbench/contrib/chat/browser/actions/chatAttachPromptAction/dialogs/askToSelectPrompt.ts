@@ -13,6 +13,7 @@ import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { dirname, extUri } from '../../../../../../../base/common/resources.js';
 import { isLinux, isWindows } from '../../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
 import { assertDefined, WithUriValue } from '../../../../../../../base/common/types.js';
 import { getCleanPromptName } from '../../../../../../../platform/prompts/common/constants.js';
@@ -45,6 +46,7 @@ export interface ISelectPromptOptions {
 
 	readonly labelService: ILabelService;
 	readonly viewsService: IViewsService;
+	readonly openerService: IOpenerService;
 	readonly quickInputService: IQuickInputService;
 }
 
@@ -100,7 +102,7 @@ export const askToSelectPrompt = async (
 	}
 
 	// otherwise show the prompt file selection dialog
-	const { viewsService } = options;
+	const { viewsService, openerService } = options;
 
 	const quickPick = quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
 	quickPick.activeItems = activeItem ? [activeItem] : [];
@@ -124,9 +126,27 @@ export const askToSelectPrompt = async (
 		});
 
 		disposables.add(quickPick.onDidAccept(async (event) => {
+			const { alt, ctrlCmd } = quickPick.keyMods;
+
+			// TODO: @lego - refactor?
+			// if `cmd`/`ctrl` key was pressed, open the selected prompt file(s)
+			if (ctrlCmd) {
+				for (const selectedItem of quickPick.selectedItems) {
+					await openerService.open(selectedItem.value);
+				}
+
+				// if user submitted their selection, close the dialog
+				if (!event.inBackground) {
+					disposables.dispose();
+				}
+
+				return;
+			}
+
+			// otherwise attach the selected prompt to a chat input
 			lastActiveWidget = await getChatWidgetObject(
 				options,
-				quickPick.keyMods.alt,
+				alt,
 				viewsService,
 			);
 
@@ -139,7 +159,7 @@ export const askToSelectPrompt = async (
 
 			// if user submitted their selection, close the dialog
 			if (!event.inBackground) {
-				return disposables.dispose();
+				disposables.dispose();
 			}
 		}));
 

@@ -64,6 +64,7 @@ export class AttachPromptAction extends Action2 {
 				promptFiles,
 				labelService,
 				viewsService,
+				openerService,
 				quickInputService,
 			});
 	}
