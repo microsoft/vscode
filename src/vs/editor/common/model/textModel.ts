@@ -466,7 +466,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				rangeLength: rangeLength,
 				text: text,
 			}],
-			edits: [{ range, text }],
 			eol: this._buffer.getEOL(),
 			isEolChange: isEolChange,
 			versionId: this.getVersionId(),
@@ -1558,7 +1557,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				),
 				{
 					changes: contentChanges,
-					edits: rawOperations,
 					eol: this._buffer.getEOL(),
 					isEolChange: false,
 					versionId: this.getVersionId(),
