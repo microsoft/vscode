@@ -24,7 +24,7 @@ export const ATTACH_PROMPT_ACTION_ID = 'workbench.action.chat.attach.prompt';
  * Options for the {@link AttachPromptAction} action.
  */
 export interface IChatAttachPromptActionOptions extends Pick<
-	ISelectPromptOptions, 'resource' | 'widget'
+	ISelectPromptOptions, 'resource' | 'widget' | 'viewsService'
 > { }
 
 /**
