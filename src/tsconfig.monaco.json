@@ -17,6 +17,7 @@
 		"declaration": true
 	},
 	"include": [
+		"typings/css.d.ts",
 		"typings/thenable.d.ts",
 		"typings/vscode-globals-product.d.ts",
 		"typings/vscode-globals-nls.d.ts",
