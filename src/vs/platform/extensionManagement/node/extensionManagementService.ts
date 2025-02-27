@@ -372,27 +372,31 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	private async collectFiles(extension: ILocalExtension): Promise<IFile[]> {
 
-		const collectFilesFromDirectory = async (dir: string): Promise<string[]> => {
+		const collectFilesFromDirectory = async (dir: string): Promise<IFile[]> => {
 			let entries = await pfs.Promises.readdir(dir);
 			entries = entries.map(e => path.join(dir, e));
 			const stats = await Promise.all(entries.map(e => fs.promises.stat(e)));
-			let promise: Promise<string[]> = Promise.resolve([]);
+			let promise: Promise<IFile[]> = Promise.resolve([]);
 			stats.forEach((stat, index) => {
-				const entry = entries[index];
+				const localPath = entries[index];
 				if (stat.isFile()) {
-					promise = promise.then(result => ([...result, entry]));
+					promise = promise.then(result => ([...result, {
+						path: `extension/${path.relative(extension.location.fsPath, localPath)}`,
+						localPath,
+						// chmod u+w,g+w
+						mode: stat.mode | 0o220,
+					}]));
 				}
 				if (stat.isDirectory()) {
 					promise = promise
-						.then(result => collectFilesFromDirectory(entry)
+						.then(result => collectFilesFromDirectory(localPath)
 							.then(files => ([...result, ...files])));
 				}
 			});
 			return promise;
 		};
 
-		const files = await collectFilesFromDirectory(extension.location.fsPath);
-		return files.map(f => ({ path: `extension/${path.relative(extension.location.fsPath, f)}`, localPath: f }));
+		return await collectFilesFromDirectory(extension.location.fsPath);
 	}
 
 	private async onDidChangeExtensionsFromAnotherSource({ added, removed }: DidChangeProfileExtensionsEvent): Promise<void> {

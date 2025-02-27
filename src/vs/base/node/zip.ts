@@ -190,6 +190,7 @@ export interface IFile {
 	path: string;
 	contents?: Buffer | string;
 	localPath?: string;
+	mode?: number;
 }
 
 export async function zip(zipPath: string, files: IFile[]): Promise<string> {
@@ -199,9 +200,9 @@ export async function zip(zipPath: string, files: IFile[]): Promise<string> {
 		const zip = new ZipFile();
 		files.forEach(f => {
 			if (f.contents) {
-				zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path);
+				zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path, { mode: f.mode });
 			} else if (f.localPath) {
-				zip.addFile(f.localPath, f.path);
+				zip.addFile(f.localPath, f.path, { mode: f.mode });
 			}
 		});
 		zip.end();
