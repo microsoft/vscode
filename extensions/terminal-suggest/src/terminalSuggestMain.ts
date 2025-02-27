@@ -169,7 +169,7 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 		// Ignore errors
 	}
 
-	// If the prefix is not a folder, return the current cwd
+	// No valid path found
 	return undefined;
 }
 
