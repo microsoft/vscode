@@ -14,7 +14,10 @@ import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js
 import { IChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { Color } from '../../../../base/common/color.js';
-import { editorErrorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import {
+	darken, editorBackground, editorForeground, listInactiveSelectionBackground, opaque,
+	editorErrorForeground, registerColor, transparent
+} from '../../../../platform/theme/common/colorRegistry.js';
 
 export const IQuickDiffService = createDecorator<IQuickDiffService>('quickDiff');
 
@@ -44,6 +47,12 @@ export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.a
 	transparent(editorGutterAddedBackground, 0.6), nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
 export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground',
 	transparent(editorGutterDeletedBackground, 0.6), nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
+
+export const editorGutterItemGlyphForeground = registerColor('editorGutter.itemGlyphForeground',
+	{ dark: editorForeground, light: editorForeground, hcDark: Color.black, hcLight: Color.white },
+	nls.localize('editorGutterItemGlyphForeground', 'Editor gutter decoration color for gutter item glyphs.')
+);
+export const editorGutterItemBackground = registerColor('editorGutter.itemBackground', { dark: opaque(listInactiveSelectionBackground, editorBackground), light: darken(opaque(listInactiveSelectionBackground, editorBackground), .05), hcDark: Color.white, hcLight: Color.black }, nls.localize('editorGutterItemBackground', 'Editor gutter decoration color for gutter item background. This color should be opaque.'));
 
 export interface QuickDiffProvider {
 	label: string;
