@@ -282,7 +282,7 @@ export class InlineCompletionsModel extends Disposable {
 		let inlineEdit: InlineCompletionWithUpdatedRange | undefined = undefined;
 		const visibleCompletions: InlineCompletionWithUpdatedRange[] = [];
 		for (const completion of c.inlineCompletions) {
-			if (!completion.sourceInlineCompletion.isInlineEdit) {
+			if (!(completion.sourceInlineCompletion.isInlineEdit || completion.sourceInlineCompletion.showInlineEditMenu)) {
 				if (completion.isVisible(this.textModel, cursorPosition, reader)) {
 					visibleCompletions.push(completion);
 				}
