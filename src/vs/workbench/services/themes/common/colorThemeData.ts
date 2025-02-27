@@ -904,20 +904,20 @@ export function findMetadata(colorThemeData: ColorThemeData, captureNames: strin
 		metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
 	}
 
-	switch (definitions.foreground?.settings.fontStyle) {
-		case 'italic':
-			metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
-			break;
-		case 'bold':
-			metadata |= FontStyle.Bold | MetadataConsts.BOLD_MASK;
-			break;
-		case 'underline':
-			metadata |= FontStyle.Underline | MetadataConsts.UNDERLINE_MASK;
-			break;
-		case 'strikethrough':
-			metadata |= FontStyle.Strikethrough | MetadataConsts.STRIKETHROUGH_MASK;
-			break;
+	const fontStyle = definitions.foreground?.settings.fontStyle || definitions.bold?.settings.fontStyle;
+	if (fontStyle?.includes('italic')) {
+		metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
 	}
+	if (fontStyle?.includes('bold')) {
+		metadata |= FontStyle.Bold | MetadataConsts.BOLD_MASK;
+	}
+	if (fontStyle?.includes('underline')) {
+		metadata |= FontStyle.Underline | MetadataConsts.UNDERLINE_MASK;
+	}
+	if (fontStyle?.includes('strikethrough')) {
+		metadata |= FontStyle.Strikethrough | MetadataConsts.STRIKETHROUGH_MASK;
+	}
+
 	const foreground = tokenStyle?.foreground;
 	const tokenStyleForeground = (foreground !== undefined) ? colorThemeData.getTokenColorIndex().get(foreground) : ColorId.DefaultForeground;
 	metadata |= tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;

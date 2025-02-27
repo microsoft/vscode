@@ -149,10 +149,35 @@ if (process.platform === 'win32' || process.platform === 'linux') {
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
-		const traceOptions = {
-			categoryFilter: args['trace-category-filter'] || '*',
-			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
-		};
+		let traceOptions: Electron.TraceConfig | Electron.TraceCategoriesAndOptions;
+		if (args['trace-memory-infra']) {
+			const customCategories = args['trace-category-filter']?.split(',') || [];
+			customCategories.push('disabled-by-default-memory-infra', 'disabled-by-default-memory-infra.v8.code_stats');
+			traceOptions = {
+				included_categories: customCategories,
+				excluded_categories: ['*'],
+				memory_dump_config: {
+					allowed_dump_modes: ['light', 'detailed'],
+					triggers: [
+						{
+							type: 'periodic_interval',
+							mode: 'detailed',
+							min_time_between_dumps_ms: 10000
+						},
+						{
+							type: 'periodic_interval',
+							mode: 'light',
+							min_time_between_dumps_ms: 1000
+						}
+					]
+				}
+			};
+		} else {
+			traceOptions = {
+				categoryFilter: args['trace-category-filter'] || '*',
+				traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
+			};
+		}
 
 		contentTracing.startRecording(traceOptions).finally(() => onReady());
 	} else {

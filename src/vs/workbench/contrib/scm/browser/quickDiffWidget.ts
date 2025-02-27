@@ -172,7 +172,7 @@ class QuickDiffWidget extends PeekViewWidget {
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
-		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
+		this._disposables.add(themeService.onDidColorThemeChange(e => this._applyTheme(e.theme)));
 		this._applyTheme(themeService.getColorTheme());
 
 		if (!Iterable.isEmpty(this.model.originalTextModels)) {
@@ -351,13 +351,14 @@ class QuickDiffWidget extends PeekViewWidget {
 
 	protected override _getActionBarOptions(): IActionBarOptions {
 		const actionRunner = new QuickDiffWidgetActionRunner();
+		this._disposables.add(actionRunner);
 
 		// close widget on successful action
-		actionRunner.onDidRun(e => {
+		this._disposables.add(actionRunner.onDidRun(e => {
 			if (!(e.action instanceof QuickDiffWidgetEditorAction) && !e.error) {
 				this.dispose();
 			}
-		});
+		}));
 
 		return {
 			...super._getActionBarOptions(),

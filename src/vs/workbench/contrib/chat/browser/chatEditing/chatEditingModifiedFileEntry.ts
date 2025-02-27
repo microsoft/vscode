@@ -10,6 +10,7 @@ import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -18,6 +19,7 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { editorBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -47,7 +49,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected readonly _onDidDelete = this._register(new Emitter<void>());
 	readonly onDidDelete = this._onDidDelete.event;
 
-	protected readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
+	protected readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Attached);
 	readonly state: IObservable<WorkingSetEntryState> = this._stateObs;
 
 	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
@@ -223,6 +225,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._autoAcceptCtrl.get()?.cancel();
 	}
 
+	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
+
 	async acceptStreamingEditsEnd(tx: ITransaction) {
 		this._resetEditsState(tx);
 
@@ -259,6 +263,20 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
 		this._rewriteRatioObs.set(0, tx);
 	}
+
+	// --- snapshot
+
+	abstract createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
+
+	abstract equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean;
+
+	abstract restoreFromSnapshot(snapshot: ISnapshotEntry): void;
+
+	// --- inital content
+
+	abstract resetToInitialContent(): void;
+
+	abstract initialContent: string;
 }
 
 export interface IModifiedEntryTelemetryInfo {

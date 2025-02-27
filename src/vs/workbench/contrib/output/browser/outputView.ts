@@ -73,7 +73,6 @@ export class OutputViewPane extends FilterViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IStorageService storageService: IStorageService,
@@ -88,7 +87,7 @@ export class OutputViewPane extends FilterViewPane {
 				text: viewState['filter'] || '',
 				history: []
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.memento = memento;
 		this.panelState = viewState;
 

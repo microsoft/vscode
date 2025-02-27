@@ -30,6 +30,9 @@ if set -q VSCODE_PATH_PREFIX
 end
 set -e VSCODE_PATH_PREFIX
 
+set -g vsc_env_keys
+set -g vsc_env_values
+
 set -g __vsc_applied_env_vars 0
 function __vsc_apply_env_vars
 	if test $__vsc_applied_env_vars -eq 1;
@@ -144,6 +147,16 @@ function __vsc_update_cwd --on-event fish_prompt
 	else
 		__vsc_cmd_clear
 	end
+end
+
+function __vsc_update_env --on-event fish_prompt
+	__vsc_esc EnvSingleStart 1
+	for line in (env)
+		set myVar (echo $line | awk -F= '{print $1}')
+		set myVal (echo $line | awk -F= '{print $2}')
+		__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
+	end
+	__vsc_esc EnvSingleEnd
 end
 
 # Sent at the start of the prompt.

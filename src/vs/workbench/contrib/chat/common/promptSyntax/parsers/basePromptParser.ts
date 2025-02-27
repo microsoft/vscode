@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
-import { PROMPT_FILE_EXTENSION } from '../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -19,11 +18,12 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { basename, extUri } from '../../../../../../base/common/resources.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { ObservableDisposable } from '../../../../../../base/common/observableDisposable.js';
 import { FilePromptContentProvider } from '../contentProviders/filePromptContentsProvider.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
+import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
 
 /**
  * Well-known localized error messages.
@@ -38,7 +38,7 @@ const errorMessages = {
 /**
  * Error conditions that may happen during the file reference resolution.
  */
-export type TErrorCondition = FileOpenFailed | RecursiveReference | NonPromptSnippetFile;
+export type TErrorCondition = OpenFailed | RecursiveReference | FolderReference | NotPromptFile;
 
 /**
  * Base prompt parser class that provides a common interface for all
@@ -376,7 +376,18 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			.filter((reference) => {
 				const { errorCondition } = reference;
 
-				return !errorCondition || (errorCondition instanceof NonPromptSnippetFile);
+				// include all references without errors
+				if (!errorCondition) {
+					return true;
+				}
+
+				// filter out folder references from the list
+				if (errorCondition instanceof FolderReference) {
+					return false;
+				}
+
+				// include non-prompt file references
+				return (errorCondition instanceof NotPromptFile);
 			});
 	}
 
@@ -404,7 +415,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 			.filter((childReference) => {
 				const { errorCondition } = childReference;
 
-				return errorCondition && !(errorCondition instanceof NonPromptSnippetFile);
+				return errorCondition && !(errorCondition instanceof NotPromptFile);
 			})
 			// map to error condition objects
 			.map((childReference): ParseError => {
@@ -471,7 +482,7 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	 * @returns Error message.
 	 */
 	protected getErrorMessage<TError extends ParseError>(error: TError): string {
-		if (error instanceof FileOpenFailed) {
+		if (error instanceof OpenFailed) {
 			return `${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
 		}
 
@@ -504,17 +515,10 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 	}
 
 	/**
-	 * Check if the provided URI points to a prompt snippet.
-	 */
-	public static isPromptSnippet(uri: URI): boolean {
-		return uri.path.endsWith(PROMPT_FILE_EXTENSION);
-	}
-
-	/**
 	 * Check if the current reference points to a prompt snippet file.
 	 */
 	public get isPromptSnippet(): boolean {
-		return BasePromptParser.isPromptSnippet(this.uri);
+		return isPromptFile(this.uri);
 	}
 
 	/**
@@ -598,7 +602,7 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 	 */
 	protected override getErrorMessage(error: ParseError): string {
 		// if failed to open a file, return approprivate message and the file path
-		if (error instanceof FileOpenFailed) {
+		if (error instanceof OpenFailed) {
 			return `${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
 		}
 

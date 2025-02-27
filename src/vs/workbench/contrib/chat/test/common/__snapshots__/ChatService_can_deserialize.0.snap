@@ -78,7 +78,6 @@
         slashCommands: [  ],
         disambiguation: [  ]
       },
-      workingSet: undefined,
       slashCommand: undefined,
       usedContext: {
         documents: [

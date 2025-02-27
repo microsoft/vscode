@@ -15,6 +15,12 @@ export const TREESITTER_ALLOWED_SUPPORT = ['typescript', 'ini'];
 
 export const ITreeSitterParserService = createDecorator<ITreeSitterParserService>('treeSitterParserService');
 
+export interface RangeWithOffsets {
+	range: Range;
+	startOffset: number;
+	endOffset: number;
+}
+
 export interface RangeChange {
 	newRange: Range;
 	oldRangeLength: number;

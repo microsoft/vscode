@@ -18,6 +18,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from '../../../../chat/browser/chatEditing/chatEditingEditorActions.js';
 import { INotebookDeletedCellDecorator } from '../../diff/inlineDiff/notebookDeletedCellDecorator.js';
+import { ChatEditingModifiedDocumentEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(
@@ -38,7 +39,8 @@ export class NotebookChatActionsOverlayController extends Disposable {
 			}
 			const sessions = this._chatEditingService.editingSessionsObs.read(r);
 			const session = sessions.find(s => s.readEntry(model.uri, r));
-			if (!session) {
+			const entry = session?.readEntry(model.uri, r);
+			if (!session || !entry || !(entry instanceof ChatEditingModifiedDocumentEntry)) {
 				return;
 			}
 
@@ -107,15 +109,15 @@ export class NotebookChatActionsOverlay extends Disposable {
 			actionViewItemProvider: (action, options) => {
 
 				if (action.id === navigationBearingFakeActionId) {
-					return new class extends ActionViewItem {
+					return this._register(new class extends ActionViewItem {
 						constructor() {
 							super(undefined, action, { ...options, icon: false, label: false, keybindingNotRenderedWithLabel: true });
 						}
-					};
+					});
 				}
 
 				if (action.id === AcceptAction.ID || action.id === RejectAction.ID) {
-					return new class extends ActionViewItem {
+					return this._register(new class extends ActionViewItem {
 						private readonly _reveal = this._store.add(new MutableDisposable());
 						constructor() {
 							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
@@ -143,23 +145,23 @@ export class NotebookChatActionsOverlay extends Disposable {
 						override get actionRunner(): IActionRunner {
 							return super.actionRunner;
 						}
-					};
+					});
 				}
 				// Override next/previous with our implementation.
 				if (action.id === 'chatEditor.action.navigateNext' || action.id === 'chatEditor.action.navigatePrevious') {
-					return new class extends ActionViewItem {
+					return this._register(new class extends ActionViewItem {
 						constructor() {
 							super(undefined, action, { ...options, icon: true, label: false, keybindingNotRenderedWithLabel: true });
 						}
 						override set actionRunner(_: IActionRunner) {
 							const next = action.id === 'chatEditor.action.navigateNext' ? nextEntry : previousEntry;
 							const direction = action.id === 'chatEditor.action.navigateNext' ? 'next' : 'previous';
-							super.actionRunner = new NextPreviousChangeActionRunner(notebookEditor, cellDiffInfo, entry, next, direction, _editorService, deletedCellDecorator, focusedDiff);
+							super.actionRunner = this._register(new NextPreviousChangeActionRunner(notebookEditor, cellDiffInfo, entry, next, direction, _editorService, deletedCellDecorator, focusedDiff));
 						}
 						override get actionRunner(): IActionRunner {
 							return super.actionRunner;
 						}
-					};
+					});
 				}
 				return undefined;
 			}

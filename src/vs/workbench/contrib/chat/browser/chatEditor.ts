@@ -68,7 +68,6 @@ export class ChatEditor extends EditorPane {
 				undefined,
 				{
 					supportsFileReferences: true,
-					enableImplicitContext: true
 				},
 				{
 					listForeground: editorForeground,

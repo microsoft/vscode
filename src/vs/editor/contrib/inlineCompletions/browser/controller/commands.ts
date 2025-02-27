@@ -261,6 +261,25 @@ export class JumpToNextInlineEdit extends EditorAction {
 	}
 }
 
+export class AcceptNextInlineEditPart extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.acceptNextInlineEditPart',
+			label: nls.localize2('action.inlineSuggest.acceptNextInlineEditPart', "Accept Next Inline Edit Part"),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineEditVisible),
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib + 1,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineEditVisible),
+			},
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.get(editor);
+		await controller?.model.get()?.acceptNextInlineEditPart(controller.editor);
+	}
+}
+
 export class HideInlineCompletion extends EditorAction {
 	public static ID = hideInlineCompletionId;
 

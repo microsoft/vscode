@@ -492,11 +492,14 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 		const extension = await extensionService.getExtension(extensionId);
 		const extensionName = extension?.displayName ?? extension?.name ?? extensionId;
 
-		// Each group represents a single category of settings.
-		// If the extension author forgets to specify an id for the group,
-		// fall back to the title given to the group.
+		// There could be multiple groups with the same extension id that all belong to the same extension.
+		// To avoid highlighting all groups upon expanding the extension's ToC entry,
+		// use the group ID only if it is non-empty and isn't the extension ID.
+		// Ref https://github.com/microsoft/vscode/issues/241521.
+		const settingGroupId = (group.id && group.id !== extensionId) ? group.id : group.title;
+
 		const childEntry: ITOCEntry<ISetting> = {
-			id: group.id || group.title,
+			id: settingGroupId,
 			label: group.title,
 			order: group.order,
 			settings: flatSettings
@@ -867,8 +870,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = toDispose.add(new SimpleIconLabel(labelElementContainer));
-		const indicatorsLabel = this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement);
-		toDispose.add(indicatorsLabel);
+		const indicatorsLabel = toDispose.add(this._instantiationService.createInstance(SettingsTreeIndicatorsLabel, titleElement));
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));

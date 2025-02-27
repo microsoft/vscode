@@ -6,9 +6,9 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
-import { PromptFilesConfig } from '../../common/promptSyntax/config.js';
+import { ChatPromptAttachmentModel } from './chatPromptAttachmentModel.js';
+import { PromptsConfig } from '../../../../../platform/prompts/common/config.js';
 import { IPromptFileReference } from '../../common/promptSyntax/parsers/types.js';
-import { ChatInstructionsAttachmentModel } from './chatInstructionsAttachment.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -61,13 +61,13 @@ export const toChatVariable = (
 
 /**
  * Model for a collection of prompt instruction attachments.
- * See {@linkcode ChatInstructionsAttachmentModel} for individual attachment.
+ * See {@linkcode ChatPromptAttachmentModel} for individual attachment.
  */
-export class ChatInstructionAttachmentsModel extends Disposable {
+export class ChatPromptAttachmentsCollection extends Disposable {
 	/**
 	 * List of all prompt instruction attachments.
 	 */
-	private attachments: DisposableMap<string, ChatInstructionsAttachmentModel> =
+	private attachments: DisposableMap<string, ChatPromptAttachmentModel> =
 		this._register(new DisposableMap());
 
 	/**
@@ -146,13 +146,13 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	 * Event that fires when a new prompt instruction attachment is added.
 	 * See {@linkcode onAdd}.
 	 */
-	protected _onAdd = this._register(new Emitter<ChatInstructionsAttachmentModel>());
+	protected _onAdd = this._register(new Emitter<ChatPromptAttachmentModel>());
 	/**
 	 * The `onAdd` event fires when a new prompt instruction attachment is added.
 	 *
 	 * @param callback Function to invoke on add.
 	 */
-	public onAdd(callback: (attachment: ChatInstructionsAttachmentModel) => unknown): this {
+	public onAdd(callback: (attachment: ChatPromptAttachmentModel) => unknown): this {
 		this._register(this._onAdd.event(callback));
 
 		return this;
@@ -177,7 +177,7 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 			return this;
 		}
 
-		const instruction = this.initService.createInstance(ChatInstructionsAttachmentModel, uri)
+		const instruction = this.initService.createInstance(ChatPromptAttachmentModel, uri)
 			.onUpdate(this._onUpdate.fire)
 			.onDispose(() => {
 				// note! we have to use `deleteAndLeak` here, because the `*AndDispose`
@@ -214,6 +214,6 @@ export class ChatInstructionAttachmentsModel extends Disposable {
 	 * Checks if the prompt instructions feature is enabled in the user settings.
 	 */
 	public get featureEnabled(): boolean {
-		return PromptFilesConfig.enabled(this.configService);
+		return PromptsConfig.enabled(this.configService);
 	}
 }
