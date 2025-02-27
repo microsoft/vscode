@@ -36,6 +36,8 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { isObject } from '../../../../base/common/types.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 
 //#region --- colors
 
@@ -109,7 +111,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 
@@ -370,27 +373,42 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private createSettings(container: HTMLElement, disposables: DisposableStore): HTMLElement {
-		const languageId = this.editorService.activeTextEditorLanguageId;
+		const language = this.editorService.activeTextEditorLanguageId;
 		const settings = container.appendChild($('div.settings'));
 
 		// --- Code Completions
 		{
-			const settingId = 'github.copilot.editor.enableAutoCompletions';
 			const globalSetting = append(settings, $('div.setting'));
-			this.createSetting(globalSetting, localize('settings.codeCompletions', "Code completions (all)"), { key: settingId, override: undefined }, disposables);
+			this.createCodeCompletionsSetting(globalSetting, localize('settings.codeCompletions', "Code completions (all files)"), '*', disposables);
 
-			if (languageId) {
+			if (language) {
 				const languageSetting = append(settings, $('div.setting'));
-				this.createSetting(languageSetting, localize('settings.codeCompletionsLanguage', "Code completions ({0})", languageId), { key: settingId, override: languageId }, disposables);
+				this.createCodeCompletionsSetting(languageSetting, localize('settings.codeCompletionsLanguage', "Code completions ({0})", this.languageService.getLanguageName(language) ?? language), language, disposables);
 			}
 		}
 
 		return settings;
 	}
 
-	private createSetting(container: HTMLElement, label: string, setting: { key: string; override: string | undefined }, disposables: DisposableStore): void {
-		const readSetting = () => Boolean(this.configurationService.getValue<boolean>(setting.key, { overrideIdentifier: setting.override }));
-		const writeSetting = (checkbox: Checkbox) => this.configurationService.updateValue(setting.key, checkbox.checked, { overrideIdentifier: setting.override });
+	private createCodeCompletionsSetting(container: HTMLElement, label: string, language: string, disposables: DisposableStore): void {
+		const settingId = 'github.copilot.enable';
+
+		const readSetting = () => {
+			const result = this.configurationService.getValue<Record<string, boolean>>(settingId);
+			if (!isObject(result)) {
+				return false;
+			}
+
+			return Boolean(result[language]);
+		};
+		const writeSetting = (checkbox: Checkbox) => {
+			let result = this.configurationService.getValue<Record<string, boolean>>(settingId);
+			if (!isObject(result)) {
+				result = Object.create(null);
+			}
+
+			return this.configurationService.updateValue(settingId, { ...result, [language]: checkbox.checked });
+		};
 
 		const settingCheckbox = disposables.add(new Checkbox(label, readSetting(), defaultCheckboxStyles));
 		container.appendChild(settingCheckbox.domNode);
@@ -414,7 +432,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		}));
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(setting.key, { overrideIdentifier: setting.override })) {
+			if (e.affectsConfiguration(settingId)) {
 				settingCheckbox.checked = readSetting();
 			}
 		}));
