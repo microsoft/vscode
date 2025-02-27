@@ -163,7 +163,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let command: string | Command = TOGGLE_CHAT_ACTION_ID;
-		let tooltip: TooltipContent = localize('openChat', "Open Chat ({0})", this.keybindingService.lookupKeybinding(command)?.getLabel() ?? '');
+		let tooltip: TooltipContent;
 		let kind: StatusbarEntryKind | undefined;
 
 		// Quota Exceeded
