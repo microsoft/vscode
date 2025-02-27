@@ -8,7 +8,6 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { Promises } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -62,7 +61,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -80,7 +78,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 		this.attachedContextDisposables.clear();
 		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
 
-		const attachmentInitPromises: Promise<void>[] = [];
 		this.variables.forEach(async (attachment) => {
 			let resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			let range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
@@ -148,25 +145,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 				}
 
 				if (!isAttachmentPartialOrOmitted) {
-					attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
-						let buffer: Uint8Array;
-						try {
-							if (attachment.value instanceof URI) {
-								const readFile = await this.fileService.readFile(attachment.value);
-								if (this.attachedContextDisposables.isDisposed) {
-									return;
-								}
-								buffer = readFile.value.buffer;
-							} else {
-								buffer = attachment.value as Uint8Array;
-							}
-							this.createImageElements(buffer, widget, hoverElement);
-						} catch (error) {
-							console.error('Error processing attachment:', error);
-						}
-						this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
-						resolve();
-					}));
+					const buffer = attachment.value as Uint8Array;
+					this.createImageElements(buffer, widget, hoverElement);
+					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 				}
 				widget.style.position = 'relative';
 			} else if (isPasteVariableEntry(attachment)) {
@@ -231,7 +212,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 				}
 			}
 
-			await Promise.all(attachmentInitPromises);
 			if (this.attachedContextDisposables.isDisposed) {
 				return;
 			}

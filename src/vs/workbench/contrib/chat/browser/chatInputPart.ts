@@ -17,7 +17,6 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
-import { Promises } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
@@ -983,7 +982,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private async renderAttachedContext() {
+	private renderAttachedContext() {
 		const container = this.attachedContextContainer;
 		const oldHeight = container.offsetHeight;
 		const store = new DisposableStore();
@@ -1006,7 +1005,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.promptInstructionsAttached.set(!this.instructionAttachmentsPart.empty);
 		this.instructionAttachmentsPart.render(container);
 
-		const attachmentInitPromises: Promise<void>[] = [];
 		for (const [index, attachment] of attachments) {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverride: widget });
@@ -1059,25 +1057,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				if (supportsVision) {
-					attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
-						let buffer: Uint8Array;
-						try {
-							if (attachment.value instanceof URI) {
-								const readFile = await this.fileService.readFile(attachment.value);
-								if (store.isDisposed) {
-									return;
-								}
-								buffer = readFile.value.buffer;
-							} else {
-								buffer = attachment.value as Uint8Array;
-							}
-							this.createImageElements(buffer, widget, hoverElement);
-						} catch (error) {
-							console.error('Error processing attachment:', error);
-						}
-						store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
-						resolve();
-					}));
+					const buffer = attachment.value as Uint8Array;
+					this.createImageElements(buffer, widget, hoverElement);
+					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 				}
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
@@ -1142,7 +1124,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				store.add(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, widget, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext)));
 			}
 
-			await Promise.all(attachmentInitPromises);
 			if (store.isDisposed) {
 				return;
 			}
