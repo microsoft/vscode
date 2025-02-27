@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
+// version: 5
 
 declare module 'vscode' {
 
@@ -83,6 +83,12 @@ declare module 'vscode' {
 		supportIssueReporting?: boolean;
 	}
 
+	export enum ChatErrorLevel {
+		Info = 0,
+		Warning = 1,
+		Error = 2,
+	}
+
 	export interface ChatErrorDetails {
 		/**
 		 * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
@@ -90,6 +96,8 @@ declare module 'vscode' {
 		responseIsRedacted?: boolean;
 
 		isQuotaExceeded?: boolean;
+
+		level?: ChatErrorLevel;
 	}
 
 	export namespace chat {

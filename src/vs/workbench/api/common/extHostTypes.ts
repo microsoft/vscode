@@ -4750,6 +4750,12 @@ export class PreparedTerminalToolInvocation {
 	) { }
 }
 
+export enum ChatErrorLevel {
+	Info = 0,
+	Warning = 1,
+	Error = 2
+}
+
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
 	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
