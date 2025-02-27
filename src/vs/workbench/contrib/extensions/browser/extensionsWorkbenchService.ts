@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 import * as semver from '../../../../base/common/semver/semver.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { index } from '../../../../base/common/arrays.js';
-import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise, timeout } from '../../../../base/common/async.js';
+import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from '../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IPager, singlePagePager } from '../../../../base/common/paging.js';
@@ -916,6 +916,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private updatesCheckDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
+	private maliciousExtensionsCheckDelayer: ThrottledDelayer<void>;
 
 	private readonly _onChange = this._register(new Emitter<IExtension | undefined>());
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
@@ -1012,9 +1013,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		this.updatesCheckDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.UpdatesCheckInterval);
 		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
+		this.maliciousExtensionsCheckDelayer = new ThrottledDelayer<void>(1000 * 60 * 5 /* every five minutes */);
 		this._register(toDisposable(() => {
 			this.updatesCheckDelayer.cancel();
 			this.autoUpdateDelayer.cancel();
+			this.maliciousExtensionsCheckDelayer.cancel();
 		}));
 
 		urlService.registerHandler(this);
@@ -2954,8 +2957,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private loopCheckForMaliciousExtensions(): void {
 		this.checkForMaliciousExtensions()
-			.then(() => timeout(1000 * 60 * 5)) // every five minutes
-			.then(() => this.checkForMaliciousExtensions());
+			.then(() => this.maliciousExtensionsCheckDelayer.trigger(async () => this.loopCheckForMaliciousExtensions()));
 	}
 
 	private async checkForMaliciousExtensions(): Promise<void> {
