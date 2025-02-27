@@ -239,18 +239,18 @@ const createPlaceholderText = (options: ISelectPromptOptions): string => {
 	// if no widget reference is provided, add the note about `options`
 	// and `cmd` modifiers users can use to alter the command behavior
 	if (!widget) {
-		const altOptionkey = (isWindows || isLinux) ? 'Alt' : 'Option';
+		const altOptionkey = (isWindows || isLinux) ? 'Alt' : '⌥';
 
 		const altOptionModifierNote = localize(
 			'commands.prompts.use.select-dialog.alt-modifier-note',
-			'{0}-key to use in Edits',
+			'{0}-key to use in Copilot Edits',
 			altOptionkey,
 		);
 
-		const cmdCtrlkey = (isWindows || isLinux) ? 'Ctrl' : 'Cmd';
+		const cmdCtrlkey = (isWindows || isLinux) ? 'Ctrl' : '⌘';
 		const superModifierNote = localize(
 			'commands.prompts.use.select-dialog.super-modifier-note',
-			'{0}-key to open in editor',
+			'{0}-key to open the prompt',
 			cmdCtrlkey,
 		);
 
