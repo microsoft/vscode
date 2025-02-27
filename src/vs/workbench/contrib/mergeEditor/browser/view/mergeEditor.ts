@@ -156,6 +156,17 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	}
 
 	protected createEditorControl(parent: HTMLElement, initialOptions: ICodeEditorOptions): void {
+		const primaryPane = parent.querySelector('.input');
+		const secondaryPane = parent.querySelector('.result');
+
+		if (primaryPane) {
+			primaryPane.setAttribute('aria-label', 'Input Editor Pane');
+		}
+
+		if (secondaryPane) {
+			secondaryPane.setAttribute('aria-label', 'Result Editor Panel');
+		}
+
 		this.rootHtmlElement = parent;
 		parent.classList.add('merge-editor');
 		this.applyLayout(this._layoutMode.value);
