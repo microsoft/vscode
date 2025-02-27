@@ -117,8 +117,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	private massageQuotas(quotas: IChatQuotas): IChatQuotas {
 		return {
 			...quotas,
-			chatTotal: typeof quotas.chatTotal === 'number' ? Math.floor(quotas.chatTotal / 10) : undefined,
-			chatRemaining: typeof quotas.chatRemaining === 'number' ? Math.floor(Math.max(0, quotas.chatRemaining) / 10) : undefined,
+			chatRemaining: typeof quotas.chatRemaining === 'number' ? Math.max(0, quotas.chatRemaining) : undefined,
 			completionsRemaining: typeof quotas.completionsRemaining === 'number' ? Math.max(0, quotas.completionsRemaining) : undefined
 		};
 	}
