@@ -333,7 +333,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				CTX_INLINE_CHAT_POSSIBLE,
 				EditorContextKeys.writable,
 				EditorContextKeys.editorSimpleInput.negate()
-			)) ? { text: localize('shortcuts.inlineChat', "Inline Chat"), id: 'inlineChat.start' } : undefined
+			)) ? { text: localize('shortcuts.inlineChat', "Inline Chat"), id: 'inlineChat.start' } : undefined,
+			{ text: localize('shortcuts.quickChat', "Quick Chat"), id: 'workbench.action.quickchat.toggle' },
 		]);
 
 		const onTrigger = (commandId: string, e: EventLike) => {
@@ -358,7 +359,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			disposables.add(Gesture.addTarget(shortcut));
 			[EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
-				disposables.add(addDisposableListener(shortcuts, eventType, e => onTrigger(entry.id, e)));
+				disposables.add(addDisposableListener(shortcut, eventType, e => onTrigger(entry.id, e)));
 			});
 
 			disposables.add(addDisposableListener(shortcut, EventType.KEY_DOWN, e => {
