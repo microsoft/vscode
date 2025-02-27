@@ -1635,7 +1635,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	padding: 2px 0 2px 0px;
 	border-radius: 2px;
-	margin-right: 1px;
+	margin: 0 -1px 0 1px;
 	user-select: none;
 	outline: none;
 	border: none;
@@ -1647,8 +1647,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {
-	width: 14px;
-	height: 14px;
+	width: 10px;
+	height: 10px;
 	border-radius: 2px;
 }
 
