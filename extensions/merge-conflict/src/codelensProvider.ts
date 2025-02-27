@@ -63,25 +63,31 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 		conflicts.forEach(conflict => {
 			const acceptCurrentCommand: vscode.Command = {
 				command: 'merge-conflict.accept.current',
-				title: vscode.l10n.t("Accept Current Change"),
+				title: vscode.l10n.t("Accept Current"),
 				arguments: ['known-conflict', conflict]
 			};
 
 			const acceptIncomingCommand: vscode.Command = {
 				command: 'merge-conflict.accept.incoming',
-				title: vscode.l10n.t("Accept Incoming Change"),
+				title: vscode.l10n.t("Accept Incoming"),
 				arguments: ['known-conflict', conflict]
 			};
 
 			const acceptBothCommand: vscode.Command = {
 				command: 'merge-conflict.accept.both',
-				title: vscode.l10n.t("Accept Both Changes"),
+				title: vscode.l10n.t("Accept Both"),
 				arguments: ['known-conflict', conflict]
 			};
 
+			// Only allow comparing with the common ancestor if there is a single
+			// one. This is the common case with diff3/zdiff3.
+			const hasSingleCommonAncestor = conflict.commonAncestors.length === 1;
+
 			const diffCommand: vscode.Command = {
 				command: 'merge-conflict.compare',
-				title: vscode.l10n.t("Compare Changes"),
+				title: hasSingleCommonAncestor
+					? vscode.l10n.t("Compare Current & Incoming")
+					: vscode.l10n.t("Compare Changes"),
 				arguments: [conflict]
 			};
 
@@ -92,6 +98,25 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 				new vscode.CodeLens(range, acceptBothCommand),
 				new vscode.CodeLens(range, diffCommand)
 			);
+
+			if (hasSingleCommonAncestor) {
+				const diffBaseCurrentCommand: vscode.Command = {
+					command: 'merge-conflict.compare-ancestor-current',
+					title: vscode.l10n.t("Compare Ancestor & Current"),
+					arguments: [conflict]
+				};
+
+				const diffBaseIncomingCommand: vscode.Command = {
+					command: 'merge-conflict.compare-ancestor-incoming',
+					title: vscode.l10n.t("Compare Ancestor & Incoming"),
+					arguments: [conflict]
+				};
+
+				items.push(
+					new vscode.CodeLens(range, diffBaseCurrentCommand),
+					new vscode.CodeLens(range, diffBaseIncomingCommand),
+				);
+			}
 		});
 
 		return items;
