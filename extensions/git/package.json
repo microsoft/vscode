@@ -3323,10 +3323,10 @@
           "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
           "scope": "resource"
         },
-        "git.untrackedChangesEnableTrash": {
+        "git.discardUntrackedChangesToTrash": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "%config.untrackedChangesEnableTrash%"
+          "markdownDescription": "%config.discardUntrackedChangesToTrash%"
         }
       }
     },
