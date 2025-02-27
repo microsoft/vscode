@@ -29,7 +29,7 @@
 	},
 	{
 		"c": "push",
-		"t": "entity.name.function",
+		"t": "variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -57,7 +57,7 @@
 	},
 	{
 		"c": "callback",
-		"t": "entity.name.function",
+		"t": "variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr keyword.operator.new",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.function",
+		"t": "new.expr variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -141,7 +141,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": "false",
-		"t": "constant.language.boolean.false",
+		"t": "new.expr constant.language.boolean.false",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -197,7 +197,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

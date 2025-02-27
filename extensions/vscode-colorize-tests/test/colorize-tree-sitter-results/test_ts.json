@@ -141,7 +141,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -211,7 +211,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -225,7 +225,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -281,7 +281,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -295,7 +295,7 @@
 	},
 	{
 		"c": "boolean",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -323,7 +323,7 @@
 	},
 	{
 		"c": "constructor",
-		"t": "storage.type",
+		"t": "variable meta.definition.method storage.type",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -351,7 +351,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -365,7 +365,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -379,7 +379,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -407,7 +407,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -421,7 +421,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -435,7 +435,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -477,7 +477,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -491,7 +491,7 @@
 	},
 	{
 		"c": "boolean",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -561,7 +561,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -645,7 +645,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -729,7 +729,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -883,7 +883,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -897,7 +897,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -953,7 +953,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -967,7 +967,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1023,7 +1023,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1037,7 +1037,7 @@
 	},
 	{
 		"c": "string",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1093,7 +1093,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1107,7 +1107,7 @@
 	},
 	{
 		"c": "string",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1163,7 +1163,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1177,7 +1177,7 @@
 	},
 	{
 		"c": "string",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1233,7 +1233,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1247,7 +1247,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1303,7 +1303,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1317,7 +1317,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1373,7 +1373,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -1387,7 +1387,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -1457,7 +1457,7 @@
 	},
 	{
 		"c": "constructor",
-		"t": "storage.type",
+		"t": "variable meta.definition.method storage.type",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1541,7 +1541,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1625,7 +1625,7 @@
 	},
 	{
 		"c": "canvasSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1709,7 +1709,7 @@
 	},
 	{
 		"c": "lineColor",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1821,7 +1821,7 @@
 	},
 	{
 		"c": "liveColor",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1933,7 +1933,7 @@
 	},
 	{
 		"c": "deadColor",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2045,7 +2045,7 @@
 	},
 	{
 		"c": "initialLifeProbability",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2129,7 +2129,7 @@
 	},
 	{
 		"c": "animationRate",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2213,7 +2213,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2297,7 +2297,7 @@
 	},
 	{
 		"c": "world",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2353,7 +2353,7 @@
 	},
 	{
 		"c": "createWorld",
-		"t": "entity.name.function",
+		"t": "variable variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2437,7 +2437,7 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "entity.name.function",
+		"t": "variable variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2521,7 +2521,7 @@
 	},
 	{
 		"c": "createWorld",
-		"t": "entity.name.function",
+		"t": "variable meta.definition.method entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2619,7 +2619,7 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "entity.name.function",
+		"t": "variable variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2661,7 +2661,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2675,7 +2675,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -2829,7 +2829,7 @@
 	},
 	{
 		"c": "random",
-		"t": "entity.name.function",
+		"t": "variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2913,7 +2913,7 @@
 	},
 	{
 		"c": "initialLifeProbability",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3053,7 +3053,7 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "entity.name.function",
+		"t": "variable meta.definition.method entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3095,7 +3095,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -3109,7 +3109,7 @@
 	},
 	{
 		"c": "void",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -3165,7 +3165,7 @@
 	},
 	{
 		"c": "world",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3221,7 +3221,7 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "entity.name.function",
+		"t": "variable variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3263,7 +3263,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3277,7 +3277,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -3403,7 +3403,7 @@
 	},
 	{
 		"c": "world",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3599,7 +3599,7 @@
 	},
 	{
 		"c": "draw",
-		"t": "entity.name.function",
+		"t": "variable variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3711,7 +3711,7 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "entity.name.function",
+		"t": "variable variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3823,7 +3823,7 @@
 	},
 	{
 		"c": "setTimeout",
-		"t": "entity.name.function",
+		"t": "variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3935,7 +3935,7 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "entity.name.function",
+		"t": "variable variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4033,7 +4033,7 @@
 	},
 	{
 		"c": "animationRate",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4103,7 +4103,7 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "entity.name.function",
+		"t": "variable meta.definition.method entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4131,7 +4131,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4145,7 +4145,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -4271,7 +4271,7 @@
 	},
 	{
 		"c": "countNeighbors",
-		"t": "entity.name.function",
+		"t": "variable variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4383,7 +4383,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr keyword.operator.new",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -4397,7 +4397,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.function",
+		"t": "new.expr variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4411,7 +4411,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4425,7 +4425,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4439,7 +4439,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4453,7 +4453,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4467,7 +4467,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4481,7 +4481,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4495,7 +4495,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4509,7 +4509,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4523,7 +4523,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4537,7 +4537,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4551,7 +4551,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4565,7 +4565,7 @@
 	},
 	{
 		"c": "live",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -4579,7 +4579,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5083,7 +5083,7 @@
 	},
 	{
 		"c": "countNeighbors",
-		"t": "entity.name.function",
+		"t": "variable meta.definition.method entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -5111,7 +5111,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -5125,7 +5125,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -5923,7 +5923,7 @@
 	},
 	{
 		"c": "isAlive",
-		"t": "entity.name.function",
+		"t": "variable variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6301,7 +6301,7 @@
 	},
 	{
 		"c": "isAlive",
-		"t": "entity.name.function",
+		"t": "variable meta.definition.method entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6329,7 +6329,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6343,7 +6343,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6357,7 +6357,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -6385,7 +6385,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6399,7 +6399,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -6413,7 +6413,7 @@
 	},
 	{
 		"c": "number",
-		"t": "support.type.primitive",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -6651,7 +6651,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6735,7 +6735,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -6847,7 +6847,7 @@
 	},
 	{
 		"c": "world",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7015,7 +7015,7 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "entity.name.function",
+		"t": "variable meta.definition.method entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7043,7 +7043,7 @@
 	},
 	{
 		"c": "callback",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7323,7 +7323,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7645,7 +7645,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7757,7 +7757,7 @@
 	},
 	{
 		"c": "push",
-		"t": "entity.name.function",
+		"t": "variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7785,7 +7785,7 @@
 	},
 	{
 		"c": "callback",
-		"t": "entity.name.function",
+		"t": "variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7813,7 +7813,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr keyword.operator.new",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -7827,7 +7827,7 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.function",
+		"t": "new.expr variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7841,7 +7841,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7855,7 +7855,7 @@
 	},
 	{
 		"c": "row",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7869,7 +7869,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7883,7 +7883,7 @@
 	},
 	{
 		"c": "col",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -7897,7 +7897,7 @@
 	},
 	{
 		"c": ",",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -7911,7 +7911,7 @@
 	},
 	{
 		"c": "false",
-		"t": "constant.language.boolean.false",
+		"t": "new.expr constant.language.boolean.false",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",
@@ -7925,7 +7925,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -8023,7 +8023,7 @@
 	},
 	{
 		"c": "push",
-		"t": "entity.name.function",
+		"t": "variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8177,7 +8177,7 @@
 	},
 	{
 		"c": "draw",
-		"t": "entity.name.function",
+		"t": "variable meta.definition.method entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8205,7 +8205,7 @@
 	},
 	{
 		"c": "cell",
-		"t": "variable.parameter",
+		"t": "variable variable.parameter",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8219,7 +8219,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.type.annotation",
+		"t": "punctuation.delimiter keyword.operator.type.annotation",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -8331,7 +8331,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8415,7 +8415,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8471,7 +8471,7 @@
 	},
 	{
 		"c": "canvasSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8527,7 +8527,7 @@
 	},
 	{
 		"c": "gridSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8583,7 +8583,7 @@
 	},
 	{
 		"c": "context",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8667,7 +8667,7 @@
 	},
 	{
 		"c": "lineColor",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8723,7 +8723,7 @@
 	},
 	{
 		"c": "context",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8751,7 +8751,7 @@
 	},
 	{
 		"c": "strokeRect",
-		"t": "entity.name.function",
+		"t": "variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8863,7 +8863,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -8975,7 +8975,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9031,7 +9031,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9087,7 +9087,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9157,7 +9157,7 @@
 	},
 	{
 		"c": "context",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9255,7 +9255,7 @@
 	},
 	{
 		"c": "?",
-		"t": "keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9297,7 +9297,7 @@
 	},
 	{
 		"c": "liveColor",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9311,7 +9311,7 @@
 	},
 	{
 		"c": ":",
-		"t": "keyword.operator.ternary",
+		"t": "punctuation.delimiter keyword.operator.ternary",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -9353,7 +9353,7 @@
 	},
 	{
 		"c": "deadColor",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9409,7 +9409,7 @@
 	},
 	{
 		"c": "context",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9437,7 +9437,7 @@
 	},
 	{
 		"c": "fillRect",
-		"t": "entity.name.function",
+		"t": "variable entity.name.function",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -9549,7 +9549,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9661,7 +9661,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9717,7 +9717,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9773,7 +9773,7 @@
 	},
 	{
 		"c": "cellSize",
-		"t": "variable",
+		"t": "variable variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9899,7 +9899,7 @@
 	},
 	{
 		"c": "new",
-		"t": "keyword.operator.new",
+		"t": "new.expr keyword.operator.new",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -9913,7 +9913,7 @@
 	},
 	{
 		"c": "Conway",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9927,7 +9927,7 @@
 	},
 	{
 		"c": ".",
-		"t": "punctuation.delimiter",
+		"t": "new.expr punctuation.delimiter",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9941,7 +9941,7 @@
 	},
 	{
 		"c": "GameOfLife",
-		"t": "variable",
+		"t": "new.expr variable",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -9955,7 +9955,7 @@
 	},
 	{
 		"c": "(",
-		"t": "punctuation",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -9969,7 +9969,7 @@
 	},
 	{
 		"c": ")",
-		"t": "punctuation",
+		"t": "new.expr punctuation",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

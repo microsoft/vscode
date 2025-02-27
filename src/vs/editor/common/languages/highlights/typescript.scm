@@ -113,10 +113,12 @@
 (internal_module
   name: (identifier) @entity.name.type.ts)
 
-([
-  (identifier)
-  (shorthand_property_identifier)
-  (shorthand_property_identifier_pattern)] @variable.other.constant
+(
+  [
+    (_ name: (identifier))
+    (shorthand_property_identifier)
+    (shorthand_property_identifier_pattern)
+  ] @variable.other.constant
   (#match? @variable.other.constant "^[A-Z][A-Z_]+$"))
 
 (extends_clause
@@ -347,7 +349,8 @@
 (optional_chain
   ("?.") @punctuation.accessor.optional)
 
-(rest_pattern) @keyword.operator.rest
+(rest_pattern
+  ("...") @keyword.operator.rest)
 
 (spread_element
   ("...") @keyword.operator.spread)
@@ -362,11 +365,11 @@
   (undefined)
 ] @constant.language.undefined
 
- ((identifier) @constant.language.nan
-   (#eq? @constant.language.nan "NaN"))
+((identifier) @constant.language.nan
+  (#eq? @constant.language.nan "NaN"))
 
- ((identifier) @constant.language.infinity
-   (#eq? @constant.language.infinity "Infinity"))
+((identifier) @constant.language.infinity
+  (#eq? @constant.language.infinity "Infinity"))
 
 [
   (true)
