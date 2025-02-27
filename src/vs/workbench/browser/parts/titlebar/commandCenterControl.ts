@@ -22,6 +22,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { WindowTitle } from './windowTitle.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 export class CommandCenterControl {
 
@@ -86,6 +87,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
@@ -165,6 +167,9 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 								labelElement.innerText = this._getLabel();
 							}));
 
+							this._store.add(that._accessibilityService.onDidChangeScreenReaderOptimized(() => labelElement.innerText = this._getLabel(true)));
+
+
 							// update label & tooltip when tabs visibility changes
 							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
 								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
@@ -178,10 +183,10 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							return that.getTooltip();
 						}
 
-						private _getLabel(): string {
+						private _getLabel(screenReaderModeChanged?: boolean): string {
 							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
 							let label = that._windowTitle.workspaceName;
-							if (that._windowTitle.isCustomTitleFormat()) {
+							if (screenReaderModeChanged || that._windowTitle.isCustomTitleFormat()) {
 								label = that._windowTitle.getWindowTitle();
 							} else if (that._editorGroupService.partOptions.showTabs === 'none') {
 								label = that._windowTitle.fileName ?? label;

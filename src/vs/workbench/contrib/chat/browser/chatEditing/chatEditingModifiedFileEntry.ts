@@ -33,7 +33,7 @@ class AutoAcceptControl {
 	) { }
 }
 
-export const pendingRewriteMinimap = registerColor('chatEdits.minimapColor',
+export const pendingRewriteMinimap = registerColor('minimap.chatEditHighlight',
 	transparent(editorBackground, 0.6),
 	localize('editorSelectionBackground', "Color of pending edit regions in the minimap"));
 
@@ -49,7 +49,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected readonly _onDidDelete = this._register(new Emitter<void>());
 	readonly onDidDelete = this._onDidDelete.event;
 
-	protected readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
+	protected readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Attached);
 	readonly state: IObservable<WorkingSetEntryState> = this._stateObs;
 
 	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);

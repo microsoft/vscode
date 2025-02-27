@@ -24,7 +24,7 @@ class AcceptToolConfirmation extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
-				when: ChatContextKeys.inChatInput,
+				when: ChatContextKeys.inChatSession,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -33,7 +33,8 @@ class AcceptToolConfirmation extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const lastItem = chatWidgetService.lastFocusedWidget?.viewModel?.getItems().at(-1);
+		const widget = chatWidgetService.lastFocusedWidget;
+		const lastItem = widget?.viewModel?.getItems().at(-1);
 		if (!isResponseVM(lastItem)) {
 			return;
 		}
@@ -42,6 +43,9 @@ class AcceptToolConfirmation extends Action2 {
 		if (unconfirmedToolInvocation) {
 			unconfirmedToolInvocation.confirmed.complete(true);
 		}
+
+		// Return focus to the chat input, in case it was in the tool confirmation editor
+		widget?.focusInput();
 	}
 }
 

@@ -486,7 +486,6 @@ export interface IPerformanceMessage extends BaseToWebviewMessage {
 	readonly duration: number;
 	readonly rendererId: string;
 	readonly outputSize?: number;
-	readonly mimeType?: string;
 }
 
 

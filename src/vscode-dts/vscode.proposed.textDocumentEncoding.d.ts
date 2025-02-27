@@ -56,14 +56,16 @@ declare module 'vscode' {
 			/**
 			 * The {@link TextDocument.encoding encoding} of the document to use
 			 * for decoding the underlying buffer to text. If omitted, the encoding
-			 * will be guessed based on the file content and/or the editor settings.
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
 			 *
 			 * See {@link TextDocument.encoding} for more information about valid
 			 * values for encoding.
 			 *
 			 * *Note* that opening a text document that was already opened with a
 			 * different encoding has the potential of changing the text contents of
-			 * the text document.
+			 * the text document. Specifically, when the encoding results in a
+			 * different set of characters than the previous encoding.
 			 */
 			encoding?: string;
 		}): Thenable<TextDocument>;
@@ -80,14 +82,16 @@ declare module 'vscode' {
 			/**
 			 * The {@link TextDocument.encoding encoding} of the document to use
 			 * for decoding the underlying buffer to text. If omitted, the encoding
-			 * will be guessed based on the file content and/or the editor settings.
+			 * will be guessed based on the file content and/or the editor settings
+			 * unless the document is already opened.
 			 *
 			 * See {@link TextDocument.encoding} for more information about valid
 			 * values for encoding.
 			 *
 			 * *Note* that opening a text document that was already opened with a
 			 * different encoding has the potential of changing the text contents of
-			 * the text document.
+			 * the text document. Specifically, when the encoding results in a
+			 * different set of characters than the previous encoding.
 			 */
 			encoding?: string;
 		}): Thenable<TextDocument>;

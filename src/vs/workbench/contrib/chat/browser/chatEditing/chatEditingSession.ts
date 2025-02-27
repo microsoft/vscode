@@ -49,7 +49,7 @@ import { AbstractChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISna
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
+import { ChatEditingModifiedNotebookDiff, ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -302,8 +302,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._linearHistory.get().find(s => s.requestId === requestId);
 	}
 
-	private _findEditStop(requestId: string, undoStop: string | undefined): IChatEditingSessionStop | undefined {
-		return this._findSnapshot(requestId)?.stops.find(s => s.stopId === undoStop);
+	private _findEditStop(requestId: string, undoStop: string | undefined) {
+		const snapshot = this._findSnapshot(requestId);
+		if (!snapshot) {
+			return undefined;
+		}
+		const idx = snapshot.stops.findIndex(s => s.stopId === undoStop);
+		return idx === -1 ? undefined : { stop: snapshot.stops[idx], snapshot, historyIndex: snapshot.startIndex + idx };
 	}
 
 	private _ensurePendingSnapshot() {
@@ -346,8 +351,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				return;
 			}
 
-			entriesContent.read(reader); // trigger re-diffing when contents change
+			const entries = entriesContent.read(reader); // trigger re-diffing when contents change
 
+			if (entries?.before && ChatEditingModifiedNotebookEntry.canHandleSnapshot(entries.before)) {
+				const diffService = this._instantiationService.createInstance(ChatEditingModifiedNotebookDiff, entries.before, entries.after);
+				return new ObservablePromise(diffService.computeDiff());
+
+			}
 			const ignoreTrimWhitespace = this._ignoreTrimWhitespaceObservable.read(reader);
 			const promise = this._editorWorkerService.computeDiff(
 				refs[0].object.textEditorModel.uri,
@@ -399,7 +409,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return [entriesValue.before.snapshotUri, entriesValue.after.snapshotUri];
 		});
 
-		// todo@DonJayamanne support notebooks here too
 		const diff = this._entryDiffBetweenTextStops(entries, modelUrisObservable);
 
 		return derived(reader => {
@@ -464,15 +473,15 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 	}
 
-	public async getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null> {
+	public getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined {
 		const entries = undoStop === POST_EDIT_STOP_ID
 			? this._findSnapshot(requestId)?.postEdit
-			: this._findEditStop(requestId, undoStop)?.entries;
-		if (!entries) {
-			return null;
-		}
+			: this._findEditStop(requestId, undoStop)?.stop.entries;
+		return entries && [...entries.values()].find((e) => isEqual(e.snapshotUri, snapshotUri));
+	}
 
-		const snapshotEntry = [...entries.values()].find((e) => isEqual(e.snapshotUri, snapshotUri));
+	public async getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null> {
+		const snapshotEntry = this.getSnapshot(requestId, undoStop, snapshotUri);
 		if (!snapshotEntry) {
 			return null;
 		}
@@ -491,10 +500,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	private _pendingSnapshot: IChatEditingSessionStop | undefined;
 	public async restoreSnapshot(requestId: string | undefined, stopId: string | undefined): Promise<void> {
 		if (requestId !== undefined) {
-			const snapshot = this._findEditStop(requestId, stopId);
-			if (snapshot) {
+			const stopRef = this._findEditStop(requestId, stopId);
+			if (stopRef) {
 				this._ensurePendingSnapshot();
-				await this._restoreSnapshot(snapshot, undefined);
+				await asyncTransaction(async tx => {
+					this._linearHistoryIndex.set(stopRef.historyIndex, tx);
+					await this._restoreSnapshot(stopRef.stop, tx);
+				});
+				this._updateRequestHiddenState();
 			}
 		} else {
 			const pendingSnapshot = this._pendingSnapshot;
@@ -1032,9 +1045,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	private async _createModifiedFileEntry(resource: URI, telemetryInfo: IModifiedEntryTelemetryInfo, mustExist = false, initialContent: string | undefined): Promise<AbstractChatEditingModifiedFileEntry> {
 		const multiDiffEntryDelegate = { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) };
 		const chatKind = mustExist ? ChatEditKind.Created : ChatEditKind.Modified;
+		const notebookUri = CellUri.parse(resource)?.notebook || resource;
 		try {
-			const notebookUri = CellUri.parse(resource)?.notebook || resource;
-			if (this._notebookService.hasSupportedNotebooks(notebookUri)) {
+			// If a notebook isn't open, then use the old synchronization approach.
+			if (this._notebookService.hasSupportedNotebooks(notebookUri) && (this._notebookService.getNotebookTextModel(notebookUri) || ChatEditingModifiedNotebookEntry.canHandleSnapshotContent(initialContent))) {
 				return ChatEditingModifiedNotebookEntry.create(notebookUri, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
 			} else {
 				const ref = await this._textModelService.createModelReference(resource);
@@ -1047,7 +1061,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
 			this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
-			return this._createModifiedFileEntry(resource, telemetryInfo, true, initialContent);
+			if (this._notebookService.hasSupportedNotebooks(notebookUri)) {
+				return ChatEditingModifiedNotebookEntry.create(resource, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
+			} else {
+				return this._createModifiedFileEntry(resource, telemetryInfo, true, initialContent);
+			}
 		}
 	}
 

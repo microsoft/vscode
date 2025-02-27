@@ -534,9 +534,9 @@ export type InstallOptions = {
 	donotVerifySignature?: boolean;
 	operation?: InstallOperation;
 	profileLocation?: URI;
-	installOnlyNewlyAddedFromExtensionPack?: boolean;
 	productVersion?: IProductVersion;
 	keepExisting?: boolean;
+	downloadExtensionsLocally?: boolean;
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */

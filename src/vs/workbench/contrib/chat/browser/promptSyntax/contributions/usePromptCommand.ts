@@ -8,6 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -20,12 +21,14 @@ import { IChatAttachPromptActionOptions, ATTACH_PROMPT_ACTION_ID } from '../../a
 /**
  * Command ID of the "Use Prompt" command.
  */
-const COMMAND_ID = 'workbench.command.prompts.use';
+export const COMMAND_ID = 'workbench.command.prompts.use';
 
 /**
  * Keybinding of the "Use Prompt" command.
+ * The `cmd + /` is the current keybinding for 'attachment', so we use
+ * the `alt` key modifier to convey the "prompt attachment" action.
  */
-const COMMAND_KEY_BINDING = KeyMod.Alt | KeyMod.Shift | KeyCode.KeyE;
+const COMMAND_KEY_BINDING = KeyMod.CtrlCmd | KeyCode.Slash | KeyMod.Alt;
 
 /**
  * Implementation of the "Use Prompt" command. The command works in the following way.
@@ -49,10 +52,12 @@ const command = async (
 	accessor: ServicesAccessor,
 ): Promise<void> => {
 	const commandService = accessor.get(ICommandService);
+	const viewsService = accessor.get(IViewsService);
 
 	const options: IChatAttachPromptActionOptions = {
 		resource: getActivePromptUri(accessor),
 		widget: getFocusedChatWidget(accessor),
+		viewsService,
 	};
 
 	await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../base/common/arrays.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -29,10 +28,8 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		prompt.parts
 			.forEach((part, i) => {
-				if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon, isFile: part.isFile };
-				} else if (part instanceof ChatRequestToolPart) {
-					resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined, fullName: part.displayName };
+				if (part instanceof ChatRequestDynamicVariablePart || part instanceof ChatRequestToolPart) {
+					resolvedVariables[i] = part.toVariableEntry();
 				}
 			});
 

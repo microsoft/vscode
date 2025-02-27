@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
 import codeInsidersCompletionSpec from './completions/code-insiders';
+import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
 import { PathExecutableCache } from './env/pathExecutableCache';
 import { osIsWindows } from './helpers/os';
@@ -49,6 +50,7 @@ export const availableSpecs: Fig.Spec[] = [
 	cdSpec,
 	codeInsidersCompletionSpec,
 	codeCompletionSpec,
+	setLocationSpec,
 ];
 for (const spec of upstreamSpecs) {
 	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
@@ -100,7 +102,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env.value);
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value);
 			const shellGlobals = await getShellGlobals(shellType, commandsInPath?.labels) ?? [];
 			if (!commandsInPath?.completionResources) {
 				return;
@@ -110,7 +112,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, shellType);
-			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, getEnvAsRecord(terminal.shellIntegration?.env.value), terminal.name, token);
+			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, tokenType, terminal.shellIntegration?.cwd, getEnvAsRecord(terminal.shellIntegration?.env?.value), terminal.name, token);
 			if (terminal.shellIntegration?.env) {
 				const homeDirCompletion = result.items.find(i => i.label === '~');
 				if (homeDirCompletion && terminal.shellIntegration.env?.value?.HOME) {
@@ -120,7 +122,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, env: terminal.shellIntegration?.env.value });
+				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, fileExtensions: result.fileExtensions, cwd: result.cwd, env: terminal.shellIntegration?.env?.value });
 			}
 			return result.items;
 		}
@@ -168,7 +170,7 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 	}
 
 	// If the prefix is not a folder, return the current cwd
-	return currentCwd;
+	return undefined;
 }
 
 function getPrefix(commandLine: string, cursorPosition: number): string {
@@ -209,11 +211,12 @@ export async function getCompletionItemsFromSpecs(
 	name: string,
 	token?: vscode.CancellationToken,
 	executeExternals?: IFigExecuteExternals,
-): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; cwd?: vscode.Uri }> {
+): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
 	let hasCurrentArg = false;
+	let fileExtensions: string[] | undefined;
 
 	let precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 	if (isWindows) {
@@ -230,6 +233,7 @@ export async function getCompletionItemsFromSpecs(
 		hasCurrentArg ||= result.hasCurrentArg;
 		filesRequested ||= result.filesRequested;
 		foldersRequested ||= result.foldersRequested;
+		fileExtensions = result.fileExtensions;
 		if (result.items) {
 			items.push(...result.items);
 		}
@@ -273,10 +277,10 @@ export async function getCompletionItemsFromSpecs(
 
 	let cwd: vscode.Uri | undefined;
 	if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
-		cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
+		cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd);
 	}
 
-	return { items, filesRequested, foldersRequested, cwd };
+	return { items, filesRequested, foldersRequested, fileExtensions, cwd };
 }
 
 function compareItems(existingItem: vscode.TerminalCompletionItem, command: ICompletionResource): vscode.TerminalCompletionItem | undefined {

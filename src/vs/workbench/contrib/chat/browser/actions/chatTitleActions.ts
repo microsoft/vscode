@@ -492,7 +492,7 @@ export function registerChatTitleActions() {
 			// make request
 			await chatService.sendRequest(editingSession.chatSessionId, '', {
 				agentId: editAgent.id,
-				acceptedConfirmationData: [{ _type: 'toEditTransfer', transferedTurnResults: sourceRequests.map(v => v.response?.result) }], // TODO@jrieken HACKY
+				acceptedConfirmationData: [{ _type: 'toEditTransfer', transferredTurnResults: sourceRequests.map(v => v.response?.result) }], // TODO@jrieken HACKY
 				confirmation: typeof this.desc.title === 'string' ? this.desc.title : this.desc.title.value
 			});
 		}

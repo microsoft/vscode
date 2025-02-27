@@ -233,7 +233,10 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							cursor: 'pointer',
 							pointerEvents: 'auto',
 						},
-						onmouseup: (e) => this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)),
+						onmousedown: e => {
+							e.preventDefault(); // This prevents that the editor loses focus
+						},
+						onclick: (e) => this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)),
 					}, [
 						n.div({
 							style: {

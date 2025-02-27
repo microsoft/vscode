@@ -636,15 +636,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 
-			// --- Activity Actions
-			if (this.activityActionsEnabled) {
-				if (isAccountsActionVisible(this.storageService)) {
-					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
-				}
-
-				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
-			}
-
 			// --- Global Actions
 			const globalToolbarActions = this.globalToolbarMenu.getActions();
 			this.hasGlobalToolbarEntries = globalToolbarActions.length > 0;
@@ -653,13 +644,22 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				actions
 			);
 
-			// --- Layout Actions (always at the end)
+			// --- Layout Actions
 			if (this.layoutToolbarMenu) {
 				fillInActionBarActions(
 					this.layoutToolbarMenu.getActions(),
 					actions,
 					() => !this.editorActionsEnabled // Layout Actions in overflow menu when editor actions enabled in title bar
 				);
+			}
+
+			// --- Activity Actions (always at the end)
+			if (this.activityActionsEnabled) {
+				if (isAccountsActionVisible(this.storageService)) {
+					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
+				}
+
+				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
 			}
 
 			this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));

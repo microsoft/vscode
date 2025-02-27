@@ -13,6 +13,7 @@ import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { dirname, extUri } from '../../../../../../../base/common/resources.js';
 import { isLinux, isWindows } from '../../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
 import { assertDefined, WithUriValue } from '../../../../../../../base/common/types.js';
 import { getCleanPromptName } from '../../../../../../../platform/prompts/common/constants.js';
@@ -45,6 +46,7 @@ export interface ISelectPromptOptions {
 
 	readonly labelService: ILabelService;
 	readonly viewsService: IViewsService;
+	readonly openerService: IOpenerService;
 	readonly quickInputService: IQuickInputService;
 }
 
@@ -100,7 +102,7 @@ export const askToSelectPrompt = async (
 	}
 
 	// otherwise show the prompt file selection dialog
-	const { viewsService } = options;
+	const { openerService } = options;
 
 	const quickPick = quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
 	quickPick.activeItems = activeItem ? [activeItem] : [];
@@ -124,22 +126,20 @@ export const askToSelectPrompt = async (
 		});
 
 		disposables.add(quickPick.onDidAccept(async (event) => {
-			lastActiveWidget = await getChatWidgetObject(
-				options,
-				quickPick.keyMods.alt,
-				viewsService,
-			);
+			const { selectedItems } = quickPick;
+			const { alt, ctrlCmd } = quickPick.keyMods;
 
-			for (const selectedItem of quickPick.selectedItems) {
-				lastActiveWidget
-					.attachmentModel
-					.promptInstructions
-					.add(selectedItem.value);
+			// if `super` key was pressed, open the selected prompt file(s)
+			if (ctrlCmd) {
+				return await openFiles(selectedItems, openerService);
 			}
+
+			// otherwise attach the selected prompt to a chat input
+			lastActiveWidget = await attachFiles(selectedItems, options, alt);
 
 			// if user submitted their selection, close the dialog
 			if (!event.inBackground) {
-				return disposables.dispose();
+				disposables.dispose();
 			}
 		}));
 
@@ -181,15 +181,29 @@ const createPlaceholderText = (options: ISelectPromptOptions): string => {
 		'Select a prompt to use',
 	);
 
-	// if no widget reference is provided, add the note about
-	// the `alt`/`option` key modifier users can use
+	// if no widget reference is provided, add the note about `options`
+	// and `cmd` modifiers users can use to alter the command behavior
 	if (!widget) {
-		const key = (isWindows || isLinux) ? 'alt' : 'option';
+		const altOptionkey = (isWindows || isLinux) ? 'Alt' : 'Option';
 
-		text += ' ' + localize(
+		const altOptionModifierNote = localize(
 			'commands.prompts.use.select-dialog.alt-modifier-note',
-			'(hold `{0}` to use in Edits)',
-			key,
+			'{0}-key to use in Edits',
+			altOptionkey,
+		);
+
+		const cmdCtrlkey = (isWindows || isLinux) ? 'Ctrl' : 'Cmd';
+		const superModifierNote = localize(
+			'commands.prompts.use.select-dialog.super-modifier-note',
+			'{0}-key to open in editor',
+			cmdCtrlkey,
+		);
+
+		text += localize(
+			'commands.prompts.use.select-dialog.modifier-notes',
+			' (hold {0} or {1})',
+			altOptionModifierNote,
+			superModifierNote,
 		);
 	}
 
@@ -197,17 +211,50 @@ const createPlaceholderText = (options: ISelectPromptOptions): string => {
 };
 
 /**
+ * Opens provided files in the editor.
+ */
+const openFiles = async (
+	files: readonly WithUriValue<IQuickPickItem>[],
+	openerService: IOpenerService,
+) => {
+	for (const file of files) {
+		await openerService.open(file.value);
+	}
+};
+
+/**
+ * Attaches provided files to a chat input.
+ */
+const attachFiles = async (
+	files: readonly WithUriValue<IQuickPickItem>[],
+	options: ISelectPromptOptions,
+	altOption: boolean,
+): Promise<IChatWidget> => {
+	const widget = await getChatWidgetObject(options, altOption);
+
+	for (const file of files) {
+		widget
+			.attachmentModel
+			.promptInstructions
+			.add(file.value);
+	}
+
+	return widget;
+};
+
+/**
  * Gets a chat widget based on the provided {@link IChatAttachPromptActionOptions.widget widget}
  * reference. If no widget reference is provided, the function will reveal a `chat panel` by default
  * (either a last focused, or a new one), but if the {@link altOption} is set to `true`, a `chat edits`
  * panel will be revealed instead (likewise either a last focused, or a new one).
+ *
+ * @throws if failed to reveal a chat widget.
  */
 const getChatWidgetObject = async (
 	options: IChatAttachPromptActionOptions,
 	altOption: boolean,
-	viewsService: IViewsService,
 ): Promise<IChatWidget> => {
-	const { widget } = options;
+	const { widget, viewsService } = options;
 
 	// if no widget reference is present, the command was triggered from outside of
 	// an active chat input, so we reveal a chat widget window based on the `alt`
