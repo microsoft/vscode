@@ -615,7 +615,7 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				const options: IChatAttachPromptActionOptions = { widget };
+				const options: IChatAttachPromptActionOptions = { widget, viewsService };
 				await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
 			} else {
 				// Anything else is an attachment
