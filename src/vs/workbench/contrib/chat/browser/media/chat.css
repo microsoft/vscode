@@ -569,12 +569,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
-	margin-bottom: -13px;
+	margin-bottom: -14px;
 	padding: 6px 8px 18px 8px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-bottom: none;
 	border-radius: 4px;
 	display: flex;
 	flex-direction: column;
@@ -648,10 +647,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-button-background);
 	border: 1px solid var(--vscode-button-border);
 	color: var(--vscode-button-foreground);
-}
-
-.chat-attached-context .monaco-icon-label-container {
-	overflow: hidden !important;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover {
@@ -1046,6 +1041,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-style: dashed;
 	opacity: 0.75;
 }
+.chat-attached-context .chat-prompt-attachment .monaco-button {
+	border-left: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	margin-left: 3px;
+}
+.chat-attached-context .chat-prompt-attachment.error .monaco-button,
+.chat-attached-context .chat-prompt-attachment.warning .monaco-button {
+	border-left-color: currentColor;
+}
 .chat-attached-context .chat-prompt-attachment:focus .monaco-button {
 	border-color: var(--vscode-focusBorder);
 }
@@ -1174,11 +1177,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container .monaco-highlighted-label {
-	display: block !important;
+	display: flex !important;
 	align-items: center !important;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
@@ -1266,7 +1266,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.predefined-file-icon::before {
 	padding: 0 0 0 2px;
-	align-content: center;
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
@@ -1639,7 +1638,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	padding: 2px 0 2px 0px;
 	border-radius: 2px;
-	margin-right: 3px;
+	margin: 0 -1px 0 1px;
 	user-select: none;
 	outline: none;
 	border: none;
@@ -1651,8 +1650,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {
-	width: 12px;
-	height: 12px;
+	width: 10px;
+	height: 10px;
 	border-radius: 2px;
 }
 
@@ -1661,11 +1660,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	user-select: none;
 	outline: none;
 	border: none;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	max-width: 100%;
-	display: inline-block;
 }
 
 .chat-attached-context-attachment.show-file-icons.warning .chat-attached-context-custom-text {
@@ -1729,8 +1723,4 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			margin: 0px;
 		}
 	}
-}
-
-.hideSuggestTextIcons .suggest-widget .monaco-list .monaco-list-row .suggest-icon.codicon-symbol-text::before {
-	display: none;
 }
