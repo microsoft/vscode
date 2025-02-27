@@ -808,7 +808,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 			const cacheKey = this.updateCacheKey();
 
-			const folders = await Promise.all(workspaces.map(workspace => searchFolders(workspace, pattern, token, cacheKey.key, this.configurationService, this.searchService)));
+			const folders = await Promise.all(workspaces.map(workspace => searchFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService)));
 			for (const resource of folders.flat()) {
 				if (seen.has(resource)) {
 					// already included via history
