@@ -965,7 +965,7 @@ export interface IBreakpointContribution {
 
 export enum DebugConfigurationProviderTriggerKind {
 	/**
-	 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
+	 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch configuration file.
 	 */
 	Initial = 1,
 	/**
@@ -1073,7 +1073,7 @@ export interface IGuessedDebugger {
 export interface ILaunch {
 
 	/**
-	 * Resource pointing to the launch.json this object is wrapping.
+	 * Resource pointing to the launch configuration that this object is wrapping.
 	 */
 	readonly uri: uri;
 
@@ -1111,7 +1111,7 @@ export interface ILaunch {
 	getConfigurationNames(ignoreCompoundsAndPresentation?: boolean): string[];
 
 	/**
-	 * Opens the launch.json file. Creates if it does not exist.
+	 * Opens the launch.jsonc file. Creates if it does not exist.
 	 */
 	openConfigFile(options: { preserveFocus: boolean; type?: string; suppressInitialConfigs?: boolean }, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }>;
 }

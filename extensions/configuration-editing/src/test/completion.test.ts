@@ -293,6 +293,286 @@ suite('Completions in settings.json', () => {
 	});
 });
 
+suite('Completions in settings.jsonc', () => {
+	const testFile = 'settings.jsonc';
+
+	test('window.title', async () => {
+		{ // inserting after text
+			const content = [
+				'{',
+				'  "window.title": "custom|"',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "window.title": "custom${activeEditorShort}"',
+				'}',
+			].join('\n');
+			const expected = { label: '${activeEditorShort}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{	// inserting before a variable
+			const content = [
+				'{',
+				'  "window.title": "|${activeEditorShort}"',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "window.title": "${folderPath}${activeEditorShort}"',
+				'}',
+			].join('\n');
+			const expected = { label: '${folderPath}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{	// inserting after a variable
+			const content = [
+				'{',
+				'  "window.title": "${activeEditorShort}|"',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "window.title": "${activeEditorShort}${folderPath}"',
+				'}',
+			].join('\n');
+			const expected = { label: '${folderPath}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{ // replacing an variable
+			const content = [
+				'{',
+				'  "window.title": "${a|ctiveEditorShort}"',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "window.title": "${activeEditorMedium}"',
+				'}',
+			].join('\n');
+			const expected = { label: '${activeEditorMedium}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{ // replacing a partial variable
+			const content = [
+				'{',
+				'  "window.title": "${a|"',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "window.title": "${dirty}"',
+				'}',
+			].join('\n');
+			const expected = { label: '${dirty}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{ // inserting a literal
+			const content = [
+				'{',
+				'  "window.title": |',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "window.title": "${activeEditorMedium}"',
+				'}',
+			].join('\n');
+			const expected = { label: '"${activeEditorMedium}"', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{ // no proposals after literal
+			const content = [
+				'{',
+				'  "window.title": "${activeEditorShort}"   |',
+				'}',
+			].join('\n');
+			const expected = { label: '${activeEditorMedium}', notAvailable: true };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+
+	test('files.associations', async () => {
+		{
+			const content = [
+				'{',
+				'  "files.associations": {',
+				'    |',
+				'  }',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.associations": {',
+				'    "*.${1:extension}": "${2:language}"',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: 'Files with Extension', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "files.associations": {',
+				'    |',
+				'  }',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.associations": {',
+				'    "/${1:path to file}/*.${2:extension}": "${3:language}"',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: 'Files with Path', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "files.associations": {',
+				'    "*.extension": "|bat"',
+				'  }',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.associations": {',
+				'    "*.extension": "json"',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: '"json"', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "files.associations": {',
+				'    "*.extension": "bat"|',
+				'  }',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.associations": {',
+				'    "*.extension": "json"',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: '"json"', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "files.associations": {',
+				'    "*.extension": "bat"  |',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: '"json"', notAvailable: true };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+	test('files.exclude', async () => {
+		{
+			const content = [
+				'{',
+				'  "files.exclude": {',
+				'    |',
+				'  }',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.exclude": {',
+				'    "**/*.${1:extension}": true',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: 'Files by Extension', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "files.exclude": {',
+				'    "**/*.extension": |true',
+				'  }',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.exclude": {',
+				'    "**/*.extension": { "when": "$(basename).${1:extension}" }',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: 'Files with Siblings by Name', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+	test('files.defaultLanguage', async () => {
+		{
+			const content = [
+				'{',
+				'  "files.defaultLanguage": "json|"',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.defaultLanguage": "jsonc"',
+				'}',
+			].join('\n');
+			const expected = { label: '"jsonc"', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "files.defaultLanguage": |',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "files.defaultLanguage": "jsonc"',
+				'}',
+			].join('\n');
+			const expected = { label: '"jsonc"', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+	test('remote.extensionKind', async () => {
+		{
+			const content = [
+				'{',
+				'\t"remote.extensionKind": {',
+				'\t\t|',
+				'\t}',
+				'}',
+			].join('\n');
+			const expected = { label: 'vscode.npm' };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+	test('remote.portsAttributes', async () => {
+		{
+			const content = [
+				'{',
+				'  "remote.portsAttributes": {',
+				'    |',
+				'  }',
+				'}',
+			].join('\n');
+			const expected = { label: '"3000"' };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+});
+
 suite('Completions in extensions.json', () => {
 	const testFile = 'extensions.json';
 	test('change recommendation', async () => {
@@ -337,8 +617,140 @@ suite('Completions in extensions.json', () => {
 	});
 });
 
+suite('Completions in extensions.jsonc', () => {
+	const testFile = 'extensions.jsonc';
+	test('change recommendation', async () => {
+		{
+			const content = [
+				'{',
+				'  "recommendations": [',
+				'    "|a.b"',
+				'  ]',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "recommendations": [',
+				'    "ms-vscode.js-debug"',
+				'  ]',
+				'}',
+			].join('\n');
+			const expected = { label: 'ms-vscode.js-debug', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+	test('add recommendation', async () => {
+		{
+			const content = [
+				'{',
+				'  "recommendations": [',
+				'    |',
+				'  ]',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "recommendations": [',
+				'    "ms-vscode.js-debug"',
+				'  ]',
+				'}',
+			].join('\n');
+			const expected = { label: 'ms-vscode.js-debug', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+});
+
 suite('Completions in launch.json', () => {
 	const testFile = 'launch.json';
+	test('variable completions', async () => {
+		{
+			const content = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "configurations": [',
+				'    {',
+				'      "name": "Run Extension",',
+				'      "type": "extensionHost",',
+				'      "preLaunchTask": "${|defaultBuildTask}"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "configurations": [',
+				'    {',
+				'      "name": "Run Extension",',
+				'      "type": "extensionHost",',
+				'      "preLaunchTask": "${cwd}"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const expected = { label: '${cwd}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "configurations": [',
+				'    {',
+				'      "name": "Run Extension",',
+				'      "type": "extensionHost",',
+				'      "preLaunchTask": "|${defaultBuildTask}"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "configurations": [',
+				'    {',
+				'      "name": "Run Extension",',
+				'      "type": "extensionHost",',
+				'      "preLaunchTask": "${cwd}${defaultBuildTask}"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const expected = { label: '${cwd}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "configurations": [',
+				'    {',
+				'      "name": "Do It",',
+				'      "program": "${workspace|"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "configurations": [',
+				'    {',
+				'      "name": "Do It",',
+				'      "program": "${cwd}"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const expected = { label: '${cwd}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+});
+
+suite('Completions in launch.jsonc', () => {
+	const testFile = 'launch.jsonc';
 	test('variable completions', async () => {
 		{
 			const content = [
@@ -483,8 +895,119 @@ suite('Completions in tasks.json', () => {
 	});
 });
 
+suite('Completions in tasks.jsonc', () => {
+	const testFile = 'tasks.jsonc';
+	test('variable completions', async () => {
+		{
+			const content = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "tasks": [',
+				'    {',
+				'      "type": "shell",',
+				'      "command": "${|defaultBuildTask}"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "tasks": [',
+				'    {',
+				'      "type": "shell",',
+				'      "command": "${cwd}"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const expected = { label: '${cwd}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+		{
+			const content = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "tasks": [',
+				'    {',
+				'      "type": "shell",',
+				'      "command": "${defaultBuildTask}|"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const resultText = [
+				'{',
+				'  "version": "0.2.0",',
+				'  "tasks": [',
+				'    {',
+				'      "type": "shell",',
+				'      "command": "${defaultBuildTask}${cwd}"',
+				'    }',
+				'  ]',
+				'}',
+			].join('\n');
+			const expected = { label: '${cwd}', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+});
+
 suite('Completions in keybindings.json', () => {
 	const testFile = 'keybindings.json';
+	test('context key insertion', async () => {
+		{
+			const content = [
+				'[',
+				'  {',
+				'    "key": "ctrl+k ctrl+,",',
+				'    "command": "editor.jumpToNextFold",',
+				'    "when": "|"',
+				'  }',
+				']',
+			].join('\n');
+			const resultText = [
+				'[',
+				'  {',
+				'    "key": "ctrl+k ctrl+,",',
+				'    "command": "editor.jumpToNextFold",',
+				'    "when": "resourcePath"',
+				'  }',
+				']',
+			].join('\n');
+			const expected = { label: 'resourcePath', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+
+	test('context key replace', async () => {
+		{
+			const content = [
+				'[',
+				'  {',
+				'    "key": "ctrl+k ctrl+,",',
+				'    "command": "editor.jumpToNextFold",',
+				'    "when": "resou|rcePath"',
+				'  }',
+				']',
+			].join('\n');
+			const resultText = [
+				'[',
+				'  {',
+				'    "key": "ctrl+k ctrl+,",',
+				'    "command": "editor.jumpToNextFold",',
+				'    "when": "resource"',
+				'  }',
+				']',
+			].join('\n');
+			const expected = { label: 'resource', resultText };
+			await testCompletion(testFile, 'jsonc', content, expected);
+		}
+	});
+});
+
+suite('Completions in keybindings.jsonc', () => {
+	const testFile = 'keybindings.jsonc';
 	test('context key insertion', async () => {
 		{
 			const content = [

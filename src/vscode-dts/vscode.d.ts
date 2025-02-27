@@ -6729,10 +6729,10 @@ declare module 'vscode' {
 	 *
 	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
-	 * from `launch.json`:
+	 * from `launch.json`/`launch.jsonc`:
 	 *
 	 * ```ts
-	 * // launch.json configuration
+	 * // launch configuration
 	 * const config = workspace.getConfiguration('launch', vscode.workspace.workspaceFolders[0].uri);
 	 *
 	 * // retrieve values
@@ -16849,13 +16849,13 @@ declare module 'vscode' {
 
 	/**
 	 * A DebugConfigurationProviderTriggerKind specifies when the `provideDebugConfigurations` method of a `DebugConfigurationProvider` is triggered.
-	 * Currently there are two situations: to provide the initial debug configurations for a newly created launch.json or
+	 * Currently there are two situations: to provide the initial debug configurations for a newly created launch configuration or
 	 * to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
 	 * A trigger kind is used when registering a `DebugConfigurationProvider` with {@link debug.registerDebugConfigurationProvider}.
 	 */
 	export enum DebugConfigurationProviderTriggerKind {
 		/**
-		 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
+		 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch configuration.
 		 */
 		Initial = 1,
 		/**
@@ -16974,8 +16974,8 @@ declare module 'vscode' {
 		/**
 		 * Register a {@link DebugConfigurationProvider debug configuration provider} for a specific debug type.
 		 * The optional {@link DebugConfigurationProviderTriggerKind triggerKind} can be used to specify when the `provideDebugConfigurations` method of the provider is triggered.
-		 * Currently two trigger kinds are possible: with the value `Initial` (or if no trigger kind argument is given) the `provideDebugConfigurations` method is used to provide the initial debug configurations to be copied into a newly created launch.json.
-		 * With the trigger kind `Dynamic` the `provideDebugConfigurations` method is used to dynamically determine debug configurations to be presented to the user (in addition to the static configurations from the launch.json).
+		 * Currently two trigger kinds are possible: with the value `Initial` (or if no trigger kind argument is given) the `provideDebugConfigurations` method is used to provide the initial debug configurations to be copied into a newly created launch configuration.
+		 * With the trigger kind `Dynamic` the `provideDebugConfigurations` method is used to dynamically determine debug configurations to be presented to the user (in addition to the static configurations from the launch configuration).
 		 * Please note that the `triggerKind` argument only applies to the `provideDebugConfigurations` method: so the `resolveDebugConfiguration` methods are not affected at all.
 		 * Registering a single provider with resolve methods for different trigger kinds, results in the same resolve methods called multiple times.
 		 * More than one provider can be registered for the same type.
@@ -17010,7 +17010,7 @@ declare module 'vscode' {
 		/**
 		 * Start debugging by using either a named launch or named compound configuration,
 		 * or by directly passing a {@link DebugConfiguration}.
-		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
+		 * The named configurations are looked up in '.vscode/launch.jsonc' and '.vscode/launch.json' found in the given folder.
 		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
 		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
 		 * @param folder The {@link WorkspaceFolder workspace folder} for looking up named configurations and resolving variables or `undefined` for a non-folder setup.

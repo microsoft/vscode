@@ -308,7 +308,7 @@ export class DebugService implements IDebugService {
 			this.contextKeyService.bufferChangeEvents(() => {
 				this.debugState.set(getStateLabel(state));
 				this.inDebugMode.set(state !== State.Inactive);
-				// Only show the simple ux if debug is not yet started and if no launch.json exists
+				// Only show the simple ux if debug is not yet started and if no launch configuration exists
 				const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasEnabledDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
 				this.debugUx.set(debugUxValue);
 				this.debugStorage.storeDebugUxState(debugUxValue);
@@ -432,8 +432,8 @@ export class DebugService implements IDebugService {
 			}
 
 			if (configOrName && !config) {
-				const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", typeof configOrName === 'string' ? configOrName : configOrName.name) :
-					nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist for passed workspace folder.");
+				const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.jsonc'.", typeof configOrName === 'string' ? configOrName : configOrName.name) :
+					nls.localize('launchJsonDoesNotExist', "Launch configuration does not exist for passed workspace folder.");
 				throw new Error(message);
 			}
 
@@ -526,7 +526,7 @@ export class DebugService implements IDebugService {
 
 				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, resolvedConfig.type, resolvedConfig, initCancellationToken.token);
 				if (!cfg) {
-					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
+					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch configuration only for "config" being "null".
 						await launch.openConfigFile({ preserveFocus: true, type }, initCancellationToken.token);
 					}
 					return false;
@@ -586,7 +586,7 @@ export class DebugService implements IDebugService {
 			}
 		}
 
-		if (launch && type && configByProviders === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
+		if (launch && type && configByProviders === null && !initCancellationToken.token.isCancellationRequested) {	// show launch configuration only for "config" being "null".
 			await launch.openConfigFile({ preserveFocus: true, type }, initCancellationToken.token);
 		}
 
@@ -809,7 +809,7 @@ export class DebugService implements IDebugService {
 			return;
 		}
 
-		// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+		// Read the configuration again if the launch configuration has been changed. If not, then just use the inmemory configuration.
 		let needsToSubstitute = false;
 		let unresolved: IConfig | undefined;
 		const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;

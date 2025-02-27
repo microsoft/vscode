@@ -17,10 +17,10 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(...registerExtensionsCompletions());
 
 	// launch.json variable suggestions
-	context.subscriptions.push(registerVariableCompletions('**/launch.json'));
+	context.subscriptions.push(registerVariableCompletions('**/launch.{json,jsonc}'));
 
 	// task.json variable suggestions
-	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
+	context.subscriptions.push(registerVariableCompletions('**/tasks.{json,jsonc}'));
 
 	// Workspace file launch/tasks variable completions
 	context.subscriptions.push(registerVariableCompletions('**/*.code-workspace'));
@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 function registerSettingsCompletions(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern: '**/settings.json' }, {
+	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern: '**/settings.{json,jsonc}' }, {
 		provideCompletionItems(document, position, token) {
 			return new SettingsDocument(document).provideCompletionItems(position, token);
 		}
@@ -106,7 +106,7 @@ function registerExtensionsCompletions(): vscode.Disposable[] {
 }
 
 function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ pattern: '**/extensions.json' }, {
+	return vscode.languages.registerCompletionItemProvider({ pattern: '**/extensions.{json,jsonc}' }, {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (location.path[0] === 'recommendations') {
@@ -144,7 +144,7 @@ function getReplaceRange(document: vscode.TextDocument, location: Location, posi
 	return new vscode.Range(position, position);
 }
 
-vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'jsonc' }, {
+vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.{json,jsonc}', language: 'jsonc' }, {
 	provideDocumentSymbols(document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.SymbolInformation[]> {
 		const result: vscode.SymbolInformation[] = [];
 		let name: string = '';
@@ -183,7 +183,7 @@ function registerContextKeyCompletions(): vscode.Disposable {
 	type ContextKeyInfo = { key: string; type?: string; description?: string };
 
 	const paths = new Map<vscode.DocumentFilter, JSONPath[]>([
-		[{ language: 'jsonc', pattern: '**/keybindings.json' }, [
+		[{ language: 'jsonc', pattern: '**/keybindings.{json,jsonc}' }, [
 			['*', 'when']
 		]],
 		[{ language: 'json', pattern: '**/package.json' }, [

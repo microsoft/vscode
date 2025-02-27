@@ -252,7 +252,7 @@ class ServerReadyDetector extends vscode.Disposable {
 	}
 
 	/**
-	 * Starts a debug session given a debug configuration name (saved in launch.json) or a debug configuration object.
+	 * Starts a debug session given a debug configuration name (saved in launch.jsonc) or a debug configuration object.
 	 *
 	 * @param session The parent debugSession
 	 * @param name The name of the configuration to launch. If config it set, it assumes it is the same as config.name.

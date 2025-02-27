@@ -10,6 +10,9 @@ import { Editors } from './editors';
 import { Editor } from './editor';
 import { IElement } from './driver';
 import { Quality } from './application';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as process from 'process';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET}`;
@@ -69,7 +72,13 @@ export class Debug extends Viewlet {
 
 	async configure(): Promise<any> {
 		await this.code.waitAndClick(CONFIGURE);
-		await this.editors.waitForEditorFocus('launch.json');
+		if (await fs.existsSync(path.join(process.cwd(), '.vscode', 'launch.jsonc'))) {
+			await this.editors.waitForEditorFocus('launch.jsonc');
+		}
+		if (await fs.existsSync(path.join(process.cwd(), '.vscode', 'launch.json'))) {
+			await this.editors.waitForEditorFocus('launch.json');
+		}
+		await this.editors.waitForEditorFocus('launch.jsonc');
 	}
 
 	async setBreakpointOnLine(lineNumber: number): Promise<any> {

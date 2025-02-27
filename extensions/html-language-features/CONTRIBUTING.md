@@ -7,7 +7,7 @@
 	- devDependencies such as `gulp`
 - Open `/extensions/html-language-features/` as the workspace in VS Code
 - In `/extensions/html-language-features/` run `npm run compile`(or `npm run watch`) to build the client and server
-- Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/html-language-features/.vscode/launch.json) debug target in the Debug View. This will:
+- Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/html-language-features/.vscode/launch.jsonc) debug target in the Debug View. This will:
 	- Launch a new VS Code instance with the `html-language-features` extension loaded
 - Open a `.html` file to activate the extension. The extension will start the HTML language server process.
 - Add `"html.trace.server": "verbose"` to the settings to observe the communication between client and server in the `HTML Language Server` output.

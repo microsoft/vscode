@@ -285,7 +285,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onDebugInitialConfigurations',
-						description: nls.localize('vscode.extension.activationEvents.onDebugInitialConfigurations', 'An activation event emitted whenever a "launch.json" needs to be created (and all provideDebugConfigurations methods need to be called).'),
+						description: nls.localize('vscode.extension.activationEvents.onDebugInitialConfigurations', 'An activation event emitted whenever a "launch.jsonc" needs to be created (and all provideDebugConfigurations methods need to be called).'),
 						body: 'onDebugInitialConfigurations'
 					},
 					{

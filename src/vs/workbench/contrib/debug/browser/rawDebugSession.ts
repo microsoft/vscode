@@ -802,7 +802,7 @@ export class RawDebugSession implements IDisposable {
 		if (error && url) {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 			const uri = URI.parse(url);
-			// Use a suffixed id if uri invokes a command, so default 'Open launch.json' command is suppressed on dialog
+			// Use a suffixed id if uri invokes a command, so default 'Open launch configuraiton' command is suppressed on dialog
 			const actionId = uri.scheme === Schemas.command ? 'debug.moreInfo.command' : 'debug.moreInfo';
 			return createErrorWithActions(userMessage, [toAction({ id: actionId, label, run: () => this.openerService.open(uri, { allowCommands: true }) })]);
 		}

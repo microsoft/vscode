@@ -44,9 +44,9 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'jsconfig.json', filePattern: /^jsconfig\.json$/i },
 		{ tag: 'tslint.json', filePattern: /^tslint\.json$/i },
 		{ tag: 'eslint.json', filePattern: /^eslint\.json$/i },
-		{ tag: 'tasks.json', filePattern: /^tasks\.json$/i },
-		{ tag: 'launch.json', filePattern: /^launch\.json$/i },
-		{ tag: 'settings.json', filePattern: /^settings\.json$/i },
+		{ tag: 'tasks.jsonc', filePattern: /^tasks\.jsonc?$/i },
+		{ tag: 'launch.jsonc', filePattern: /^launch\.jsonc?$/i },
+		{ tag: 'settings.jsonc', filePattern: /^settings\.jsonc?$/i },
 		{ tag: 'webpack.config.js', filePattern: /^webpack\.config\.js$/i },
 		{ tag: 'project.json', filePattern: /^project\.json$/i },
 		{ tag: 'makefile', filePattern: /^makefile$/i },
@@ -54,7 +54,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'csproj', filePattern: /^.+\.csproj$/i },
 		{ tag: 'cmake', filePattern: /^.+\.cmake$/i },
 		{ tag: 'github-actions', filePattern: /^.+\.ya?ml$/i, relativePathPattern: /^\.github(?:\/|\\)workflows$/i },
-		{ tag: 'devcontainer.json', filePattern: /^devcontainer\.json$/i },
+		{ tag: 'devcontainer.jsonc', filePattern: /^devcontainer\.jsonc?$/i },
 		{ tag: 'dockerfile', filePattern: /^(dockerfile|docker\-compose\.ya?ml)$/i },
 		{ tag: 'cursorrules', filePattern: /^\.cursorrules$/i },
 	];
@@ -179,8 +179,11 @@ export function getMachineInfo(): IMachineInfo {
 export async function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
 	try {
 		const launchConfigs = new Map<string, number>();
-		const launchConfig = join(folder, '.vscode', 'launch.json');
-
+		let launchConfig = join(folder, '.vscode', 'launch.jsonc');
+		const exists = await fs.promises.exists(launchConfig);
+		if (!exists) {
+			launchConfig = join(folder, '.vscode', 'launch.json');
+		}
 		const contents = await fs.promises.readFile(launchConfig);
 
 		const errors: ParseError[] = [];

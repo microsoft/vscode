@@ -36,6 +36,7 @@ import { CONTEXT_DEBUG_CONFIGURATION_TYPE, DebugConfigurationProviderTriggerKind
 import { launchSchema } from '../common/debugSchemas.js';
 import { getVisibleAndSorted } from '../common/debugUtils.js';
 import { debugConfigure } from './debugIcons.js';
+import * as fs from 'fs';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -280,7 +281,7 @@ export class ConfigurationManager implements IConfigurationManager {
 					config,
 					buttons: [{
 						iconClass: ThemeIcon.asClassName(debugConfigure),
-						tooltip: nls.localize('editLaunchConfig', "Edit Debug Configuration in launch.json")
+						tooltip: nls.localize('editLaunchConfig', "Edit Debug Configuration in launch configuration")
 					}],
 					launch
 				}))));
@@ -326,7 +327,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration('launch')) {
-				// A change happen in the launch.json. If there is already a launch configuration selected, do not change the selection.
+				// A change happen in the launch configuration. If there is already a launch configuration selected, do not change the selection.
 				await this.selectConfiguration(undefined);
 				this.setCompoundSchemaValues();
 			}
@@ -614,7 +615,15 @@ class Launch extends AbstractLaunch implements ILaunch {
 	}
 
 	get uri(): uri {
-		return resources.joinPath(this.workspace.uri, '/.vscode/launch.json');
+		const jsoncConfig = resources.joinPath(this.workspace.uri, '/.vscode/launch.jsonc');
+		if (fs.exists(jsoncConfig)) {
+			return jsoncConfig;
+		}
+		const jsonConfig = resources.joinPath(this.workspace.uri, '/.vscode/launch.json');
+		if (fs.exists(jsonConfig)) {
+			return jsonConfig;
+		}
+		return jsoncConfig;
 	}
 
 	get name(): string {
@@ -633,7 +642,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 			const fileContent = await this.fileService.readFile(resource);
 			content = fileContent.value.toString();
 		} catch {
-			// launch.json not found: create one by collecting launch configs from debugConfigProviders
+			// launch.jsonc not found: create one by collecting launch configs from debugConfigProviders
 			content = await this.getInitialConfigurationContent(this.workspace.uri, type, !suppressInitialConfigs, token);
 			if (!content) {
 				// Cancelled
@@ -644,7 +653,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 			try {
 				await this.textFileService.write(resource, content);
 			} catch (error) {
-				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
+				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.jsonc' file inside the '.vscode' folder ({0}).", error.message));
 			}
 		}
 

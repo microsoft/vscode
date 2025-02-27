@@ -36,6 +36,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			return [];
 		}
 
+		picks.push({ type: 'separator', label: 'launch.jsonc' });
 		picks.push({ type: 'separator', label: 'launch.json' });
 
 		const configManager = this.debugService.getConfigurationManager();

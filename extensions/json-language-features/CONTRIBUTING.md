@@ -7,7 +7,7 @@
 	- devDependencies such as `gulp`
 - Open `/extensions/json-language-features/` as the workspace in VS Code
 - In `/extensions/json-language-features/` run `npm run compile`(or `npm run watch`) to build the client and server
-- Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/json-language-features/.vscode/launch.json) debug target in the Debug View. This will:
+- Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/json-language-features/.vscode/launch.jsonc) debug target in the Debug View. This will:
 	- Launch a new VS Code instance with the `json-language-features` extension loaded
 - Open a `.json` file to activate the extension. The extension will start the JSON language server process.
 - Add `"json.trace.server": "verbose"` to the settings to observe the communication between client and server in the `JSON Language Server` output.

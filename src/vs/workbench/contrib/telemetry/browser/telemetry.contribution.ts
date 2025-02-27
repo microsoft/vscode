@@ -59,7 +59,10 @@ type FileTelemetryDataFragment = {
 export class TelemetryContribution extends Disposable implements IWorkbenchContribution {
 
 	private static ALLOWLIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
-	private static ALLOWLIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
+	private static ALLOWLIST_WORKSPACE_JSON = [
+		'settings.json', 'extensions.json', 'tasks.json', 'launch.json',
+		'settings.jsonc', 'extensions.jsonc', 'tasks.jsonc', 'launch.jsonc'
+	];
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,

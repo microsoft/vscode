@@ -148,7 +148,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 				'{Locked="](command:{0})"}'
 			]
 		},
-		"To customize Run and Debug [create a launch.json file](command:{0}).", `${DEBUG_CONFIGURE_COMMAND_ID}?${encodeURIComponent(JSON.stringify([{ addNew: true }]))}`),
+		"To customize Run and Debug [create a launch.jsonc file](command:{0}).", `${DEBUG_CONFIGURE_COMMAND_ID}?${encodeURIComponent(JSON.stringify([{ addNew: true }]))}`),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.notEqualsTo('empty')),
 	group: ViewContentGroups.Debug
 });
@@ -159,11 +159,11 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 			key: 'customizeRunAndDebugOpenFolder',
 			comment: [
 				'Please do not translate the word "command", it is part of our internal syntax which must not change',
-				'Please do not translate "launch.json", it is the specific configuration file name',
+				'Please do not translate "launch.json" or "launch.jsonc"; it is the specific configuration file name',
 				'{Locked="](command:{0})"}',
 			]
 		},
-		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),
+		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.jsonc file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.isEqualTo('empty')),
 	group: ViewContentGroups.Debug
 });

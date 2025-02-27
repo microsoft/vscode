@@ -185,7 +185,7 @@
 		"name": "jsDebugLogs",
 		"action": "updateLabels",
 		"addLabel": "info-needed",
-		"comment": "Please collect trace logs using the following instructions:\n\n> If you're able to, add `\"trace\": true` to your `launch.json` and reproduce the issue. The location of the log file on your disk will be written to the Debug Console. Share that with us.\n>\n> ⚠️ This log file will not contain source code, but will contain file paths. You can drop it into https://microsoft.github.io/vscode-pwa-analyzer/index.html to see what it contains. If you'd rather not share the log publicly, you can email it to connor@xbox.com"
+		"comment": "Please collect trace logs using the following instructions:\n\n> If you're able to, add `\"trace\": true` to your `launch.jsonc` and reproduce the issue. The location of the log file on your disk will be written to the Debug Console. Share that with us.\n>\n> ⚠️ This log file will not contain source code, but will contain file paths. You can drop it into https://microsoft.github.io/vscode-pwa-analyzer/index.html to see what it contains. If you'd rather not share the log publicly, you can email it to connor@xbox.com"
 	},
 	{
 		"type": "comment",

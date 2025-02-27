@@ -53,11 +53,11 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					type: 'array'
 				},
 				variables: {
-					description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g. ${action.pickProcess}) in `launch.json` to a command."),
+					description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g. ${action.pickProcess}) in `launch.jsonc` to a command."),
 					type: 'object'
 				},
 				initialConfigurations: {
-					description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
+					description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.jsonc\'."),
 					type: ['array', 'string'],
 				},
 				languages: {
@@ -65,11 +65,11 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					type: 'array'
 				},
 				configurationSnippets: {
-					description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.json\'."),
+					description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.jsonc\'."),
 					type: 'array'
 				},
 				configurationAttributes: {
-					description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
+					description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.jsonc\'."),
 					type: 'object'
 				},
 				when: {
@@ -190,7 +190,7 @@ const defaultCompound: ICompound = { name: 'Compound', configurations: [] };
 export const launchSchema: IJSONSchema = {
 	id: launchSchemaId,
 	type: 'object',
-	title: nls.localize('app.launch.json.title', "Launch"),
+	title: nls.localize('app.launch.jsonc.title', "Launch"),
 	allowTrailingCommas: true,
 	allowComments: true,
 	required: [],
@@ -198,12 +198,12 @@ export const launchSchema: IJSONSchema = {
 	properties: {
 		version: {
 			type: 'string',
-			description: nls.localize('app.launch.json.version', "Version of this file format."),
+			description: nls.localize('app.launch.jsonc.version', "Version of this file format."),
 			default: '0.2.0'
 		},
 		configurations: {
 			type: 'array',
-			description: nls.localize('app.launch.json.configurations', "List of configurations. Add new configurations or edit existing ones by using IntelliSense."),
+			description: nls.localize('app.launch.jsonc.configurations', "List of configurations. Add new configurations or edit existing ones by using IntelliSense."),
 			items: {
 				defaultSnippets: [],
 				'type': 'object',
@@ -212,14 +212,14 @@ export const launchSchema: IJSONSchema = {
 		},
 		compounds: {
 			type: 'array',
-			description: nls.localize('app.launch.json.compounds', "List of compounds. Each compound references multiple configurations which will get launched together."),
+			description: nls.localize('app.launch.jsonc.compounds', "List of compounds. Each compound references multiple configurations which will get launched together."),
 			items: {
 				type: 'object',
 				required: ['name', 'configurations'],
 				properties: {
 					name: {
 						type: 'string',
-						description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+						description: nls.localize('app.launch.jsonc.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
 					},
 					presentation: presentationSchema,
 					configurations: {
@@ -235,21 +235,21 @@ export const launchSchema: IJSONSchema = {
 								properties: {
 									name: {
 										enum: [],
-										description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+										description: nls.localize('app.launch.jsonc.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
 									},
 									folder: {
 										enum: [],
-										description: nls.localize('app.launch.json.compound.folder', "Name of folder in which the compound is located.")
+										description: nls.localize('app.launch.jsonc.compound.folder', "Name of folder in which the compound is located.")
 									}
 								}
 							}]
 						},
-						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
+						description: nls.localize('app.launch.jsonc.compounds.configurations', "Names of configurations that will be started as part of this compound.")
 					},
 					stopAll: {
 						type: 'boolean',
 						default: false,
-						description: nls.localize('app.launch.json.compound.stopAll', "Controls whether manually terminating one session will stop all of the compound sessions.")
+						description: nls.localize('app.launch.jsonc.compound.stopAll', "Controls whether manually terminating one session will stop all of the compound sessions.")
 					},
 					preLaunchTask: {
 						type: 'string',
@@ -311,4 +311,3 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 	},
 	renderer: new SyncDescriptor(DebuggersDataRenderer),
 });
-

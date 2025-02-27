@@ -197,7 +197,7 @@ registerAction2(class extends Action2 {
 			id: DEBUG_CONFIGURE_COMMAND_ID,
 			title: {
 				value: DEBUG_CONFIGURE_LABEL,
-				original: 'Open \'launch.json\'',
+				original: 'Open \'launch configuration\'',
 				mnemonicTitle: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
 			},
 			metadata: {
@@ -241,7 +241,7 @@ registerAction2(class extends Action2 {
 				const picks = launches.map(l => ({ label: l.name, launch: l }));
 				const picked = await quickInputService.pick<{ label: string; launch: ILaunch }>(picks, {
 					activeItem: picks[0],
-					placeHolder: nls.localize({ key: 'selectWorkspaceFolder', comment: ['User picks a workspace folder or a workspace configuration file here. Workspace configuration files can contain settings and thus a launch.json configuration can be written into one.'] }, "Select a workspace folder to create a launch.json file in or add it to the workspace config file")
+					placeHolder: nls.localize({ key: 'selectWorkspaceFolder', comment: ['User picks a workspace folder or a workspace configuration file here. Workspace configuration files can contain settings and thus a launch configuration can be written into one.'] }, "Select a workspace folder to create a launch.jsonc file in or add it to the workspace config file")
 				});
 				if (picked) {
 					launch = picked.launch;
