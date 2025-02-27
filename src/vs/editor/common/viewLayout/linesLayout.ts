@@ -349,6 +349,9 @@ export class LinesLayout {
 			const deletingLinesCnt = endLineNumber - startLineNumber;
 			const insertingLinesCnt = eolCount;
 
+			console.log('startLineNumber', startLineNumber);
+			console.log('endLineNumber', endLineNumber);
+
 			if (deletingLinesCnt > 0) {
 				this._specialLineHeightsManager.onLinesDeleted2(startLineNumber + 1, endLineNumber);
 			}
