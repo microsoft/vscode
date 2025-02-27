@@ -6,6 +6,8 @@
 import { localize } from '../../../../../../../nls.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../base/common/assert.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IChatWidget, showChatView, showEditsView } from '../../../chat.js';
 import { IChatAttachPromptActionOptions } from '../chatAttachPromptAction.js';
 import { IPromptPath } from '../../../../common/promptSyntax/service/types.js';
@@ -13,12 +15,13 @@ import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { dirname, extUri } from '../../../../../../../base/common/resources.js';
 import { DOCUMENTATION_URL } from '../../../../common/promptSyntax/constants.js';
 import { isLinux, isWindows } from '../../../../../../../base/common/platform.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
 import { assertDefined, WithUriValue } from '../../../../../../../base/common/types.js';
 import { getCleanPromptName } from '../../../../../../../platform/prompts/common/constants.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../../../platform/quickinput/common/quickInput.js';
 
 /**
  * Options for the {@link askToSelectPrompt} function.
@@ -45,6 +48,7 @@ export interface ISelectPromptOptions {
 	 */
 	readonly promptFiles: readonly IPromptPath[];
 
+	readonly fileService: IFileService;
 	readonly labelService: ILabelService;
 	readonly viewsService: IViewsService;
 	readonly openerService: IOpenerService;
@@ -134,8 +138,6 @@ export const askToSelectPrompt = async (
 	}
 
 	// otherwise show the prompt file selection dialog
-	const { openerService } = options;
-
 	const quickPick = quickInputService.createQuickPick<WithUriValue<IQuickPickItem>>();
 	quickPick.activeItems = activeItem ? [activeItem] : [];
 	quickPick.placeholder = createPlaceholderText(options);
@@ -143,6 +145,7 @@ export const askToSelectPrompt = async (
 	quickPick.matchOnDescription = true;
 	quickPick.items = fileOptions;
 
+	const { openerService, fileService } = options;
 	return await new Promise<void>(resolve => {
 		const disposables = new DisposableStore();
 
@@ -184,12 +187,78 @@ export const askToSelectPrompt = async (
 			}
 		}));
 
+		disposables.add(quickPick.onDidTriggerItemButton(async (context) => {
+			const { item, button } = context;
+			const { value } = item;
+
+			// `edit` button was pressed, open the prompt file in editor
+			if (button === EDIT_BUTTON) {
+				return await openerService.open(value);
+			}
+
+			// `delete` button was pressed, delete the prompt file
+			if (button === DELETE_BUTTON) {
+				const activeItem: WithUriValue<IQuickPickItem> | undefined = quickPick.activeItems[0];
+
+				// sanity checks - prompt file exists and is not a folder
+				const info = await fileService.stat(value);
+				assert(
+					info.isDirectory === false,
+					`'${value.fsPath}' points to a folder.`,
+				);
+
+				// TODO: @legomushroom - add a confirmation dialog
+				// await fileService.del(value);
+
+				// // TODO: @legomushroom - check if item was found?
+				// quickPick.items = fileOptions.filter((option) => {
+				// 	return option !== item;
+				// });
+
+				if (activeItem && (activeItem === item)) {
+					const currentIndex: number | undefined = quickPick.items.indexOf(item);
+					assert();
+
+					// TODO: @legomushroom - find a new active item
+				}
+
+				return;
+			}
+
+			throw new Error(`Unknown button '${JSON.stringify(button)}'.`);
+		}));
+
 		disposables.add(quickPick.onDidHide(
 			disposables.dispose.bind(disposables),
 		));
 
 		quickPick.show();
 	});
+};
+
+/**
+ * Name of the `"super"` key based on the current OS.
+ */
+const SUPER_KEY_NAME = (isWindows || isLinux) ? 'Ctrl' : '⌘';
+
+/**
+ * Button that opens a prompt file in the editor.
+ */
+const EDIT_BUTTON: IQuickInputButton = {
+	tooltip: localize(
+		'commands.prompts.use.select-dialog.open-button.tooltip',
+		"edit ({0}-key + enter)",
+		SUPER_KEY_NAME,
+	),
+	iconClass: ThemeIcon.asClassName(Codicon.edit),
+};
+
+/**
+ * Button that deletes a prompt file.
+ */
+const DELETE_BUTTON: IQuickInputButton = {
+	tooltip: localize('delete', "delete"),
+	iconClass: ThemeIcon.asClassName(Codicon.trash),
 };
 
 /**
@@ -216,12 +285,13 @@ const createPickItem = (
 		: uri.fsPath;
 
 	return {
+		id: uri.toString(),
 		type: 'item',
 		label: fileWithoutExtension,
 		description,
 		tooltip,
 		value: uri,
-		id: uri.toString(),
+		buttons: [EDIT_BUTTON, DELETE_BUTTON],
 	};
 };
 
@@ -247,11 +317,10 @@ const createPlaceholderText = (options: ISelectPromptOptions): string => {
 			altOptionkey,
 		);
 
-		const cmdCtrlkey = (isWindows || isLinux) ? 'Ctrl' : '⌘';
 		const superModifierNote = localize(
 			'commands.prompts.use.select-dialog.super-modifier-note',
-			'{0}-key to open the prompt',
-			cmdCtrlkey,
+			'{0}-key to edit',
+			SUPER_KEY_NAME,
 		);
 
 		text += localize(
