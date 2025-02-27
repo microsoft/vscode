@@ -263,6 +263,7 @@ export class LineHeightManager {
 		const newOrderedSpecialLines: SpecialLine[] = [];
 		console.log('this._orderedSpecialLines.length : ', this._orderedSpecialLines.length);
 		console.log('totalHeightDeleted : ', totalHeightDeleted);
+		let numberOfDeletedLinesSoFar: number = 0;
 		for (let i = 0; i < this._orderedSpecialLines.length; i++) {
 			console.log('i : ', i);
 			if (i < modifiedStartIndexOfDeletion) {
@@ -270,11 +271,13 @@ export class LineHeightManager {
 			} else if (i > modifiedEndIndexOfDeletion) {
 				const specialLine = this._orderedSpecialLines[i];
 				console.log('specialLine.lineNumber : ', specialLine.lineNumber);
+				specialLine.index -= numberOfDeletedLinesSoFar;
 				specialLine.lineNumber -= deleteCount;
 				console.log('specialLine.lineNumber : ', specialLine.lineNumber);
 				specialLine.prefixSum -= totalHeightDeleted;
 				newOrderedSpecialLines.push(specialLine);
 			} else {
+				numberOfDeletedLinesSoFar++;
 				const specialLine = this._orderedSpecialLines[i];
 				this._decorationIDToSpecialLine.delete(specialLine.decorationId);
 			}
