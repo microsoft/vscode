@@ -341,10 +341,7 @@ export class LinesLayout {
 	}
 
 	public onContentChanges(changes: IModelContentChange[]): void {
-		console.log('onContentChanges : ', changes);
 		for (const change of changes) {
-			console.log('range : ', change.range);
-
 			const [eolCount] = countEOL(change.text);
 			const range = change.range;
 			const startLineNumber = range.startLineNumber;
@@ -368,7 +365,6 @@ export class LinesLayout {
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
 	 */
 	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
-		console.log('onLinesDeleted', fromLineNumber, toLineNumber);
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
@@ -397,7 +393,6 @@ export class LinesLayout {
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 */
 	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
-		console.log('onLinesInserted', fromLineNumber, toLineNumber);
 		this._checkPendingChanges();
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
