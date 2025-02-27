@@ -27,6 +27,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
@@ -44,7 +45,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, getTopLevelFolders, searchFolders, SelectAndInsertFolderAction, SelectAndInsertFileAction, SelectAndInsertSymAction } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, SelectAndInsertFileAction, SelectAndInsertFolderAction, SelectAndInsertProblemAction, SelectAndInsertSymAction, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -467,6 +468,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
+		@IMarkerService markerService: IMarkerService,
 	) {
 		super();
 
@@ -594,6 +596,30 @@ class BuiltinDynamicCompletions extends Disposable {
 			if (range2) {
 				this.addSymbolEntries(widget, result, range2, token);
 			}
+
+			return result;
+		});
+
+		// Problems completions, we just attach all problems in this case
+		this.registerVariableCompletions(SelectAndInsertProblemAction.Name, ({ widget, range, position, model }, token) => {
+			const stats = markerService.getStatistics();
+			if (!stats.errors && !stats.warnings) {
+				return null;
+			}
+
+			const result: CompletionList = { suggestions: [] };
+
+			const completedText = `${chatVariableLeader}${SelectAndInsertProblemAction.Name}:`;
+			const afterTextRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + completedText.length);
+			result.suggestions.push({
+				label: `${chatVariableLeader}${SelectAndInsertProblemAction.Name}`,
+				insertText: completedText,
+				documentation: localize('pickProblemsLabel', "Problems in your workspace"),
+				range,
+				kind: CompletionItemKind.Text,
+				command: { id: SelectAndInsertProblemAction.ID, title: SelectAndInsertProblemAction.ID, arguments: [{ widget, range: afterTextRange }] },
+				sortText: 'z'
+			});
 
 			return result;
 		});

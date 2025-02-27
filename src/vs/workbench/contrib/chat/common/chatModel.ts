@@ -104,7 +104,7 @@ export interface IDiagnosticVariableEntryFilterData {
 }
 
 export namespace IDiagnosticVariableEntryFilterData {
-	export const icon = Codicon.warning;
+	export const icon = Codicon.error;
 
 	export function fromMarker(marker: IMarker): IDiagnosticVariableEntryFilterData {
 		return {
@@ -115,7 +115,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 		};
 	}
 
-	export function toEntry(data: IDiagnosticVariableEntryFilterData) {
+	export function toEntry(data: IDiagnosticVariableEntryFilterData): IDiagnosticVariableEntry {
 		return {
 			id: id(data),
 			name: label(data),
@@ -123,6 +123,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 			value: data,
 			kind: 'diagnostic' as const,
 			range: data.filterRange ? new OffsetRange(data.filterRange.startLineNumber, data.filterRange.endLineNumber) : undefined,
+			...data,
 		};
 	}
 
