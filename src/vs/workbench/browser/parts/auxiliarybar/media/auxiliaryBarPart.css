@@ -114,7 +114,7 @@
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-search-icon) {
 	z-index: 2 !important;
-    width: 70px !important;
+    width: 73px !important;
 }
 
 .monaco-workbench .part.auxiliarybar .icon-group .icon-container.active:has(.inventory-memory-icon) {
