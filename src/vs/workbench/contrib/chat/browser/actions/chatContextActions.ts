@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isElectron } from '../../../../../base/common/platform.js';
@@ -25,6 +26,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -59,6 +61,7 @@ import { isQuickChat } from '../chatWidget.js';
 import { createFolderQuickPick, createMarkersQuickPick } from '../contrib/chatDynamicVariables.js';
 import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { resizeImage } from '../imageUtils.js';
+import { COMMAND_ID as USE_PROMPT_COMMAND_ID } from '../promptSyntax/contributions/usePromptCommand.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ATTACH_PROMPT_ACTION_ID, AttachPromptAction, IChatAttachPromptActionOptions } from './chatAttachPromptAction/chatAttachPromptAction.js';
 
@@ -75,7 +78,7 @@ export function registerChatContextActions() {
  */
 type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem |
 	IImageQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem |
-	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IPromptInstructionsQuickPickItem | IFolderQuickPickItem | IDiagnosticsQuickPickItem;
+	IScreenShotQuickPickItem | IRelatedFilesQuickPickItem | IReusablePromptQuickPickItem | IFolderQuickPickItem | IDiagnosticsQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -144,7 +147,7 @@ function isRelatedFileQuickPickItem(obj: unknown): obj is IRelatedFilesQuickPick
 /**
  * Checks is a provided object is a prompt instructions quick pick item.
  */
-function isPromptInstructionsQuickPickItem(obj: unknown): obj is IPromptInstructionsQuickPickItem {
+function isPromptInstructionsQuickPickItem(obj: unknown): obj is IReusablePromptQuickPickItem {
 	if (!obj || typeof obj !== 'object') {
 		return false;
 	}
@@ -230,19 +233,23 @@ interface IDiagnosticsQuickPickItemWithFilter extends IQuickPickItem {
 }
 
 /**
- * Quick pick item for prompt instructions attachment.
+ * Quick pick item for reusable prompt attachment.
  */
-interface IPromptInstructionsQuickPickItem extends IQuickPickItem {
+interface IReusablePromptQuickPickItem extends IQuickPickItem {
 	/**
-	 * Unique kind identifier of the prompt instructions
-	 * attachment quick pick item.
+	 * The ID of the quick pick item.
 	 */
-	kind: 'prompt-instructions';
+	id: 'reusable-prompt';
 
 	/**
-	 * The id of the qucik pick item.
+	 * Unique kind identifier of the reusable prompt attachment.
 	 */
-	id: string;
+	kind: 'reusable-prompt';
+
+	/**
+	 * Keybinding of the command.
+	 */
+	keybinding?: ResolvedKeybinding;
 }
 
 abstract class AttachFileAction extends Action2 {
@@ -674,6 +681,7 @@ export class AttachContextAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const keybindingService = accessor.get(IKeybindingService);
 
 		const context: { widget?: IChatWidget; showFilesOnly?: boolean; placeholder?: string } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -811,14 +819,17 @@ export class AttachContextAction extends Action2 {
 			}
 		}
 
-		// if the `prompt instructions` feature is enabled, add
-		// the `Instructions` attachment type to the list
+		// if the `reusable prompts` feature is enabled, add
+		// the appropriate attachment type to the list
 		if (widget.attachmentModel.promptInstructions.featureEnabled) {
+			const keybinding = keybindingService.lookupKeybinding(USE_PROMPT_COMMAND_ID, contextKeyService);
+
 			quickPickItems.push({
-				kind: 'prompt-instructions',
-				id: 'prompt-instructions',
+				kind: 'reusable-prompt',
+				id: 'reusable-prompt',
 				label: localize('chatContext.attach.prompt.label', 'Prompt...'),
 				iconClass: ThemeIcon.asClassName(Codicon.bookmark),
+				keybinding,
 			});
 		}
 
