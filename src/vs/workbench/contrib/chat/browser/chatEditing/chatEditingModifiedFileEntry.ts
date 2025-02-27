@@ -33,7 +33,7 @@ class AutoAcceptControl {
 	) { }
 }
 
-export const pendingRewriteMinimap = registerColor('chatEdits.minimapColor',
+export const pendingRewriteMinimap = registerColor('minimap.chatEditHighlight',
 	transparent(editorBackground, 0.6),
 	localize('editorSelectionBackground', "Color of pending edit regions in the minimap"));
 
