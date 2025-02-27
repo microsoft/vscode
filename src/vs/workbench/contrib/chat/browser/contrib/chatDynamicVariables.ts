@@ -684,7 +684,7 @@ export class AddDynamicVariableAction extends Action2 {
 registerAction2(AddDynamicVariableAction);
 
 export async function createMarkersQuickPick(accessor: ServicesAccessor, level: 'problem' | 'file', onBackgroundAccept?: (item: IDiagnosticVariableEntryFilterData[]) => void): Promise<IDiagnosticVariableEntryFilterData | undefined> {
-	const markers = accessor.get(IMarkerService).read();
+	const markers = accessor.get(IMarkerService).read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
 	if (!markers.length) {
 		return;
 	}
@@ -739,16 +739,7 @@ export async function createMarkersQuickPick(accessor: ServicesAccessor, level: 
 		items.unshift({ type: 'separator', label: localize('markers.panel.files', 'Files') });
 	}
 
-	if (severities.has(MarkerSeverity.Error)) {
-		items.unshift({ type: 'item', label: localize('markers.panel.allErrors', 'All Errors'), entry: { filterSeverity: MarkerSeverity.Error } });
-	}
-	if (severities.has(MarkerSeverity.Warning)) {
-		items.unshift({ type: 'item', label: localize('markers.panel.allWarnings', 'All Warnings'), entry: { filterSeverity: MarkerSeverity.Warning } });
-	}
-	if (severities.has(MarkerSeverity.Info)) {
-		items.unshift({ type: 'item', label: localize('markers.panel.allInfos', 'All Infos'), entry: { filterSeverity: MarkerSeverity.Info } });
-	}
-
+	items.unshift({ type: 'item', label: localize('markers.panel.allErrors', 'All Problems'), entry: { filterSeverity: MarkerSeverity.Info } });
 
 	const quickInputService = accessor.get(IQuickInputService);
 	const quickPick = quickInputService.createQuickPick<MarkerPickItem>({ useSeparators: true });
