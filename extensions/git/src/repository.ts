@@ -1349,7 +1349,7 @@ export class Repository implements Disposable {
 
 	async clean(resources: Uri[]): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const untrackedChangesEnableTrash = config.get<boolean>('untrackedChangesEnableTrash', true) && !isRemote;
+		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote;
 
 		await this.run(
 			Operation.Clean(!this.optimisticUpdateEnabled()),
@@ -1388,7 +1388,7 @@ export class Repository implements Disposable {
 					}
 				});
 
-				if (untrackedChangesEnableTrash) {
+				if (discardUntrackedChangesToTrash) {
 					const limiter = new Limiter<void>(5);
 					await Promise.all(toClean.map(fsPath => limiter.queue(
 						async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
