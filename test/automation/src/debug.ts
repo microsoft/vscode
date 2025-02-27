@@ -58,13 +58,14 @@ export class Debug extends Viewlet {
 	}
 
 	async openDebugViewlet(): Promise<any> {
+		const accept = async () => {
+			await this.code.waitForElement(DEBUG_VIEW);
+		};
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+d');
+			await this.code.dispatchKeybinding('cmd+shift+d', accept);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+d');
+			await this.code.dispatchKeybinding('ctrl+shift+d', accept);
 		}
-
-		await this.code.waitForElement(DEBUG_VIEW);
 	}
 
 	async configure(): Promise<any> {
@@ -79,9 +80,10 @@ export class Debug extends Viewlet {
 	}
 
 	async startDebugging(): Promise<number> {
-		await this.code.dispatchKeybinding('f5');
-		await this.code.waitForElement(PAUSE);
-		await this.code.waitForElement(DEBUG_STATUS_BAR);
+		await this.code.dispatchKeybinding('f5', async () => {
+			await this.code.waitForElement(PAUSE);
+			await this.code.waitForElement(DEBUG_STATUS_BAR);
+		});
 		const portPrefix = 'Port: ';
 
 		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
@@ -135,9 +137,10 @@ export class Debug extends Viewlet {
 
 		// Wait for the keys to be picked up by the editor model such that repl evaluates what just got typed
 		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
-		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
-			elements => !!elements.length && accept(elements[elements.length - 1].textContent));
+		await this.code.dispatchKeybinding('enter', async () => {
+			await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
+				elements => !!elements.length && accept(elements[elements.length - 1].textContent));
+		});
 	}
 
 	// Different node versions give different number of variables. As a workaround be more relaxed when checking for variable count
