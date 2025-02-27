@@ -34,7 +34,7 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ICoordinatesConverter, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ICoordinatesConverter, InlineDecoration, ISpecialLineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
@@ -287,7 +287,12 @@ export class ViewModel extends Disposable implements IViewModel {
 				let hadModelLineChangeThatChangedLineMapping = false;
 
 				const changes = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
+				const contentChanges = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.contentChangedEvent.changes : null);
 				const versionId = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.versionId : null);
+
+				if (contentChanges) {
+					this.viewLayout.onContentChanges(contentChanges);
+				}
 
 				// Do a first pass to compute line mappings, and a second pass to actually interpret them
 				const lineBreaksComputer = this._lines.createLineBreaksComputer();
@@ -328,16 +333,24 @@ export class ViewModel extends Disposable implements IViewModel {
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LinesDeleted: {
+							console.log('LinesDeleted event');
+							console.log('change.fromLineNumber', change.fromLineNumber);
+							console.log('change.toLineNumber', change.toLineNumber);
 							const linesDeletedEvent = this._lines.onModelLinesDeleted(versionId, change.fromLineNumber, change.toLineNumber);
 							if (linesDeletedEvent !== null) {
 								eventsCollector.emitViewEvent(linesDeletedEvent);
+								console.log('linesDeletedEvent.fromLineNumber', linesDeletedEvent.fromLineNumber);
+								console.log('linesDeletedEvent.toLineNumber', linesDeletedEvent.toLineNumber);
 								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
 							}
 							hadOtherModelChange = true;
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LinesInserted: {
+							console.log('LinesInserted event');
 							const insertedLineBreaks = lineBreakQueue.takeCount(change.detail.length);
+							console.log('change.fromLineNumber', change.fromLineNumber);
+							console.log('change.toLineNumber', change.toLineNumber);
 							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
@@ -347,6 +360,8 @@ export class ViewModel extends Disposable implements IViewModel {
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
+							console.log('LineChanged event');
+							console.log('change.lineNumber : ', change.lineNumber);
 							const changedLineBreakData = lineBreakQueue.dequeue()!;
 							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
 								this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
@@ -354,6 +369,8 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (linesChangedEvent) {
 								eventsCollector.emitViewEvent(linesChangedEvent);
 							}
+							console.log('linesInsertedEvent : ', linesInsertedEvent);
+							console.log('linesDeletedEvent : ', linesDeletedEvent);
 							if (linesInsertedEvent) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
 								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
@@ -413,6 +430,31 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 
 			this._handleVisibleLinesChanged();
+		}));
+
+		this._register(this.model.onDidChangeSpecialLineHeight((e) => {
+			e.changes.forEach((change) => {
+				if (change.ownerId !== this._editorId && change.ownerId !== 0) {
+					return;
+				}
+				const lineNumber = change.lineNumber;
+				const lineHeight = change.lineHeight;
+				const decorationId = change.decorationId;
+				const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+				if (lineHeight !== null) {
+					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
+						this.viewLayout.changeSpecialLineHeights((accessor: ISpecialLineHeightChangeAccessor) => {
+							accessor.insertOrChangeSpecialLineHeight(decorationId, lineNumber, lineHeight);
+						});
+					}
+				} else {
+					for (let i = viewRange.startLineNumber; i <= viewRange.endLineNumber; i++) {
+						this.viewLayout.changeSpecialLineHeights((accessor: ISpecialLineHeightChangeAccessor) => {
+							accessor.removeSpecialLineHeight(decorationId);
+						});
+					}
+				}
+			});
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {

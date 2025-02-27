@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
@@ -218,6 +218,10 @@ export interface IModelDecorationOptions {
 	 * with the specified {@link IModelDecorationGlyphMarginOptions} in the glyph margin.
 	 */
 	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
+	/**
+	 * If set, the decoration will override the line height of the lines it spans.
+	 */
+	lineHeight?: number | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
@@ -1238,6 +1242,12 @@ export interface ITextModel {
 	 * @event
 	 */
 	readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent>;
+	/**
+	 * An event emitted when line heights from decorations changes
+	 * @internal
+	 * @event
+	 */
+	readonly onDidChangeSpecialLineHeight: Event<ModelLineHeightChangedEvent>;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event
