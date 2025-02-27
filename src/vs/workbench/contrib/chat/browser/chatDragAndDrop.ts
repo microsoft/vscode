@@ -10,7 +10,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
-import { basename, joinPath } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
@@ -18,7 +18,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractMarkerDropData, extractSymbolDropData, IDraggedResourceEditorInput, MarkerTransferData } from '../../../../platform/dnd/browser/dnd.js';
-import { FileType, IFileService, IFileSystemProvider } from '../../../../platform/files/common/files.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { isUntitledResourceEditorInput } from '../../../common/editor.js';
@@ -48,14 +48,14 @@ export class ChatDragAndDrop extends Themable {
 	private overlayTextBackground: string = '';
 
 	constructor(
-		protected readonly attachmentModel: ChatAttachmentModel,
+		private readonly attachmentModel: ChatAttachmentModel,
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IFileService protected readonly fileService: IFileService,
-		@IEditorService protected readonly editorService: IEditorService,
-		@IDialogService protected readonly dialogService: IDialogService,
-		@ITextModelService protected readonly textModelService: ITextModelService
+		@IFileService private readonly fileService: IFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super(themeService);
 
@@ -150,10 +150,6 @@ export class ChatDragAndDrop extends Themable {
 			return;
 		}
 
-		this.handleDrop(contexts);
-	}
-
-	protected handleDrop(contexts: IChatRequestVariableEntry[]): void {
 		this.attachmentModel.addContext(...contexts);
 	}
 
@@ -193,7 +189,7 @@ export class ChatDragAndDrop extends Themable {
 		return dropType !== undefined;
 	}
 
-	protected getDropTypeName(type: ChatDragAndDropType): string {
+	private getDropTypeName(type: ChatDragAndDropType): string {
 		switch (type) {
 			case ChatDragAndDropType.FILE_INTERNAL: return localize('file', 'File');
 			case ChatDragAndDropType.FILE_EXTERNAL: return localize('file', 'File');
@@ -412,7 +408,7 @@ export class ChatDragAndDrop extends Themable {
 		overlay.classList.toggle('visible', type !== undefined);
 	}
 
-	protected getOverlayText(type: ChatDragAndDropType): string {
+	private getOverlayText(type: ChatDragAndDropType): string {
 		const typeName = this.getDropTypeName(type);
 		return localize('attacAsContext', 'Attach {0} as Context', typeName);
 	}
@@ -426,81 +422,6 @@ export class ChatDragAndDrop extends Themable {
 		this.overlays.forEach(overlay => this.updateOverlayStyles(overlay.overlay));
 		this.overlayTextBackground = this.getColor(this.styles.listBackground) || '';
 	}
-}
-
-export class EditsDragAndDrop extends ChatDragAndDrop {
-
-	constructor(
-		attachmentModel: ChatAttachmentModel,
-		styles: IChatInputStyles,
-		@IThemeService themeService: IThemeService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService,
-		@IEditorService editorService: IEditorService,
-		@IDialogService dialogService: IDialogService,
-		@ITextModelService textModelService: ITextModelService
-	) {
-		super(attachmentModel, styles, themeService, extensionService, fileService, editorService, dialogService, textModelService);
-	}
-
-	protected override handleDrop(context: IChatRequestVariableEntry[]): void {
-		this.handleDropAsync(context);
-	}
-
-	protected async handleDropAsync(context: IChatRequestVariableEntry[]): Promise<void> {
-		const nonDirectoryContext = context.filter(context => !context.isDirectory);
-		const directories = context
-			.filter(context => context.isDirectory)
-			.map(context => context.value)
-			.filter(value => !!value && URI.isUri(value));
-
-		// If there are directories, we need to resolve the files and add them to the working set
-		for (const directory of directories) {
-			const fileSystemProvider = this.fileService.getProvider(directory.scheme);
-			if (!fileSystemProvider) {
-				continue;
-			}
-
-			const resolvedFiles = await resolveFilesInDirectory(directory, fileSystemProvider, true);
-			const resolvedFileContext = await Promise.all(resolvedFiles.map(file => getResourceAttachContext(file, false, this.textModelService)));
-			nonDirectoryContext.push(...resolvedFileContext.filter(context => !!context));
-		}
-
-		super.handleDrop(nonDirectoryContext);
-	}
-
-	protected override getOverlayText(type: ChatDragAndDropType): string {
-		const typeName = this.getDropTypeName(type);
-		switch (type) {
-			case ChatDragAndDropType.FILE_INTERNAL:
-			case ChatDragAndDropType.FILE_EXTERNAL:
-				return localize('addToWorkingSet', 'Add {0} to Working Set', typeName);
-			case ChatDragAndDropType.FOLDER:
-				return localize('addToWorkingSet', 'Add {0} to Working Set', localize('files', 'Files'));
-			default:
-				return super.getOverlayText(type);
-		}
-	}
-}
-
-async function resolveFilesInDirectory(resource: URI, fileSystemProvider: IFileSystemProvider, shouldRecurse: boolean): Promise<URI[]> {
-	const entries = await fileSystemProvider.readdir(resource);
-
-	const files: URI[] = [];
-	const folders: URI[] = [];
-
-	for (const [name, type] of entries) {
-		const entryResource = joinPath(resource, name);
-		if (type === FileType.File) {
-			files.push(entryResource);
-		} else if (type === FileType.Directory && shouldRecurse) {
-			folders.push(entryResource);
-		}
-	}
-
-	const subFiles = await Promise.all(folders.map(folder => resolveFilesInDirectory(folder, fileSystemProvider, shouldRecurse)));
-
-	return [...files, ...subFiles.flat()];
 }
 
 async function getResourceAttachContext(resource: URI, isDirectory: boolean, textModelService: ITextModelService): Promise<IChatRequestVariableEntry | undefined> {
