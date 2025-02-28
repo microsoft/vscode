@@ -53,7 +53,9 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 	}
 
 	isResourceEnabled(resource: SyncResource): boolean {
-		// TODO: @lego
+		// the `prompts` resource is a special case and is `disabled`
+		// by default due to PII concerns user prompt files may contain
+		// (see https://github.com/microsoft/vscode-copilot/issues/13601)
 		const fallbackValue = (resource === SyncResource.Prompts)
 			? false
 			: true;
@@ -61,9 +63,6 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 		return this.getResourceEnablement(resource) ?? fallbackValue;
 	}
 
-	/**
-	 * TODO: @lego
-	 */
 	getResourceEnablement(resource: SyncResource): boolean | undefined {
 		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.APPLICATION);
 	}
