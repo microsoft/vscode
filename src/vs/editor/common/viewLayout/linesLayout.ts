@@ -358,7 +358,7 @@ export class LinesLayout {
 				this._specialLineHeightsManager.onLinesDeleted2(startLineNumber + 1, endLineNumber);
 			}
 			if (insertingLinesCnt > 0) {
-				this._specialLineHeightsManager.onLinesInserted(startLineNumber + 1, startLineNumber + insertingLinesCnt);
+				this._specialLineHeightsManager.onLinesInserted2(startLineNumber, startLineNumber + insertingLinesCnt);
 			}
 		}
 	}

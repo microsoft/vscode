@@ -474,6 +474,39 @@ export class LineHeightManager {
 		console.log('end of onLinesInserted');
 	}
 
+	public onLinesInserted2(fromLineNumber: number, toLineNumber: number): void {
+		console.log('onLinesInserted2', fromLineNumber, toLineNumber);
+		console.log('this._decorationIDToSpecialLine : ', JSON.stringify(this._decorationIDToSpecialLine));
+		console.log('this._orderedSpecialLines : ', JSON.stringify(this._orderedSpecialLines));
+		this.commit();
+		const insertCount = toLineNumber - fromLineNumber;
+		const searchIndex = this._binarySearchOverSpecialLinesArray(fromLineNumber);
+		console.log('insertCount : ', insertCount);
+		console.log('searchIndex : ', searchIndex);
+		let startIndex: number;
+		if (searchIndex >= 0) {
+			startIndex = searchIndex;
+			for (let i = searchIndex - 1; i >= 0; i--) {
+				if (this._orderedSpecialLines[i].lineNumber === fromLineNumber) {
+					startIndex--;
+				} else {
+					break;
+				}
+			}
+		} else {
+			startIndex = -(searchIndex + 1);
+		}
+		console.log('startIndex', startIndex);
+		console.log('this._orderedSpecialLines.length : ', this._orderedSpecialLines.length);
+		for (let i = startIndex; i < this._orderedSpecialLines.length; i++) {
+			this._orderedSpecialLines[i].lineNumber += insertCount;
+			this._orderedSpecialLines[i].prefixSum += this._defaultLineHeight * insertCount;
+		}
+		console.log('this._decorationIDToSpecialLine : ', JSON.stringify(this._decorationIDToSpecialLine));
+		console.log('this._orderedSpecialLines : ', JSON.stringify(this._orderedSpecialLines));
+		console.log('end of onLinesInserted2');
+	}
+
 	public mustCommit(): boolean {
 		return this._hasPending;
 	}
