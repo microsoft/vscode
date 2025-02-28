@@ -723,14 +723,22 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				this.logService.info('Successfully uninstalled extension from the profile', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString());
 			}
 			reportTelemetry(this.telemetryService, 'extensionGallery:uninstall', { extensionData: getLocalExtensionTelemetryData(extension), error });
-			this._onDidUninstallExtension.fire({ identifier: extension.identifier, error: error?.code, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
+			this._onDidUninstallExtension.fire({ identifier: extension.identifier, context: uninstallOptions.context, error: error?.code, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
 		};
 
 		const allTasks: IUninstallExtensionTask[] = [];
 		const processedTasks: IUninstallExtensionTask[] = [];
 		const alreadyRequestedUninstalls: Promise<any>[] = [];
+		const extensionsToRemove: ILocalExtension[] = [];
 
 		const installedExtensionsMap = new ResourceMap<ILocalExtension[]>();
+		const getInstalledExtensions = async (profileLocation: URI) => {
+			let installed = installedExtensionsMap.get(profileLocation);
+			if (!installed) {
+				installedExtensionsMap.set(profileLocation, installed = await this.getInstalled(ExtensionType.User, profileLocation));
+			}
+			return installed;
+		};
 
 		for (const { extension, options } of extensions) {
 			const uninstallOptions: UninstallExtensionTaskOptions = {
@@ -744,14 +752,32 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			} else {
 				allTasks.push(createUninstallExtensionTask(extension, uninstallOptions));
 			}
+
+			if (uninstallOptions.remove) {
+				extensionsToRemove.push(extension);
+				for (const profile of this.userDataProfilesService.profiles) {
+					if (this.uriIdentityService.extUri.isEqual(profile.extensionsResource, uninstallOptions.profileLocation)) {
+						continue;
+					}
+					const installed = await getInstalledExtensions(profile.extensionsResource);
+					const profileExtension = installed.find(e => areSameExtensions(e.identifier, extension.identifier));
+					if (profileExtension) {
+						const uninstallOptionsWithProfile = { ...uninstallOptions, profileLocation: profile.extensionsResource };
+						const uninstallExtensionTask = this.uninstallingExtensions.get(getUninstallExtensionTaskKey(profileExtension, uninstallOptionsWithProfile));
+						if (uninstallExtensionTask) {
+							this.logService.info('Extensions is already requested to uninstall', profileExtension.identifier.id);
+							alreadyRequestedUninstalls.push(uninstallExtensionTask.waitUntilTaskIsFinished());
+						} else {
+							allTasks.push(createUninstallExtensionTask(profileExtension, uninstallOptionsWithProfile));
+						}
+					}
+				}
+			}
 		}
 
 		try {
 			for (const task of allTasks.slice(0)) {
-				let installed = installedExtensionsMap.get(task.options.profileLocation);
-				if (!installed) {
-					installedExtensionsMap.set(task.options.profileLocation, installed = await this.getInstalled(ExtensionType.User, task.options.profileLocation));
-				}
+				const installed = await getInstalledExtensions(task.options.profileLocation);
 
 				if (task.options.donotIncludePack) {
 					this.logService.info('Uninstalling the extension without including packed extension', `${task.extension.identifier.id}@${task.extension.manifest.version}`);
@@ -798,6 +824,10 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 			for (const task of allTasks) {
 				postUninstallExtension(task.extension, task.options);
+			}
+
+			if (extensionsToRemove.length) {
+				await this.joinAllSettled(extensionsToRemove.map(extension => this.removeExtension(extension)));
 			}
 		} catch (e) {
 			const error = toExtensionManagementError(e);
@@ -895,6 +925,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
 	protected abstract createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask;
 	protected abstract copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata?: Partial<Metadata>): Promise<ILocalExtension>;
+	protected abstract removeExtension(extension: ILocalExtension): Promise<void>;
 }
 
 export function toExtensionManagementError(error: Error, code?: ExtensionManagementErrorCode): ExtensionManagementError {

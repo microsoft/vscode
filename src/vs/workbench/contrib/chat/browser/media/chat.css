@@ -1245,11 +1245,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label {
-	gap: 3px;
+	gap: 4px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
-	height: 90%;
+	height: 1em;
 	width: auto;
 	padding: 0;
 	line-height: 1em !important;

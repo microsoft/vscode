@@ -152,7 +152,7 @@ function isPromptInstructionsQuickPickItem(obj: unknown): obj is IReusablePrompt
 		return false;
 	}
 
-	return ('kind' in obj && obj.kind === 'prompt-instructions');
+	return ('kind' in obj && obj.kind === 'reusable-prompt');
 }
 
 interface IRelatedFilesQuickPickItem extends IQuickPickItem {
@@ -235,16 +235,17 @@ interface IDiagnosticsQuickPickItemWithFilter extends IQuickPickItem {
 /**
  * Quick pick item for reusable prompt attachment.
  */
+const REUSABLE_PROMPT_PICK_ID = 'reusable-prompt';
 interface IReusablePromptQuickPickItem extends IQuickPickItem {
 	/**
 	 * The ID of the quick pick item.
 	 */
-	id: 'reusable-prompt';
+	id: typeof REUSABLE_PROMPT_PICK_ID;
 
 	/**
 	 * Unique kind identifier of the reusable prompt attachment.
 	 */
-	kind: 'reusable-prompt';
+	kind: typeof REUSABLE_PROMPT_PICK_ID;
 
 	/**
 	 * Keybinding of the command.
@@ -615,7 +616,7 @@ export class AttachContextAction extends Action2 {
 					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else if (isPromptInstructionsQuickPickItem(pick)) {
-				const options: IChatAttachPromptActionOptions = { widget };
+				const options: IChatAttachPromptActionOptions = { widget, viewsService };
 				await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
 			} else {
 				// Anything else is an attachment
@@ -825,8 +826,8 @@ export class AttachContextAction extends Action2 {
 			const keybinding = keybindingService.lookupKeybinding(USE_PROMPT_COMMAND_ID, contextKeyService);
 
 			quickPickItems.push({
-				kind: 'reusable-prompt',
-				id: 'reusable-prompt',
+				id: REUSABLE_PROMPT_PICK_ID,
+				kind: REUSABLE_PROMPT_PICK_ID,
 				label: localize('chatContext.attach.prompt.label', 'Prompt...'),
 				iconClass: ThemeIcon.asClassName(Codicon.bookmark),
 				keybinding,

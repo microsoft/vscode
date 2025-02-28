@@ -764,7 +764,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 				const { confirmed } = await this._dialogService.confirm({
 					type: Severity.Warning,
-					message: nls.localize('extensionStopVetoMessage', "Please confirm restart of extensions."),
+					message: nls.localize('extensionStopVetoMessage', "Please confirm restart of extensions: {0}.", reason),
 					detail: vetoReasonsArray.length === 1 ?
 						vetoReasonsArray[0] :
 						vetoReasonsArray.join('\n -'),
