@@ -149,21 +149,13 @@ export interface ITask<T> {
  */
 export function generateUuid(): string {
 	// use `randomUUID` if possible
-	if (typeof crypto === 'object' && typeof crypto.randomUUID === 'function') {
-		return crypto.randomUUID.bind(crypto).toString();
-	}
+	if (typeof crypto.randomUUID === 'function') {
+		// see https://developer.mozilla.org/en-US/docs/Web/API/Window/crypto
+		// > Although crypto is available on all windows, the returned Crypto object only has one
+		// > usable feature in insecure contexts: the getRandomValues() method.
+		// > In general, you should use this API only in secure contexts.
 
-	// use `randomValues` if possible
-	let getRandomValues: (bucket: Uint8Array) => Uint8Array;
-	if (typeof crypto === 'object' && typeof crypto.getRandomValues === 'function') {
-		getRandomValues = crypto.getRandomValues.bind(crypto);
-	} else {
-		getRandomValues = function (bucket: Uint8Array): Uint8Array {
-			for (let i = 0; i < bucket.length; i++) {
-				bucket[i] = Math.floor(Math.random() * 256);
-			}
-			return bucket;
-		};
+		return crypto.randomUUID.bind(crypto).toString();
 	}
 
 	// prep-work
@@ -174,7 +166,7 @@ export function generateUuid(): string {
 	}
 
 	// get data
-	getRandomValues(_data);
+	crypto.getRandomValues(_data);
 
 	// set version bits
 	_data[6] = (_data[6] & 0x0f) | 0x40;
