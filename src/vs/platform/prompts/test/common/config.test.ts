@@ -34,7 +34,7 @@ const createMock = <T>(value: T): IConfigurationService => {
 suite('PromptsConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('• getValue', () => {
+	suite('• getLocationsValue', () => {
 		test('• undefined', () => {
 			const configService = createMock(undefined);
 

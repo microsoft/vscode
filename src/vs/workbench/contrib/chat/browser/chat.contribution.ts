@@ -203,25 +203,24 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			title: nls.localize(
 				'chat.reusablePrompts.config.enabled.title',
-				"Reusable Prompts",
+				"Prompt Files",
 			),
 			markdownDescription: nls.localize(
 				'chat.reusablePrompts.config.enabled.description',
-				"Enable reusable prompts (`*{0}`) in Chat, Edits, and Inline Chat sessions. [Learn More]({0}).",
+				"Enable reusable prompt files (`*{0}`) in Chat, Edits, and Inline Chat sessions. [Learn More]({0}).",
 				PROMPT_FILE_EXTENSION,
 				DOCUMENTATION_URL,
 			),
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
-			tags: ['experimental'],
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 		},
-		// TODO: @lego - add more tags?
 		[PromptsConfig.LOCATIONS_CONFIG_KEY]: {
 			type: 'object',
 			title: nls.localize(
 				'chat.reusablePrompts.config.locations.title',
-				"Reusable Prompt Locations",
+				"Prompt File Locations",
 			),
 			markdownDescription: nls.localize(
 				'chat.reusablePrompts.config.locations.description',
@@ -237,7 +236,7 @@ configurationRegistry.registerConfiguration({
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
 			disallowConfigurationDefault: true,
-			tags: ['experimental'],
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
 				{
 					[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
