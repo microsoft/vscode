@@ -69,7 +69,7 @@ declare module 'vscode' {
 			 *
 			 * *Note* that if you open a document with an encoding that does not
 			 * support decoding the underlying bytes, content may be replaced with
-			 * substitution characters appropriate for the character encoding.
+			 * substitution characters as appropriate.
 			 */
 			encoding?: string;
 		}): Thenable<TextDocument>;
@@ -99,7 +99,7 @@ declare module 'vscode' {
 			 *
 			 * *Note* that if you open a document with an encoding that does not
 			 * support decoding the underlying bytes, content may be replaced with
-			 * substitution characters appropriate for the character encoding.
+			 * substitution characters as appropriate.
 			 */
 			encoding?: string;
 		}): Thenable<TextDocument>;
@@ -128,15 +128,18 @@ declare module 'vscode' {
 		}): Thenable<TextDocument>;
 
 		/**
-		 * Decodes the content from a `Uint8Array` to a `string`.
+		 * Decodes the content from a `Uint8Array` to a `string`. You MUST
+		 * provide the entire content at once to ensure that the encoding
+		 * can properly apply. Do not use this method to decode content
+		 * in chunks, as that may lead to incorrect results.
 		 *
 		 * If no encoding is provided, will try to pick an encoding based
 		 * on user settings and the content of the buffer (for example
 		 * byte order marks).
 		 *
 		 * *Note* that if you decode content that is unsupported by the
-		 * encoding, the result may contain substitution characters appropriate
-		 * for the character encoding.
+		 * encoding, the result may contain substitution characters as
+		 * appropriate.
 		 *
 		 * @throws This method will throw an error when the content is binary.
 		 *
