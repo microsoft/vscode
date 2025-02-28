@@ -66,6 +66,10 @@ declare module 'vscode' {
 			 * different encoding has the potential of changing the text contents of
 			 * the text document. Specifically, when the encoding results in a
 			 * different set of characters than the previous encoding.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters appropriate for the character encoding.
 			 */
 			encoding?: string;
 		}): Thenable<TextDocument>;
@@ -92,6 +96,10 @@ declare module 'vscode' {
 			 * different encoding has the potential of changing the text contents of
 			 * the text document. Specifically, when the encoding results in a
 			 * different set of characters than the previous encoding.
+			 *
+			 * *Note* that if you open a document with an encoding that does not
+			 * support decoding the underlying bytes, content may be replaced with
+			 * substitution characters appropriate for the character encoding.
 			 */
 			encoding?: string;
 		}): Thenable<TextDocument>;
@@ -125,6 +133,10 @@ declare module 'vscode' {
 		 * If no encoding is provided, will try to pick an encoding based
 		 * on user settings and the content of the buffer (for example
 		 * byte order marks).
+		 *
+		 * *Note* that if you decode content that is unsupported by the
+		 * encoding, the result may contain substitution characters appropriate
+		 * for the character encoding.
 		 *
 		 * @throws This method will throw an error when the content is binary.
 		 *
