@@ -292,7 +292,7 @@ export class LineHeightManager {
 
 						if (previousDeletedLineNumber !== fromLineNumber - 1) {
 							totalHeightToRemoveFromEndLine += specialLine.maximumSpecialHeight;
-							totalHeightToRemoveAfterEndLine += chosenMaximumHeight - specialLine.maximumSpecialHeight;
+							totalHeightToRemoveAfterEndLine -= (chosenMaximumHeight - specialLine.maximumSpecialHeight);
 							previousDeletedLineNumber = fromLineNumber - 1;
 						}
 						initialFromLineHeight = specialLine.maximumSpecialHeight;
@@ -318,12 +318,14 @@ export class LineHeightManager {
 								// there is no previous deleted special line so only default line heights are deleted
 								totalHeightToRemoveFromEndLine += this._defaultLineHeight * (toLineNumber - fromLineNumber + 1);
 								// TODO: used to be specialLine.maximumSpecialHeight
-								totalHeightToRemoveAfterEndLine += Math.min(initialFromLineHeight, specialLine.maximumSpecialHeight) + this._defaultLineHeight * (toLineNumber - fromLineNumber);
+								// Math.min(initialFromLineHeight, specialLine.maximumSpecialHeight)
+								totalHeightToRemoveAfterEndLine += specialLine.maximumSpecialHeight + this._defaultLineHeight * (toLineNumber - fromLineNumber);
 							} else {
 								// there was a special height deleted so now I need to add the height between
 								totalHeightToRemoveFromEndLine += this._defaultLineHeight * (toLineNumber - previousDeletedLineNumber - 1);
 								// TODO: used to be specialLine.maximumSpecialHeight
-								totalHeightToRemoveAfterEndLine += Math.min(initialFromLineHeight, specialLine.maximumSpecialHeight) + this._defaultLineHeight * (toLineNumber - previousDeletedLineNumber - 1);
+								// Math.min(initialFromLineHeight, specialLine.maximumSpecialHeight)
+								totalHeightToRemoveAfterEndLine += specialLine.maximumSpecialHeight + this._defaultLineHeight * (toLineNumber - previousDeletedLineNumber - 1);
 							}
 							previousDeletedLineNumber = toLineNumber;
 						}
@@ -349,14 +351,14 @@ export class LineHeightManager {
 								totalHeightToRemoveAfterEndLine += specialLine.maximumSpecialHeight + this._defaultLineHeight * (toLineNumber - fromLineNumber);
 							} else {
 								totalHeightToRemoveFromEndLine += specialLine.maximumSpecialHeight + this._defaultLineHeight * (specialLine.lineNumber - previousDeletedLineNumber - 1);
-								totalHeightToRemoveAfterEndLine += totalHeightToRemoveFromEndLine;
+								totalHeightToRemoveAfterEndLine += specialLine.maximumSpecialHeight + this._defaultLineHeight * (specialLine.lineNumber - previousDeletedLineNumber - 1);
 							}
 							previousDeletedLineNumber = specialLine.lineNumber;
 						}
 						console.log('totalHeightToRemoveFromEndLine : ', totalHeightToRemoveFromEndLine);
 						console.log('totalHeightToRemoveAfterEndLine : ', totalHeightToRemoveAfterEndLine);
 						console.log('previousDeletedLineNumber : ', previousDeletedLineNumber);
-
+						console.log('delete');
 						numberOfDeletedLinesSoFar++;
 						this._decorationIDToSpecialLine.delete(specialLine.decorationId);
 					}
