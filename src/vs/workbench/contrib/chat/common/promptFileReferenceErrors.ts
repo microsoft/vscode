@@ -115,9 +115,9 @@ export class RecursiveReference extends ResolveError {
 	public override errorType = 'RecursiveReferenceError';
 
 	/**
-	 * Default string representation of the recursive path.
+	 * Cached default string representation of the recursive path.
 	 */
-	public readonly recursivePathString: string;
+	private defaultPathStringCache: string | undefined;
 
 	constructor(
 		uri: URI,
@@ -130,11 +130,13 @@ export class RecursiveReference extends ResolveError {
 			`Recursive path must contain at least two paths, got '${recursivePath.length}'.`,
 		);
 
-		const pathString = recursivePath.join(DEFAULT_RECURSIVE_PATH_JOIN_CHAR);
 		super(
-			uri,
-			`Recursive references found: ${pathString}.`,
+			uri, 'Recursive references found.',
 		);
+	}
+
+	public override get message(): string {
+		return `${super.message} ${this.getRecursivePathString('fullpath')}`;
 	}
 
 	/**
@@ -144,15 +146,14 @@ export class RecursiveReference extends ResolveError {
 		filename: 'basename' | 'fullpath',
 		pathJoinCharacter: string = DEFAULT_RECURSIVE_PATH_JOIN_CHAR,
 	): string {
-		/**
-		 * TODO: @lego - this not currently true though
-		 * TODO: @lego - cache
-		 */
-		if (filename === 'fullpath' && pathJoinCharacter === DEFAULT_RECURSIVE_PATH_JOIN_CHAR) {
-			return this.recursivePathString;
+		const isDefault = (filename === 'fullpath') &&
+			(pathJoinCharacter === DEFAULT_RECURSIVE_PATH_JOIN_CHAR);
+
+		if (isDefault && (this.defaultPathStringCache !== undefined)) {
+			return this.defaultPathStringCache;
 		}
 
-		return this.recursivePath
+		const result = this.recursivePath
 			.map((path) => {
 				if (filename === 'fullpath') {
 					return `'${path}'`;
@@ -168,6 +169,12 @@ export class RecursiveReference extends ResolveError {
 				);
 			})
 			.join(pathJoinCharacter);
+
+		if (isDefault) {
+			this.defaultPathStringCache = result;
+		}
+
+		return result;
 	}
 
 	/**
@@ -183,15 +190,22 @@ export class RecursiveReference extends ResolveError {
 			return false;
 		}
 
-		// TODO: @lego - check array lengths first
-
-		// performance optimization - if the paths lengths don't match,
-		// no need to compare entire strings as they must be different
-		if (this.recursivePathString.length !== other.recursivePathString.length) {
+		// performance optimization - compare number of paths in the
+		// recursive path chains first to avoid comparison of all strings
+		if (this.recursivePath.length !== other.recursivePath.length) {
 			return false;
 		}
 
-		return this.recursivePathString === other.recursivePathString;
+		const myRecursivePath = this.getRecursivePathString('fullpath');
+		const theirRecursivePath = other.getRecursivePathString('fullpath');
+
+		// performance optimization - if the path lengths don't match,
+		// no need to compare entire strings as they must be different
+		if (myRecursivePath.length !== theirRecursivePath.length) {
+			return false;
+		}
+
+		return myRecursivePath === theirRecursivePath;
 	}
 
 	/**
