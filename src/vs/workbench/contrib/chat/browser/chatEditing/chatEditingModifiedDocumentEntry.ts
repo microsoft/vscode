@@ -33,7 +33,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason, IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
@@ -114,8 +114,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@IChatService chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IFileService fileService: IFileService,
+		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(
@@ -126,6 +126,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			fileConfigService,
 			chatService,
 			fileService,
+			undoRedoService,
 			instantiationService
 		);
 
@@ -206,12 +207,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._setDocValue(this.initialContent);
 	}
 
-	override async acceptStreamingEditsEnd(tx: ITransaction) {
+	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
 		const diff = await this._diffOperation;
-		super.acceptStreamingEditsEnd(tx);
-		if (diff?.identical) {
-			this.accept(tx);
-		}
+		return diff ? diff.identical : false;
 	}
 
 	protected override _resetEditsState(tx: ITransaction): void {
@@ -273,13 +271,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	override acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
-		super.acceptStreamingEditsStart(responseModel, tx);
-
-		// push stack element whenever streaming starts
-		const request = responseModel.session.getRequests().find(req => req.id === responseModel.requestId);
+	protected override _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement {
+		const request = response.session.getRequests().find(req => req.id === response.requestId);
 		const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
-		this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
+		return new SingleModelEditStackElement(label, 'chat.edit', this.doc, null);
 	}
 
 	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {

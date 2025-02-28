@@ -17,6 +17,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
@@ -88,6 +89,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 		@IChatService protected readonly _chatService: IChatService,
 		@IFileService protected readonly _fileService: IFileService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -223,15 +225,24 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._resetEditsState(tx);
 		this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
 		this._autoAcceptCtrl.get()?.cancel();
+
+		const undoRedoElement = this._createUndoRedoElement(responseModel);
+		this._undoRedoService.pushElement(undoRedoElement);
 	}
+
+	protected abstract _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement;
 
 	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
 
 	async acceptStreamingEditsEnd(tx: ITransaction) {
 		this._resetEditsState(tx);
 
-		// AUTO accept mode
-		if (!this.reviewMode.get() && !this._autoAcceptCtrl.get()) {
+		if (await this._areOriginalAndModifiedIdentical()) {
+			// ACCEPT if identical
+			this.accept(tx);
+
+		} else if (!this.reviewMode.get() && !this._autoAcceptCtrl.get()) {
+			// AUTO accept mode
 
 			const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
 			const future = Date.now() + acceptTimeout;
@@ -258,6 +269,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			update();
 		}
 	}
+
+	protected abstract _areOriginalAndModifiedIdentical(): Promise<boolean>;
 
 	protected _resetEditsState(tx: ITransaction): void {
 		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
