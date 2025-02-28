@@ -594,17 +594,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Helper to filter out all resources to only the ones that are currently enabled.
 	 */
 	private getEnabledResourceOptions(
 		items: readonly ConfigureSyncQuickPickItem[],
 	): readonly ConfigureSyncQuickPickItem[] {
 		return items.filter((item) => {
-			const { id } = item;
-
-			// TODO: @legomushroom
-			if (id === SyncResource.Prompts) {
-				const currentValue = this.userDataSyncEnablementService.getResourceEnablement(id);
+			// the `prompts` resource is the special case and is unlike other resources
+			// is `disabled` by default due to PII concerns; however, when user enables
+			// the sync feature, we want the resource to be pre-selected in the UI hence
+			// be consistent with other resource types in that regard; to achieve that
+			// we use the `true` fallback value here if the resource enablement state wasn't
+			// modified before (see https://github.com/microsoft/vscode-copilot/issues/13601)
+			if (item.id === SyncResource.Prompts) {
+				const currentValue = this.userDataSyncEnablementService.getResourceEnablement(item.id);
 				return currentValue ?? true;
 			}
 
