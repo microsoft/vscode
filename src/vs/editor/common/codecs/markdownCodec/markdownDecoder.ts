@@ -12,6 +12,8 @@ import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
 import { MarkdownCommentStart, PartialMarkdownCommentStart } from './parsers/markdownComment.js';
 import { MarkdownLinkCaption, PartialMarkdownLink, PartialMarkdownLinkCaption } from './parsers/markdownLink.js';
+import { ExclamationMark } from '../simpleCodec/tokens/exclamationMark.js';
+import { PartialMarkdownImage } from './parsers/markdownImage.js';
 
 /**
  * Tokens handled by this decoder.
@@ -28,7 +30,8 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 	 */
 	private current?:
 		PartialMarkdownLinkCaption | MarkdownLinkCaption | PartialMarkdownLink |
-		PartialMarkdownCommentStart | MarkdownCommentStart;
+		PartialMarkdownCommentStart | MarkdownCommentStart |
+		PartialMarkdownImage;
 
 	constructor(
 		stream: ReadableStream<VSBuffer>,
@@ -37,7 +40,7 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 	}
 
 	protected override onStreamData(token: TSimpleToken): void {
-		// markdown links start with `[` character, so here we can
+		// `markdown links` start with `[` character, so here we can
 		// initiate the process of parsing a markdown link
 		if (token instanceof LeftBracket && !this.current) {
 			this.current = new PartialMarkdownLinkCaption(token);
@@ -45,8 +48,18 @@ export class MarkdownDecoder extends BaseDecoder<TMarkdownToken, TSimpleToken> {
 			return;
 		}
 
+		// `markdown comments` start with `<` character, so here we can
+		// initiate the process of parsing a markdown comment
 		if (token instanceof LeftAngleBracket && !this.current) {
 			this.current = new PartialMarkdownCommentStart(token);
+
+			return;
+		}
+
+		// `markdown image links` start with `!` character, so here we can
+		// initiate the process of parsing a markdown image
+		if (token instanceof ExclamationMark && !this.current) {
+			this.current = new PartialMarkdownImage(token);
 
 			return;
 		}
