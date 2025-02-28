@@ -144,6 +144,31 @@ export class LinesSliceCharSequence implements ISequence {
 		return new OffsetRange(start, end);
 	}
 
+	/** fooBar has the two sub-words foo and bar */
+	public findSubWordContaining(offset: number): OffsetRange | undefined {
+		if (offset < 0 || offset >= this.elements.length) {
+			return undefined;
+		}
+
+		if (!isWordChar(this.elements[offset])) {
+			return undefined;
+		}
+
+		// find start
+		let start = offset;
+		while (start > 0 && isWordChar(this.elements[start - 1]) && !isUpperCase(this.elements[start])) {
+			start--;
+		}
+
+		// find end
+		let end = offset;
+		while (end < this.elements.length && isWordChar(this.elements[end]) && !isUpperCase(this.elements[end])) {
+			end++;
+		}
+
+		return new OffsetRange(start, end);
+	}
+
 	public countLinesIn(range: OffsetRange): number {
 		return this.translateOffset(range.endExclusive).lineNumber - this.translateOffset(range.start).lineNumber;
 	}
@@ -163,6 +188,10 @@ function isWordChar(charCode: number): boolean {
 	return charCode >= CharCode.a && charCode <= CharCode.z
 		|| charCode >= CharCode.A && charCode <= CharCode.Z
 		|| charCode >= CharCode.Digit0 && charCode <= CharCode.Digit9;
+}
+
+function isUpperCase(charCode: number): boolean {
+	return charCode >= CharCode.A && charCode <= CharCode.Z;
 }
 
 const enum CharBoundaryCategory {

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { IDiffResult, ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
 import { doHash, numberHash } from '../../../../../base/common/hash.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -56,7 +56,7 @@ class MirrorCell {
 		hashValue = doHash(this.language, hashValue);
 		hashValue = doHash(this.getValue(), hashValue);
 		hashValue = doHash(this.metadata, hashValue);
-		hashValue = doHash(this.internalMetadata, hashValue);
+		hashValue = doHash({ ...this.internalMetadata, 'cellId': '' }, hashValue);
 		for (const op of this.outputs) {
 			hashValue = doHash(op.metadata, hashValue);
 			for (const output of op.outputs) {
@@ -155,6 +155,16 @@ class CellSequence implements ISequence {
 		return new CellSequence(hashValue);
 	}
 
+	static async createWithCellId(textModel: MirrorNotebookDocument): Promise<Map<string, number>> {
+		const hashValue = new Map<string, number>();
+		await Promise.all(textModel.cells.map(async (c, i) => {
+			const value = await c.getComparisonValue();
+			const id: string = (c.metadata?.id || '') as string;
+			hashValue.set(id, value);
+		}));
+		return hashValue;
+	}
+
 	constructor(readonly hashValue: Int32Array) { }
 
 	getElements(): string[] | number[] | Int32Array {
@@ -183,7 +193,8 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			dto.language,
 			dto.cellKind,
 			dto.outputs,
-			dto.metadata
+			dto.metadata,
+			dto.internalMetadata
 		)), metadata, transientDocumentMetadata);
 	}
 
@@ -216,62 +227,95 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const diff = new LcsDiff(originalSeq, modifiedSeq);
 		const diffResult = diff.ComputeDiff(false);
 
-		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[] }[] = [];
-
-		diffResult.changes.forEach(change => {
-			if (change.modifiedLength === 0) {
-				// deletion ...
-				return;
-			}
-
-			if (change.originalLength === 0) {
-				// insertion
-				return;
-			}
-
-			for (let i = 0, len = Math.min(change.modifiedLength, change.originalLength); i < len; i++) {
-				let originalIndex = change.originalStart + i;
-				let modifiedIndex = change.modifiedStart + i;
-
-				const originalCell = original.cells[originalIndex];
-				const modifiedCell = modified.cells[modifiedIndex];
-
-				if (originalCell.getValue() !== modifiedCell.getValue()) {
-					// console.log(`original cell ${originalIndex} content change`);
-					const originalLines = originalCell.textBuffer.getLinesContent();
-					const modifiedLines = modifiedCell.textBuffer.getLinesContent();
-					const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-						shouldComputeCharChanges: true,
-						shouldPostProcessCharChanges: true,
-						shouldIgnoreTrimWhitespace: false,
-						shouldMakePrettyDiff: true,
-						maxComputationTime: 5000
-					});
-
-					const lineChanges = diffComputer.computeDiff().changes;
-
-					cellLineChanges.push({
-						originalCellhandle: originalCell.handle,
-						modifiedCellhandle: modifiedCell.handle,
-						lineChanges
-					});
-
-					// console.log(lineDecorations);
-
-				} else {
-					// console.log(`original cell ${originalIndex} metadata change`);
-				}
-
-			}
-		});
- */
 		const originalMetadata = filter(original.metadata, key => !original.transientDocumentMetadata[key]);
 		const modifiedMetadata = filter(modified.metadata, key => !modified.transientDocumentMetadata[key]);
 		return {
 			metadataChanged: JSON.stringify(originalMetadata) !== JSON.stringify(modifiedMetadata),
-			cellsDiff: diffResult,
+			cellsDiff: await this.$computeDiffWithCellIds(original, modified) || diffResult,
 			// linesDiff: cellLineChanges
 		};
+	}
+
+	async $computeDiffWithCellIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): Promise<IDiffResult | undefined> {
+		const originalCellIndexIds = original.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		const modifiedCellIndexIds = modified.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		const originalCellIds = originalCellIndexIds.map(c => c.id);
+		const modifiedCellIds = modifiedCellIndexIds.map(c => c.id);
+		const orderOrOriginalCellIds = originalCellIds.filter(id => modifiedCellIds.includes(id)).join(',');
+		const orderOrModifiedCellIds = modifiedCellIds.filter(id => originalCellIds.includes(id)).join(',');
+		if (originalCellIndexIds.some(c => !c.id) || modifiedCellIndexIds.some(c => !c.id) || orderOrOriginalCellIds !== orderOrModifiedCellIds) {
+			return;
+		}
+
+		const diffResult: IDiffResult = { changes: [], quitEarly: false, };
+
+		const computeCellHashesById = async (notebook: MirrorNotebookDocument) => {
+			const hashValue = new Map<string, number>();
+			await Promise.all(notebook.cells.map(async (c, i) => {
+				const value = await c.getComparisonValue();
+				// Verified earlier that these cannot be empty.
+				const id: string = (c.metadata?.id || '') as string;
+				hashValue.set(id, value);
+			}));
+			return hashValue;
+		};
+
+		const [originalSeq, modifiedSeq] = await Promise.all([computeCellHashesById(original), computeCellHashesById(modified)]);
+
+		while (modifiedCellIndexIds.length) {
+			const modifiedCell = modifiedCellIndexIds.shift()!;
+			const originalCell = originalCellIndexIds.find(c => c.id === modifiedCell.id);
+			if (originalCell) {
+				// Everything before this cell is a deletion
+				const index = originalCellIndexIds.indexOf(originalCell);
+				const deletedFromOriginal = originalCellIndexIds.splice(0, index + 1);
+
+				if (deletedFromOriginal.length === 1) {
+					if (originalSeq.get(originalCell.id) === modifiedSeq.get(originalCell.id)) {
+						// Cell contents are the same.
+						// No changes, hence ignore this cell.
+					}
+					else {
+						diffResult.changes.push({
+							originalStart: originalCell.index,
+							originalLength: 1,
+							modifiedStart: modifiedCell.index,
+							modifiedLength: 1
+						});
+					}
+				} else {
+					// This means we have some cells before this and they were removed.
+					diffResult.changes.push({
+						originalStart: deletedFromOriginal[0].index,
+						originalLength: deletedFromOriginal.length - 1,
+						modifiedStart: modifiedCell.index,
+						modifiedLength: 0
+					});
+				}
+				continue;
+			}
+			else {
+				// This is a new cell.
+				diffResult.changes.push({
+					originalStart: originalCellIndexIds.length ? originalCellIndexIds[0].index : original.cells.length,
+					originalLength: 0,
+					modifiedStart: modifiedCell.index,
+					modifiedLength: 1
+				});
+			}
+		}
+
+		// If we still have some original cells, then those have been removed.
+		if (originalCellIndexIds.length) {
+			diffResult.changes.push({
+				originalStart: originalCellIndexIds[0].index,
+				originalLength: originalCellIndexIds.length,
+				modifiedStart: modifiedCellIndexIds.length,
+				modifiedLength: 0
+			});
+		}
+
+		return diffResult;
 	}
 
 	$canPromptRecommendation(modelUrl: string): boolean {

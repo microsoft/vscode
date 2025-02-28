@@ -24,7 +24,7 @@ import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
-import { createAndFillInActionBarActions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IRemoteExplorerService, TunnelType, ITunnelItem, TUNNEL_VIEW_ID, TunnelEditId } from '../../../services/remote/common/remoteExplorerService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -40,7 +40,6 @@ import { isAllInterfaces, isLocalhost, ITunnelService, RemoteTunnel, TunnelPriva
 import { TunnelPrivacy } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, stopForwardIcon } from './remoteIcons.js';
 import { IExternalUriOpenerService } from '../../externalUriOpener/common/externalUriOpenerService.js';
@@ -469,8 +468,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		templateData.elementDisposable = disposableStore;
 		if (element.menuId) {
 			const menu = disposableStore.add(this.menuService.createMenu(element.menuId, contextKeyService));
-			let actions: IAction[] = [];
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions);
+			let actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			if (actions) {
 				const labelActions = actions.filter(action => action.id.toLowerCase().indexOf('label') >= 0);
 				if (labelActions.length > 1) {
@@ -763,6 +761,8 @@ export class TunnelPanel extends ViewPane {
 	private portChangableContextKey: IContextKey<boolean>;
 	private protocolChangableContextKey: IContextKey<boolean>;
 	private isEditing: boolean = false;
+	// TODO: Should this be removed?
+	//@ts-expect-error
 	private titleActions: IAction[] = [];
 	private lastFocus: number[] = [];
 
@@ -781,12 +781,11 @@ export class TunnelPanel extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@IThemeService themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
 		this.tunnelPrivacyContext = TunnelPrivacyContextKey.bindTo(contextKeyService);
@@ -803,8 +802,7 @@ export class TunnelPanel extends ViewPane {
 		const overlayContextKeyService = this.contextKeyService.createOverlay([['view', TunnelPanel.ID]]);
 		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, overlayContextKeyService));
 		const updateActions = () => {
-			this.titleActions = [];
-			createAndFillInActionBarActions(titleMenu, undefined, this.titleActions);
+			this.titleActions = getFlatActionBarActions(titleMenu.getActions());
 			this.updateActions();
 		};
 
@@ -902,7 +900,7 @@ export class TunnelPanel extends ViewPane {
 			}
 		) as WorkbenchTable<ITunnelItem>;
 
-		const actionRunner: ActionRunner = new ActionRunner();
+		const actionRunner: ActionRunner = this.tableDisposables.add(new ActionRunner());
 		actionBarRenderer.actionRunner = actionRunner;
 
 		this.tableDisposables.add(this.table);

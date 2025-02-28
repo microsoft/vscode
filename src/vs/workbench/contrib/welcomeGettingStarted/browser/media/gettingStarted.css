@@ -473,10 +473,22 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
 	margin-top: 12px;
+	white-space: pre;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message .keybinding {
 	font-weight: 600;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message .monaco-keybinding > .monaco-keybinding-key {
+	display: inline-block;
+	border-style: solid;
+	border-width: 1px;
+	border-radius: 2px;
+	vertical-align: top;
+	font-size: 10px;
+	padding: 2px 3px;
+	margin: 0 2px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-next {
@@ -518,7 +530,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	height: 100%;
-	max-width: 1200px;
+	max-width: 80%;
 	margin: 0 auto;
 	padding: 0 32px;
 	display: grid;
@@ -567,6 +579,23 @@
 	align-self: center;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
+	grid-area: steps-start / media-start / footer-start / media-end;
+	align-self: self-start;
+	display: flex;
+	justify-content:center ;
+	height: 100%;
+	width: 100%;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
+	grid-area: media;
+	height: inherit;
+	width: inherit;
+	display: flex;
+	justify-content: center;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown > .getting-started-media {
 	height: inherit;
 }
@@ -584,6 +613,16 @@
 	width: inherit;
 	display: flex;
 	justify-content: center;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media > video {
+	max-width: 100%;
+	max-height: 100%;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer {

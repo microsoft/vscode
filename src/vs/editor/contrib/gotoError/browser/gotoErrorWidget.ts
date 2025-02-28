@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { ScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { IAction } from '../../../../base/common/actions.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Color } from '../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -20,7 +19,7 @@ import { Range } from '../../../common/core/range.js';
 import { ScrollType } from '../../../common/editorCommon.js';
 import { peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from '../../peekView/browser/peekView.js';
 import * as nls from '../../../../nls.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -29,7 +28,7 @@ import { IMarker, IRelatedInformation, MarkerSeverity } from '../../../../platfo
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
 import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
-import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IColorTheme, IThemeChangeEvent, IThemeService } from '../../../../platform/theme/common/themeService.js';
 
 class MessageWidget {
 
@@ -256,9 +255,13 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._backgroundColor = Color.white;
 
 		this._applyTheme(_themeService.getColorTheme());
-		this._callOnDispose.add(_themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
+		this._callOnDispose.add(_themeService.onDidColorThemeChange(this._ondDidColorThemeChange.bind(this)));
 
 		this.create();
+	}
+
+	private _ondDidColorThemeChange(e: IThemeChangeEvent) {
+		this._applyTheme(e.theme);
 	}
 
 	private _applyTheme(theme: IColorTheme) {
@@ -307,9 +310,8 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 		this._disposables.add(this._actionbarWidget!.actionRunner.onWillRun(e => this.editor.focus()));
 
-		const actions: IAction[] = [];
 		const menu = this._menuService.getMenuActions(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
-		createAndFillInActionBarActions(menu, actions);
+		const actions = getFlatActionBarActions(menu);
 		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
 	}
 

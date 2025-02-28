@@ -89,7 +89,7 @@ suite('typescript.previewer', () => {
 					text: 'code();'
 				}
 			], noopToResource),
-			'*@example*  \n```\ncode();\n```'
+			'*@example*  \n```tsx\ncode();\n```'
 		);
 	});
 
@@ -113,7 +113,7 @@ suite('typescript.previewer', () => {
 					text: '<caption>Not code</caption>\ncode();'
 				}
 			], noopToResource),
-			'*@example*  \nNot code\n```\ncode();\n```'
+			'*@example*  \nNot code\n```tsx\ncode();\n```'
 		);
 	});
 
@@ -154,7 +154,7 @@ suite('typescript.previewer', () => {
 					]
 				}
 			], noopToResource),
-			'*@example*  \n```\n1 + 1 {@link foo}\n```');
+			'*@example*  \n```tsx\n1 + 1 {@link foo}\n```');
 	});
 
 	test('Should render @linkcode symbol name as code', () => {

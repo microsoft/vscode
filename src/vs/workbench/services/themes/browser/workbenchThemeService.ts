@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from '../common/workbenchThemeService.js';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS, IWorkbenchThemeChangeEvent } from '../common/workbenchThemeService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -18,7 +18,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { registerFileIconThemeSchemas } from '../common/fileIconThemeSchema.js';
 import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
 import { FileIconThemeData, FileIconThemeLoader } from './fileIconThemeData.js';
-import { createStyleSheet } from '../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { IFileService, FileChangeType } from '../../../../platform/files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -34,7 +34,7 @@ import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from './productIc
 import { registerProductIconThemeSchemas } from '../common/productIconThemeSchema.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 import { IHostColorSchemeService } from '../common/hostColorSchemeService.js';
 import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
@@ -59,10 +59,10 @@ const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingC
 function validateThemeId(theme: string): string {
 	// migrations
 	switch (theme) {
-		case VS_LIGHT_THEME: return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
-		case VS_DARK_THEME: return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
-		case VS_HC_THEME: return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
-		case VS_HC_LIGHT_THEME: return `hc-light ${defaultThemeExtensionId}-themes-hc_light-json`;
+		case ThemeTypeSelector.VS: return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
+		case ThemeTypeSelector.VS_DARK: return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
+		case ThemeTypeSelector.HC_BLACK: return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
+		case ThemeTypeSelector.HC_LIGHT: return `hc-light ${defaultThemeExtensionId}-themes-hc_light-json`;
 	}
 	return theme;
 }
@@ -79,7 +79,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 	private readonly colorThemeRegistry: ThemeRegistry<ColorThemeData>;
 	private currentColorTheme: ColorThemeData;
-	private readonly onColorThemeChange: Emitter<IWorkbenchColorTheme>;
+	private readonly onColorThemeChange: Emitter<IWorkbenchThemeChangeEvent>;
 	private readonly colorThemeWatcher: ThemeFileWatcher;
 	private colorThemingParticipantChangeListener: IDisposable | undefined;
 	private readonly colorThemeSequencer: Sequencer;
@@ -96,8 +96,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	private readonly onProductIconThemeChange: Emitter<IWorkbenchProductIconTheme>;
 	private readonly productIconThemeWatcher: ThemeFileWatcher;
 	private readonly productIconThemeSequencer: Sequencer;
-
-	private hasDefaultUpdated: boolean = false;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -119,7 +117,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		this.colorThemeRegistry = this._register(new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme));
 		this.colorThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this)));
-		this.onColorThemeChange = new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 });
+		this.onColorThemeChange = new Emitter<IWorkbenchThemeChangeEvent>({ leakWarningThreshold: 400 });
 		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 		this.colorThemeSequencer = new Sequencer();
 
@@ -136,22 +134,18 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
 
-		this._register(this.onDidColorThemeChange(theme => getColorRegistry().notifyThemeUpdate(theme)));
+		this._register(this.onDidColorThemeChange(e => getColorRegistry().notifyThemeUpdate(e.theme)));
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
 		const colorThemeSetting = this.settings.colorTheme;
-		if (themeData && colorThemeSetting !== themeData.settingsId && this.settings.isDefaultColorTheme()) {
-			this.hasDefaultUpdated = themeData.settingsId === ThemeSettingDefaults.COLOR_THEME_DARK_OLD || themeData.settingsId === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD;
-
-			// the web has different defaults than the desktop, therefore do not restore when the setting is the default theme and the storage doesn't match that.
+		if (themeData && colorThemeSetting !== themeData.settingsId) {
 			themeData = undefined;
 		}
 
 		const defaultColorMap = colorThemeSetting === ThemeSettingDefaults.COLOR_THEME_LIGHT ? COLOR_THEME_LIGHT_INITIAL_COLORS : colorThemeSetting === ThemeSettingDefaults.COLOR_THEME_DARK ? COLOR_THEME_DARK_INITIAL_COLORS : undefined;
-
 		if (!themeData) {
 			const initialColorTheme = environmentService.options?.initialColorTheme;
 			if (initialColorTheme) {
@@ -159,7 +153,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			}
 		}
 		if (!themeData) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(isWeb ? ColorScheme.LIGHT : ColorScheme.DARK, defaultColorMap);
+			const colorScheme = this.settings.getPreferredColorScheme() ?? (isWeb ? ColorScheme.LIGHT : ColorScheme.DARK);
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(colorScheme, defaultColorMap);
 		}
 		themeData.setCustomizations(this.settings);
 		this.applyTheme(themeData, undefined, true);
@@ -282,7 +277,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				}
 				if (hasColorChanges) {
 					this.updateDynamicCSSRules(this.currentColorTheme);
-					this.onColorThemeChange.fire(this.currentColorTheme);
+					this.onColorThemeChange.fire({ theme: this.currentColorTheme, target: 'auto' });
 				}
 			}
 		}));
@@ -367,10 +362,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}));
 	}
 
-	public hasUpdatedDefaultThemes(): boolean {
-		return this.hasDefaultUpdated;
-	}
-
 	public getColorTheme(): IWorkbenchColorTheme {
 		return this.currentColorTheme;
 	}
@@ -396,7 +387,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		return [];
 	}
 
-	public get onDidColorThemeChange(): Event<IWorkbenchColorTheme> {
+	public get onDidColorThemeChange(): Event<IWorkbenchThemeChangeEvent> {
 		return this.onColorThemeChange.event;
 	}
 
@@ -497,7 +488,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		if (this.currentColorTheme.id) {
 			this.container.classList.remove(...this.currentColorTheme.classNames);
 		} else {
-			this.container.classList.remove(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME);
+			this.container.classList.remove(ThemeTypeSelector.VS, ThemeTypeSelector.VS_DARK, ThemeTypeSelector.HC_BLACK, ThemeTypeSelector.HC_LIGHT);
 		}
 		this.container.classList.add(...newTheme.classNames);
 
@@ -515,7 +506,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			return Promise.resolve(null);
 		}
 
-		this.onColorThemeChange.fire(this.currentColorTheme);
+		this.onColorThemeChange.fire({ theme: this.currentColorTheme, target: settingsTarget });
 
 		// remember theme data for a quick restore
 		if (newTheme.isLoaded && settingsTarget !== 'preview') {

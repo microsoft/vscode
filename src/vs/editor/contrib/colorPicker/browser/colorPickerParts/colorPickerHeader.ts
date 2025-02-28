@@ -12,6 +12,7 @@ import { localize } from '../../../../../nls.js';
 import { editorHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { CloseButton } from './colorPickerCloseButton.js';
+import { ColorPickerWidgetType } from '../colorPickerParticipantUtils.js';
 
 const $ = dom.$;
 
@@ -24,7 +25,7 @@ export class ColorPickerHeader extends Disposable {
 	private readonly _closeButton: CloseButton | null = null;
 	private backgroundColor: Color;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService, private showingStandaloneColorPicker: boolean = false) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService, private type: ColorPickerWidgetType) {
 		super();
 
 		this._domNode = $('.colorpicker-header');
@@ -42,8 +43,8 @@ export class ColorPickerHeader extends Disposable {
 		this._originalColorNode.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
 
 		this.backgroundColor = themeService.getColorTheme().getColor(editorHoverBackground) || Color.white;
-		this._register(themeService.onDidColorThemeChange(theme => {
-			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
+		this._register(themeService.onDidColorThemeChange(e => {
+			this.backgroundColor = e.theme.getColor(editorHoverBackground) || Color.white;
 		}));
 
 		this._register(dom.addDisposableListener(this._pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
@@ -59,7 +60,7 @@ export class ColorPickerHeader extends Disposable {
 		this.onDidChangeColor(this.model.color);
 
 		// When the color picker widget is a standalone color picker widget, then add a close button
-		if (this.showingStandaloneColorPicker) {
+		if (this.type === ColorPickerWidgetType.Standalone) {
 			this._domNode.classList.add('standalone-colorpicker');
 			this._closeButton = this._register(new CloseButton(this._domNode));
 		}

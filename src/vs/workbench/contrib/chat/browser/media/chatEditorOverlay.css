@@ -1,0 +1,146 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-editor-overlay-widget {
+	padding: 0px;
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	border-radius: 5px;
+	border: 1px solid var(--vscode-contrastBorder);
+	display: flex;
+	align-items: center;
+	z-index: 10;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	overflow: hidden;
+}
+
+@keyframes pulse {
+	0% {
+		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
+	}
+	50% {
+		box-shadow: 0 2px 8px 4px var(--vscode-widget-shadow);
+	}
+	100% {
+		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
+	}
+}
+
+.chat-editor-overlay-widget.busy {
+	animation: pulse ease-in 2.3s infinite;
+}
+
+.chat-editor-overlay-widget .chat-editor-overlay-progress {
+	align-items: center;
+	display: none;
+	padding: 0px 5px;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-progress {
+	display: inline-flex;
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .busy-label {
+	padding: 5px;
+	/* font-style: italic; */
+}
+
+@keyframes ellipsis {
+	0% {
+		content: "";
+	}
+	25% {
+		content: ".";
+	}
+	50% {
+		content: "..";
+	}
+	75% {
+		content: "...";
+	}
+	100% {
+		content: "";
+	}
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .busy-label::after {
+	content: "";
+	display: inline-flex;
+	white-space: nowrap;
+	overflow: hidden;
+	width: 3ch;
+	animation: ellipsis steps(4, end) 1s infinite;
+}
+
+.chat-editor-overlay-widget.busy.paused .chat-editor-overlay-progress {
+	.codicon-loading {
+		display: none;
+	}
+
+	.busy-label::after {
+		animation-duration: 5s;
+	}
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-toolbar {
+	display: none;
+}
+
+.chat-editor-overlay-widget .action-item > .action-label {
+	padding: 5px;
+	font-size: 12px;
+}
+
+.chat-editor-overlay-widget .action-item:first-child > .action-label {
+	padding-left: 7px;
+}
+
+.chat-editor-overlay-widget .action-item:last-child > .action-label {
+	padding-right: 7px;
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .codicon,
+.chat-editor-overlay-widget .action-item > .action-label.codicon {
+	color: var(--vscode-button-foreground);
+}
+
+.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled > .action-label.codicon::before,
+.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled > .action-label.codicon,
+.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled > .action-label,
+.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled > .action-label:hover {
+	color: var(--vscode-button-foreground);
+	opacity: 0.7;
+}
+
+
+.chat-editor-overlay-widget .action-item.label-item {
+	font-variant-numeric: tabular-nums;
+}
+
+.chat-editor-overlay-widget .monaco-action-bar .action-item.label-item > .action-label,
+.chat-editor-overlay-widget .monaco-action-bar .action-item.label-item > .action-label:hover {
+	color: var(--vscode-button-foreground);
+	opacity: 1;
+}
+
+.chat-editor-overlay-widget .action-item.auto {
+	position: relative;
+	overflow: hidden;
+}
+
+.chat-editor-overlay-widget .action-item.auto::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: var(--vscode-action-item-auto-timeout, -100%);
+	width: 100%;
+	height: 100%;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	transition: left 0.5s linear;
+}

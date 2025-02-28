@@ -97,11 +97,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			/** @description Updates name */
 			const resources = this.resources.read(reader);
 			const label = this.label ?? localize('name', "Multi Diff Editor");
-			if (resources) {
-				this._name = label + localize({
-					key: 'files',
-					comment: ['the number of files being shown']
-				}, " ({0} files)", resources.length);
+			if (resources && resources.length === 1) {
+				this._name = localize({ key: 'nameWithOneFile', comment: ['{0} is the name of the editor'] }, "{0} (1 file)", label);
+			} else if (resources) {
+				this._name = localize({ key: 'nameWithFiles', comment: ['{0} is the name of the editor', '{1} is the number of files being shown'] }, "{0} ({1} files)", label, resources.length);
 			} else {
 				this._name = label;
 			}
@@ -280,9 +279,9 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	override readonly closeHandler: IEditorCloseHandler = {
 
-		// TODO@bpasero TODO@hediet this is a workaround for
-		// not having a better way to figure out if the
-		// editors this input wraps around are opened or not
+		// This is a workaround for not having a better way
+		// to figure out if the editors this input wraps
+		// around are opened or not
 
 		async confirm() {
 			return ConfirmResult.DONT_SAVE;

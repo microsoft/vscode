@@ -5,6 +5,7 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
@@ -21,7 +22,7 @@ import { foldingCollapsedIcon, foldingExpandedIcon } from '../../../../../editor
 import { MarkupCellViewModel } from '../viewModel/markupCellViewModel.js';
 import { FoldingController } from '../controller/foldingController.js';
 import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
-import { NotebookSectionArgs } from '../controller/sectionActions.js';
+import { NotebookOutlineEntryArgs } from '../controller/sectionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotebookCellOutlineDataSourceFactory } from '../viewModel/notebookOutlineDataSourceFactory.js';
 
@@ -152,7 +153,7 @@ export class NotebookStickyScroll extends Disposable {
 		super();
 
 		if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
-			this.init();
+			this.init().catch(console.error);
 		}
 
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions((e) => {
@@ -175,7 +176,7 @@ export class NotebookStickyScroll extends Disposable {
 			return;
 		}
 
-		const args: NotebookSectionArgs = {
+		const args: NotebookOutlineEntryArgs = {
 			outlineEntry: selectedOutlineEntry,
 			notebookEditor: this.notebookEditor,
 		};
@@ -190,7 +191,7 @@ export class NotebookStickyScroll extends Disposable {
 	private updateConfig(e: NotebookOptionsChangeEvent) {
 		if (e.stickyScrollEnabled) {
 			if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
-				this.init();
+				this.init().catch(console.error);
 			} else {
 				this._disposables.clear();
 				this.notebookCellOutlineReference?.dispose();
@@ -203,11 +204,17 @@ export class NotebookStickyScroll extends Disposable {
 		}
 	}
 
-	private init() {
+	private async init() {
 		const { object: notebookCellOutline } = this.notebookCellOutlineReference = this.instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineDataSourceFactory).getOrCreate(this.notebookEditor));
 		this._register(this.notebookCellOutlineReference);
+
+		// Ensure symbols are computed first
+		await notebookCellOutline.computeFullSymbols(CancellationToken.None);
+
+		// Initial content update
 		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight()));
 
+		// Set up outline change listener
 		this._disposables.add(notebookCellOutline.onDidChange(() => {
 			const recompute = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
 			if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
@@ -215,7 +222,10 @@ export class NotebookStickyScroll extends Disposable {
 			}
 		}));
 
-		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
+		// Handle view model changes
+		this._disposables.add(this.notebookEditor.onDidAttachViewModel(async () => {
+			// ensure recompute symbols when view model changes -- could be missed if outline is closed
+			await notebookCellOutline.computeFullSymbols(CancellationToken.None);
 			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight()));
 		}));
 
@@ -235,27 +245,30 @@ export class NotebookStickyScroll extends Disposable {
 	static getVisibleOutlineEntry(visibleIndex: number, notebookOutlineEntries: OutlineEntry[]): OutlineEntry | undefined {
 		let left = 0;
 		let right = notebookOutlineEntries.length - 1;
-		let bucket = -1;
 
 		while (left <= right) {
 			const mid = Math.floor((left + right) / 2);
 			if (notebookOutlineEntries[mid].index === visibleIndex) {
-				bucket = mid;
-				break;
+				// Exact match found
+				const rootEntry = notebookOutlineEntries[mid];
+				const flatList: OutlineEntry[] = [];
+				rootEntry.asFlatList(flatList);
+				return flatList.find(entry => entry.index === visibleIndex);
 			} else if (notebookOutlineEntries[mid].index < visibleIndex) {
-				bucket = mid;
 				left = mid + 1;
 			} else {
 				right = mid - 1;
 			}
 		}
 
-		if (bucket !== -1) {
-			const rootEntry = notebookOutlineEntries[bucket];
+		// No exact match found - get the closest smaller entry
+		if (right >= 0) {
+			const rootEntry = notebookOutlineEntries[right];
 			const flatList: OutlineEntry[] = [];
 			rootEntry.asFlatList(flatList);
 			return flatList.find(entry => entry.index === visibleIndex);
 		}
+
 		return undefined;
 	}
 

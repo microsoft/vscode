@@ -149,8 +149,12 @@ function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
 	// We put this only for VSC to display in diff view.
 	// Else we don't use this.
 	const cellMetadata: CellMetadata = {};
-	if (cell.cell_type === 'code' && typeof cell['execution_count'] === 'number') {
-		cellMetadata.execution_count = cell['execution_count'];
+	if (cell.cell_type === 'code') {
+		if (typeof cell['execution_count'] === 'number') {
+			cellMetadata.execution_count = cell['execution_count'];
+		} else {
+			cellMetadata.execution_count = null;
+		}
 	}
 
 	if (cell['metadata']) {

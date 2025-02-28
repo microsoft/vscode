@@ -15,9 +15,6 @@
   "categories": [
     "Programming Languages"
   ],
-  "enabledApiProposals": [
-    "documentPaste"
-  ],
   "activationEvents": [
     "onLanguage:markdown",
     "onCommand:markdown.api.render",
@@ -126,6 +123,11 @@
         "category": "Markdown"
       },
       {
+        "command": "_markdown.openImage",
+        "title": "%markdown.openImage.title%",
+        "category": "Markdown"
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -189,7 +191,11 @@
       "webview/context": [
         {
           "command": "_markdown.copyImage",
-          "when": "webviewId == 'markdown.preview' && webviewSection == 'image'"
+          "when": "webviewId == 'markdown.preview' && (webviewSection == 'image' || webviewSection == 'localImage')"
+        },
+        {
+          "command": "_markdown.openImage",
+          "when": "webviewId == 'markdown.preview' && webviewSection == 'localImage'"
         }
       ],
       "editor/title": [
@@ -244,6 +250,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "_markdown.openImage",
+          "when": "false"
+        },
         {
           "command": "_markdown.copyImage",
           "when": "false"
@@ -431,16 +441,6 @@
             "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onDoubleHash%",
             "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
           ]
-        },
-        "markdown.trace.extension": {
-          "type": "string",
-          "enum": [
-            "off",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%markdown.trace.extension.desc%",
-          "scope": "window"
         },
         "markdown.trace.server": {
           "type": "string",
@@ -763,8 +763,8 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.0",
-    "dompurify": "^3.1.3",
+    "@vscode/extension-telemetry": "^0.9.8",
+    "dompurify": "^3.2.4",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.4",
@@ -773,17 +773,17 @@
     "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
-    "vscode-markdown-languageserver": "^0.5.0-alpha.8",
+    "vscode-markdown-languageserver": "^0.5.0-alpha.9",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/dompurify": "^3.0.2",
+    "@types/dompurify": "^3.0.5",
     "@types/lodash.throttle": "^4.1.3",
     "@types/markdown-it": "12.2.3",
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
-    "@vscode/markdown-it-katex": "^1.0.2",
+    "@vscode/markdown-it-katex": "^1.1.1",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
     "vscode-markdown-languageservice": "^0.3.0-alpha.3"

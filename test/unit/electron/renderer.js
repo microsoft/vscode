@@ -5,6 +5,8 @@
 
 /*eslint-env mocha*/
 
+// @ts-check
+
 const fs = require('fs');
 
 (function () {
@@ -24,7 +26,7 @@ const fs = require('fs');
 	function createSpy(element, cnt) {
 		return function (...args) {
 			if (logging) {
-				console.log(`calling ${element}: ` + args.slice(0, cnt).join(',') + (withStacks ? (`\n` + new Error().stack.split('\n').slice(2).join('\n')) : ''));
+				console.log(`calling ${element}: ` + args.slice(0, cnt).join(',') + (withStacks ? (`\n` + new Error().stack?.split('\n').slice(2).join('\n')) : ''));
 			}
 			return originals[element].call(this, ...args);
 		};
@@ -88,9 +90,18 @@ Object.assign(globalThis, {
 
 const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY;
 const _tests_glob = '**/test/**/*.test.js';
-let loader;
+
+
+/**
+ * Loads one or N modules.
+ * @type {{
+ *   (module: string|string[]): Promise<any>|Promise<any[]>;
+ *   _out: string;
+ * }}
+ */
+let loadFn;
+
 const _loaderErrors = [];
-let _out;
 
 function initNls(opts) {
 	if (opts.build) {
@@ -101,20 +112,17 @@ function initNls(opts) {
 	}
 }
 
-function initLoader(opts) {
+function initLoadFn(opts) {
 	const outdir = opts.build ? 'out-build' : 'out';
-	_out = path.join(__dirname, `../../../${outdir}`);
+	const out = path.join(__dirname, `../../../${outdir}`);
 
 	const baseUrl = pathToFileURL(path.join(__dirname, `../../../${outdir}/`));
 	globalThis._VSCODE_FILE_ROOT = baseUrl.href;
 
 	// set loader
-	/**
-	 * @param {string[]} modules
-	 * @param {(...args:any[]) => void} callback
-	 */
-	function esmRequire(modules, callback, errorback) {
-		const tasks = modules.map(mod => {
+	function importModules(modules) {
+		const moduleArray = Array.isArray(modules) ? modules : [modules];
+		const tasks = moduleArray.map(mod => {
 			const url = new URL(`./${mod}.js`, baseUrl).href;
 			return import(url).catch(err => {
 				console.log(mod, url);
@@ -124,35 +132,33 @@ function initLoader(opts) {
 			});
 		});
 
-		Promise.all(tasks).then(modules => callback(...modules)).catch(errorback);
+		return Array.isArray(modules)
+			? Promise.all(tasks)
+			: tasks[0];
 	}
-
-	loader = { require: esmRequire };
+	importModules._out = out;
+	loadFn = importModules;
 }
 
-function createCoverageReport(opts) {
-	if (opts.coverage) {
-		return coverage.createReport(opts.run || opts.runGlob);
+async function createCoverageReport(opts) {
+	if (!opts.coverage) {
+		return undefined;
 	}
-	return Promise.resolve(undefined);
-}
-
-function loadWorkbenchTestingUtilsModule() {
-	return new Promise((resolve, reject) => {
-		loader.require(['vs/workbench/test/common/utils'], resolve, reject);
-	});
+	return coverage.createReport(opts.run || opts.runGlob);
 }
 
 async function loadModules(modules) {
 	for (const file of modules) {
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-		const m = await new Promise((resolve, reject) => loader.require([file], resolve, reject));
+		const m = await loadFn(file);
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
 		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
 	}
 }
 
-function loadTestModules(opts) {
+const globAsync = util.promisify(glob);
+
+async function loadTestModules(opts) {
 
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
@@ -164,17 +170,9 @@ function loadTestModules(opts) {
 	}
 
 	const pattern = opts.runGlob || _tests_glob;
-
-	return new Promise((resolve, reject) => {
-		glob(pattern, { cwd: _out }, (err, files) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			const modules = files.map(file => file.replace(/\.js$/, ''));
-			resolve(modules);
-		});
-	}).then(loadModules);
+	const files = await globAsync(pattern, { cwd: loadFn._out });
+	const modules = files.map(file => file.replace(/\.js$/, ''));
+	return loadModules(modules);
 }
 
 /** @type Mocha.Test */
@@ -211,7 +209,7 @@ async function loadTests(opts) {
 	]);
 
 	const _allowedSuitesWithOutput = new Set([
-		'InteractiveChatController'
+		'InlineChatController'
 	]);
 
 	let _testsWithUnexpectedOutput = false;
@@ -220,7 +218,7 @@ async function loadTests(opts) {
 		console[consoleFn.name] = function (msg) {
 			if (!currentTest) {
 				consoleFn.apply(console, arguments);
-			} else if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title) && !_allowedSuitesWithOutput.has(currentTest.parent?.title)) {
+			} else if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title) && !_allowedSuitesWithOutput.has(currentTest.parent?.title ?? '')) {
 				_testsWithUnexpectedOutput = true;
 				consoleFn.apply(console, arguments);
 			}
@@ -242,79 +240,76 @@ async function loadTests(opts) {
 		'Search Model: Search reports timed telemetry on search when error is called'
 	]);
 
-	loader.require(['vs/base/common/errors'], function (errors) {
+	const errors = await loadFn('vs/base/common/errors');
+	const onUnexpectedError = function (err) {
+		if (err.name === 'Canceled') {
+			return; // ignore canceled errors that are common
+		}
 
-		const onUnexpectedError = function (err) {
-			if (err.name === 'Canceled') {
-				return; // ignore canceled errors that are common
-			}
+		let stack = (err ? err.stack : null);
+		if (!stack) {
+			stack = new Error().stack;
+		}
 
-			let stack = (err ? err.stack : null);
-			if (!stack) {
-				stack = new Error().stack;
-			}
+		_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
+	};
 
-			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
-		};
+	process.on('uncaughtException', error => onUnexpectedError(error));
+	process.on('unhandledRejection', (reason, promise) => {
+		onUnexpectedError(reason);
+		promise.catch(() => { });
+	});
+	window.addEventListener('unhandledrejection', event => {
+		event.preventDefault(); // Do not log to test output, we show an error later when test ends
+		event.stopPropagation();
 
-		process.on('uncaughtException', error => onUnexpectedError(error));
-		process.on('unhandledRejection', (reason, promise) => {
-			onUnexpectedError(reason);
-			promise.catch(() => { });
-		});
-		window.addEventListener('unhandledrejection', event => {
-			event.preventDefault(); // Do not log to test output, we show an error later when test ends
-			event.stopPropagation();
-
-			if (!_allowedTestsWithUnhandledRejections.has(currentTest.title)) {
-				onUnexpectedError(event.reason);
-			}
-		});
-
-		errors.setUnexpectedErrorHandler(err => unexpectedErrorHandler(err));
+		if (!_allowedTestsWithUnhandledRejections.has(currentTest.title)) {
+			onUnexpectedError(event.reason);
+		}
 	});
 
+	errors.setUnexpectedErrorHandler(onUnexpectedError);
 	//#endregion
 
-	return loadWorkbenchTestingUtilsModule().then((workbenchTestingModule) => {
-		const assertCleanState = workbenchTestingModule.assertCleanState;
+	const { assertCleanState } = await loadFn('vs/workbench/test/common/utils');
 
-		suite('Tests are using suiteSetup and setup correctly', () => {
-			test('assertCleanState - check that registries are clean at the start of test running', () => {
-				assertCleanState();
-			});
-		});
-
-		setup(async () => {
-			await perTestCoverage?.startTest();
-		});
-
-		teardown(async () => {
-			await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
-
-			// should not have unexpected output
-			if (_testsWithUnexpectedOutput && !opts.dev) {
-				assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
-			}
-
-			// should not have unexpected errors
-			const errors = _unexpectedErrors.concat(_loaderErrors);
-			if (errors.length) {
-				for (const error of errors) {
-					console.error(`Error: Test run should not have unexpected errors:\n${error}`);
-				}
-				assert.ok(false, 'Error: Test run should not have unexpected errors.');
-			}
-		});
-
-		suiteTeardown(() => { // intentionally not in teardown because some tests only cleanup in suiteTeardown
-
-			// should have cleaned up in registries
+	suite('Tests are using suiteSetup and setup correctly', () => {
+		test('assertCleanState - check that registries are clean at the start of test running', () => {
 			assertCleanState();
 		});
-
-		return loadTestModules(opts);
 	});
+
+	setup(async () => {
+		await perTestCoverage?.startTest();
+	});
+
+	teardown(async () => {
+		await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
+
+		// should not have unexpected output
+		if (_testsWithUnexpectedOutput && !opts.dev) {
+			assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
+		}
+
+		// should not have unexpected errors
+		const errors = _unexpectedErrors.concat(_loaderErrors);
+		if (errors.length) {
+			const msg = [];
+			for (const error of errors) {
+				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
+				msg.push(String(error))
+			}
+			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
+		}
+	});
+
+	suiteTeardown(() => { // intentionally not in teardown because some tests only cleanup in suiteTeardown
+
+		// should have cleaned up in registries
+		assertCleanState();
+	});
+
+	return loadTestModules(opts);
 }
 
 function serializeSuite(suite) {
@@ -403,42 +398,82 @@ class IPCReporter {
 	}
 }
 
-function runTests(opts) {
+const $globalThis = globalThis;
+const setTimeout0IsFaster = (typeof $globalThis.postMessage === 'function' && !$globalThis.importScripts);
+
+/**
+ * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
+ *
+ * Works similarly to `setTimeout(0)` but doesn't suffer from the 4ms artificial delay
+ * that browsers set when the nesting level is > 5.
+ */
+const setTimeout0 = (() => {
+	if (setTimeout0IsFaster) {
+		const pending = [];
+
+		$globalThis.addEventListener('message', (e) => {
+			if (e.data && e.data.vscodeScheduleAsyncWork) {
+				for (let i = 0, len = pending.length; i < len; i++) {
+					const candidate = pending[i];
+					if (candidate.id === e.data.vscodeScheduleAsyncWork) {
+						pending.splice(i, 1);
+						candidate.callback();
+						return;
+					}
+				}
+			}
+		});
+		let lastId = 0;
+		return (callback) => {
+			const myId = ++lastId;
+			pending.push({
+				id: myId,
+				callback: callback
+			});
+			$globalThis.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
+		};
+	}
+	return (callback) => setTimeout(callback);
+})();
+
+async function runTests(opts) {
+	// @ts-expect-error
+	Mocha.Runner.immediately = setTimeout0;
+
+	mocha.setup({
+		ui: 'tdd',
+		// @ts-expect-error
+		reporter: opts.dev ? 'html' : IPCReporter,
+		grep: opts.grep,
+		timeout: opts.timeout ?? (IS_CI ? 30000 : 5000),
+		forbidOnly: IS_CI // disallow .only() when running on build machine
+	});
+
 	// this *must* come before loadTests, or it doesn't work.
 	if (opts.timeout !== undefined) {
 		mocha.timeout(opts.timeout);
 	}
 
-	return loadTests(opts).then(() => {
+	await loadTests(opts);
 
-		if (opts.grep) {
-			mocha.grep(opts.grep);
-		}
-
-		if (!opts.dev) {
-			mocha.reporter(IPCReporter);
-		}
-
-		const runner = mocha.run(() => {
-			createCoverageReport(opts).then(() => {
-				ipcRenderer.send('all done');
-			});
-		});
-
-		runner.on('test', test => currentTest = test);
-
-		if (opts.dev) {
-			runner.on('fail', (test, err) => {
-				console.error(test.fullTitle());
-				console.error(err.stack);
-			});
-		}
+	const runner = mocha.run(async () => {
+		await createCoverageReport(opts)
+		ipcRenderer.send('all done');
 	});
+
+	runner.on('test', test => currentTest = test);
+
+	if (opts.dev) {
+		runner.on('fail', (test, err) => {
+			console.error(test.fullTitle());
+			console.error(err.stack);
+		});
+	}
 }
 
 ipcRenderer.on('run', async (_e, opts) => {
 	initNls(opts);
-	initLoader(opts);
+	initLoadFn(opts);
 
 	await Promise.resolve(globalThis._VSCODE_TEST_INIT);
 

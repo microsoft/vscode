@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from '../../../../base/browser/dom.js';
-import * as dompurify from '../../../../base/browser/dompurify/dompurify.js';
+import dompurify from '../../../../base/browser/dompurify/dompurify.js';
 import { allowedMarkdownAttr } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import * as marked from '../../../../base/common/marked/marked.js';
@@ -234,7 +234,7 @@ export async function renderMarkdownDocument(
 namespace MarkedHighlight {
 	// Copied from https://github.com/markedjs/marked-highlight/blob/main/src/index.js
 
-	export function markedHighlight(options: marked.MarkedOptions & { highlight: (code: string, lang: string, info: string) => string | Promise<string> }): marked.MarkedExtension {
+	export function markedHighlight(options: marked.MarkedOptions & { highlight: (code: string, lang: string) => string | Promise<string> }): marked.MarkedExtension {
 		if (typeof options === 'function') {
 			options = {
 				highlight: options,
@@ -252,13 +252,11 @@ namespace MarkedHighlight {
 					return;
 				}
 
-				const lang = getLang(token.lang);
-
 				if (options.async) {
-					return Promise.resolve(options.highlight(token.text, lang, token.lang || '')).then(updateToken(token));
+					return Promise.resolve(options.highlight(token.text, token.lang)).then(updateToken(token));
 				}
 
-				const code = options.highlight(token.text, lang, token.lang || '');
+				const code = options.highlight(token.text, token.lang);
 				if (code instanceof Promise) {
 					throw new Error('markedHighlight is not set to async but the highlight function is async. Set the async option to true on markedHighlight to await the async highlight function.');
 				}
@@ -274,10 +272,6 @@ namespace MarkedHighlight {
 				},
 			},
 		};
-	}
-
-	function getLang(lang: string) {
-		return (lang || '').match(/\S*/)![0];
 	}
 
 	function updateToken(token: any) {

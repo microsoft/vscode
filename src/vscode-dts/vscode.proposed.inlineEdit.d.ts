@@ -13,10 +13,16 @@ declare module 'vscode' {
 		readonly text: string;
 
 		/**
-		 * An range that will be replaced by the text of the inline edit.
-		 * If change is only additive, this can be empty (same start and end position).
+		 * A range that will be replaced by the text of the inline edit.
+		 * If the change is only additive, this can be empty (same start and end position).
 		 */
 		readonly range: Range;
+
+		/**
+		 * A range specifying when the edit can be shown based on the cursor position.
+		 * If the cursor is within this range, the inline edit can be displayed.
+		 */
+		readonly showRange?: Range;
 
 		/**
 		 * An optional command that will be executed after applying the inline edit.
@@ -28,11 +34,17 @@ declare module 'vscode' {
 		 */
 		rejected?: Command;
 
+		shown?: Command;
+
+		commands?: Command[];
+
+		action?: Command;
+
 		/**
 		 * Creates a new inline edit.
 		 *
 		 * @param text The new text for this edit.
-		 * @param replaceRange An range that will be replaced by the text of the inline edit.
+		 * @param range A range that will be replaced by the text of the inline edit.
 		 */
 		constructor(text: string, range: Range);
 	}
@@ -42,6 +54,8 @@ declare module 'vscode' {
 		 * Describes how the inline edit was triggered.
 		 */
 		triggerKind: InlineEditTriggerKind;
+
+		readonly requestUuid?: string;
 	}
 
 	export enum InlineEditTriggerKind {
@@ -59,6 +73,9 @@ declare module 'vscode' {
 	}
 
 	export interface InlineEditProvider {
+
+		readonly displayName?: string;
+
 		/**
 		 * Provide inline edit for the given document.
 		 *

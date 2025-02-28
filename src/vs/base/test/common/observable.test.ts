@@ -8,7 +8,7 @@ import { setUnexpectedErrorHandler } from '../../common/errors.js';
 import { Emitter, Event } from '../../common/event.js';
 import { DisposableStore } from '../../common/lifecycle.js';
 import { autorun, autorunHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../common/observable.js';
-import { BaseObservable } from '../../common/observableInternal/base.js';
+import { BaseObservable, IObservableWithChange } from '../../common/observableInternal/base.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('observables', () => {
@@ -1398,6 +1398,135 @@ suite('observables', () => {
 			d.dispose();
 		});
 	});
+
+	test('recomputeInitiallyAndOnChange should work when a dependency sets an observable', () => {
+		const store = new DisposableStore();
+		const log = new Log();
+
+		const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+		let shouldUpdate = true;
+
+		const myDerived = derived(reader => {
+			/** @description myDerived */
+
+			log.log('myDerived.computed start');
+
+			const val = myObservable.read(reader);
+
+			if (shouldUpdate) {
+				shouldUpdate = false;
+				myObservable.set(1, undefined);
+			}
+
+			log.log('myDerived.computed end');
+
+			return val;
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		myDerived.recomputeInitiallyAndOnChange(store, val => {
+			log.log(`recomputeInitiallyAndOnChange, myDerived: ${val}`);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			"myDerived.computed start",
+			"myObservable.firstObserverAdded",
+			"myObservable.get",
+			"myObservable.set (value 1)",
+			"myDerived.computed end",
+			"myDerived.computed start",
+			"myObservable.get",
+			"myDerived.computed end",
+			"recomputeInitiallyAndOnChange, myDerived: 1",
+		]);
+
+		myDerived.get();
+		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
+
+		store.dispose();
+	});
+
+	suite('prevent invalid usage', () => {
+		suite('reading outside of compute function', () => {
+			test('derived', () => {
+				let fn: () => void = () => { };
+
+				const obs = observableValue('obs', 0);
+				const d = derived(reader => {
+					fn = () => { obs.read(reader); };
+					return obs.read(reader);
+				});
+
+				const disp = autorun(reader => {
+					d.read(reader);
+				});
+
+				assert.throws(() => {
+					fn();
+				});
+
+				disp.dispose();
+			});
+
+			test('autorun', () => {
+				let fn: () => void = () => { };
+
+				const obs = observableValue('obs', 0);
+				const disp = autorun(reader => {
+					fn = () => { obs.read(reader); };
+					obs.read(reader);
+				});
+
+				assert.throws(() => {
+					fn();
+				});
+
+				disp.dispose();
+			});
+		});
+
+		test.skip('catches cyclic dependencies', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler((e) => {
+				log.log(e.toString());
+			});
+
+			const obs = observableValue('obs', 0);
+			const d1 = derived(reader => {
+				log.log('d1.computed start');
+				const x = obs.read(reader) + d2.read(reader);
+				log.log('d1.computed end');
+				return x;
+			});
+			const d2 = derived(reader => {
+				log.log('d2.computed start');
+				d1.read(reader);
+				log.log('d2.computed end');
+				return 0;
+			});
+
+			const disp = autorun(reader => {
+				log.log('autorun start');
+				d1.read(reader);
+				log.log('autorun end');
+				return 0;
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"autorun start",
+				"d1.computed start",
+				"d2.computed start",
+				"Error: Cyclic deriveds are not supported yet!",
+				"d1.computed end",
+				"autorun end"
+			]));
+
+			disp.dispose();
+		});
+	});
 });
 
 export class LoggingObserver implements IObserver {
@@ -1406,18 +1535,18 @@ export class LoggingObserver implements IObserver {
 	constructor(public readonly debugName: string, private readonly log: Log) {
 	}
 
-	beginUpdate<T>(observable: IObservable<T, void>): void {
+	beginUpdate<T>(observable: IObservable<T>): void {
 		this.count++;
 		this.log.log(`${this.debugName}.beginUpdate (count ${this.count})`);
 	}
-	endUpdate<T>(observable: IObservable<T, void>): void {
+	endUpdate<T>(observable: IObservable<T>): void {
 		this.log.log(`${this.debugName}.endUpdate (count ${this.count})`);
 		this.count--;
 	}
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void {
 		this.log.log(`${this.debugName}.handleChange (count ${this.count})`);
 	}
-	handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
+	handlePossibleChange<T>(observable: IObservable<T>): void {
 		this.log.log(`${this.debugName}.handlePossibleChange`);
 	}
 }
@@ -1427,21 +1556,21 @@ export class LoggingObservableValue<T, TChange = void>
 	implements ISettableObservable<T, TChange> {
 	private value: T;
 
-	constructor(public readonly debugName: string, initialValue: T, private readonly log: Log) {
+	constructor(public readonly debugName: string, initialValue: T, private readonly logger: Log) {
 		super();
 		this.value = initialValue;
 	}
 
 	protected override onFirstObserverAdded(): void {
-		this.log.log(`${this.debugName}.firstObserverAdded`);
+		this.logger.log(`${this.debugName}.firstObserverAdded`);
 	}
 
 	protected override onLastObserverRemoved(): void {
-		this.log.log(`${this.debugName}.lastObserverRemoved`);
+		this.logger.log(`${this.debugName}.lastObserverRemoved`);
 	}
 
 	public get(): T {
-		this.log.log(`${this.debugName}.get`);
+		this.logger.log(`${this.debugName}.get`);
 		return this.value;
 	}
 
@@ -1457,11 +1586,11 @@ export class LoggingObservableValue<T, TChange = void>
 			return;
 		}
 
-		this.log.log(`${this.debugName}.set (value ${value})`);
+		this.logger.log(`${this.debugName}.set (value ${value})`);
 
 		this.value = value;
 
-		for (const observer of this.observers) {
+		for (const observer of this._observers) {
 			tx.updateObserver(observer, this);
 			observer.handleChange(this, change);
 		}

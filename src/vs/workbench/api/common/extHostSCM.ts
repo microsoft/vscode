@@ -73,11 +73,12 @@ function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vsc
 }
 
 function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
+	const authorIcon = getHistoryItemIconDto(historyItem.authorIcon);
 	const references = historyItem.references?.map(r => ({
 		...r, icon: getHistoryItemIconDto(r.icon)
 	}));
 
-	return { ...historyItem, references };
+	return { ...historyItem, authorIcon, references };
 }
 
 function toSCMHistoryItemRefDto(historyItemRef?: vscode.SourceControlHistoryItemRef): SCMHistoryItemRefDto | undefined {
@@ -411,6 +412,15 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroupLabel(this._sourceControlHandle, this.handle, label);
 	}
 
+	private _contextValue: string | undefined = undefined;
+	get contextValue(): string | undefined {
+		return this._contextValue;
+	}
+	set contextValue(contextValue: string | undefined) {
+		this._contextValue = contextValue;
+		this._proxy.$updateGroup(this._sourceControlHandle, this.handle, this.features);
+	}
+
 	private _hideWhenEmpty: boolean | undefined = undefined;
 	get hideWhenEmpty(): boolean | undefined { return this._hideWhenEmpty; }
 	set hideWhenEmpty(hideWhenEmpty: boolean | undefined) {
@@ -420,6 +430,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	get features(): SCMGroupFeatures {
 		return {
+			contextValue: this.contextValue,
 			hideWhenEmpty: this.hideWhenEmpty
 		};
 	}
@@ -681,7 +692,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				enabled: actionButton.enabled
 			} satisfies SCMActionButtonDto : undefined;
 
-		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto });
+		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto ?? null });
 	}
 
 

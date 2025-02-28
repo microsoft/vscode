@@ -4,63 +4,74 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FuzzyScore } from '../../../../base/common/filters.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+
+export interface CompletionItemLabel {
+	label: string;
+	detail?: string;
+	description?: string;
+}
 
 export interface ISimpleCompletion {
 	/**
 	 * The completion's label which appears on the left beside the icon.
 	 */
-	label: string;
+	label: string | CompletionItemLabel;
+
+	/**
+	 * The ID of the provider the completion item came from
+	 */
+	provider: string;
+
 	/**
 	 * The completion's icon to show on the left of the suggest widget.
 	 */
 	icon?: ThemeIcon;
+
 	/**
 	 * The completion's detail which appears on the right of the list.
 	 */
 	detail?: string;
+
 	/**
-	 * Whether the completion is a file. Files with the same score will be sorted against each other
-	 * first by extension length and then certain extensions will get a boost based on the OS.
+	 * A human-readable string that represents a doc-comment.
 	 */
-	isFile?: boolean;
+	documentation?: string | IMarkdownString;
+
 	/**
-	 * Whether the completion is a directory.
+	 * The start of the replacement.
 	 */
-	isDirectory?: boolean;
+	replacementIndex: number;
+
 	/**
-	 * Whether the completion is a keyword.
+	 * The length of the replacement.
 	 */
-	isKeyword?: boolean;
+	replacementLength: number;
 }
 
 export class SimpleCompletionItem {
-	// perf
-	readonly labelLow: string;
-	readonly labelLowExcludeFileExt: string;
-	readonly fileExtLow: string = '';
+	/**
+	 * The lowercase label, normalized to `\` path separators on Windows.
+	 */
+	labelLow: string;
+	textLabel: string;
 
 	// sorting, filtering
 	score: FuzzyScore = FuzzyScore.Default;
 	idx?: number;
 	word?: string;
 
+	// validation
+	isInvalid: boolean = false;
+
 	constructor(
 		readonly completion: ISimpleCompletion
 	) {
 		// ensure lower-variants (perf)
-		this.labelLow = this.completion.label.toLowerCase();
-		this.labelLowExcludeFileExt = this.labelLow;
-		if (completion.isFile) {
-			if (isWindows) {
-				this.labelLow = this.labelLow.replaceAll('/', '\\');
-			}
-			const extIndex = this.labelLow.lastIndexOf('.');
-			if (extIndex !== -1) {
-				this.labelLowExcludeFileExt = this.labelLow.substring(0, extIndex);
-				this.fileExtLow = this.labelLow.substring(extIndex + 1);
-			}
-		}
+		this.textLabel = typeof completion.label === 'string'
+			? completion.label
+			: completion.label?.label;
+		this.labelLow = this.textLabel.toLowerCase();
 	}
 }

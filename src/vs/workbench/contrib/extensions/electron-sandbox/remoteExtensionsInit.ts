@@ -5,13 +5,14 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT, IExtensionGalleryService, IExtensionManagementService, InstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
 import { IStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -24,6 +25,56 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+
+export class InstallFailedRemoteExtensionsContribution implements IWorkbenchContribution {
+	constructor(
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@ILogService private readonly logService: ILogService
+	) {
+		this.installFailedRemoteExtensions();
+	}
+
+	private async installFailedRemoteExtensions(): Promise<void> {
+		if (!this.remoteAgentService.getConnection()) {
+			return;
+		}
+
+		const { failed } = await this.remoteExtensionsScannerService.whenExtensionsReady();
+		if (failed.length === 0) {
+			this.logService.trace('No extensions relayed from server');
+			return;
+		}
+
+		if (!this.extensionManagementServerService.remoteExtensionManagementServer) {
+			this.logService.error('No remote extension management server available');
+			return;
+		}
+
+		this.logService.info(`Installing '${failed.length}' extensions relayed from server`);
+		const galleryExtensions = await this.extensionGalleryService.getExtensions(failed.map(({ id }) => ({ id })), CancellationToken.None);
+		const installExtensionInfo: InstallExtensionInfo[] = [];
+		for (const { id, installOptions } of failed) {
+			const extension = galleryExtensions.find(e => areSameExtensions(e.identifier, { id }));
+			if (extension) {
+				installExtensionInfo.push({
+					extension, options: {
+						...installOptions,
+						downloadExtensionsLocally: true,
+					}
+				});
+			} else {
+				this.logService.warn(`Relayed failed extension '${id}' from server is not found in the gallery`);
+			}
+		}
+
+		if (installExtensionInfo.length) {
+			await Promise.allSettled(installExtensionInfo.map(e => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(e.extension, e.options)));
+		}
+	}
+}
 
 export class RemoteExtensionsInitializerContribution implements IWorkbenchContribution {
 	constructor(
@@ -135,7 +186,7 @@ class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 				const manifest = await this.extensionGalleryService.getManifest(e, CancellationToken.None);
 				if (manifest && this.extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
 					const syncedExtension = remoteExtensions.find(e => areSameExtensions(e.identifier, e.identifier));
-					await this.extensionManagementService.installFromGallery(e, { installPreReleaseVersion: syncedExtension?.preRelease, donotIncludePackAndDependencies: true });
+					await this.extensionManagementService.installFromGallery(e, { installPreReleaseVersion: syncedExtension?.preRelease, donotIncludePackAndDependencies: true, context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true } });
 				}
 			}));
 		}

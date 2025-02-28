@@ -52,6 +52,7 @@ import { ExceptionWidget } from './exceptionWidget.js';
 import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from '../common/debug.js';
 import { Expression } from '../common/debugModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
@@ -73,10 +74,60 @@ class InlineSegment {
 	}
 }
 
-function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration[] {
-	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
-	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
-		contentText = contentText.substring(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
+export function formatHoverContent(contentText: string): MarkdownString {
+	if (contentText.includes(',') && contentText.includes('=')) {
+		// Custom split: for each equals sign after the first, backtrack to the nearest comma
+		const customSplit = (text: string): string[] => {
+			const splits: number[] = [];
+			let equalsFound = 0;
+			let start = 0;
+			for (let i = 0; i < text.length; i++) {
+				if (text[i] === '=') {
+					if (equalsFound === 0) {
+						equalsFound++;
+						continue;
+					}
+					const commaIndex = text.lastIndexOf(',', i);
+					if (commaIndex !== -1 && commaIndex >= start) {
+						splits.push(commaIndex);
+						start = commaIndex + 1;
+					}
+					equalsFound++;
+				}
+			}
+			const result: string[] = [];
+			let s = 0;
+			for (const index of splits) {
+				result.push(text.substring(s, index).trim());
+				s = index + 1;
+			}
+			if (s < text.length) {
+				result.push(text.substring(s).trim());
+			}
+			return result;
+		};
+
+		const pairs = customSplit(contentText);
+		const formattedPairs = pairs.map(pair => {
+			const equalsIndex = pair.indexOf('=');
+			if (equalsIndex !== -1) {
+				const indent = ' '.repeat(equalsIndex + 2);
+				const [firstLine, ...restLines] = pair.split(/\r?\n/);
+				return [firstLine, ...restLines.map(line => indent + line)].join('\n');
+			}
+			return pair;
+		});
+		return new MarkdownString().appendCodeblock('', formattedPairs.join(',\n'));
+	}
+	return new MarkdownString().appendCodeblock('', contentText);
+}
+
+export function createInlineValueDecoration(lineNumber: number, contentText: string, classNamePrefix: string, column = Constants.MAX_SAFE_SMALL_INTEGER, viewportMaxCol: number = MAX_INLINE_DECORATOR_LENGTH): IModelDeltaDecoration[] {
+	const rawText = contentText; // store raw text for hover message
+
+	// Truncate contentText if it exceeds the viewport max column
+	if (contentText.length > viewportMaxCol) {
+		contentText = contentText.substring(0, viewportMaxCol) + '...';
 	}
 
 	return [
@@ -88,7 +139,7 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 				endColumn: column
 			},
 			options: {
-				description: 'debug-inline-value-decoration-spacer',
+				description: `${classNamePrefix}-inline-value-decoration-spacer`,
 				after: {
 					content: strings.noBreakWhitespace,
 					cursorStops: InjectedTextCursorStops.None
@@ -104,14 +155,15 @@ function createInlineValueDecoration(lineNumber: number, contentText: string, co
 				endColumn: column
 			},
 			options: {
-				description: 'debug-inline-value-decoration',
+				description: `${classNamePrefix}-inline-value-decoration`,
 				after: {
 					content: replaceWsWithNoBreakWs(contentText),
-					inlineClassName: 'debug-inline-value',
+					inlineClassName: `${classNamePrefix}-inline-value`,
 					inlineClassNameAffectsLetterSpacing: true,
 					cursorStops: InjectedTextCursorStops.None
 				},
 				showIfCollapsed: true,
+				hoverMessage: formatHoverContent(rawText)
 			}
 		},
 	];
@@ -475,11 +527,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		}
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+		if (
+			(target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID)
+			|| this.hoverWidget.isInSafeTriangle(mouseEvent.event.posx, mouseEvent.event.posy)
+		) {
 			// mouse moved on top of debug hover widget
 
 			const sticky = this.editorHoverOptions?.sticky ?? true;
-			if (sticky || this.hoverWidget.isShowingComplexValue) {
+			if (sticky || this.hoverWidget.isShowingComplexValue || mouseEvent.event[stopKey]) {
 				return;
 			}
 		}
@@ -766,7 +821,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				if (segments.length > 0) {
 					segments = segments.sort((a, b) => a.column - b.column);
 					const text = segments.map(s => s.text).join(separator);
-					allDecorations.push(...createInlineValueDecoration(line, text));
+					const editorWidth = this.editor.getLayoutInfo().width;
+					const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+					const viewportMaxCol = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+					allDecorations.push(...createInlineValueDecoration(line, text, 'debug', undefined, viewportMaxCol));
 				}
 			});
 
@@ -810,9 +868,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 			}
 
-			allDecorations = [...valuesPerLine.entries()].flatMap(([line, values]) =>
-				createInlineValueDecoration(line, [...values].map(([n, v]) => `${n} = ${v}`).join(', '))
-			);
+			allDecorations = [...valuesPerLine.entries()].flatMap(([line, values]) => {
+				const text = [...values].map(([n, v]) => `${n} = ${v}`).join(', ');
+				const editorWidth = this.editor.getLayoutInfo().width;
+				const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+				const viewportMaxCol = Math.floor((editorWidth - 50) / fontInfo.typicalHalfwidthCharacterWidth);
+				return createInlineValueDecoration(line, text, 'debug', undefined, viewportMaxCol);
+			});
 		}
 
 		if (cts.token.isCancellationRequested) {

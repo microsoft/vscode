@@ -21,7 +21,7 @@ use tokio::{
 
 use super::{
 	args::{
-		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelForwardArgs,
+		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelArgs, TunnelForwardArgs,
 		TunnelRenameArgs, TunnelServeArgs, TunnelServiceSubCommands, TunnelUserSubCommands,
 	},
 	CommandContext,
@@ -104,12 +104,16 @@ fn fulfill_existing_tunnel_args(
 }
 
 struct TunnelServiceContainer {
-	args: CliCore,
+	core_args: CliCore,
+	tunnel_args: TunnelArgs,
 }
 
 impl TunnelServiceContainer {
-	fn new(args: CliCore) -> Self {
-		Self { args }
+	fn new(core_args: CliCore, tunnel_args: TunnelArgs) -> Self {
+		Self {
+			core_args,
+			tunnel_args,
+		}
 	}
 }
 
@@ -120,7 +124,8 @@ impl ServiceContainer for TunnelServiceContainer {
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
 	) -> Result<(), AnyError> {
-		let csa = (&self.args).into();
+		let mut csa = (&self.core_args).into();
+		self.tunnel_args.serve_args.server_args.apply_to(&mut csa);
 		serve_with_csa(
 			launcher_paths,
 			log,
@@ -213,7 +218,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 				match socket {
 					Ok((read, write)) => servers.push(serve_stream(read, write, params.clone())),
 					Err(e) => {
-						error!(params.log, &format!("Error accepting connection: {}", e));
+						error!(params.log, &format!("Error accepting connection: {e}"));
 						return Ok(1);
 					}
 				}
@@ -242,8 +247,27 @@ async fn is_port_available(host: IpAddr, port: u16) -> bool {
 		.is_ok()
 }
 
+fn make_service_args<'a: 'c, 'b: 'c, 'c>(
+	root_path: &'a str,
+	tunnel_args: &'b TunnelArgs,
+) -> Vec<&'c str> {
+	let mut args = ["--verbose", "--cli-data-dir", root_path, "tunnel"].to_vec();
+
+	if let Some(d) = tunnel_args.serve_args.server_args.extensions_dir.as_ref() {
+		args.extend_from_slice(&["--extensions-dir", d]);
+	}
+	if let Some(d) = tunnel_args.serve_args.server_args.server_data_dir.as_ref() {
+		args.extend_from_slice(&["--server-data-dir", d]);
+	}
+
+	args.extend_from_slice(&["service", "internal-run"]);
+
+	args
+}
+
 pub async fn service(
 	ctx: CommandContext,
+	tunnel_args: TunnelArgs,
 	service_args: TunnelServiceSubCommands,
 ) -> Result<i32, AnyError> {
 	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
@@ -265,21 +289,11 @@ pub async fn service(
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 			let current_exe = canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+			let root_path = ctx.paths.root().as_os_str().to_string_lossy();
+			let args = make_service_args(&root_path, &tunnel_args);
 
-			manager
-				.register(
-					current_exe,
-					&[
-						"--verbose",
-						"--cli-data-dir",
-						ctx.paths.root().as_os_str().to_string_lossy().as_ref(),
-						"tunnel",
-						"service",
-						"internal-run",
-					],
-				)
-				.await?;
-			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `{} tunnel service uninstall` to remove it.", APPLICATION_NAME, APPLICATION_NAME));
+			manager.register(current_exe, &args).await?;
+			ctx.log.result(format!("Service successfully installed! You can use `{APPLICATION_NAME} tunnel service log` to monitor it, and `{APPLICATION_NAME} tunnel service uninstall` to remove it."));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;
@@ -289,7 +303,10 @@ pub async fn service(
 		}
 		TunnelServiceSubCommands::InternalRun => {
 			manager
-				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
+				.run(
+					ctx.paths.clone(),
+					TunnelServiceContainer::new(ctx.args, tunnel_args),
+				)
 				.await?;
 		}
 	}
@@ -312,8 +329,8 @@ pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Resu
 			auth.clear_credentials()?;
 		}
 		TunnelUserSubCommands::Show => {
-			if let Ok(Some(_)) = auth.get_current_credential() {
-				ctx.log.result("logged in");
+			if let Ok(Some(sc)) = auth.get_current_credential() {
+				ctx.log.result(format!("logged in with provider {}", sc.provider));
 			} else {
 				ctx.log.result("not logged in");
 				return Ok(1);

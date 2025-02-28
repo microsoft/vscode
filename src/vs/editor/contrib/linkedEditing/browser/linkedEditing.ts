@@ -392,8 +392,7 @@ export class LinkedEditingAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.linkedEditing',
-			label: nls.localize('linkedEditing.label', "Start Linked Editing"),
-			alias: 'Start Linked Editing',
+			label: nls.localize2('linkedEditing.label', "Start Linked Editing"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

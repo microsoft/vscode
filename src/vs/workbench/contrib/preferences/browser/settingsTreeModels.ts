@@ -15,13 +15,14 @@ import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatch
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from '../../../services/configuration/common/configuration.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { USER_LOCAL_AND_REMOTE_SETTINGS } from '../../../../platform/request/common/request.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -41,7 +42,7 @@ export abstract class SettingsTreeElement extends Disposable {
 	parent?: SettingsTreeGroupElement;
 
 	private _tabbable = false;
-	protected readonly _onDidChangeTabbable = new Emitter<void>();
+	protected readonly _onDidChangeTabbable = this._register(new Emitter<void>());
 	readonly onDidChangeTabbable = this._onDidChangeTabbable.event;
 
 	constructor(_id: string) {
@@ -253,16 +254,21 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			} else {
 				this.valueType = SettingValueType.Complex;
 			}
-		} else if (isObjectSetting(this.setting)) {
-			if (this.setting.allKeysAreBoolean) {
-				this.valueType = SettingValueType.BooleanObject;
-			} else {
-				this.valueType = SettingValueType.Object;
-			}
-		} else if (this.setting.isLanguageTagSetting) {
-			this.valueType = SettingValueType.LanguageTag;
 		} else {
-			this.valueType = SettingValueType.Complex;
+			const schemaType = getObjectSettingSchemaType(this.setting);
+			if (schemaType) {
+				if (this.setting.allKeysAreBoolean) {
+					this.valueType = SettingValueType.BooleanObject;
+				} else if (schemaType === 'simple') {
+					this.valueType = SettingValueType.Object;
+				} else {
+					this.valueType = SettingValueType.ComplexObject;
+				}
+			} else if (this.setting.isLanguageTagSetting) {
+				this.valueType = SettingValueType.LanguageTag;
+			} else {
+				this.valueType = SettingValueType.Complex;
+			}
 		}
 	}
 
@@ -420,12 +426,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		if (configTarget === ConfigurationTarget.USER_REMOTE) {
-			return REMOTE_MACHINE_SCOPES.includes(this.setting.scope);
+			return REMOTE_MACHINE_SCOPES.includes(this.setting.scope) || USER_LOCAL_AND_REMOTE_SETTINGS.includes(this.setting.key);
 		}
 
 		if (configTarget === ConfigurationTarget.USER_LOCAL) {
 			if (isRemote) {
-				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope);
+				return LOCAL_MACHINE_SCOPES.includes(this.setting.scope) || USER_LOCAL_AND_REMOTE_SETTINGS.includes(this.setting.key);
 			}
 		}
 
@@ -504,7 +510,7 @@ function createSettingMatchRegExp(pattern: string): RegExp {
 	return new RegExp(`^${pattern}$`, 'i');
 }
 
-export class SettingsTreeModel {
+export class SettingsTreeModel implements IDisposable {
 	protected _root!: SettingsTreeGroupElement;
 	private _tocRoot!: ITOCEntry<ISetting>;
 	private readonly _treeElementsBySettingName = new Map<string, SettingsTreeSettingElement[]>();
@@ -534,6 +540,7 @@ export class SettingsTreeModel {
 		if (this._root) {
 			this.disposeChildren(this._root.children);
 			this._root.children = newRoot.children;
+			newRoot.dispose();
 		} else {
 			this._root = newRoot;
 		}
@@ -546,11 +553,11 @@ export class SettingsTreeModel {
 
 	private disposeChildren(children: SettingsTreeGroupChild[]) {
 		for (const child of children) {
-			this.recursiveDispose(child);
+			this.disposeChildAndRecurse(child);
 		}
 	}
 
-	private recursiveDispose(element: SettingsTreeElement) {
+	private disposeChildAndRecurse(element: SettingsTreeElement) {
 		if (element instanceof SettingsTreeGroupElement) {
 			this.disposeChildren(element.children);
 		}
@@ -587,9 +594,14 @@ export class SettingsTreeModel {
 
 		const children: SettingsTreeGroupChild[] = [];
 		if (tocEntry.settings) {
-			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element))
-				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-			children.push(...settingChildren);
+			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element));
+			for (const child of settingChildren) {
+				if (!child.setting.deprecationMessage || child.isConfigured) {
+					children.push(child);
+				} else {
+					child.dispose();
+				}
+			}
 		}
 
 		if (tocEntry.children) {
@@ -626,6 +638,11 @@ export class SettingsTreeModel {
 		nameElements.push(element);
 		this._treeElementsBySettingName.set(setting.key, nameElements);
 		return element;
+	}
+
+	dispose() {
+		this._treeElementsBySettingName.clear();
+		this.disposeChildAndRecurse(this._root);
 	}
 }
 
@@ -798,25 +815,63 @@ export function objectSettingSupportsRemoveDefaultValue(key: string): boolean {
 	return key === 'workbench.editor.customLabels.patterns';
 }
 
-function isObjectRenderableSchema({ type }: IJSONSchema, key: string): boolean {
-	if (type === 'string' || type === 'boolean' || type === 'integer' || type === 'number') {
-		return true;
+function isSimpleType(type: string | undefined): boolean {
+	return type === 'string' || type === 'boolean' || type === 'integer' || type === 'number';
+}
+
+function getObjectRenderableSchemaType(schema: IJSONSchema, key: string): 'simple' | 'complex' | false {
+	const { type } = schema;
+
+	if (Array.isArray(type)) {
+		if (objectSettingSupportsRemoveDefaultValue(key) && type.length === 2) {
+			if (type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'))) {
+				return 'simple';
+			}
+		}
+
+		for (const t of type) {
+			if (!isSimpleType(t)) {
+				return false;
+			}
+		}
+		return 'complex';
 	}
 
-	if (objectSettingSupportsRemoveDefaultValue(key) && Array.isArray(type) && type.length === 2) {
-		return type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'));
+	if (isSimpleType(type)) {
+		return 'simple';
+	}
+
+	if (type === 'array') {
+		if (schema.items) {
+			const itemSchemas = Array.isArray(schema.items) ? schema.items : [schema.items];
+			for (const { type } of itemSchemas) {
+				if (Array.isArray(type)) {
+					for (const t of type) {
+						if (!isSimpleType(t)) {
+							return false;
+						}
+					}
+					return 'complex';
+				}
+				if (!isSimpleType(type)) {
+					return false;
+				}
+				return 'complex';
+			}
+		}
+		return false;
 	}
 
 	return false;
 }
 
-function isObjectSetting({
+function getObjectSettingSchemaType({
 	key,
 	type,
 	objectProperties,
 	objectPatternProperties,
 	objectAdditionalProperties
-}: ISetting): boolean {
+}: ISetting): 'simple' | 'complex' | false {
 	if (type !== 'object') {
 		return false;
 	}
@@ -845,15 +900,20 @@ function isObjectSetting({
 		schemas.push(objectAdditionalProperties);
 	}
 
-	// Flatten anyof schemas
-	const flatSchemas = schemas.map((schema): IJSONSchema[] => {
-		if (Array.isArray(schema.anyOf)) {
-			return schema.anyOf;
+	let schemaType: 'simple' | 'complex' | false = 'simple';
+	for (const schema of schemas) {
+		for (const subSchema of Array.isArray(schema.anyOf) ? schema.anyOf : [schema]) {
+			const subSchemaType = getObjectRenderableSchemaType(subSchema, key);
+			if (subSchemaType === false) {
+				return false;
+			}
+			if (subSchemaType === 'complex') {
+				schemaType = 'complex';
+			}
 		}
-		return [schema];
-	}).flat();
+	}
 
-	return flatSchemas.every((schema) => isObjectRenderableSchema(schema, key));
+	return schemaType;
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
@@ -911,6 +971,10 @@ export class SearchResultModel extends SettingsTreeModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
+			} else if ((a.matchType & SettingMatchType.NonContiguousWordsInSettingsLabel) || (a.matchType & SettingMatchType.ContiguousWordsInSettingsLabel)) {
+				// The match types of a and b are the same and can be sorted by their number of matched words.
+				// If those numbers are the same, sort by the order in the table of contents.
+				return (b.keyMatchScore - a.keyMatchScore) || compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder);
 			} else if (a.matchType === SettingMatchType.RemoteMatch) {
 				// The match types are the same and are RemoteMatch.
 				// Sort by score.
@@ -992,11 +1056,24 @@ export class SearchResultModel extends SettingsTreeModel {
 			settings: this.getFlatSettings()
 		});
 
-		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
+		// Save time by filtering children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
 		const isRemote = !!this.environmentService.remoteAuthority;
 
-		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && child.matchesAnyFeature(this._viewState.featureFilters) && child.matchesAllLanguages(this._viewState.languageFilter));
+		const newChildren = [];
+		for (const child of this.root.children) {
+			if (child instanceof SettingsTreeSettingElement
+				&& child.matchesAllTags(this._viewState.tagFilters)
+				&& child.matchesScope(this._viewState.settingsTarget, isRemote)
+				&& child.matchesAnyExtension(this._viewState.extensionFilters)
+				&& child.matchesAnyId(this._viewState.idFilters)
+				&& child.matchesAnyFeature(this._viewState.featureFilters)
+				&& child.matchesAllLanguages(this._viewState.languageFilter)) {
+				newChildren.push(child);
+			} else {
+				child.dispose();
+			}
+		}
+		this.root.children = newChildren;
 		this.searchResultCount = this.root.children.length;
 
 		if (this.newExtensionSearchResults?.filterMatches.length) {

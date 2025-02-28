@@ -93,10 +93,9 @@ impl AuthProvider {
 
 	pub fn get_default_scopes(&self) -> String {
 		match self {
-			AuthProvider::Microsoft => format!(
-				"{}/.default+offline_access+profile+openid",
-				PROD_FIRST_PARTY_APP_ID
-			),
+			AuthProvider::Microsoft => {
+				format!("{PROD_FIRST_PARTY_APP_ID}/.default+offline_access+profile+openid")
+			}
 			AuthProvider::Github => "read:user+read:org".to_string(),
 		}
 	}
@@ -105,7 +104,7 @@ impl AuthProvider {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StoredCredential {
 	#[serde(rename = "p")]
-	provider: AuthProvider,
+	pub(crate) provider: AuthProvider,
 	#[serde(rename = "a")]
 	access_token: String,
 	#[serde(rename = "r")]
@@ -122,7 +121,7 @@ async fn get_github_user(
 ) -> Result<reqwest::Response, reqwest::Error> {
 	client
 		.get(GH_USER_ENDPOINT)
-		.header("Authorization", format!("token {}", access_token))
+		.header("Authorization", format!("token {access_token}"))
 		.header("User-Agent", get_default_user_agent())
 		.send()
 		.await
@@ -690,7 +689,7 @@ impl Auth {
 		}
 
 		let provider = prompt_options(
-			format!("How would you like to log in to {}?", PRODUCT_NAME_LONG),
+			format!("How would you like to log in to {PRODUCT_NAME_LONG}?"),
 			&[AuthProvider::Microsoft, AuthProvider::Github],
 		)?;
 

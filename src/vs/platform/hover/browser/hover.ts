@@ -9,12 +9,17 @@ import { IHoverDelegate, IHoverDelegateOptions } from '../../../base/browser/ui/
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { addStandardDisposableListener, isHTMLElement } from '../../../base/browser/dom.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import type { IHoverDelegate2, IHoverOptions, IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
+import type { IHoverDelegate2, IHoverOptions, IHoverWidget, IManagedHoverContentOrFactory } from '../../../base/browser/ui/hover/hover.js';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
 export interface IHoverService extends IHoverDelegate2 {
 	readonly _serviceBrand: undefined;
+}
+
+export interface IHoverDelayOptions {
+	readonly instantHover?: boolean;
+	readonly dynamicDelay?: (content?: IManagedHoverContentOrFactory) => number | undefined;
 }
 
 export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate {
@@ -23,10 +28,15 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 	private timeLimit = 200;
 
 	private _delay: number;
-	get delay(): number {
+	get delay(): number | ((content: IManagedHoverContentOrFactory) => number) {
 		if (this.isInstantlyHovering()) {
 			return 0; // show instantly when a hover was recently shown
 		}
+
+		if (this.hoverOptions?.dynamicDelay) {
+			return content => this.hoverOptions?.dynamicDelay?.(content) ?? this._delay;
+		}
+
 		return this._delay;
 	}
 
@@ -34,7 +44,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 
 	constructor(
 		public readonly placement: 'mouse' | 'element',
-		private readonly instantHover: boolean,
+		private readonly hoverOptions: IHoverDelayOptions | undefined,
 		private overrideOptions: Partial<IHoverOptions> | ((options: IHoverDelegateOptions, focus?: boolean) => Partial<IHoverOptions>) = {},
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -63,7 +73,11 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			}));
 		}
 
-		const id = isHTMLElement(options.content) ? undefined : options.content.toString();
+		const id = isHTMLElement(options.content)
+			? undefined
+			: typeof options.content === 'string'
+				? options.content.toString()
+				: options.content.value;
 
 		return this.hoverService.showHover({
 			...options,
@@ -83,11 +97,11 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 	}
 
 	private isInstantlyHovering(): boolean {
-		return this.instantHover && Date.now() - this.lastHoverHideTime < this.timeLimit;
+		return !!this.hoverOptions?.instantHover && Date.now() - this.lastHoverHideTime < this.timeLimit;
 	}
 
 	setInstantHoverTimeLimit(timeLimit: number): void {
-		if (!this.instantHover) {
+		if (!this.hoverOptions?.instantHover) {
 			throw new Error('Instant hover is not enabled');
 		}
 		this.timeLimit = timeLimit;
@@ -95,7 +109,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 
 	onDidHideHover(): void {
 		this.hoverDisposables.clear();
-		if (this.instantHover) {
+		if (this.hoverOptions?.instantHover) {
 			this.lastHoverHideTime = Date.now();
 		}
 	}

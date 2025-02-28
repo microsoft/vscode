@@ -26,14 +26,13 @@ import { toDisposable, DisposableStore } from '../../../../base/common/lifecycle
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from '../../../../editor/common/model.js';
 import { themeColorFromId, IThemeService, IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { IAction } from '../../../../base/common/actions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Color } from '../../../../base/common/color.js';
 import { TreeMouseEventTarget, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MenuId, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 const enum State {
 	Loading = 'loading',
@@ -97,7 +96,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this.create();
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this._applyTheme(themeService.getColorTheme());
-		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
+		this._disposables.add(themeService.onDidColorThemeChange(e => this._applyTheme(e.theme)));
 		this._disposables.add(this._previewDisposable);
 	}
 
@@ -129,8 +128,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 		const menu = this._menuService.createMenu(CallHierarchyTreePeekWidget.TitleMenu, this._contextKeyService);
 		const updateToolbar = () => {
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(menu, undefined, actions);
+			const actions = getFlatActionBarActions(menu.getActions());
 			this._actionbarWidget!.clear();
 			this._actionbarWidget!.push(actions, { label: false, icon: true });
 		};

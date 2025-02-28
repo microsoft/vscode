@@ -6,17 +6,20 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IPager } from '../../../base/common/paging.js';
 import { Platform } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize2 } from '../../../nls.js';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
+import { FileOperationError, FileOperationResult, IFileService, IFileStat } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 export const WEB_EXTENSION_TAG = '__web_extension';
 export const EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT = 'skipWalkthrough';
+export const EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT = 'skipPublisherTrust';
 export const EXTENSION_INSTALL_SOURCE_CONTEXT = 'extensionInstallSource';
 export const EXTENSION_INSTALL_DEP_PACK_CONTEXT = 'dependecyOrPackExtensionInstall';
 export const EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT = 'clientTargetPlatform';
@@ -257,6 +260,7 @@ export type Metadata = Partial<IGalleryMetadata & {
 	installedTimestamp: number;
 	pinned: boolean;
 	source: InstallSource;
+	size: number;
 }>;
 
 export interface ILocalExtension extends IExtension {
@@ -271,6 +275,7 @@ export interface ILocalExtension extends IExtension {
 	updated: boolean;
 	pinned: boolean;
 	source: InstallSource;
+	size: number;
 }
 
 export const enum SortBy {
@@ -292,8 +297,7 @@ export const enum SortOrder {
 
 export interface IQueryOptions {
 	text?: string;
-	ids?: string[];
-	names?: string[];
+	exclude?: string[];
 	pageSize?: number;
 	sortBy?: SortBy;
 	sortOrder?: SortOrder;
@@ -325,7 +329,7 @@ export interface ISearchPrefferedResults {
 }
 
 export interface IExtensionsControlManifest {
-	readonly malicious: IExtensionIdentifier[];
+	readonly malicious: ReadonlyArray<IExtensionIdentifier | string>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
 	readonly extensionsEnabledWithPreRelease?: string[];
@@ -354,6 +358,7 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
+	preferResourceApi?: boolean;
 }
 
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
@@ -452,8 +457,8 @@ export const enum ExtensionManagementErrorCode {
 	Extract = 'Extract',
 	Scanning = 'Scanning',
 	ScanningExtension = 'ScanningExtension',
-	ReadUninstalled = 'ReadUninstalled',
-	UnsetUninstalled = 'UnsetUninstalled',
+	ReadRemoved = 'ReadRemoved',
+	UnsetRemoved = 'UnsetRemoved',
 	Delete = 'Delete',
 	Rename = 'Rename',
 	IntializeDefaultProfile = 'IntializeDefaultProfile',
@@ -473,6 +478,7 @@ export const enum ExtensionManagementErrorCode {
 }
 
 export enum ExtensionSignatureVerificationCode {
+	'NotSigned' = 'NotSigned',
 	'Success' = 'Success',
 	'RequiredArgumentMissing' = 'RequiredArgumentMissing', // A required argument is missing.
 	'InvalidArgument' = 'InvalidArgument', // An argument is invalid.
@@ -508,6 +514,13 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
+export interface InstallExtensionSummary {
+	failed: {
+		id: string;
+		installOptions: InstallOptions;
+	}[];
+}
+
 export type InstallOptions = {
 	isBuiltin?: boolean;
 	isWorkspaceScoped?: boolean;
@@ -521,9 +534,9 @@ export type InstallOptions = {
 	donotVerifySignature?: boolean;
 	operation?: InstallOperation;
 	profileLocation?: URI;
-	installOnlyNewlyAddedFromExtensionPack?: boolean;
 	productVersion?: IProductVersion;
 	keepExisting?: boolean;
+	downloadExtensionsLocally?: boolean;
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
@@ -559,7 +572,7 @@ export interface IExtensionManagementService {
 	zip(extension: ILocalExtension): Promise<URI>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
-	canInstall(extension: IGalleryExtension): Promise<boolean>;
+	canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]>;
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
@@ -567,7 +580,6 @@ export interface IExtensionManagementService {
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
 	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
-	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
@@ -624,5 +636,37 @@ export interface IExtensionTipsService {
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 }
 
+export type AllowedExtensionsConfigValueType = IStringDictionary<boolean | string | string[]>;
+
+export const IAllowedExtensionsService = createDecorator<IAllowedExtensionsService>('IAllowedExtensionsService');
+export interface IAllowedExtensionsService {
+	readonly _serviceBrand: undefined;
+
+	readonly allowedExtensionsConfigValue: AllowedExtensionsConfigValueType | undefined;
+	readonly onDidChangeAllowedExtensionsConfigValue: Event<void>;
+
+	isAllowed(extension: IGalleryExtension | IExtension): true | IMarkdownString;
+	isAllowed(extension: { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString;
+}
+
+export async function computeSize(location: URI, fileService: IFileService): Promise<number> {
+	let stat: IFileStat;
+	try {
+		stat = await fileService.resolve(location);
+	} catch (e) {
+		if ((<FileOperationError>e).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+			return 0;
+		}
+		throw e;
+	}
+	if (stat.children) {
+		const sizes = await Promise.all(stat.children.map(c => computeSize(c.resource, fileService)));
+		return sizes.reduce((r, s) => r + s, 0);
+	}
+	return stat.size ?? 0;
+}
+
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
+export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
+export const AllowedExtensionsConfigKey = 'extensions.allowed';

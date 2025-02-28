@@ -22,10 +22,6 @@
 	border-bottom: none;
 }
 
-.monaco-workbench .workbench-hover:not(.skip-fade-in) {
-	animation: fadein 100ms linear;
-}
-
 .monaco-workbench .workbench-hover.compact {
 	font-size: 12px;
 }
@@ -37,12 +33,8 @@
 .monaco-workbench .workbench-hover-container.locked .workbench-hover {
 	outline: 1px solid var(--vscode-editorHoverWidget-border);
 }
-.monaco-workbench .workbench-hover-container.locked .workbench-hover:focus,
-.monaco-workbench .workbench-hover-lock:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-}
-.monaco-workbench .workbench-hover-container.locked .workbench-hover-lock:hover {
-	background: var(--vscode-toolbar-hoverBackground);
+.monaco-workbench .workbench-hover-container:focus-within.locked .workbench-hover {
+	outline-color: var(--vscode-focusBorder);
 }
 
 .monaco-workbench .workbench-hover-pointer {
@@ -61,11 +53,15 @@
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 }
-.monaco-workbench .locked .workbench-hover-pointer:after {
+.monaco-workbench .workbench-hover-container:not(:focus-within).locked .workbench-hover-pointer:after {
 	width: 4px;
 	height: 4px;
 	border-right-width: 2px;
 	border-bottom-width: 2px;
+}
+.monaco-workbench .workbench-hover-container:focus-within .workbench-hover-pointer:after {
+	border-right: 1px solid var(--vscode-focusBorder);
+	border-bottom: 1px solid var(--vscode-focusBorder);
 }
 
 .monaco-workbench .workbench-hover-pointer.left   { left: -3px; }

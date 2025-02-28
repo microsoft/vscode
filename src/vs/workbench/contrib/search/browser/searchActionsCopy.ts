@@ -8,12 +8,13 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import * as Constants from '../common/constants.js';
-import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer } from './searchModel.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { searchMatchComparer } from './searchCompare.js';
+import { RenderableMatch, ISearchTreeMatch, isSearchTreeMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
 registerAction2(class CopyMatchCommandAction extends Action2 {
@@ -70,7 +71,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 
 	}
 
-	override async run(accessor: ServicesAccessor, fileMatch: FileMatch | FolderMatchWithResource | undefined): Promise<any> {
+	override async run(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined): Promise<any> {
 		await copyPathCommand(accessor, fileMatch);
 	}
 });
@@ -103,10 +104,10 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 //#region Helpers
 export const lineDelimiter = isWindows ? '\r\n' : '\n';
 
-async function copyPathCommand(accessor: ServicesAccessor, fileMatch: FileMatch | FolderMatchWithResource | undefined) {
+async function copyPathCommand(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
 	if (!fileMatch) {
 		const selection = getSelectedRow(accessor);
-		if (!(selection instanceof FileMatch || selection instanceof FolderMatchWithResource)) {
+		if (!isSearchTreeFileMatch(selection) || isSearchTreeFolderMatchWithResource(selection)) {
 			return;
 		}
 
@@ -134,11 +135,11 @@ async function copyMatchCommand(accessor: ServicesAccessor, match: RenderableMat
 	const labelService = accessor.get(ILabelService);
 
 	let text: string | undefined;
-	if (match instanceof Match) {
+	if (isSearchTreeMatch(match)) {
 		text = matchToString(match);
-	} else if (match instanceof FileMatch) {
+	} else if (isSearchTreeFileMatch(match)) {
 		text = fileMatchToString(match, labelService).text;
-	} else if (match instanceof FolderMatch) {
+	} else if (isSearchTreeFolderMatch(match)) {
 		text = folderMatchToString(match, labelService).text;
 	}
 
@@ -161,7 +162,7 @@ async function copyAllCommand(accessor: ServicesAccessor) {
 	}
 }
 
-function matchToString(match: Match, indent = 0): string {
+function matchToString(match: ISearchTreeMatch, indent = 0): string {
 	const getFirstLinePrefix = () => `${match.range().startLineNumber},${match.range().startColumn}`;
 	const getOtherLinePrefix = (i: number) => match.range().startLineNumber + i + '';
 
@@ -188,15 +189,15 @@ function matchToString(match: Match, indent = 0): string {
 	return formattedLines.join('\n');
 }
 
-function fileFolderMatchToString(match: FileMatch | FolderMatch | FolderMatchWithResource, labelService: ILabelService): { text: string; count: number } {
-	if (match instanceof FileMatch) {
+function fileFolderMatchToString(match: ISearchTreeFileMatch | ISearchTreeFolderMatch | ISearchTreeFolderMatchWithResource, labelService: ILabelService): { text: string; count: number } {
+	if (isSearchTreeFileMatch(match)) {
 		return fileMatchToString(match, labelService);
 	} else {
 		return folderMatchToString(match, labelService);
 	}
 }
 
-function fileMatchToString(fileMatch: FileMatch, labelService: ILabelService): { text: string; count: number } {
+function fileMatchToString(fileMatch: ISearchTreeFileMatch, labelService: ILabelService): { text: string; count: number } {
 	const matchTextRows = fileMatch.matches()
 		.sort(searchMatchComparer)
 		.map(match => matchToString(match, 2));
@@ -207,7 +208,7 @@ function fileMatchToString(fileMatch: FileMatch, labelService: ILabelService): {
 	};
 }
 
-function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, labelService: ILabelService): { text: string; count: number } {
+function folderMatchToString(folderMatch: ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch, labelService: ILabelService): { text: string; count: number } {
 	const results: string[] = [];
 	let numMatches = 0;
 
@@ -225,7 +226,7 @@ function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch,
 	};
 }
 
-function allFolderMatchesToString(folderMatches: Array<FolderMatchWithResource | FolderMatch>, labelService: ILabelService): string {
+function allFolderMatchesToString(folderMatches: Array<ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch>, labelService: ILabelService): string {
 	const folderResults: string[] = [];
 	folderMatches = folderMatches.sort(searchMatchComparer);
 	for (let i = 0; i < folderMatches.length; i++) {

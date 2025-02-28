@@ -12,7 +12,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import * as platform from '../../registry/common/platform.js';
 import { ColorIdentifier } from './colorRegistry.js';
 import { IconContribution, IconDefinition } from './iconRegistry.js';
-import { ColorScheme } from './theme.js';
+import { ColorScheme, ThemeTypeSelector } from './theme.js';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -23,12 +23,12 @@ export function themeColorFromId(id: ColorIdentifier) {
 export const FileThemeIcon = Codicon.file;
 export const FolderThemeIcon = Codicon.folder;
 
-export function getThemeTypeSelector(type: ColorScheme): string {
+export function getThemeTypeSelector(type: ColorScheme): ThemeTypeSelector {
 	switch (type) {
-		case ColorScheme.DARK: return 'vs-dark';
-		case ColorScheme.HIGH_CONTRAST_DARK: return 'hc-black';
-		case ColorScheme.HIGH_CONTRAST_LIGHT: return 'hc-light';
-		default: return 'vs';
+		case ColorScheme.DARK: return ThemeTypeSelector.VS_DARK;
+		case ColorScheme.HIGH_CONTRAST_DARK: return ThemeTypeSelector.HC_BLACK;
+		case ColorScheme.HIGH_CONTRAST_LIGHT: return ThemeTypeSelector.HC_LIGHT;
+		default: return ThemeTypeSelector.VS;
 	}
 }
 
@@ -100,12 +100,14 @@ export interface IThemingParticipant {
 	(theme: IColorTheme, collector: ICssStyleCollector, environment: IEnvironmentService): void;
 }
 
+export type IThemeChangeEvent = { theme: IColorTheme };
+
 export interface IThemeService {
 	readonly _serviceBrand: undefined;
 
 	getColorTheme(): IColorTheme;
 
-	readonly onDidColorThemeChange: Event<IColorTheme>;
+	readonly onDidColorThemeChange: Event<IThemeChangeEvent>;
 
 	getFileIconTheme(): IFileIconTheme;
 
@@ -182,7 +184,7 @@ export class Themable extends Disposable {
 		this.theme = themeService.getColorTheme();
 
 		// Hook up to theme changes
-		this._register(this.themeService.onDidColorThemeChange(theme => this.onThemeChange(theme)));
+		this._register(this.themeService.onDidColorThemeChange(e => this.onThemeChange(e.theme)));
 	}
 
 	protected onThemeChange(theme: IColorTheme): void {
@@ -208,7 +210,7 @@ export class Themable extends Disposable {
 
 export interface IPartsSplash {
 	zoomLevel: number | undefined;
-	baseTheme: string;
+	baseTheme: ThemeTypeSelector;
 	colorInfo: {
 		background: string;
 		foreground: string | undefined;
@@ -230,8 +232,15 @@ export interface IPartsSplash {
 		titleBarHeight: number;
 		activityBarWidth: number;
 		sideBarWidth: number;
+		auxiliarySideBarWidth: number;
 		statusBarHeight: number;
 		windowBorder: boolean;
 		windowBorderRadius: string | undefined;
 	} | undefined;
+}
+
+export interface IPartsSplashWorkspaceOverride {
+	layoutInfo: {
+		auxiliarySideBarWidth: [number, string[] /* workspace identifier the override applies to */];
+	};
 }

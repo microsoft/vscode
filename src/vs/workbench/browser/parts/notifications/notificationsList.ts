@@ -71,8 +71,8 @@ export class NotificationsList extends Disposable {
 		// List
 		const listDelegate = this.listDelegate = new NotificationsListDelegate(this.listContainer);
 		const options = this.options;
-		const list = this.list = <WorkbenchList<INotificationViewItem>>this._register(this.instantiationService.createInstance(
-			WorkbenchList,
+		const list = this.list = this._register(this.instantiationService.createInstance(
+			WorkbenchList<INotificationViewItem>,
 			'NotificationsList',
 			this.listContainer,
 			listDelegate,

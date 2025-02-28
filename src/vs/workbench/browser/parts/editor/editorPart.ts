@@ -705,11 +705,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			return; // method is called as part of state restore very early
 		}
 
-		if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
-			this.unmaximizeGroup();
-		}
-
 		try {
+			if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
+				this.unmaximizeGroup();
+			}
+
 			const viewSize = this.gridWidget.getViewSize(group);
 			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
 				this.arrangeGroups(GroupsArrangement.EXPAND, group);
@@ -879,12 +879,33 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		let index = (options && typeof options.index === 'number') ? options.index : targetView.count;
 		for (const editor of sourceView.editors) {
 			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
-			const sticky = sourceView.isSticky(editor);
-			const options = { index: !sticky ? index : undefined /* do not set index to preserve sticky flag */, inactive, preserveFocus: inactive };
 
-			editors.push({ editor, options });
+			let actualIndex: number | undefined;
+			if (targetView.contains(editor) &&
+				(
+					// Do not configure an `index` for editors that are sticky in
+					// the target, otherwise there is a chance of losing that state
+					// when the editor is moved.
+					// See https://github.com/microsoft/vscode/issues/239549
+					targetView.isSticky(editor) ||
+					// Do not configure an `index` when we are explicitly instructed
+					options?.preserveExistingIndex
+				)
+			) {
+				// leave `index` as `undefined`
+			} else {
+				actualIndex = index;
+				index++;
+			}
 
-			index++;
+			editors.push({
+				editor,
+				options: {
+					index: actualIndex,
+					inactive,
+					preserveFocus: inactive
+				}
+			});
 		}
 
 		// Move/Copy editors over into target
@@ -903,7 +924,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return result;
 	}
 
-	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): boolean {
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
 		const targetView = this.assertGroupView(target);
 
 		let result = true;
@@ -912,7 +933,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 				continue; // keep target
 			}
 
-			const merged = this.mergeGroup(group, targetView);
+			const merged = this.mergeGroup(group, targetView, options);
 			if (!merged) {
 				result = false;
 			}
@@ -1138,8 +1159,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	centerLayout(active: boolean): void {
 		this.centeredLayoutWidget.activate(active);
-
-		this._activeGroup.focus();
 	}
 
 	isLayoutCentered(): boolean {
@@ -1262,8 +1281,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this._onDidScroll.input = gridWidget.onDidScroll;
 		this.gridWidgetDisposables.clear();
 		this.gridWidgetDisposables.add(gridWidget.onDidChangeViewMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
-
-		this._onDidChangeGroupMaximized.fire(this.hasMaximizedGroup());
 
 		this.onDidSetGridWidget.fire(undefined);
 	}

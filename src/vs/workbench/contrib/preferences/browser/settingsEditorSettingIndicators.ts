@@ -141,7 +141,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		const disposables = new DisposableStore();
 		const workspaceTrustElement = $('span.setting-indicator.setting-item-workspace-trust');
 		const workspaceTrustLabel = disposables.add(new SimpleIconLabel(workspaceTrustElement));
-		workspaceTrustLabel.text = '$(warning) ' + localize('workspaceUntrustedLabel', "Setting value not applied");
+		workspaceTrustLabel.text = '$(shield) ' + localize('workspaceUntrustedLabel', "Requires workspace trust");
 
 		const content = localize('trustLabel', "The setting value can only be applied in a trusted workspace.");
 		const showHover = (focus: boolean) => {
@@ -321,8 +321,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	updatePreviewIndicator(element: SettingsTreeSettingElement) {
 		const isPreviewSetting = element.tags?.has('preview');
-		// Hide experimental indicators for now until further review and experimental -> onExP migration.
-		const isExperimentalSetting = false; // element.tags?.has('experimental');
+		const isExperimentalSetting = element.tags?.has('experimental');
 		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting) ? 'inline' : 'none';
 		this.previewIndicator.label.text = isPreviewSetting ?
 			localize('previewLabel', "Preview") :
@@ -363,6 +362,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
+		this.scopeOverridesIndicator.disposables.clear();
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
 		this.scopeOverridesIndicator.focusElement = this.scopeOverridesIndicator.element;
@@ -371,8 +371,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
-			this.scopeOverridesIndicator.label.text = '$(warning) ' + localize('policyLabelText', "Setting value not applied");
-			const content = localize('policyDescription', "This setting is managed by your organization and its applied value cannot be changed.");
+			this.scopeOverridesIndicator.label.text = '$(briefcase) ' + localize('policyLabelText', "Managed by organization");
+			const content = localize('policyDescription', "This setting is managed by your organization and its actual value cannot be changed.");
 			const showHover = (focus: boolean) => {
 				return this.hoverService.showHover({
 					...this.defaultHoverOptions,
@@ -410,7 +410,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// just to click into the one override there is.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.remove('setting-indicator');
-				this.scopeOverridesIndicator.disposables.clear();
 
 				const prefaceText = element.isConfigured ?
 					localize('alsoConfiguredIn', "Also modified in") :
@@ -475,22 +474,18 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					isTrusted: false,
 					supportHtml: false
 				};
-				const showHover = (focus: boolean) => {
-					return this.hoverService.showHover({
-						...this.defaultHoverOptions,
-						content,
-						linkHandler: (url: string) => {
-							const [scope, language] = decodeURIComponent(url).split(':');
-							onDidClickOverrideElement.fire({
-								settingKey: element.setting.key,
-								scope: scope as ScopeString,
-								language
-							});
-						},
-						target: this.scopeOverridesIndicator.element
-					}, focus);
-				};
-				this.addHoverDisposables(this.scopeOverridesIndicator.disposables, this.scopeOverridesIndicator.element, showHover);
+				this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, () => ({
+					...this.defaultHoverOptions,
+					content,
+					linkHandler: (url: string) => {
+						const [scope, language] = decodeURIComponent(url).split(':');
+						onDidClickOverrideElement.fire({
+							settingKey: element.setting.key,
+							scope: scope as ScopeString,
+							language
+						});
+					}
+				}), { setupKeyboardEvents: true }));
 			}
 		}
 		this.render();
@@ -580,6 +575,13 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IWorkbenchConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
+
+	// Add preview or experimental indicator text
+	if (element.tags?.has('preview')) {
+		ariaLabelSections.push(localize('previewLabel', "Preview"));
+	} else if (element.tags?.has('experimental')) {
+		ariaLabelSections.push(localize('experimentalLabel', "Experimental"));
+	}
 
 	// Add workspace trust text
 	if (element.isUntrusted) {

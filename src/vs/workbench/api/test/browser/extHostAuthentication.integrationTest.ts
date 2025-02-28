@@ -31,6 +31,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { AuthenticationAccessService, IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationUsageService, IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 import { AuthenticationExtensionsService } from '../../../services/authentication/browser/authenticationExtensionsService.js';
+import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 
 class AuthQuickPick {
 	private listener: ((e: IQuickPickDidAcceptEvent) => any) | undefined;
@@ -105,6 +106,7 @@ suite('ExtHostAuthentication', () => {
 
 	suiteSetup(async () => {
 		instantiationService = new TestInstantiationService();
+		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IDialogService, new TestDialogService({ confirmed: true }));
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IQuickInputService, new AuthTestQuickInputService());

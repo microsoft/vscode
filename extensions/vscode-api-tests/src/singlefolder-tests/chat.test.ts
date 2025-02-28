@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { ChatContext, ChatRequest, ChatResult, ChatVariableLevel, Disposable, Event, EventEmitter, chat, commands } from 'vscode';
+import { ChatContext, ChatRequest, ChatResult, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -13,6 +13,25 @@ suite('chat', () => {
 	let disposables: Disposable[] = [];
 	setup(() => {
 		disposables = [];
+
+		// Register a dummy default model which is required for a participant request to go through
+		disposables.push(lm.registerChatModelProvider('test-lm', {
+			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+				return undefined;
+			},
+			async provideTokenCount(_text, _token) {
+				return 1;
+			},
+		}, {
+			name: 'test-lm',
+			version: '1.0.0',
+			family: 'test',
+			vendor: 'test-lm-vendor',
+			maxInputTokens: 100,
+			maxOutputTokens: 100,
+			isDefault: true,
+			isUserSelectable: true
+		}));
 	});
 
 	teardown(async function () {
@@ -20,13 +39,6 @@ suite('chat', () => {
 		await closeAllEditors();
 		disposeAll(disposables);
 	});
-
-	function getDeferredForRequest(): DeferredPromise<ChatRequest> {
-		const deferred = new DeferredPromise<ChatRequest>();
-		disposables.push(setupParticipant()(request => deferred.complete(request.request)));
-
-		return deferred;
-	}
 
 	function setupParticipant(second?: boolean): Event<{ request: ChatRequest; context: ChatContext }> {
 		const emitter = new EventEmitter<{ request: ChatRequest; context: ChatContext }>();
@@ -67,20 +79,6 @@ suite('chat', () => {
 		}));
 
 		await deferred.p;
-	});
-
-	test('participant and variable', async () => {
-		disposables.push(chat.registerChatVariableResolver('myVarId', 'myVar', 'My variable', 'My variable', false, {
-			resolve(_name, _context, _token) {
-				return [{ level: ChatVariableLevel.Full, value: 'myValue' }];
-			}
-		}));
-
-		const deferred = getDeferredForRequest();
-		commands.executeCommand('workbench.action.chat.open', { query: '@participant hi #myVar' });
-		const request = await deferred.p;
-		assert.strictEqual(request.prompt, 'hi #myVar');
-		assert.strictEqual(request.references[0].value, 'myValue');
 	});
 
 	test('result metadata is returned to the followup provider', async () => {

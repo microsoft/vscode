@@ -5,11 +5,13 @@
 
 /* eslint-disable local/code-no-native-private */
 
+import type * as vscode from 'vscode';
 import { asArray, coalesceInPlace, equals } from '../../../base/common/arrays.js';
-import { illegalArgument } from '../../../base/common/errors.js';
+import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from '../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes, normalizeMimeType } from '../../../base/common/mime.js';
 import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
@@ -18,9 +20,9 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
-import { IRelativePatternDto } from './extHost.protocol.js';
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
-import type * as vscode from 'vscode';
+import { IRelativePatternDto } from './extHost.protocol.js';
+import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 
 /**
  * @deprecated
@@ -764,6 +766,8 @@ export class SnippetTextEdit implements vscode.SnippetTextEdit {
 
 	snippet: SnippetString;
 
+	keepWhitespace?: boolean;
+
 	constructor(range: Range, snippet: SnippetString) {
 		this.range = range;
 		this.snippet = snippet;
@@ -807,6 +811,7 @@ export interface IFileSnippetTextEdit {
 	readonly range: vscode.Range;
 	readonly edit: vscode.SnippetString;
 	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
+	readonly keepWhitespace?: boolean;
 }
 
 export interface IFileCellEdit {
@@ -936,7 +941,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 						this.replaceNotebookCells(uri, edit.range, edit.newCells, metadata);
 					}
 				} else if (SnippetTextEdit.isSnippetTextEdit(edit)) {
-					this._edits.push({ _type: FileEditType.Snippet, uri, range: edit.range, edit: edit.snippet, metadata });
+					this._edits.push({ _type: FileEditType.Snippet, uri, range: edit.range, edit: edit.snippet, metadata, keepWhitespace: edit.keepWhitespace });
 
 				} else {
 					this._edits.push({ _type: FileEditType.Text, uri, edit, metadata });
@@ -1850,6 +1855,7 @@ export class InlineSuggestionList implements vscode.InlineCompletionList {
 
 export interface PartialAcceptInfo {
 	kind: PartialAcceptTriggerKind;
+	acceptedLength: number;
 }
 
 export enum PartialAcceptTriggerKind {
@@ -1908,6 +1914,12 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
+export enum TextEditorChangeKind {
+	Addition = 1,
+	Deletion = 2,
+	Modification = 3
+}
+
 export enum TextDocumentChangeReason {
 	Undo = 1,
 	Redo = 2,
@@ -1936,11 +1948,14 @@ export enum DecorationRangeBehavior {
 }
 
 export namespace TextEditorSelectionChangeKind {
-	export function fromValue(s: string | undefined) {
+	export function fromValue(s: TextEditorSelectionSource | string | undefined) {
 		switch (s) {
 			case 'keyboard': return TextEditorSelectionChangeKind.Keyboard;
 			case 'mouse': return TextEditorSelectionChangeKind.Mouse;
-			case 'api': return TextEditorSelectionChangeKind.Command;
+			case TextEditorSelectionSource.PROGRAMMATIC:
+			case TextEditorSelectionSource.JUMP:
+			case TextEditorSelectionSource.NAVIGATION:
+				return TextEditorSelectionChangeKind.Command;
 		}
 		return undefined;
 	}
@@ -2060,6 +2075,22 @@ export enum TerminalShellExecutionCommandLineConfidence {
 	High = 2
 }
 
+export enum TerminalShellType {
+	Sh = 1,
+	Bash = 2,
+	Fish = 3,
+	Csh = 4,
+	Ksh = 5,
+	Zsh = 6,
+	CommandPrompt = 7,
+	GitBash = 8,
+	PowerShell = 9,
+	Python = 10,
+	Julia = 11,
+	NuShell = 12,
+	Node = 13
+}
+
 export class TerminalLink implements vscode.TerminalLink {
 	constructor(
 		public startIndex: number,
@@ -2105,6 +2136,76 @@ export class TerminalProfile implements vscode.TerminalProfile {
 			throw illegalArgument('options');
 		}
 	}
+}
+
+export enum TerminalCompletionItemKind {
+	File = 0,
+	Folder = 1,
+	Method = 2,
+	Alias = 3,
+	Argument = 4,
+	Option = 5,
+	OptionValue = 6,
+	Flag = 7,
+}
+
+export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
+	label: string | CompletionItemLabel;
+	icon?: ThemeIcon | undefined;
+	detail?: string | undefined;
+	documentation?: string | vscode.MarkdownString | undefined;
+	isFile?: boolean | undefined;
+	isDirectory?: boolean | undefined;
+	isKeyword?: boolean | undefined;
+	replacementIndex: number;
+	replacementLength: number;
+
+	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+		this.label = label;
+		this.icon = icon;
+		this.detail = detail;
+		this.documentation = documentation;
+		this.isFile = isFile;
+		this.isDirectory = isDirectory;
+		this.isKeyword = isKeyword;
+		this.replacementIndex = replacementIndex ?? 0;
+		this.replacementLength = replacementLength ?? 0;
+	}
+}
+
+/**
+ * Represents a collection of {@link CompletionItem completion items} to be presented
+ * in the editor.
+ */
+export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
+
+	/**
+	 * Resources should be shown in the completions list
+	 */
+	resourceRequestConfig?: TerminalResourceRequestConfig;
+
+	/**
+	 * The completion items.
+	 */
+	items: T[];
+
+	/**
+	 * Creates a new completion list.
+	 *
+	 * @param items The completion items.
+	 * @param isIncomplete The list is not complete.
+	 */
+	constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig) {
+		this.items = items ?? [];
+		this.resourceRequestConfig = resourceRequestConfig;
+	}
+}
+
+export interface TerminalResourceRequestConfig {
+	filesRequested?: boolean;
+	foldersRequested?: boolean;
+	fileExtensions?: string[];
+	cwd?: vscode.Uri;
 }
 
 export enum TaskRevealKind {
@@ -2265,7 +2366,9 @@ export class ShellExecution implements vscode.ShellExecution {
 				throw illegalArgument('command');
 			}
 			this._command = arg0;
-			this._args = arg1 as (string | vscode.ShellQuotedString)[];
+			if (arg1) {
+				this._args = arg1;
+			}
 			this._options = arg2;
 		} else {
 			if (typeof arg0 !== 'string') {
@@ -2302,7 +2405,7 @@ export class ShellExecution implements vscode.ShellExecution {
 		return this._args;
 	}
 
-	set args(value: (string | vscode.ShellQuotedString)[]) {
+	set args(value: (string | vscode.ShellQuotedString)[] | undefined) {
 		this._args = value || [];
 	}
 
@@ -2799,9 +2902,9 @@ export class DataTransferFile implements vscode.DataTransferFile {
 
 @es5ClassCompat
 export class DataTransfer implements vscode.DataTransfer {
-	#items = new Map<string, DataTransferItem[]>();
+	#items = new Map<string, vscode.DataTransferItem[]>();
 
-	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
+	constructor(init?: Iterable<readonly [string, vscode.DataTransferItem]>) {
 		for (const [mime, item] of init ?? []) {
 			const existing = this.#items.get(this.#normalizeMime(mime));
 			if (existing) {
@@ -2812,17 +2915,17 @@ export class DataTransfer implements vscode.DataTransfer {
 		}
 	}
 
-	get(mimeType: string): DataTransferItem | undefined {
+	get(mimeType: string): vscode.DataTransferItem | undefined {
 		return this.#items.get(this.#normalizeMime(mimeType))?.[0];
 	}
 
-	set(mimeType: string, value: DataTransferItem): void {
+	set(mimeType: string, value: vscode.DataTransferItem): void {
 		// This intentionally overwrites all entries for a given mimetype.
 		// This is similar to how the DOM DataTransfer type works
 		this.#items.set(this.#normalizeMime(mimeType), [value]);
 	}
 
-	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
+	forEach(callbackfn: (value: vscode.DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
 		for (const [mime, items] of this.#items) {
 			for (const item of items) {
 				callbackfn.call(thisArg, item, mime, this);
@@ -2869,6 +2972,8 @@ export enum DocumentPasteTriggerKind {
 
 export class DocumentDropOrPasteEditKind {
 	static Empty: DocumentDropOrPasteEditKind;
+	static Text: DocumentDropOrPasteEditKind;
+	static TextUpdateImports: DocumentDropOrPasteEditKind;
 
 	private static sep = '.';
 
@@ -2889,6 +2994,8 @@ export class DocumentDropOrPasteEditKind {
 	}
 }
 DocumentDropOrPasteEditKind.Empty = new DocumentDropOrPasteEditKind('');
+DocumentDropOrPasteEditKind.Text = new DocumentDropOrPasteEditKind('text');
+DocumentDropOrPasteEditKind.TextUpdateImports = DocumentDropOrPasteEditKind.Text.append('updateImports');
 
 export class DocumentPasteEdit {
 
@@ -3906,6 +4013,19 @@ export class NotebookCellOutput {
 	}
 }
 
+export class CellErrorStackFrame {
+	/**
+	 * @param label The name of the stack frame
+	 * @param file The file URI of the stack frame
+	 * @param position The position of the stack frame within the file
+	 */
+	constructor(
+		public label: string,
+		public uri?: vscode.Uri,
+		public position?: Position,
+	) { }
+}
+
 export enum NotebookCellKind {
 	Markup = 1,
 	Code = 2
@@ -4062,6 +4182,14 @@ export enum TestRunProfileKind {
 	Coverage = 3,
 }
 
+export class TestRunProfileBase {
+	constructor(
+		public readonly controllerId: string,
+		public readonly profileId: number,
+		public readonly kind: vscode.TestRunProfileKind,
+	) { }
+}
+
 @es5ClassCompat
 export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
@@ -4174,7 +4302,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
-		public fromTests: vscode.TestItem[] = [],
+		public includesTests: vscode.TestItem[] = [],
 	) {
 	}
 }
@@ -4344,7 +4472,8 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 
 export enum ChatEditingSessionActionOutcome {
 	Accepted = 1,
-	Rejected = 2
+	Rejected = 2,
+	Saved = 3
 }
 
 //#endregion
@@ -4389,16 +4518,6 @@ export class ChatResponseMarkdownWithVulnerabilitiesPart {
 
 		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
 		this.vulnerabilities = vulnerabilities;
-	}
-}
-
-export class ChatResponseDetectedParticipantPart {
-	participant: string;
-	// TODO@API validate this against statically-declared slash commands?
-	command?: vscode.ChatCommand;
-	constructor(participant: string, command?: vscode.ChatCommand) {
-		this.participant = participant;
-		this.command = command;
 	}
 }
 
@@ -4510,23 +4629,44 @@ export class ChatResponseMovePart {
 	}
 }
 
-export class ChatResponseTextEditPart {
+export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
-	constructor(uri: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) {
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
-		this.edits = Array.isArray(edits) ? edits : [edits];
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+		}
+	}
+}
+
+export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebookEditPart {
+	uri: vscode.Uri;
+	edits: vscode.NotebookEdit[];
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
+		this.uri = uri;
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+
+		}
 	}
 }
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
-	toolReferences?: vscode.ChatLanguageModelToolReference[];
-
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
 		readonly references: vscode.ChatPromptReference[],
 		readonly participant: string,
+		readonly toolReferences: vscode.ChatLanguageModelToolReference[]
 	) { }
 }
 
@@ -4571,10 +4711,16 @@ export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
 export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	mimeType: string;
 	data: () => Thenable<Uint8Array>;
-	constructor(mimeType: string, data: () => Thenable<Uint8Array>) {
+	reference?: vscode.Uri;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri) {
 		this.mimeType = mimeType;
 		this.data = data;
+		this.reference = reference;
 	}
+}
+
+export class ChatReferenceDiagnostic implements vscode.ChatReferenceDiagnostic {
+	constructor(public readonly diagnostics: [vscode.Uri, vscode.Diagnostic[]][]) { }
 }
 
 export enum LanguageModelChatMessageRole {
@@ -4585,51 +4731,99 @@ export enum LanguageModelChatMessageRole {
 
 export class LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart {
 
-	toolCallId: string;
-	content: string;
+	callId: string;
+	content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
 	isError: boolean;
 
-	constructor(toolCallId: string, content: string, isError?: boolean) {
-		this.toolCallId = toolCallId;
+	constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[], isError?: boolean) {
+		this.callId = callId;
 		this.content = content;
 		this.isError = isError ?? false;
 	}
 }
 
+export class PreparedTerminalToolInvocation {
+	constructor(
+		public readonly command: string,
+		public readonly language: string,
+		public readonly confirmationMessages?: vscode.LanguageModelToolConfirmationMessages,
+	) { }
+}
+
+export enum ChatErrorLevel {
+	Info = 0,
+	Warning = 1,
+	Error = 2
+}
+
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string | LanguageModelToolResultPart, name?: string): LanguageModelChatMessage {
-		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
-		value.content2 = [content];
-		return value;
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
+		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string, name?: string): LanguageModelChatMessage {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
 		return new LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
-	content: string;
-	content2: (string | vscode.LanguageModelToolResultPart | vscode.LanguageModelToolCallPart)[];
+
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] = [];
+
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[]) {
+		if (typeof value === 'string') {
+			// we changed this and still support setting content with a string property. this keep the API runtime stable
+			// despite the breaking change in the type definition.
+			this._content = [new LanguageModelTextPart(value)];
+		} else {
+			this._content = value;
+		}
+	}
+
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] {
+		return this._content;
+	}
+
+	// Temp to avoid breaking changes
+	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined) {
+		if (value) {
+			this.content = value.map(part => {
+				if (typeof part === 'string') {
+					return new LanguageModelTextPart(part);
+				}
+				return part;
+			});
+		}
+	}
+
+	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined {
+		return this.content.map(part => {
+			if (part instanceof LanguageModelTextPart) {
+				return part.value;
+			}
+			return part;
+		});
+	}
+
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
-		this.content2 = [content];
 		this.name = name;
 	}
 }
 
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
+	callId: string;
 	name: string;
-	toolCallId: string;
-	parameters: any;
+	input: any;
 
-	constructor(name: string, toolCallId: string, parameters: any) {
+	constructor(callId: string, name: string, input: any) {
+		this.callId = callId;
 		this.name = name;
-		this.toolCallId = toolCallId;
-		this.parameters = parameters;
+
+		this.input = input;
 	}
 }
 
@@ -4638,7 +4832,28 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 
 	constructor(value: string) {
 		this.value = value;
+	}
 
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelTextPart,
+			value: this.value,
+		};
+	}
+}
+
+export class LanguageModelPromptTsxPart {
+	value: unknown;
+
+	constructor(value: unknown) {
+		this.value = value;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelPromptTsxPart,
+			value: this.value,
+		};
 	}
 }
 
@@ -4681,6 +4896,8 @@ export class LanguageModelChatAssistantMessage {
 
 export class LanguageModelError extends Error {
 
+	static readonly #name = 'LanguageModelError';
+
 	static NotFound(message?: string): LanguageModelError {
 		return new LanguageModelError(message, LanguageModelError.NotFound.name);
 	}
@@ -4693,14 +4910,40 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.Blocked.name);
 	}
 
+	static tryDeserialize(data: SerializedError): LanguageModelError | undefined {
+		if (data.name !== LanguageModelError.#name) {
+			return undefined;
+		}
+		return new LanguageModelError(data.message, data.code, data.cause);
+	}
+
 	readonly code: string;
 
 	constructor(message?: string, code?: string, cause?: Error) {
 		super(message, { cause });
-		this.name = 'LanguageModelError';
+		this.name = LanguageModelError.#name;
 		this.code = code ?? '';
 	}
 
+}
+
+export class LanguageModelToolResult {
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[]) { }
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelToolResult,
+			content: this.content,
+		};
+	}
+}
+
+export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
+}
+
+export enum LanguageModelChatToolMode {
+	Auto = 1,
+	Required = 2
 }
 
 //#endregion

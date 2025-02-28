@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { fromNow, fromNowByDay, getDurationString } from '../../common/date.js';
+import { fromNow, fromNowByDay, getDurationString, safeIntl } from '../../common/date.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { LANGUAGE_DEFAULT } from '../../common/platform.js';
 
 suite('Date', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,6 +68,19 @@ suite('Date', () => {
 			strictEqual(getDurationString(1000 * 60 * 60, true), '1 hours');
 			strictEqual(getDurationString(1000 * 60 * 60 * 24 - 1, true), '24 hours');
 			strictEqual(getDurationString(1000 * 60 * 60 * 24, true), '1 days');
+		});
+
+		suite('safeIntl', () => {
+			test('Collator fallback', () => {
+				const collator = safeIntl.Collator('en_IT');
+				const comparison = collator.compare('a', 'b');
+				strictEqual(comparison, -1);
+			});
+
+			test('Locale fallback', () => {
+				const locale = safeIntl.Locale('en_IT');
+				strictEqual(locale.baseName, LANGUAGE_DEFAULT);
+			});
 		});
 	});
 });

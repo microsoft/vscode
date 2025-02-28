@@ -291,13 +291,12 @@ registerAction2(class extends NotebookCellAction {
 			id: FOCUS_IN_OUTPUT_COMMAND_ID,
 			title: localize('focusOutput', 'Focus In Active Cell Output'),
 			keybinding: [{
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.DownArrow, },
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			{
 				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK.negate(), IsWindowsContext),
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}, {
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.DownArrow, },
 				weight: KeybindingWeight.WorkbenchContrib
 			}],
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS)

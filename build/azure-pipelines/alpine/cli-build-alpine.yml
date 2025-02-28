@@ -19,13 +19,15 @@ steps:
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - template: ../cli/cli-apply-patches.yml@self
+
     - script: |
         set -e
         npm ci
       workingDirectory: build
-      displayName: Install pipeline build
-
-    - template: ../cli/cli-apply-patches.yml@self
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Install build dependencies
 
   - task: Npm@1
     displayName: Download openssl prebuilt

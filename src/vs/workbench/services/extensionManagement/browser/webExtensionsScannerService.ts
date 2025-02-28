@@ -16,7 +16,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryMetadata, Metadata } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { areSameExtensions, getGalleryExtensionId, getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { areSameExtensions, getGalleryExtensionId, getExtensionId, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ITranslations, localizeManifest } from '../../../../platform/extensionManagement/common/extensionNls.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -175,7 +175,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const extensionsControlManifest = await this.galleryService.getExtensionsControlManifest();
 		const result: ExtensionInfo[] = [];
 		for (const extension of extensions) {
-			if (extensionsControlManifest.malicious.some(e => areSameExtensions(e, { id: extension.id }))) {
+			if (isMalicious({ id: extension.id }, extensionsControlManifest)) {
 				this.logService.info(`Checking additional builtin extensions: Ignoring '${extension.id}' because it is reported to be malicious.`);
 				continue;
 			}
@@ -793,7 +793,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			metadata: webExtension.metadata,
 			targetPlatform: TargetPlatform.WEB,
 			validations,
-			isValid
+			isValid,
+			preRelease: !!webExtension.metadata?.preRelease,
 		};
 	}
 

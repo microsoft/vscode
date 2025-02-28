@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { isCancellationError, getErrorMessage } from '../../../../base/common/errors.js';
+import { isCancellationError, getErrorMessage, CancellationError } from '../../../../base/common/errors.js';
 import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
-import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from '../../../../base/common/paging.js';
+import { PagedModel, IPagedModel, DelayedPagedModel, IPager } from '../../../../base/common/paging.js';
 import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo, ExtensionGalleryErrorCode, ExtensionGalleryError } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -17,8 +17,8 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Delegate, Renderer, IExtensionsViewState } from './extensionsList.js';
-import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from '../common/extensions.js';
+import { Delegate, Renderer } from './extensionsList.js';
+import { ExtensionResultsListFocused, ExtensionState, IExtension, IExtensionsViewState, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from '../common/extensions.js';
 import { Query } from '../common/extensionQuery.js';
 import { IExtensionService, toExtension } from '../../../services/extensions/common/extensions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -31,12 +31,12 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ViewPane, IViewPaneOptions, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { coalesce, distinct, range } from '../../../../base/common/arrays.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IAction, Action, Separator, ActionRunner } from '../../../../base/common/actions.js';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, IExtensionIdentifier, isLanguagePackExtension } from '../../../../platform/extensions/common/extensions.js';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
@@ -62,6 +62,11 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export const NONE_CATEGORY = 'none';
 
+type Message = {
+	readonly text: string;
+	readonly severity: Severity;
+};
+
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
 	private readonly _onFocus: Emitter<IExtension> = this._register(new Emitter<IExtension>());
@@ -71,6 +76,10 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 	readonly onBlur: Event<IExtension> = this._onBlur.event;
 
 	private currentlyFocusedItems: IExtension[] = [];
+
+	filters: {
+		featureId?: string;
+	} = {};
 
 	onFocusChange(extensions: IExtension[]): void {
 		this.currentlyFocusedItems.forEach(extension => this._onBlur.fire(extension));
@@ -88,6 +97,7 @@ export interface ExtensionsListViewOptions {
 
 interface IQueryResult {
 	model: IPagedModel<IExtension>;
+	description?: string;
 	readonly onDidChangeModel?: Event<IPagedModel<IExtension>>;
 	readonly disposables: DisposableStore;
 }
@@ -119,6 +129,7 @@ export class ExtensionsListView extends ViewPane {
 	private list: WorkbenchPagedList<IExtension> | null = null;
 	private queryRequest: { query: string; request: CancelablePromise<IPagedModel<IExtension>> } | null = null;
 	private queryResult: IQueryResult | undefined;
+	private extensionsViewState: ExtensionsViewState | undefined;
 
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
 
@@ -133,7 +144,7 @@ export class ExtensionsListView extends ViewPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionRecommendationsService protected extensionRecommendationsService: IExtensionRecommendationsService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -158,7 +169,7 @@ export class ExtensionsListView extends ViewPane {
 			...(viewletViewOptions as IViewPaneOptions),
 			showActions: ViewPaneShowActions.Always,
 			maximumBodySize: options.flexibleHeight ? (storageService.getNumber(`${viewletViewOptions.id}.size`, StorageScope.PROFILE, 0) ? undefined : 0) : undefined
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		if (this.options.onDidChangeTitle) {
 			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
 		}
@@ -174,20 +185,20 @@ export class ExtensionsListView extends ViewPane {
 		super.renderHeader(container);
 
 		if (!this.options.hideBadge) {
-			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles);
+			this.badge = this._register(new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles));
 		}
 	}
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		const extensionsList = append(container, $('.extensions-list'));
 		const messageContainer = append(container, $('.message-container'));
 		const messageSeverityIcon = append(messageContainer, $(''));
 		const messageBox = append(messageContainer, $('.message'));
+		const extensionsList = append(container, $('.extensions-list'));
 		const delegate = new Delegate();
-		const extensionsViewState = new ExtensionsViewState();
-		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState, {
+		this.extensionsViewState = new ExtensionsViewState();
+		const renderer = this.instantiationService.createInstance(Renderer, this.extensionsViewState, {
 			hoverOptions: {
 				position: () => {
 					const viewLocation = this.viewDescriptorService.getViewLocationById(this.id);
@@ -216,10 +227,11 @@ export class ExtensionsListView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			openOnSingleClick: true
 		}) as WorkbenchPagedList<IExtension>;
+		ExtensionResultsListFocused.bindTo(this.list.contextKeyService);
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
-		this._register(this.list.onDidChangeFocus(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));
+		this._register(this.list.onDidChangeFocus(e => this.extensionsViewState?.onFocusChange(coalesce(e.elements)), this));
 		this._register(this.list);
-		this._register(extensionsViewState);
+		this._register(this.extensionsViewState);
 
 		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
 			this.openExtension(options.element!, { sideByside: options.sideBySide, ...options.editorOptions });
@@ -257,6 +269,9 @@ export class ExtensionsListView extends ViewPane {
 		if (this.queryResult) {
 			this.queryResult.disposables.dispose();
 			this.queryResult = undefined;
+			if (this.extensionsViewState) {
+				this.extensionsViewState.filters = {};
+			}
 		}
 
 		const parsedQuery = Query.parse(query);
@@ -277,7 +292,7 @@ export class ExtensionsListView extends ViewPane {
 			try {
 				this.queryResult = await this.query(parsedQuery, options, token);
 				const model = this.queryResult.model;
-				this.setModel(model);
+				this.setModel(model, this.queryResult.description ? { text: this.queryResult.description, severity: Severity.Info } : undefined);
 				if (this.queryResult.onDidChangeModel) {
 					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => {
 						if (this.queryResult) {
@@ -291,7 +306,7 @@ export class ExtensionsListView extends ViewPane {
 				const model = new PagedModel([]);
 				if (!isCancellationError(e)) {
 					this.logService.error(e);
-					this.setModel(model, e);
+					this.setModel(model, this.getMessage(e));
 				}
 				return this.list ? this.list.model : model;
 			}
@@ -330,9 +345,15 @@ export class ExtensionsListView extends ViewPane {
 					}
 				}));
 			}
-			let actions: IAction[] = [];
+			const actions: IAction[] = [];
 			for (const menuActions of groups) {
-				actions = [...actions, ...menuActions, new Separator()];
+				for (const menuAction of menuActions) {
+					actions.push(menuAction);
+					if (isDisposable(menuAction)) {
+						disposables.add(menuAction);
+					}
+				}
+				actions.push(new Separator());
 			}
 			actions.pop();
 			this.contextMenuService.showContextMenu({
@@ -387,12 +408,12 @@ export class ExtensionsListView extends ViewPane {
 			result.push(...galleryResult);
 		}
 
-		return this.getPagedModel(result);
+		return new PagedModel(result);
 	}
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
 		const local = await this.extensionsWorkbenchService.queryLocal(this.options.server);
-		let { extensions, canIncludeInstalledExtensions } = await this.filterLocal(local, this.extensionService.extensions, query, options);
+		let { extensions, canIncludeInstalledExtensions, description } = await this.filterLocal(local, this.extensionService.extensions, query, options);
 		const disposables = new DisposableStore();
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IExtension>>());
 
@@ -417,15 +438,17 @@ export class ExtensionsListView extends ViewPane {
 
 		return {
 			model: new PagedModel(extensions),
+			description,
 			onDidChangeModel: onDidChangeModel.event,
 			disposables
 		};
 	}
 
-	private async filterLocal(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[]; canIncludeInstalledExtensions: boolean }> {
+	private async filterLocal(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[]; canIncludeInstalledExtensions: boolean; description?: string }> {
 		const value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
+		let description: string | undefined;
 
 		if (/@builtin/i.test(value)) {
 			extensions = this.filterBuiltinExtensions(local, query, options);
@@ -461,10 +484,14 @@ export class ExtensionsListView extends ViewPane {
 		}
 
 		else if (/@feature:/i.test(query.value)) {
-			extensions = this.filterExtensionsByFeature(local, query, options);
+			const result = this.filterExtensionsByFeature(local, query);
+			if (result) {
+				extensions = result.extensions;
+				description = result.description;
+			}
 		}
 
-		return { extensions, canIncludeInstalledExtensions };
+		return { extensions, canIncludeInstalledExtensions, description };
 	}
 
 	private filterBuiltinExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
@@ -553,7 +580,6 @@ export class ExtensionsListView extends ViewPane {
 			};
 
 			const incompatible: IExtension[] = [];
-			const missingDeps: IExtension[] = [];
 			const deprecated: IExtension[] = [];
 			const outdated: IExtension[] = [];
 			const actionRequired: IExtension[] = [];
@@ -563,13 +589,10 @@ export class ExtensionsListView extends ViewPane {
 				if (e.enablementState === EnablementState.DisabledByInvalidExtension) {
 					incompatible.push(e);
 				}
-				else if (e.enablementState === EnablementState.DisabledByExtensionDependency) {
-					missingDeps.push(e);
-				}
 				else if (e.deprecationInfo) {
 					deprecated.push(e);
 				}
-				else if (e.outdated) {
+				else if (e.outdated && this.extensionEnablementService.isEnabledEnablementState(e.enablementState)) {
 					outdated.push(e);
 				}
 				else if (e.runtimeState) {
@@ -582,7 +605,6 @@ export class ExtensionsListView extends ViewPane {
 
 			result = [
 				...incompatible.sort(defaultSort),
-				...missingDeps.sort(defaultSort),
 				...deprecated.sort(defaultSort),
 				...outdated.sort(defaultSort),
 				...actionRequired.sort(defaultSort),
@@ -719,22 +741,33 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterExtensionsByFeature(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterExtensionsByFeature(local: IExtension[], query: Query): { extensions: IExtension[]; description: string } | undefined {
 		const value = query.value.replace(/@feature:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
-			return [];
+			return undefined;
+		}
+		if (this.extensionsViewState) {
+			this.extensionsViewState.filters.featureId = featureId;
 		}
 		const renderer = feature.renderer ? this.instantiationService.createInstance<IExtensionFeatureRenderer>(feature.renderer) : undefined;
 		try {
-			const result = local.filter(e => {
+			const result: [IExtension, number][] = [];
+			for (const e of local) {
 				if (!e.local) {
-					return false;
+					continue;
 				}
-				return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
-			});
-			return this.sortExtensions(result, options);
+				const accessData = this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
+				const shouldRender = renderer?.shouldRender(e.local.manifest);
+				if (accessData || shouldRender) {
+					result.push([e, accessData?.accessTimes.length ?? 0]);
+				}
+			}
+			return {
+				extensions: result.sort(([, a], [, b]) => b - a).map(([e]) => e),
+				description: localize('showingExtensionsForFeature', "Extensions using {0} in the last 30 days", feature.label)
+			};
 		} finally {
 			renderer?.dispose();
 		}
@@ -778,49 +811,79 @@ export class ExtensionsListView extends ViewPane {
 
 		const text = query.value;
 
+		if (!text) {
+			options.source = 'viewlet';
+			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
+			return new PagedModel(pager);
+		}
+
 		if (/\bext:([^\s]+)\b/g.test(text)) {
 			options.text = text;
 			options.source = 'file-extension-tags';
-			return this.extensionsWorkbenchService.queryGallery(options, token).then(pager => this.getPagedModel(pager));
+			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
+			return new PagedModel(pager);
 		}
 
-		let preferredResults: string[] = [];
-		if (text) {
-			options.text = text.substring(0, 350);
-			options.source = 'searchText';
-			if (!hasUserDefinedSortOrder) {
-				const manifest = await this.extensionManagementService.getExtensionsControlManifest();
-				const search = manifest.search;
-				if (Array.isArray(search)) {
-					for (const s of search) {
-						if (s.query && s.query.toLowerCase() === text.toLowerCase() && Array.isArray(s.preferredResults)) {
-							preferredResults = s.preferredResults;
-							break;
-						}
+		options.text = text.substring(0, 350);
+		options.source = 'searchText';
+
+		if (hasUserDefinedSortOrder || /\b(category|tag):([^\s]+)\b/gi.test(text) || /\bfeatured(\s+|\b|$)/gi.test(text)) {
+			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
+			return new PagedModel(pager);
+		}
+
+		const [pager, preferredExtensions] = await Promise.all([
+			this.extensionsWorkbenchService.queryGallery(options, token),
+			this.getPreferredExtensions(options.text.toLowerCase(), token).catch(() => [])
+		]);
+
+		return preferredExtensions.length ? new PreferredExtensionsPagedModel(preferredExtensions, pager) : new PagedModel(pager);
+	}
+
+	private async getPreferredExtensions(searchText: string, token: CancellationToken): Promise<IExtension[]> {
+		const preferredExtensions = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && (e.name.toLowerCase().indexOf(searchText) > -1 || e.displayName.toLowerCase().indexOf(searchText) > -1 || e.description.toLowerCase().indexOf(searchText) > -1));
+		const preferredExtensionUUIDs = new Set<string>();
+
+		if (preferredExtensions.length) {
+			// Update gallery data for preferred extensions if they are not yet fetched
+			const extesionsToFetch: IExtensionIdentifier[] = [];
+			for (const extension of preferredExtensions) {
+				if (extension.identifier.uuid) {
+					preferredExtensionUUIDs.add(extension.identifier.uuid);
+				}
+				if (!extension.gallery && extension.identifier.uuid) {
+					extesionsToFetch.push(extension.identifier);
+				}
+			}
+			if (extesionsToFetch.length) {
+				this.extensionsWorkbenchService.getExtensions(extesionsToFetch, CancellationToken.None).catch(e => null/*ignore error*/);
+			}
+		}
+
+		const preferredResults: string[] = [];
+		try {
+			const manifest = await this.extensionManagementService.getExtensionsControlManifest();
+			if (Array.isArray(manifest.search)) {
+				for (const s of manifest.search) {
+					if (s.query && s.query.toLowerCase() === searchText && Array.isArray(s.preferredResults)) {
+						preferredResults.push(...s.preferredResults);
+						break;
 					}
 				}
 			}
-		} else {
-			options.source = 'viewlet';
-		}
-
-		const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-
-		let positionToUpdate = 0;
-		for (const preferredResult of preferredResults) {
-			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResult })) {
-					if (positionToUpdate !== j) {
-						const preferredExtension = pager.firstPage.splice(j, 1)[0];
-						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
-						positionToUpdate++;
+			if (preferredResults.length) {
+				const result = await this.extensionsWorkbenchService.getExtensions(preferredResults.map(id => ({ id })), token);
+				for (const extension of result) {
+					if (extension.identifier.uuid && !preferredExtensionUUIDs.has(extension.identifier.uuid)) {
+						preferredExtensions.push(extension);
 					}
-					break;
 				}
 			}
+		} catch (e) {
+			this.logService.warn('Failed to get preferred results from the extensions control manifest.', e);
 		}
-		return this.getPagedModel(pager);
 
+		return preferredExtensions;
 	}
 
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
@@ -920,7 +983,8 @@ export class ExtensionsListView extends ViewPane {
 				try {
 					const extensions = await this.extensionsWorkbenchService.getExtensions(galleryExtensions.map(id => ({ id })), { source: options.source }, token);
 					for (const extension of extensions) {
-						if (extension.gallery && !extension.deprecationInfo && (await this.extensionManagementService.canInstall(extension.gallery))) {
+						if (extension.gallery && !extension.deprecationInfo
+							&& await this.extensionManagementService.canInstall(extension.gallery) === true) {
 							result.push(extension);
 						}
 					}
@@ -933,7 +997,7 @@ export class ExtensionsListView extends ViewPane {
 			if (resourceExtensions.length) {
 				const extensions = await this.extensionsWorkbenchService.getResourceExtensions(resourceExtensions, true);
 				for (const extension of extensions) {
-					if (await this.extensionsWorkbenchService.canInstall(extension)) {
+					if (await this.extensionsWorkbenchService.canInstall(extension) === true) {
 						result.push(extension);
 					}
 				}
@@ -1061,13 +1125,13 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel(this.sortExtensions(installableRecommendations, options));
 	}
 
-	private setModel(model: IPagedModel<IExtension>, error?: any, donotResetScrollTop?: boolean) {
+	private setModel(model: IPagedModel<IExtension>, message?: Message, donotResetScrollTop?: boolean) {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(model);
+			this.updateBody(message);
 			if (!donotResetScrollTop) {
 				this.list.scrollTop = 0;
 			}
-			this.updateBody(error);
 		}
 		if (this.badge) {
 			this.badge.setCount(this.count());
@@ -1084,31 +1148,36 @@ export class ExtensionsListView extends ViewPane {
 		}
 	}
 
-	private updateBody(error?: any): void {
+	private updateBody(message?: Message): void {
 		if (this.bodyTemplate) {
 
 			const count = this.count();
 			this.bodyTemplate.extensionsList.classList.toggle('hidden', count === 0);
-			this.bodyTemplate.messageContainer.classList.toggle('hidden', count > 0);
+			this.bodyTemplate.messageContainer.classList.toggle('hidden', !message && count > 0);
 
-			if (count === 0 && this.isBodyVisible()) {
-				if (error) {
-					if (this.isOfflineError(error)) {
-						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
-						this.bodyTemplate.messageBox.textContent = localize('offline error', "Unable to search the Marketplace when offline, please check your network connection.");
-					} else {
-						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
-						this.bodyTemplate.messageBox.textContent = localize('error', "Error while fetching extensions. {0}", getErrorMessage(error));
-					}
-				} else {
+			if (this.isBodyVisible()) {
+				if (message) {
+					this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(message.severity);
+					this.bodyTemplate.messageBox.textContent = message.text;
+				} else if (this.count() === 0) {
 					this.bodyTemplate.messageSeverityIcon.className = '';
 					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "No extensions found.");
 				}
-				alert(this.bodyTemplate.messageBox.textContent);
+				if (this.bodyTemplate.messageBox.textContent) {
+					alert(this.bodyTemplate.messageBox.textContent);
+				}
 			}
 		}
 
 		this.updateSize();
+	}
+
+	private getMessage(error: any): Message {
+		if (this.isOfflineError(error)) {
+			return { text: localize('offline error', "Unable to search the Marketplace when offline, please check your network connection."), severity: Severity.Warning };
+		} else {
+			return { text: localize('error', "Error while fetching extensions. {0}", getErrorMessage(error)), severity: Severity.Error };
+		}
 	}
 
 	private isOfflineError(error: Error): boolean {
@@ -1147,19 +1216,6 @@ export class ExtensionsListView extends ViewPane {
 		}
 
 		this.notificationService.error(err);
-	}
-
-	private getPagedModel(arg: IPager<IExtension> | IExtension[]): IPagedModel<IExtension> {
-		if (Array.isArray(arg)) {
-			return new PagedModel(arg);
-		}
-		const pager = {
-			total: arg.total,
-			pageSize: arg.pageSize,
-			firstPage: arg.firstPage,
-			getPage: (pageIndex: number, cancellationToken: CancellationToken) => arg.getPage(pageIndex, cancellationToken)
-		};
-		return new PagedModel(pager);
 	}
 
 	override dispose(): void {
@@ -1586,4 +1642,125 @@ export function getAriaLabelForExtension(extension: IExtension | null): string {
 	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
 	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
 	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
+}
+
+export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
+
+	private readonly resolved = new Map<number, IExtension>();
+	private preferredGalleryExtensions = new Set<string>();
+	private resolvedGalleryExtensionsFromQuery: IExtension[] = [];
+	private readonly pages: Array<{
+		promise: Promise<void> | null;
+		cts: CancellationTokenSource | null;
+		promiseIndexes: Set<number>;
+	}>;
+
+	public readonly length: number;
+
+	constructor(
+		private readonly preferredExtensions: IExtension[],
+		private readonly pager: IPager<IExtension>,
+	) {
+		for (let i = 0; i < this.preferredExtensions.length; i++) {
+			this.resolved.set(i, this.preferredExtensions[i]);
+		}
+
+		for (const e of preferredExtensions) {
+			if (e.identifier.uuid) {
+				this.preferredGalleryExtensions.add(e.identifier.uuid);
+			}
+		}
+
+		// expected that all preferred gallery extensions will be part of the query results
+		this.length = (preferredExtensions.length - this.preferredGalleryExtensions.size) + this.pager.total;
+
+		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
+		this.populateResolvedExtensions(0, this.pager.firstPage);
+		this.pages = range(totalPages - 1).map(() => ({
+			promise: null,
+			cts: null,
+			promiseIndexes: new Set<number>(),
+		}));
+	}
+
+	isResolved(index: number): boolean {
+		return this.resolved.has(index);
+	}
+
+	get(index: number): IExtension {
+		return this.resolved.get(index)!;
+	}
+
+	async resolve(index: number, cancellationToken: CancellationToken): Promise<IExtension> {
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		if (this.isResolved(index)) {
+			return this.get(index);
+		}
+
+		const indexInPagedModel = index - this.preferredExtensions.length + this.resolvedGalleryExtensionsFromQuery.length;
+		const pageIndex = Math.floor(indexInPagedModel / this.pager.pageSize);
+		const page = this.pages[pageIndex];
+
+		if (!page.promise) {
+			page.cts = new CancellationTokenSource();
+			page.promise = this.pager.getPage(pageIndex, page.cts.token)
+				.then(extensions => this.populateResolvedExtensions(pageIndex, extensions))
+				.catch(e => { page.promise = null; throw e; })
+				.finally(() => page.cts = null);
+		}
+
+		const listener = cancellationToken.onCancellationRequested(() => {
+			if (!page.cts) {
+				return;
+			}
+			page.promiseIndexes.delete(index);
+			if (page.promiseIndexes.size === 0) {
+				page.cts.cancel();
+			}
+		});
+
+		page.promiseIndexes.add(index);
+
+		try {
+			await page.promise;
+		} finally {
+			listener.dispose();
+		}
+
+		return this.get(index);
+	}
+
+	private populateResolvedExtensions(pageIndex: number, extensions: IExtension[]): void {
+		let adjustIndexOfNextPagesBy = 0;
+		const pageStartIndex = pageIndex * this.pager.pageSize;
+		for (let i = 0; i < extensions.length; i++) {
+			const e = extensions[i];
+			if (e.gallery?.identifier.uuid && this.preferredGalleryExtensions.has(e.gallery.identifier.uuid)) {
+				this.resolvedGalleryExtensionsFromQuery.push(e);
+				adjustIndexOfNextPagesBy++;
+			} else {
+				this.resolved.set(this.preferredExtensions.length - this.resolvedGalleryExtensionsFromQuery.length + pageStartIndex + i, e);
+			}
+		}
+		// If this page has preferred gallery extensions, then adjust the index of the next pages
+		// by the number of preferred gallery extensions found in this page. Because these preferred extensions
+		// are already in the resolved list and since we did not add them now, we need to adjust the indices of the next pages.
+		// Skip first page as the preferred extensions are always in the first page
+		if (pageIndex !== 0 && adjustIndexOfNextPagesBy) {
+			const nextPageStartIndex = (pageIndex + 1) * this.pager.pageSize;
+			const indices = [...this.resolved.keys()].sort();
+			for (const index of indices) {
+				if (index >= nextPageStartIndex) {
+					const e = this.resolved.get(index);
+					if (e) {
+						this.resolved.delete(index);
+						this.resolved.set(index - adjustIndexOfNextPagesBy, e);
+					}
+				}
+			}
+		}
+	}
 }

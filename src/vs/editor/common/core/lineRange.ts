@@ -234,6 +234,13 @@ export class LineRange {
 		}
 		return lineNumber - this.endLineNumberExclusive;
 	}
+
+	public addMargin(marginTop: number, marginBottom: number): LineRange {
+		return new LineRange(
+			this.startLineNumber - marginTop,
+			this.endLineNumberExclusive + marginBottom
+		);
+	}
 }
 
 export type ISerializedLineRange = [startLineNumber: number, endLineNumberExclusive: number];

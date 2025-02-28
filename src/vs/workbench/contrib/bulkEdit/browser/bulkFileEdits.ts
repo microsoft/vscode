@@ -16,7 +16,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { tail } from '../../../../base/common/arrays.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { Schemas } from '../../../../base/common/network.js';
 
@@ -256,15 +255,19 @@ class DeleteOperation implements IFileOperation {
 
 			// read file contents for undo operation. when a file is too large it won't be restored
 			let fileContent: IFileContent | undefined;
-			if (!edit.undoesCreate && !edit.options.folder && !(typeof edit.options.maxSize === 'number' && fileStat.size > edit.options.maxSize)) {
-				try {
-					fileContent = await this._fileService.readFile(edit.oldUri);
-				} catch (err) {
-					this._logService.error(err);
+			let fileContentExceedsMaxSize = false;
+			if (!edit.undoesCreate && !edit.options.folder) {
+				fileContentExceedsMaxSize = typeof edit.options.maxSize === 'number' && fileStat.size > edit.options.maxSize;
+				if (!fileContentExceedsMaxSize) {
+					try {
+						fileContent = await this._fileService.readFile(edit.oldUri);
+					} catch (err) {
+						this._logService.error(err);
+					}
 				}
 			}
-			if (fileContent !== undefined) {
-				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent.value));
+			if (!fileContentExceedsMaxSize) {
+				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent?.value));
 			}
 		}
 
@@ -362,7 +365,7 @@ export class BulkFileEdits {
 
 		for (let i = 1; i < edits.length; i++) {
 			const edit = edits[i];
-			const lastGroup = tail(groups);
+			const lastGroup = groups.at(-1);
 			if (lastGroup?.[0].type === edit.type) {
 				lastGroup.push(edit);
 			} else {

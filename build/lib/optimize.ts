@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as gulp from 'gulp';
-import * as filter from 'gulp-filter';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as pump from 'pump';
-import * as VinylFile from 'vinyl';
+import es from 'event-stream';
+import gulp from 'gulp';
+import filter from 'gulp-filter';
+import path from 'path';
+import fs from 'fs';
+import pump from 'pump';
+import VinylFile from 'vinyl';
 import * as bundle from './bundle';
 import { gulpPostcss } from './postcss';
-import * as esbuild from 'esbuild';
-import * as sourcemaps from 'gulp-sourcemaps';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
+import esbuild from 'esbuild';
+import sourcemaps from 'gulp-sourcemaps';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -106,7 +106,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 						}
 
 						// File Content Mapper
-						const mapper = opts.fileContentMapper?.(path);
+						const mapper = opts.fileContentMapper?.(path.replace(/\\/g, '/'));
 						if (mapper) {
 							newContents = await mapper(newContents);
 						}

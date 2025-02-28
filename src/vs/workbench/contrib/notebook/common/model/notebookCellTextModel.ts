@@ -20,8 +20,11 @@ import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { splitLines } from '../../../../../base/common/strings.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
+	private readonly _onDidChangeTextModel = this._register(new Emitter<void>());
+	readonly onDidChangeTextModel: Event<void> = this._onDidChangeTextModel.event;
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
@@ -106,7 +109,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._onDidChangeContent.fire('mime');
 	}
 
-	private _textBuffer!: model.IReadonlyTextBuffer;
+	private _textBuffer!: model.ITextBuffer;
 
 	get textBuffer() {
 		if (this._textBuffer) {
@@ -166,6 +169,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 			this._textModel._overwriteVersionId(this._versionId);
 			this._textModel._overwriteAlternativeVersionId(this._versionId);
+			this._onDidChangeTextModel.fire();
 		}
 	}
 
@@ -205,6 +209,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
 		this._metadata = metadata ?? {};
 		this._internalMetadata = internalMetadata ?? {};
+		this._internalMetadata.cellId = this._internalMetadata.cellId ??
+			this._metadata.id as string ??
+			uri.fragment;
 	}
 
 	enableAutoLanguageDetection() {
@@ -429,10 +436,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	 * - language
 	 * - mime
 	 * - cellKind
-	 * - internal metadata
+	 * - internal metadata (conditionally)
 	 * - source
 	 */
-	fastEqual(b: ICellDto2): boolean {
+	fastEqual(b: ICellDto2, ignoreMetadata: boolean): boolean {
 		if (this.language !== b.language) {
 			return false;
 		}
@@ -445,21 +452,38 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
-		if (this.internalMetadata?.executionOrder !== b.internalMetadata?.executionOrder
-			|| this.internalMetadata?.lastRunSuccess !== b.internalMetadata?.lastRunSuccess
-			|| this.internalMetadata?.runStartTime !== b.internalMetadata?.runStartTime
-			|| this.internalMetadata?.runStartTimeAdjustment !== b.internalMetadata?.runStartTimeAdjustment
-			|| this.internalMetadata?.runEndTime !== b.internalMetadata?.runEndTime) {
-			return false;
+		if (!ignoreMetadata) {
+			if (this.internalMetadata?.executionOrder !== b.internalMetadata?.executionOrder
+				|| this.internalMetadata?.lastRunSuccess !== b.internalMetadata?.lastRunSuccess
+				|| this.internalMetadata?.runStartTime !== b.internalMetadata?.runStartTime
+				|| this.internalMetadata?.runStartTimeAdjustment !== b.internalMetadata?.runStartTimeAdjustment
+				|| this.internalMetadata?.runEndTime !== b.internalMetadata?.runEndTime) {
+				return false;
+			}
 		}
 
 		// Once we attach the cell text buffer to an editor, the source of truth is the text buffer instead of the original source
-		if (this._textBuffer && this.getValue() !== b.source) {
-			return false;
+		if (this._textBuffer) {
+			if (!NotebookCellTextModel.linesAreEqual(this.textBuffer.getLinesContent(), b.source)) {
+				return false;
+			}
 		} else if (this._source !== b.source) {
 			return false;
 		}
 
+		return true;
+	}
+
+	private static linesAreEqual(aLines: string[], b: string) {
+		const bLines = splitLines(b);
+		if (aLines.length !== bLines.length) {
+			return false;
+		}
+		for (let i = 0; i < aLines.length; i++) {
+			if (aLines[i] !== bLines[i]) {
+				return false;
+			}
+		}
 		return true;
 	}
 
@@ -498,7 +522,7 @@ function computeRunStartTimeAdjustment(oldMetadata: NotebookCellInternalMetadata
 }
 
 
-export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMetadata | undefined, metadata: NotebookCellMetadata, language?: string) {
+export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMetadata | undefined, metadata: NotebookCellMetadata, language?: string, sortKeys?: boolean): string {
 	let filteredMetadata: { [key: string]: any } = {};
 
 	if (transientCellMetadata) {
@@ -523,7 +547,28 @@ export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMet
 	if (language) {
 		obj.language = language;
 	}
-	const metadataSource = toFormattedString(obj, {});
+	const metadataSource = toFormattedString(sortKeys ? sortObjectPropertiesRecursively(obj) : obj, {});
 
 	return metadataSource;
+}
+
+
+/**
+ * Sort the JSON to ensure when diffing, the JSON keys are sorted & matched correctly in diff view.
+ */
+export function sortObjectPropertiesRecursively(obj: any): any {
+	if (Array.isArray(obj)) {
+		return obj.map(sortObjectPropertiesRecursively);
+	}
+	if (obj !== undefined && obj !== null && typeof obj === 'object' && Object.keys(obj).length > 0) {
+		return (
+			Object.keys(obj)
+				.sort()
+				.reduce<Record<string, any>>((sortedObj, prop) => {
+					sortedObj[prop] = sortObjectPropertiesRecursively(obj[prop]);
+					return sortedObj;
+				}, {}) as any
+		);
+	}
+	return obj;
 }

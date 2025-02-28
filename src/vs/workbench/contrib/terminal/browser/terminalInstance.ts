@@ -13,11 +13,11 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { AutoOpenBarrier, Barrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ISeparator, template } from '../../../../base/common/labels.js';
-import { Disposable, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -89,6 +89,7 @@ import { openContextMenu } from './terminalContextMenu.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { TerminalContribCommandId } from '../terminalContribExports.js';
+import type { IProgressState } from '@xterm/addon-progress';
 
 const enum Constants {
 	/**
@@ -282,6 +283,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get processName(): string { return this._processName; }
 	get sequence(): string | undefined { return this._sequence; }
 	get staticTitle(): string | undefined { return this._staticTitle; }
+	get progressState(): IProgressState | undefined { return this.xterm?.progressState; }
 	get workspaceFolder(): IWorkspaceFolder | undefined { return this._workspaceFolder; }
 	get cwd(): string | undefined { return this._cwd; }
 	get initialCwd(): string | undefined { return this._initialCwd; }
@@ -402,6 +404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._hasHadInput = false;
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
+		this._shellLaunchConfig.shellIntegrationEnvironmentReporting = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnvironmentReporting);
 
 		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
 
@@ -415,6 +418,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (this._shellLaunchConfig.attachPersistentProcess?.type) {
 			this._shellLaunchConfig.type = this._shellLaunchConfig.attachPersistentProcess.type;
+		}
+
+		if (this._shellLaunchConfig.attachPersistentProcess?.tabActions) {
+			this._shellLaunchConfig.tabActions = this._shellLaunchConfig.attachPersistentProcess.tabActions;
 		}
 
 		if (this.shellLaunchConfig.cwd) {
@@ -446,13 +453,32 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapabilityType(e => this._logService.debug('terminalInstance added capability', e)));
 		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
-		this._register(this.capabilities.onDidAddCapabilityType(e => {
-			if (e === TerminalCapability.CwdDetection) {
-				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
-					this._cwd = e;
-					this._setTitle(this.title, TitleEventSource.Config);
-				});
+
+		const capabilityListeners = this._register(new DisposableMap<TerminalCapability, IDisposable>());
+		this._register(this.capabilities.onDidAddCapabilityType(capability => {
+			capabilityListeners.get(capability)?.dispose();
+			if (capability === TerminalCapability.CwdDetection) {
+				const cwdDetection = this.capabilities.get(capability);
+				if (cwdDetection) {
+					capabilityListeners.set(capability, cwdDetection.onDidChangeCwd(e => {
+						this._cwd = e;
+						this._setTitle(this.title, TitleEventSource.Config);
+					}));
+				}
 			}
+			if (capability === TerminalCapability.CommandDetection) {
+				const commandDetection = this.capabilities.get(capability);
+				if (commandDetection) {
+					capabilityListeners.set(capability, Event.any(
+						commandDetection.promptInputModel.onDidStartInput,
+						commandDetection.promptInputModel.onDidChangeInput,
+						commandDetection.promptInputModel.onDidFinishInput
+					)(() => this._labelComputer?.refreshLabel(this)));
+				}
+			}
+		}));
+		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
+			capabilityListeners.get(capability)?.dispose();
 		}));
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
@@ -485,8 +511,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Resolve the executable ahead of time if shell integration is enabled, this should not
 			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
 			// to hang in resolver extensions
+			let os: OperatingSystem | undefined;
 			if (!this.shellLaunchConfig.customPtyImplementation && this._terminalConfigurationService.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
-				const os = await this._processManager.getBackendOS();
+				os = await this._processManager.getBackendOS();
 				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
 				this.shellLaunchConfig.executable = defaultProfile.path;
 				this.shellLaunchConfig.args = defaultProfile.args;
@@ -500,6 +527,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this.shellLaunchConfig.color = defaultProfile.color;
 					this.shellLaunchConfig.env = defaultProfile.env;
 				}
+			}
+
+			// Resolve the shell type ahead of time to allow features that depend upon it to work
+			// before the process is actually created (like terminal suggest manual request)
+			if (os && this.shellLaunchConfig.executable) {
+				this.setShellType(guessShellTypeFromExecutable(os, this.shellLaunchConfig.executable));
 			}
 
 			await this._createProcess();
@@ -825,6 +858,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				xterm.refresh();
 			}
 		}));
+		this._register(xterm.onDidChangeProgress(() => this._labelComputer?.refreshLabel(this)));
 
 		// Set up updating of the process cwd on key press, this is only needed when the cwd
 		// detection capability has not been registered
@@ -922,7 +956,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	/**
-	 * Opens the the terminal instance inside the parent DOM element previously set with
+	 * Opens the terminal instance inside the parent DOM element previously set with
 	 * `attachToElement`, you must ensure the parent DOM element is explicitly visible before
 	 * invoking this function as it performs some DOM calculations internally
 	 */
@@ -1488,25 +1522,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
-		// Ensure events are split by SI command execute sequence to ensure the output of the
-		// command can be read by extensions. This must be done here as xterm.js does not currently
-		// have a listener for when individual data events are parsed, only `onWriteParsed` which
-		// fires when the write buffer is flushed.
-		const execIndex = ev.data.indexOf('\x1b]633;C\x07');
-		if (execIndex !== -1) {
-			if (ev.trackCommit) {
-				this._writeProcessData(ev.data.substring(0, execIndex + '\x1b]633;C\x07'.length));
-				ev.writePromise = new Promise<void>(r => this._writeProcessData(ev.data.substring(execIndex + '\x1b]633;C\x07'.length), r));
-			} else {
-				this._writeProcessData(ev.data.substring(0, execIndex + '\x1b]633;C\x07'.length));
-				this._writeProcessData(ev.data.substring(execIndex + '\x1b]633;C\x07'.length));
+		// Ensure events are split by SI command execute and command finished sequence to ensure the
+		// output of the command can be read by extensions and the output of the command is of a
+		// consistent form respectively. This must be done here as xterm.js does not currently have
+		// a listener for when individual data events are parsed, only `onWriteParsed` which fires
+		// when the write buffer is flushed.
+		const leadingSegmentedData: string[] = [];
+		const matches = ev.data.matchAll(/(?<seq>\x1b\][16]33;(?:C|D(?:;\d+)?)\x07)/g);
+		let i = 0;
+		for (const match of matches) {
+			if (match.groups?.seq === undefined) {
+				throw new BugIndicatingError('seq must be defined');
 			}
+			leadingSegmentedData.push(ev.data.substring(i, match.index));
+			leadingSegmentedData.push(match.groups?.seq ?? '');
+			i = match.index + match[0].length;
+		}
+		const lastData = ev.data.substring(i);
+
+		// Write all leading segmented data first, followed by the last data, tracking commit if
+		// necessary
+		for (let i = 0; i < leadingSegmentedData.length; i++) {
+			this._writeProcessData(leadingSegmentedData[i]);
+		}
+		if (ev.trackCommit) {
+			ev.writePromise = new Promise<void>(r => this._writeProcessData(lastData, r));
 		} else {
-			if (ev.trackCommit) {
-				ev.writePromise = new Promise<void>(r => this._writeProcessData(ev.data, r));
-			} else {
-				this._writeProcessData(ev.data);
-			}
+			this._writeProcessData(lastData);
 		}
 	}
 
@@ -1579,7 +1621,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		} else {
 			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
-				if (failedDuringLaunch || this._terminalConfigurationService.config.showExitAlert) {
+				if (failedDuringLaunch || (this._terminalConfigurationService.config.showExitAlert && this.xterm?.lastInputEvent !== /*Ctrl+D*/'\x04')) {
 					// Always show launch failures
 					this._notificationService.notify({
 						message: exitMessage,
@@ -2434,9 +2476,13 @@ interface ITerminalLabelTemplateProperties {
 	local?: string | null | undefined;
 	process?: string | null | undefined;
 	sequence?: string | null | undefined;
+	progress?: string | null | undefined;
 	task?: string | null | undefined;
 	fixedDimensions?: string | null | undefined;
 	separator?: string | ISeparator | null | undefined;
+	shellType?: string | undefined;
+	shellCommand?: string | undefined;
+	shellPromptInput?: string | undefined;
 }
 
 const enum TerminalLabelType {
@@ -2461,7 +2507,7 @@ export class TerminalLabelComputer extends Disposable {
 		super();
 	}
 
-	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
+	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
 		this._title = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.title, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.description, TerminalLabelType.Description);
 		if (this._title !== instance.title || this._description !== instance.description || reset) {
@@ -2470,12 +2516,15 @@ export class TerminalLabelComputer extends Disposable {
 	}
 
 	computeLabel(
-		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'progressState'>,
 		labelTemplate: string,
 		labelType: TerminalLabelType,
 		reset?: boolean
 	) {
 		const type = instance.shellLaunchConfig.attachPersistentProcess?.type || instance.shellLaunchConfig.type;
+		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+		const promptInputModel = commandDetection?.promptInputModel;
+		const nonTaskSpinner = type === 'Task' ? '' : ' $(loading~spin)';
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: instance.cwd || instance.initialCwd || '',
 			cwdFolder: '',
@@ -2488,7 +2537,17 @@ export class TerminalLabelComputer extends Disposable {
 			fixedDimensions: instance.fixedCols
 				? (instance.fixedRows ? `\u2194${instance.fixedCols} \u2195${instance.fixedRows}` : `\u2194${instance.fixedCols}`)
 				: (instance.fixedRows ? `\u2195${instance.fixedRows}` : ''),
-			separator: { label: this._terminalConfigurationService.config.tabs.separator }
+			separator: { label: this._terminalConfigurationService.config.tabs.separator },
+			shellType: instance.shellType,
+			// Shell command requires high confidence
+			shellCommand: commandDetection?.executingCommand && commandDetection.executingCommandConfidence === 'high' && promptInputModel
+				? promptInputModel.value + nonTaskSpinner
+				: undefined,
+			// Shell prompt input does not require high confidence as it's largely for VS Code developers
+			shellPromptInput: commandDetection?.executingCommand && promptInputModel
+				? promptInputModel.getCombinedString(true) + nonTaskSpinner
+				: promptInputModel?.getCombinedString(true),
+			progress: this._getProgressStateString(instance.progressState)
 		};
 		templateProperties.workspaceFolderName = instance.workspaceFolder?.name ?? templateProperties.workspaceFolder;
 		labelTemplate = labelTemplate.trim();
@@ -2525,6 +2584,19 @@ export class TerminalLabelComputer extends Disposable {
 		// Remove special characters that could mess with rendering
 		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null }).replace(/[\n\r\t]/g, '').trim();
 		return label === '' && labelType === TerminalLabelType.Title ? (instance.processName || '') : label;
+	}
+
+	private _getProgressStateString(progressState?: IProgressState): string {
+		if (!progressState) {
+			return '';
+		}
+		switch (progressState.state) {
+			case 0: return '';
+			case 1: return `${Math.round(progressState.value)}%`;
+			case 2: return '$(error)';
+			case 3: return '$(loading~spin)';
+			case 4: return '$(alert)';
+		}
 	}
 }
 
@@ -2621,4 +2693,48 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 		}
 		return theme.getColor(SIDE_BAR_BACKGROUND);
 	}
+}
+
+function guessShellTypeFromExecutable(os: OperatingSystem, executable: string): TerminalShellType | undefined {
+	const exeBasename = path.basename(executable);
+	const generalShellTypeMap: Map<TerminalShellType, RegExp> = new Map([
+		[GeneralShellType.Julia, /^julia$/],
+		[GeneralShellType.Node, /^node$/],
+		[GeneralShellType.NuShell, /^nu$/],
+		[GeneralShellType.PowerShell, /^pwsh(-preview)?|powershell$/],
+		[GeneralShellType.Python, /^py(?:thon)?$/]
+	]);
+	for (const [shellType, pattern] of generalShellTypeMap) {
+		if (exeBasename.match(pattern)) {
+			return shellType;
+		}
+	}
+
+	if (os === OperatingSystem.Windows) {
+		const windowsShellTypeMap: Map<TerminalShellType, RegExp> = new Map([
+			[WindowsShellType.CommandPrompt, /^cmd$/],
+			[WindowsShellType.GitBash, /^bash$/],
+			[WindowsShellType.Wsl, /^wsl$/]
+		]);
+		for (const [shellType, pattern] of windowsShellTypeMap) {
+			if (exeBasename.match(pattern)) {
+				return shellType;
+			}
+		}
+	} else {
+		const posixShellTypes: PosixShellType[] = [
+			PosixShellType.Bash,
+			PosixShellType.Csh,
+			PosixShellType.Fish,
+			PosixShellType.Ksh,
+			PosixShellType.Sh,
+			PosixShellType.Zsh,
+		];
+		for (const type of posixShellTypes) {
+			if (exeBasename === type) {
+				return type;
+			}
+		}
+	}
+	return undefined;
 }

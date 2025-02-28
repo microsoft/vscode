@@ -225,20 +225,20 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	}
 }
 
-export function createFileStat(resource: URI, readonly = false): IFileStatWithMetadata {
+export function createFileStat(resource: URI, readonly = false, isFile?: boolean, isDirectory?: boolean, children?: { resource: URI; isFile?: boolean; isDirectory?: boolean }[] | undefined): IFileStatWithMetadata {
 	return {
 		resource,
 		etag: Date.now().toString(),
 		mtime: Date.now(),
 		ctime: Date.now(),
 		size: 42,
-		isFile: true,
-		isDirectory: false,
+		isFile: isFile ?? true,
+		isDirectory: isDirectory ?? false,
 		isSymbolicLink: false,
 		readonly,
 		locked: false,
 		name: basename(resource),
-		children: undefined
+		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory))
 	};
 }
 
@@ -478,4 +478,7 @@ export class TestMarkerService implements IMarkerService {
 	changeAll(owner: string, data: IResourceMarker[]): void { }
 	remove(owner: string, resources: URI[]): void { }
 	read(filter?: { owner?: string | undefined; resource?: URI | undefined; severities?: number | undefined; take?: number | undefined } | undefined): IMarker[] { return []; }
+	installResourceFilter(resource: URI, reason: string): IDisposable {
+		return { dispose: () => { /* TODO: Implement cleanup logic */ } };
+	}
 }

@@ -92,6 +92,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private readonly nameForTelemetry: string,
 		private readonly compositeCSSClass: string,
 		private readonly titleForegroundColor: string | undefined,
+		private readonly titleBorderColor: string | undefined,
 		id: string,
 		options: IPartOptions
 	) {
@@ -436,6 +437,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			updateStyles: () => {
 				titleLabel.style.color = $this.titleForegroundColor ? $this.getColor($this.titleForegroundColor) || '' : '';
+				const borderColor = $this.titleBorderColor ? $this.getColor($this.titleBorderColor) : undefined;
+				parent.style.borderBottom = borderColor ? `1px solid ${borderColor}` : '';
 			}
 		};
 	}

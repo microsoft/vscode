@@ -20,6 +20,7 @@ import { Widget } from '../../../../../../base/browser/ui/widget.js';
 import { Action, ActionRunner, IAction, IActionRunner, Separator } from '../../../../../../base/common/actions.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isSafari } from '../../../../../../base/common/platform.js';
@@ -28,7 +29,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { FindReplaceState, FindReplaceStateChangedEvent } from '../../../../../../editor/contrib/find/browser/findState.js';
 import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, findSelectionIcon, SimpleButton } from '../../../../../../editor/contrib/find/browser/findWidget.js';
 import { parseReplaceString, ReplacePattern } from '../../../../../../editor/contrib/find/browser/replacePattern.js';
-import { createAndFillInActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenu } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -222,7 +223,7 @@ export class NotebookFindInputFilterButton extends Disposable {
 		this._actionbar = this._register(new ActionBar(container, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === this._filtersAction.id) {
-					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, options, new ActionRunner());
+					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, options, this._register(new ActionRunner()));
 				}
 				return undefined;
 			}
@@ -279,13 +280,7 @@ export class NotebookFindInput extends FindInput {
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-		return result;
+		return getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
 	}
 }
 
@@ -335,6 +330,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	) {
 		super();
 
+		this._register(this._state);
+
 		const findFilters = this._configurationService.getValue<{
 			markupSource: boolean;
 			markupPreview: boolean;
@@ -351,6 +348,17 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
+
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(NotebookSetting.globalToolbar)) {
+				if (this._notebookEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+					this._domNode.style.top = '26px';
+				} else {
+					this._domNode.style.top = '0px';
+				}
+			}
+		}));
+
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
 
@@ -560,7 +568,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
-			history: [],
+			history: new Set([]),
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles
 		}, contextKeyService, false));
@@ -651,13 +659,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
-		return result;
+		return getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
 	}
 
 	protected abstract onInputChanged(): boolean;
@@ -688,6 +690,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	public get focusTracker(): dom.IFocusTracker {
 		return this._focusTracker;
+	}
+
+	public get isVisible(): boolean {
+		return this._isVisible;
 	}
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {

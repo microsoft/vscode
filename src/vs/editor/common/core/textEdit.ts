@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../base/common/arrays.js';
 import { assert, assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { commonPrefixLength, commonSuffixLength } from '../../../base/common/strings.js';
+import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../base/common/strings.js';
 import { ISingleEditOperation } from './editOperation.js';
 import { LineRange } from './lineRange.js';
 import { OffsetEdit } from './offsetEdit.js';
@@ -188,6 +189,10 @@ export class TextEdit {
 		}
 		return new SingleTextEdit(Range.fromPositions(startPos, endPos), newText);
 	}
+
+	equals(other: TextEdit): boolean {
+		return equals(this.edits, other.edits, (a, b) => a.equals(b));
+	}
 }
 
 export class SingleTextEdit {
@@ -329,6 +334,11 @@ export abstract class AbstractText {
 
 	getLineAt(lineNumber: number): string {
 		return this.getValueOfRange(new Range(lineNumber, 1, lineNumber, Number.MAX_SAFE_INTEGER));
+	}
+
+	getLines(): string[] {
+		const value = this.getValue();
+		return splitLines(value);
 	}
 }
 

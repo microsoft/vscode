@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import { safeInnerHtml } from '../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
-import './media/issueReporter.css';
 import { localize } from '../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -15,11 +15,12 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import product from '../../../../platform/product/common/product.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
-import BaseHtml from './issueReporterPage.js';
-import { IssueWebReporter } from './issueReporterService.js';
-import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IIssueFormService, IssueReporterData } from '../common/issue.js';
+import BaseHtml from './issueReporterPage.js';
+import { IssueWebReporter } from './issueReporterService.js';
+import './media/issueReporter.css';
 
 export interface IssuePassData {
 	issueTitle: string;
@@ -78,10 +79,12 @@ export class IssueFormService implements IIssueFormService {
 		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: issueReporterBounds, nativeTitlebar: true, disableFullscreen: true }));
 
+		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
+
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
-			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body');
+			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
 
 			// custom issue reporter wrapper
 			const div = document.createElement('div');
@@ -111,8 +114,8 @@ export class IssueFormService implements IIssueFormService {
 		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
 		for (const action of actions) {
 			try {
-				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-					this.extensionIdentifierSet.add(extensionId);
+				if (action.item && 'source' in action.item && action.item.source?.id.toLowerCase() === extensionId.toLowerCase()) {
+					this.extensionIdentifierSet.add(extensionId.toLowerCase());
 					await action.run();
 				}
 			} catch (error) {

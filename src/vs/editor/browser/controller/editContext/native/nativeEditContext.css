@@ -13,6 +13,21 @@
 	text-wrap: nowrap;
 }
 
+.monaco-editor .native-edit-context-textarea {
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	outline: none !important;
+	resize: none;
+	border: none;
+	overflow: hidden;
+	color: transparent;
+	background-color: transparent;
+	z-index: -10;
+}
+
 .monaco-editor .edit-context-composition-none {
 	background-color: transparent;
 	border-bottom: none;

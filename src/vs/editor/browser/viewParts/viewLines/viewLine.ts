@@ -54,7 +54,7 @@ export class ViewLine implements IVisibleLine {
 	private _isMaybeInvalid: boolean;
 	private _renderedViewLine: IRenderedViewLine | null;
 
-	constructor(options: ViewLineOptions) {
+	constructor(private readonly _viewGpuContext: ViewGpuContext | undefined, options: ViewLineOptions) {
 		this._options = options;
 		this._isMaybeInvalid = true;
 		this._renderedViewLine = null;
@@ -98,7 +98,7 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
-		if (this._options.useGpu && ViewGpuContext.canRender(this._options, viewportData, lineNumber)) {
+		if (this._options.useGpu && this._viewGpuContext?.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
 			return false;

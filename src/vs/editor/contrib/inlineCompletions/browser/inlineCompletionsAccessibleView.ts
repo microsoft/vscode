@@ -9,13 +9,13 @@ import { ICodeEditorService } from '../../../browser/services/codeEditorService.
 import { InlineCompletionContextKeys } from './controller/inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './controller/inlineCompletionsController.js';
 import { AccessibleViewType, AccessibleViewProviderId, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InlineCompletionsModel } from './model/inlineCompletionsModel.js';
 
-export class InlineCompletionsAccessibleView implements IAccessibleViewImplentation {
+export class InlineCompletionsAccessibleView implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.View;
 	readonly priority = 95;
 	readonly name = 'inline-completions';
@@ -28,7 +28,7 @@ export class InlineCompletionsAccessibleView implements IAccessibleViewImplentat
 		}
 
 		const model = InlineCompletionsController.get(editor)?.model.get();
-		if (!model?.state.get()) {
+		if (!model?.inlineCompletionState.get()) {
 			return;
 		}
 
@@ -51,7 +51,7 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 	public readonly options = { language: this._editor.getModel()?.getLanguageId() ?? undefined, type: AccessibleViewType.View };
 
 	public provideContent(): string {
-		const state = this._model.state.get();
+		const state = this._model.inlineCompletionState.get();
 		if (!state) {
 			throw new Error('Inline completion is visible but state is not available');
 		}

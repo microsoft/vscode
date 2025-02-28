@@ -5,7 +5,6 @@
 import * as nls from '../../../../nls.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import * as Constants from '../common/constants.js';
-import { RenderableMatch } from './searchModel.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { category } from './searchActionsBase.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -14,6 +13,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IEditor } from '../../../../editor/common/editorCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getSelectionTextFromEditor } from './searchView.js';
+import { RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
 
 registerAction2(class TextSearchQuickAccessAction extends Action2 {
 

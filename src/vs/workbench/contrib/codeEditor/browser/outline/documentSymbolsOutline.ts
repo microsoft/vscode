@@ -10,7 +10,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IEditorPane } from '../../../../common/editor.js';
-import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from './documentSymbolsTree.js';
+import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate, DocumentSymbolDragAndDrop } from './documentSymbolsTree.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker, IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -169,7 +169,8 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				? instantiationService.createInstance(DocumentSymbolFilter, 'outline')
 				: target === OutlineTarget.Breadcrumbs
 					? instantiationService.createInstance(DocumentSymbolFilter, 'breadcrumbs')
-					: undefined
+					: undefined,
+			dnd: instantiationService.createInstance(DocumentSymbolDragAndDrop),
 		};
 
 		this.config = {

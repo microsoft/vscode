@@ -11,7 +11,7 @@ import { Part } from '../../part.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
+import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
@@ -29,15 +29,15 @@ import { IPaneCompositePart } from '../paneCompositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from '../paneCompositeBar.js';
 import { GlobalCompositeBar } from '../globalCompositeBar.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { Action2, IAction2Options, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IViewDescriptorService, ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 
 export class ActivitybarPart extends Part {
 
@@ -116,6 +116,10 @@ export class ActivitybarPart extends Part {
 
 	getVisiblePaneCompositeIds(): string[] {
 		return this.compositeBar.value?.getVisiblePaneCompositeIds() ?? [];
+	}
+
+	getPaneCompositeIds(): string[] {
+		return this.compositeBar.value?.getPaneCompositeIds() ?? [];
 	}
 
 	focus(): void {
@@ -366,12 +370,17 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 	getActivityBarContextMenuActions(): IAction[] {
 		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
-		const positionActions: IAction[] = [];
-		createAndFillInContextMenuActions(activityBarPositionMenu, { primary: [], secondary: positionActions });
-		return [
+		const positionActions = getContextMenuActions(activityBarPositionMenu).secondary;
+		const actions = [
 			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
-			toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) })
+			toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }),
 		];
+
+		if (this.part === Parts.SIDEBAR_PART) {
+			actions.push(toAction({ id: ToggleSidebarVisibilityAction.ID, label: ToggleSidebarVisibilityAction.LABEL, run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarVisibilityAction().run(accessor)) }));
+		}
+
+		return actions;
 	}
 
 }
@@ -490,74 +499,35 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
 	submenu: MenuId.ActivityBarPositionMenu,
 	title: localize('positionActivituBar', "Activity Bar Position"),
-	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+		ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))
+	),
 	group: '3_workbench_layout_move',
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.ViewTitleContext, {
-	submenu: MenuId.ActivityBarPositionMenu,
-	title: localize('positionActivituBar', "Activity Bar Position"),
-	when: ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-	group: '3_workbench_layout_move',
-	order: 1
+registerAction2(class extends SwitchCompositeViewAction {
+	constructor() {
+		super({
+			id: 'workbench.action.previousSideBarView',
+			title: localize2('previousSideBarView', 'Previous Primary Side Bar View'),
+			category: Categories.View,
+			f1: true
+		}, ViewContainerLocation.Sidebar, -1);
+	}
 });
 
-class SwitchSideBarViewAction extends Action2 {
-
-	constructor(
-		desc: Readonly<IAction2Options>,
-		private readonly offset: number
-	) {
-		super(desc);
+registerAction2(class extends SwitchCompositeViewAction {
+	constructor() {
+		super({
+			id: 'workbench.action.nextSideBarView',
+			title: localize2('nextSideBarView', 'Next Primary Side Bar View'),
+			category: Categories.View,
+			f1: true
+		}, ViewContainerLocation.Sidebar, 1);
 	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-
-		const visibleViewletIds = paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.Sidebar);
-
-		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
-		if (!activeViewlet) {
-			return;
-		}
-		let targetViewletId: string | undefined;
-		for (let i = 0; i < visibleViewletIds.length; i++) {
-			if (visibleViewletIds[i] === activeViewlet.getId()) {
-				targetViewletId = visibleViewletIds[(i + visibleViewletIds.length + this.offset) % visibleViewletIds.length];
-				break;
-			}
-		}
-
-		await paneCompositeService.openPaneComposite(targetViewletId, ViewContainerLocation.Sidebar, true);
-	}
-}
-
-registerAction2(
-	class PreviousSideBarViewAction extends SwitchSideBarViewAction {
-		constructor() {
-			super({
-				id: 'workbench.action.previousSideBarView',
-				title: localize2('previousSideBarView', 'Previous Primary Side Bar View'),
-				category: Categories.View,
-				f1: true
-			}, -1);
-		}
-	}
-);
-
-registerAction2(
-	class NextSideBarViewAction extends SwitchSideBarViewAction {
-		constructor() {
-			super({
-				id: 'workbench.action.nextSideBarView',
-				title: localize2('nextSideBarView', 'Next Primary Side Bar View'),
-				category: Categories.View,
-				f1: true
-			}, 1);
-		}
-	}
-);
+});
 
 registerAction2(
 	class FocusActivityBarAction extends Action2 {

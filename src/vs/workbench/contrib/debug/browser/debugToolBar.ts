@@ -22,7 +22,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { localize } from '../../../../nls.js';
 import { ICommandAction, ICommandActionTitle } from '../../../../platform/action/common/action.js';
 import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -32,7 +32,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { TitleBarSetting } from '../../../../platform/window/common/window.js';
+import { getTitleBarStyle, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_IN_DEBUG_MODE, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from '../common/debug.js';
@@ -80,7 +80,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.$el = dom.$('div.debug-toolbar');
 
 		// Note: changes to this setting require a restart, so no need to listen to it.
-		const customTitleBar = this.configurationService.getValue(TitleBarSetting.TITLE_BAR_STYLE) === 'custom';
+		const customTitleBar = getTitleBarStyle(this.configurationService) === TitlebarStyle.CUSTOM;
 
 		// Do not allow the widget to overflow or underflow window controls.
 		// Use CSS calculations to avoid having to force layout with `.clientWidth`
@@ -132,8 +132,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				return this.hide();
 			}
 
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(this.debugToolBarMenu, { shouldForwardArgs: true }, actions);
+			const actions = getFlatActionBarActions(this.debugToolBarMenu.getActions({ shouldForwardArgs: true }));
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id && first.enabled === second.enabled)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
@@ -184,7 +183,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const activeWindow = dom.getWindow(this.layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
-			const originX = this.getCurrentXPercent();
+			const originX = this.computeCurrentXPercent();
 			const originY = this.getCurrentYPosition();
 
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
@@ -221,10 +220,23 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 	}
 
+	/**
+	 * Computes the x percent position at which the toolbar is currently displayed.
+	 */
+	private computeCurrentXPercent(): number {
+		const { left, width } = this.$el.getBoundingClientRect();
+		return (left + width / 2) / dom.getWindow(this.$el).innerWidth;
+	}
+
+	/**
+	 * Gets the x position set in the style of the toolbar. This may not be its
+	 * actual position on screen depending on toolbar locations.
+	 */
 	private getCurrentXPercent(): number {
 		return Number(this.$el.style.getPropertyValue('--x-position'));
 	}
 
+	/** Gets the y position set in the style of the toolbar */
 	private getCurrentYPosition(): number {
 		return parseInt(this.$el.style.getPropertyValue('--y-position'));
 	}
@@ -364,8 +376,7 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const menu = menuService.getMenuActions(MenuId.DebugToolBarStop, contextKeyService, { shouldForwardArgs: true });
-	const secondary: IAction[] = [];
-	createAndFillInActionBarActions(menu, secondary);
+	const secondary = getFlatActionBarActions(menu);
 
 	if (!secondary.length) {
 		return undefined;

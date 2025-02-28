@@ -77,8 +77,6 @@ interface StandardTsServerRequests {
 	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestions];
 	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
 	'mapCode': [Proto.MapCodeRequestArgs, Proto.MapCodeResponse];
-	// @ts-expect-error until ts5.7
-	'copilotRelated': [Proto.FileRequestArgs, Proto.CopilotRelatedResponse];
 	'getPasteEdits': [Proto.GetPasteEditsRequestArgs, Proto.GetPasteEditsResponse];
 	'preparePasteEdits': [Proto.PreparePasteEditsRequestArgs, Proto.PreparePasteEditsResponse];
 }
@@ -153,7 +151,7 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
-	toOpenTsFilePath(document: vscode.TextDocument, options?: {
+	toOpenTsFilePath(document: vscode.TextDocument | vscode.Uri, options?: {
 		suppressAlertOnFailure?: boolean;
 	}): string | undefined;
 

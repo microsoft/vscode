@@ -159,14 +159,33 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
 					// clear terminal before reusing it
+					let clearCommand: string;
 					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
-						terminal.sendText('cls');
+						clearCommand = 'cls';
 					} else if (shell.indexOf('bash') >= 0) {
-						terminal.sendText('clear');
+						clearCommand = 'clear';
 					} else if (platform.isWindows) {
-						terminal.sendText('cls');
+						clearCommand = 'cls';
 					} else {
-						terminal.sendText('clear');
+						clearCommand = 'clear';
+					}
+
+					if (terminal.shellIntegration) {
+						const ds = new DisposableStore();
+						const execution = terminal.shellIntegration.executeCommand(clearCommand);
+						await new Promise<void>(resolve => {
+							ds.add(this._terminalShellIntegrationService.onDidEndTerminalShellExecution(e => {
+								if (e.execution === execution) {
+									resolve();
+								}
+							}));
+							ds.add(disposableTimeout(resolve, 500)); // 500ms timeout to ensure we resolve
+						});
+
+						ds.dispose();
+					} else {
+						terminal.sendText(clearCommand);
+						await timeout(200); // add a small delay to ensure the command is processed, see #240953
 					}
 				}
 			}

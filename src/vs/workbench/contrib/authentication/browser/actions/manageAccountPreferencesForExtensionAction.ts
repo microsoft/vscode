@@ -7,11 +7,13 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IAccountUsage, IAuthenticationUsageService } from '../../../../services/authentication/browser/authenticationUsageService.js';
-import { AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../../../services/authentication/common/authentication.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 export class ManageAccountPreferencesForExtensionAction extends Action2 {
@@ -47,6 +49,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 	constructor(
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IAuthenticationUsageService private readonly _authenticationUsageService: IAuthenticationUsageService,
 		@IAuthenticationExtensionsService private readonly _authenticationExtensionsService: IAuthenticationExtensionsService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -69,9 +72,13 @@ class ManageAccountPreferenceForExtensionActionImpl {
 			providerIdToAccounts.set(providerId, await this._authenticationService.getAccounts(providerId));
 		} else {
 			for (const providerId of this._authenticationService.getProviderIds()) {
+				if (providerId.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
+					// Don't show internal providers
+					continue;
+				}
 				const accounts = await this._authenticationService.getAccounts(providerId);
 				for (const account of accounts) {
-					const usage = this._authenticationUsageService.readAccountUsages(providerId, account.label).find(u => u.extensionId === extensionId.toLowerCase());
+					const usage = this._authenticationUsageService.readAccountUsages(providerId, account.label).find(u => ExtensionIdentifier.equals(u.extensionId, extensionId));
 					if (usage) {
 						providerIds.push(providerId);
 						providerIdToAccounts.set(providerId, accounts);
@@ -97,6 +104,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		}
 
 		if (!chosenProviderId) {
+			await this._dialogService.info(localize('noAccountUsage', "This extension has not used any accounts yet."));
 			return;
 		}
 
@@ -110,7 +118,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 			// Get the last used scopes for the last used account. This will be used to pre-fill the scopes when adding a new account.
 			// If there's no scopes, then don't add this option.
 			const lastUsedScopes = accounts
-				.flatMap(account => this._authenticationUsageService.readAccountUsages(chosenProviderId!, account.label).find(u => u.extensionId === extensionId.toLowerCase()))
+				.flatMap(account => this._authenticationUsageService.readAccountUsages(chosenProviderId!, account.label).find(u => ExtensionIdentifier.equals(u.extensionId, extensionId)))
 				.filter((usage): usage is IAccountUsage => !!usage)
 				.sort((a, b) => b.lastUsed - a.lastUsed)?.[0]?.scopes;
 			if (lastUsedScopes) {
@@ -124,7 +132,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		}
 
 		const disposables = new DisposableStore();
-		const picker = this._createQuickPick(disposables, extensionId, extension.displayName ?? extension.name);
+		const picker = this._createQuickPick(disposables, extensionId, extension.displayName ?? extension.name, provider.label);
 		if (items.length === 0) {
 			// We would only get here if we went through the Command Palette
 			disposables.add(this._handleNoAccounts(picker));
@@ -134,12 +142,12 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		picker.show();
 	}
 
-	private _createQuickPick(disposableStore: DisposableStore, extensionId: string, extensionLabel: string) {
+	private _createQuickPick(disposableStore: DisposableStore, extensionId: string, extensionLabel: string, providerLabel: string) {
 		const picker = disposableStore.add(this._quickInputService.createQuickPick<AccountPreferenceQuickPickItem>({ useSeparators: true }));
 		disposableStore.add(picker.onDidHide(() => {
 			disposableStore.dispose();
 		}));
-		picker.placeholder = localize('placeholder', "Manage '{0}' account preferences...", extensionLabel);
+		picker.placeholder = localize('placeholder v2', "Manage '{0}' account preferences for {1}...", extensionLabel, providerLabel);
 		picker.title = localize('title', "'{0}' Account Preferences For This Workspace", extensionLabel);
 		picker.sortByLabel = false;
 		disposableStore.add(picker.onDidAccept(async () => {

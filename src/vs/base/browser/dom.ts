@@ -10,7 +10,7 @@ import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
 import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
 import { onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
-import * as dompurify from './dompurify/dompurify.js';
+import dompurify from './dompurify/dompurify.js';
 import { KeyCode } from '../common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
 import { RemoteAuthorities, Schemas } from '../common/network.js';
@@ -19,6 +19,8 @@ import { URI } from '../common/uri.js';
 import { hash } from '../common/hash.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
 import { isPointWithinTriangle } from '../common/numbers.js';
+export * from './domImpl/domObservable.js';
+export * from './domImpl/n.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -463,7 +465,7 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return getWindow(el).getComputedStyle(el, null);
 }
 
-export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dimension {
+export function getClientArea(element: HTMLElement, defaultValue?: Dimension, fallbackElement?: HTMLElement): Dimension {
 	const elWindow = getWindow(element);
 	const elDocument = elWindow.document;
 
@@ -492,8 +494,12 @@ export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dim
 		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
 	}
 
-	if (fallback) {
-		return getClientArea(fallback);
+	if (fallbackElement) {
+		return getClientArea(fallbackElement, defaultValue);
+	}
+
+	if (defaultValue) {
+		return defaultValue;
 	}
 
 	throw new Error('Unable to figure out browser width and height');
@@ -506,49 +512,49 @@ class SizeUtils {
 		return parseFloat(value) || 0;
 	}
 
-	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
+	private static getDimension(element: HTMLElement, cssPropertyName: string): number {
 		const computedStyle = getComputedStyle(element);
 		const value = computedStyle ? computedStyle.getPropertyValue(cssPropertyName) : '0';
 		return SizeUtils.convertToPixels(element, value);
 	}
 
 	static getBorderLeftWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-left-width', 'borderLeftWidth');
+		return SizeUtils.getDimension(element, 'border-left-width');
 	}
 	static getBorderRightWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-right-width', 'borderRightWidth');
+		return SizeUtils.getDimension(element, 'border-right-width');
 	}
 	static getBorderTopWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-top-width', 'borderTopWidth');
+		return SizeUtils.getDimension(element, 'border-top-width');
 	}
 	static getBorderBottomWidth(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'border-bottom-width', 'borderBottomWidth');
+		return SizeUtils.getDimension(element, 'border-bottom-width');
 	}
 
 	static getPaddingLeft(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-left', 'paddingLeft');
+		return SizeUtils.getDimension(element, 'padding-left');
 	}
 	static getPaddingRight(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-right', 'paddingRight');
+		return SizeUtils.getDimension(element, 'padding-right');
 	}
 	static getPaddingTop(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-top', 'paddingTop');
+		return SizeUtils.getDimension(element, 'padding-top');
 	}
 	static getPaddingBottom(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'padding-bottom', 'paddingBottom');
+		return SizeUtils.getDimension(element, 'padding-bottom');
 	}
 
 	static getMarginLeft(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-left', 'marginLeft');
+		return SizeUtils.getDimension(element, 'margin-left');
 	}
 	static getMarginTop(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-top', 'marginTop');
+		return SizeUtils.getDimension(element, 'margin-top');
 	}
 	static getMarginRight(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-right', 'marginRight');
+		return SizeUtils.getDimension(element, 'margin-right');
 	}
 	static getMarginBottom(element: HTMLElement): number {
-		return SizeUtils.getDimension(element, 'margin-bottom', 'marginBottom');
+		return SizeUtils.getDimension(element, 'margin-bottom');
 	}
 }
 
@@ -922,105 +928,6 @@ export function getActiveWindow(): CodeWindow {
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
-const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
-
-export function isGlobalStylesheet(node: Node): boolean {
-	return globalStylesheets.has(node as HTMLStyleElement);
-}
-
-/**
- * A version of createStyleSheet which has a unified API to initialize/set the style content.
- */
-export function createStyleSheet2(): WrappedStyleElement {
-	return new WrappedStyleElement();
-}
-
-class WrappedStyleElement {
-	private _currentCssStyle = '';
-	private _styleSheet: HTMLStyleElement | undefined = undefined;
-
-	public setStyle(cssStyle: string): void {
-		if (cssStyle === this._currentCssStyle) {
-			return;
-		}
-		this._currentCssStyle = cssStyle;
-
-		if (!this._styleSheet) {
-			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = cssStyle);
-		} else {
-			this._styleSheet.innerText = cssStyle;
-		}
-	}
-
-	public dispose(): void {
-		if (this._styleSheet) {
-			this._styleSheet.remove();
-			this._styleSheet = undefined;
-		}
-	}
-}
-
-export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
-	const style = document.createElement('style');
-	style.type = 'text/css';
-	style.media = 'screen';
-	beforeAppend?.(style);
-	container.appendChild(style);
-
-	if (disposableStore) {
-		disposableStore.add(toDisposable(() => style.remove()));
-	}
-
-	// With <head> as container, the stylesheet becomes global and is tracked
-	// to support auxiliary windows to clone the stylesheet.
-	if (container === mainWindow.document.head) {
-		const globalStylesheetClones = new Set<HTMLStyleElement>();
-		globalStylesheets.set(style, globalStylesheetClones);
-
-		for (const { window: targetWindow, disposables } of getWindows()) {
-			if (targetWindow === mainWindow) {
-				continue; // main window is already tracked
-			}
-
-			const cloneDisposable = disposables.add(cloneGlobalStyleSheet(style, globalStylesheetClones, targetWindow));
-			disposableStore?.add(cloneDisposable);
-		}
-	}
-
-	return style;
-}
-
-export function cloneGlobalStylesheets(targetWindow: Window): IDisposable {
-	const disposables = new DisposableStore();
-
-	for (const [globalStylesheet, clonedGlobalStylesheets] of globalStylesheets) {
-		disposables.add(cloneGlobalStyleSheet(globalStylesheet, clonedGlobalStylesheets, targetWindow));
-	}
-
-	return disposables;
-}
-
-function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesheetClones: Set<HTMLStyleElement>, targetWindow: Window): IDisposable {
-	const disposables = new DisposableStore();
-
-	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
-	targetWindow.document.head.appendChild(clone);
-	disposables.add(toDisposable(() => clone.remove()));
-
-	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
-		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
-	}
-
-	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true })(() => {
-		clone.textContent = globalStylesheet.textContent;
-	}));
-
-	globalStylesheetClones.add(clone);
-	disposables.add(toDisposable(() => globalStylesheetClones.delete(clone)));
-
-	return disposables;
-}
-
 interface IMutationObserver {
 	users: number;
 	readonly observer: MutationObserver;
@@ -1086,67 +993,6 @@ function createHeadElement(tagName: string, container: HTMLElement = mainWindow.
 	const element = document.createElement(tagName);
 	container.appendChild(element);
 	return element;
-}
-
-let _sharedStyleSheet: HTMLStyleElement | null = null;
-function getSharedStyleSheet(): HTMLStyleElement {
-	if (!_sharedStyleSheet) {
-		_sharedStyleSheet = createStyleSheet();
-	}
-	return _sharedStyleSheet;
-}
-
-function getDynamicStyleSheetRules(style: HTMLStyleElement) {
-	if (style?.sheet?.rules) {
-		// Chrome, IE
-		return style.sheet.rules;
-	}
-	if (style?.sheet?.cssRules) {
-		// FF
-		return style.sheet.cssRules;
-	}
-	return [];
-}
-
-export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
-	if (!style || !cssText) {
-		return;
-	}
-
-	style.sheet?.insertRule(`${selector} {${cssText}}`, 0);
-
-	// Apply rule also to all cloned global stylesheets
-	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
-		createCSSRule(selector, cssText, clonedGlobalStylesheet);
-	}
-}
-
-export function removeCSSRulesContainingSelector(ruleName: string, style = getSharedStyleSheet()): void {
-	if (!style) {
-		return;
-	}
-
-	const rules = getDynamicStyleSheetRules(style);
-	const toDelete: number[] = [];
-	for (let i = 0; i < rules.length; i++) {
-		const rule = rules[i];
-		if (isCSSStyleRule(rule) && rule.selectorText.indexOf(ruleName) !== -1) {
-			toDelete.push(i);
-		}
-	}
-
-	for (let i = toDelete.length - 1; i >= 0; i--) {
-		style.sheet?.deleteRule(toDelete[i]);
-	}
-
-	// Remove rules also from all cloned global stylesheets
-	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
-		removeCSSRulesContainingSelector(ruleName, clonedGlobalStylesheet);
-	}
-}
-
-function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
-	return typeof (rule as CSSStyleRule).selectorText === 'string';
 }
 
 export function isHTMLElement(e: unknown): e is HTMLElement {
@@ -2349,22 +2195,23 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 	return result;
 }
 
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem<TTag extends string>
 	(tag: TTag):
 	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem<TTag extends string, T extends Child[]>
 	(tag: TTag, children: [...T]):
 	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem<TTag extends string>
 	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>):
 	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem<TTag extends string, T extends Child[]>
 	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>, children: [...T]):
 	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & Partial<ElementAttributes<HTMLElement>> | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
 	let attributes: { $?: string } & Partial<ElementAttributes<HTMLElement>>;
 	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;

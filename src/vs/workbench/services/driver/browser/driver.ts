@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getClientArea, getTopLeftOffset } from '../../../../base/browser/dom.js';
+import { getClientArea, getTopLeftOffset, isHTMLDivElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { language, locale } from '../../../../base/common/platform.js';
@@ -133,18 +133,54 @@ export class BrowserWindowDriver implements IWindowDriver {
 		if (!element) {
 			throw new Error(`Editor not found: ${selector}`);
 		}
+		if (isHTMLDivElement(element)) {
+			// Edit context is enabled
+			const editContext = element.editContext;
+			if (!editContext) {
+				throw new Error(`Edit context not found: ${selector}`);
+			}
+			const selectionStart = editContext.selectionStart;
+			const selectionEnd = editContext.selectionEnd;
+			const event = new TextUpdateEvent('textupdate', {
+				updateRangeStart: selectionStart,
+				updateRangeEnd: selectionEnd,
+				text,
+				selectionStart: selectionStart + text.length,
+				selectionEnd: selectionStart + text.length,
+				compositionStart: 0,
+				compositionEnd: 0
+			});
+			editContext.dispatchEvent(event);
+		} else if (isHTMLTextAreaElement(element)) {
+			const start = element.selectionStart;
+			const newStart = start + text.length;
+			const value = element.value;
+			const newValue = value.substr(0, start) + text + value.substr(start);
 
-		const textarea = element as HTMLTextAreaElement;
-		const start = textarea.selectionStart;
-		const newStart = start + text.length;
-		const value = textarea.value;
-		const newValue = value.substr(0, start) + text + value.substr(start);
+			element.value = newValue;
+			element.setSelectionRange(newStart, newStart);
 
-		textarea.value = newValue;
-		textarea.setSelectionRange(newStart, newStart);
+			const event = new Event('input', { 'bubbles': true, 'cancelable': true });
+			element.dispatchEvent(event);
+		}
+	}
 
-		const event = new Event('input', { 'bubbles': true, 'cancelable': true });
-		textarea.dispatchEvent(event);
+	async getEditorSelection(selector: string): Promise<{ selectionStart: number; selectionEnd: number }> {
+		const element = mainWindow.document.querySelector(selector);
+		if (!element) {
+			throw new Error(`Editor not found: ${selector}`);
+		}
+		if (isHTMLDivElement(element)) {
+			const editContext = element.editContext;
+			if (!editContext) {
+				throw new Error(`Edit context not found: ${selector}`);
+			}
+			return { selectionStart: editContext.selectionStart, selectionEnd: editContext.selectionEnd };
+		} else if (isHTMLTextAreaElement(element)) {
+			return { selectionStart: element.selectionStart, selectionEnd: element.selectionEnd };
+		} else {
+			throw new Error(`Unknown type of element: ${selector}`);
+		}
 	}
 
 	async getTerminalBuffer(selector: string): Promise<string[]> {

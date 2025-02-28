@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -40,6 +40,7 @@ import { INotebookKernelService } from '../../common/notebookKernelService.js';
 import { ICellRange } from '../../common/notebookRange.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { NotebookInlineVariablesController } from '../contrib/notebookVariables/notebookInlineVariables.js';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -58,7 +59,6 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_CELL_LIST_FOCUSED,
 						ContextKeyExpr.not(InputFocusedContextKey),
-						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 						EditorContextKeys.hoverFocused.toNegated(),
 						NOTEBOOK_OUTPUT_INPUT_FOCUSED.toNegated()
 					),
@@ -80,7 +80,7 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		if (!context.notebookEditor.hasModel() || context.notebookEditor.isReadOnly) {
+		if (!context.notebookEditor.hasModel()) {
 			return;
 		}
 
@@ -339,6 +339,9 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 		if (clearExecutionMetadataEdits.length) {
 			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
 		}
+
+		const controller = editor.getContribution<NotebookInlineVariablesController>(NotebookInlineVariablesController.id);
+		controller.clearNotebookInlineDecorations();
 	}
 });
 
@@ -358,6 +361,11 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		super({
 			id: CHANGE_CELL_LANGUAGE,
 			title: localize('changeLanguage', 'Change Cell Language'),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyM),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE)
+			},
 			metadata: {
 				description: localize('changeLanguage', 'Change Cell Language'),
 				args: [

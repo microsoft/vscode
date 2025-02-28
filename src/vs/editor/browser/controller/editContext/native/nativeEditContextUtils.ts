@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 
 export interface ITypeData {
@@ -38,6 +38,11 @@ export class FocusTracker extends Disposable {
 		// Immediately call this method in order to directly set the field isFocused to true so the textInputFocus context key is evaluated correctly
 		this._handleFocusedChanged(true);
 		this._domNode.focus();
+	}
+
+	public refreshFocusState(): void {
+		const focused = this._domNode === getActiveWindow().document.activeElement;
+		this._handleFocusedChanged(focused);
 	}
 
 	get isFocused(): boolean {

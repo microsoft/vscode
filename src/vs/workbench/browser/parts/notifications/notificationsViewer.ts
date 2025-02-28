@@ -491,7 +491,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		if (notification.expanded && isNonEmptyArray(primaryActions)) {
 			const that = this;
 
-			const actionRunner: IActionRunner = new class extends ActionRunner {
+			const actionRunner: IActionRunner = this.inputDisposables.add(new class extends ActionRunner {
 				protected override async runAction(action: IAction): Promise<void> {
 
 					// Run action
@@ -502,7 +502,7 @@ export class NotificationTemplateRenderer extends Disposable {
 						notification.close();
 					}
 				}
-			}();
+			}());
 
 			const buttonToolbar = this.inputDisposables.add(new ButtonBar(this.template.buttonsContainer));
 			for (let i = 0; i < primaryActions.length; i++) {

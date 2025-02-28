@@ -34,8 +34,7 @@ export class IndentationToSpacesAction extends EditorAction {
 	constructor() {
 		super({
 			id: IndentationToSpacesAction.ID,
-			label: nls.localize('indentationToSpaces', "Convert Indentation to Spaces"),
-			alias: 'Convert Indentation to Spaces',
+			label: nls.localize2('indentationToSpaces', "Convert Indentation to Spaces"),
 			precondition: EditorContextKeys.writable,
 			metadata: {
 				description: nls.localize2('indentationToSpacesDescription', "Convert the tab indentation to spaces."),
@@ -71,8 +70,7 @@ export class IndentationToTabsAction extends EditorAction {
 	constructor() {
 		super({
 			id: IndentationToTabsAction.ID,
-			label: nls.localize('indentationToTabs', "Convert Indentation to Tabs"),
-			alias: 'Convert Indentation to Tabs',
+			label: nls.localize2('indentationToTabs', "Convert Indentation to Tabs"),
 			precondition: EditorContextKeys.writable,
 			metadata: {
 				description: nls.localize2('indentationToTabsDescription', "Convert the spaces indentation to tabs."),
@@ -167,8 +165,7 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 	constructor() {
 		super(false, false, {
 			id: IndentUsingTabs.ID,
-			label: nls.localize('indentUsingTabs', "Indent Using Tabs"),
-			alias: 'Indent Using Tabs',
+			label: nls.localize2('indentUsingTabs', "Indent Using Tabs"),
 			precondition: undefined,
 			metadata: {
 				description: nls.localize2('indentUsingTabsDescription', "Use indentation with tabs."),
@@ -184,8 +181,7 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 	constructor() {
 		super(true, false, {
 			id: IndentUsingSpaces.ID,
-			label: nls.localize('indentUsingSpaces', "Indent Using Spaces"),
-			alias: 'Indent Using Spaces',
+			label: nls.localize2('indentUsingSpaces', "Indent Using Spaces"),
 			precondition: undefined,
 			metadata: {
 				description: nls.localize2('indentUsingSpacesDescription', "Use indentation with spaces."),
@@ -201,8 +197,7 @@ export class ChangeTabDisplaySize extends ChangeIndentationSizeAction {
 	constructor() {
 		super(true, true, {
 			id: ChangeTabDisplaySize.ID,
-			label: nls.localize('changeTabDisplaySize', "Change Tab Display Size"),
-			alias: 'Change Tab Display Size',
+			label: nls.localize2('changeTabDisplaySize', "Change Tab Display Size"),
 			precondition: undefined,
 			metadata: {
 				description: nls.localize2('changeTabDisplaySizeDescription', "Change the space size equivalent of the tab."),
@@ -218,8 +213,7 @@ export class DetectIndentation extends EditorAction {
 	constructor() {
 		super({
 			id: DetectIndentation.ID,
-			label: nls.localize('detectIndentation', "Detect Indentation from Content"),
-			alias: 'Detect Indentation from Content',
+			label: nls.localize2('detectIndentation', "Detect Indentation from Content"),
 			precondition: undefined,
 			metadata: {
 				description: nls.localize2('detectIndentationDescription', "Detect the indentation from content."),
@@ -244,8 +238,7 @@ export class ReindentLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.reindentlines',
-			label: nls.localize('editor.reindentlines', "Reindent Lines"),
-			alias: 'Reindent Lines',
+			label: nls.localize2('editor.reindentlines', "Reindent Lines"),
 			precondition: EditorContextKeys.writable,
 			metadata: {
 				description: nls.localize2('editor.reindentlinesDescription', "Reindent the lines of the editor."),
@@ -273,8 +266,7 @@ export class ReindentSelectedLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.reindentselectedlines',
-			label: nls.localize('editor.reindentselectedlines', "Reindent Selected Lines"),
-			alias: 'Reindent Selected Lines',
+			label: nls.localize2('editor.reindentselectedlines', "Reindent Selected Lines"),
 			precondition: EditorContextKeys.writable,
 			metadata: {
 				description: nls.localize2('editor.reindentselectedlinesDescription', "Reindent the selected lines of the editor."),

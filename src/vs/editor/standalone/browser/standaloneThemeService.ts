@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
 import { addMatchMediaChangeListener } from '../../../base/browser/browser.js';
 import { Color } from '../../../base/common/color.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -15,7 +16,7 @@ import { hc_black, hc_light, vs, vs_dark } from '../common/themes.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from '../../../platform/theme/common/colorRegistry.js';
-import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from '../../../platform/theme/common/themeService.js';
+import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle, IThemeChangeEvent } from '../../../platform/theme/common/themeService.js';
 import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
 import { ColorScheme, isDark, isHighContrast } from '../../../platform/theme/common/theme.js';
 import { getIconsStyleSheet, UnthemedProductIconTheme } from '../../../platform/theme/browser/iconsStyleSheet.js';
@@ -212,7 +213,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onColorThemeChange = this._register(new Emitter<IStandaloneTheme>());
+	private readonly _onColorThemeChange = this._register(new Emitter<IThemeChangeEvent>());
 	public readonly onDidColorThemeChange = this._onColorThemeChange.event;
 
 	private readonly _onFileIconThemeChange = this._register(new Emitter<IFileIconTheme>());
@@ -275,7 +276,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _registerRegularEditorContainer(): IDisposable {
 		if (!this._globalStyleElement) {
-			this._globalStyleElement = dom.createStyleSheet(undefined, style => {
+			this._globalStyleElement = domStylesheetsJs.createStyleSheet(undefined, style => {
 				style.className = 'monaco-colors';
 				style.textContent = this._allCSS;
 			});
@@ -285,7 +286,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	}
 
 	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-		const styleElement = dom.createStyleSheet(domNode, style => {
+		const styleElement = domStylesheetsJs.createStyleSheet(domNode, style => {
 			style.className = 'monaco-colors';
 			style.textContent = this._allCSS;
 		});
@@ -402,7 +403,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._updateCSS();
 
 		TokenizationRegistry.setColorMap(colorMap);
-		this._onColorThemeChange.fire(this._theme);
+		this._onColorThemeChange.fire({ theme: this._theme });
 	}
 
 	private _updateCSS(): void {

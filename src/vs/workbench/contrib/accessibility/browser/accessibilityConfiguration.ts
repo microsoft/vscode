@@ -14,7 +14,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Event } from '../../../../base/common/event.js';
 import { isDefined } from '../../../../base/common/types.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -58,12 +57,12 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
-	ReplEditor = 'accessibility.verbosity.notebook',
-	ReplInputHint = 'accessibility.verbosity.replInputHint',
+	ReplEditor = 'accessibility.verbosity.replEditor',
 	Comments = 'accessibility.verbosity.comments',
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
 	Walkthrough = 'accessibility.verbosity.walkthrough',
+	SourceControl = 'accessibility.verbosity.sourceControl'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -164,8 +163,8 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
 			...baseVerbosityProperty
 		},
-		[AccessibilityVerbositySettingId.ReplInputHint]: {
-			description: localize('verbosity.replInputHint', 'Provide information about relevant actions For the Repl input.'),
+		[AccessibilityVerbositySettingId.ReplEditor]: {
+			description: localize('verbosity.replEditor.description', 'Provide information about how to access the REPL editor accessibility help menu when the REPL editor is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
@@ -188,6 +187,10 @@ const configuration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
 			type: 'boolean',
 			default: true
+		},
+		[AccessibilityVerbositySettingId.SourceControl]: {
+			description: localize('verbosity.scm', 'Provide information about how to access the source control accessibility help menu when the input is focused.'),
+			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
 			'description': localize('accessibility.signalOptions.volume', "The volume of the sounds in percent (0-100)."),
@@ -503,6 +506,16 @@ const configuration: IConfigurationNode = {
 				}
 			}
 		},
+		'accessibility.signals.chatEditModifiedFile': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.chatEditModifiedFile', "Plays a sound / audio cue when revealing a file with changes from chat edits"),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatEditModifiedFile.sound', "Plays a sound when revealing a file with changes from chat edits"),
+					...soundFeatureBase
+				}
+			}
+		},
 		'accessibility.signals.notebookCellCompleted': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.notebookCellCompleted', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a notebook cell execution is successfully completed."),
@@ -531,20 +544,6 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
-		'accessibility.signals.chatRequestSent': {
-			...signalFeatureBase,
-			'description': localize('accessibility.signals.chatRequestSent', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a chat request is made."),
-			'properties': {
-				'sound': {
-					'description': localize('accessibility.signals.chatRequestSent.sound', "Plays a sound when a chat request is made."),
-					...soundFeatureBase
-				},
-				'announcement': {
-					'description': localize('accessibility.signals.chatRequestSent.announcement', "Announces when a chat request is made."),
-					...announcementFeatureBase
-				},
-			}
-		},
 		'accessibility.signals.progress': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.progress', "Plays a signal - sound (audio cue) and/or announcement (alert) - on loop while progress is occurring."),
@@ -559,12 +558,46 @@ const configuration: IConfigurationNode = {
 				},
 			},
 		},
+		'accessibility.signals.chatRequestSent': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.chatRequestSent', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a chat request is made."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatRequestSent.sound', "Plays a sound when a chat request is made."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.chatRequestSent.announcement', "Announces when a chat request is made."),
+					...announcementFeatureBase
+				},
+			}
+		},
 		'accessibility.signals.chatResponseReceived': {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.chatResponseReceived', "Plays a sound / audio cue when the response has been received."),
 			'properties': {
 				'sound': {
-					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on loop while the response has been received."),
+					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on when the response has been received."),
+					...soundFeatureBase
+				},
+			}
+		},
+		'accessibility.signals.codeActionTriggered': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.codeActionTriggered', "Plays a sound / audio cue - when a code action has been triggered."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.codeActionTriggered.sound', "Plays a sound when a code action has been triggered."),
+					...soundFeatureBase
+				}
+			}
+		},
+		'accessibility.signals.codeActionApplied': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.codeActionApplied', "Plays a sound / audio cue when the code action has been applied."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.codeActionApplied.sound', "Plays a sound when the code action has been applied."),
 					...soundFeatureBase
 				},
 			}
@@ -685,6 +718,22 @@ const configuration: IConfigurationNode = {
 			'description': localize('accessibility.debugWatchVariableAnnouncements', "Controls whether variable changes should be announced in the debug watch view."),
 			'default': true,
 		},
+		'accessibility.replEditor.readLastExecutionOutput': {
+			'type': 'boolean',
+			'description': localize('accessibility.replEditor.readLastExecutedOutput', "Controls whether the output from an execution in the native REPL will be announced."),
+			'default': true,
+		},
+		'accessibility.replEditor.autoFocusReplExecution': {
+			type: 'string',
+			enum: ['none', 'input', 'lastExecution'],
+			default: 'input',
+			description: localize('replEditor.autoFocusAppendedCell', "Control whether focus should automatically be sent to the REPL when code is executed."),
+		},
+		'accessibility.windowTitleOptimized': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.windowTitleOptimized', "Controls whether the {0} should be optimized for screen readers when in screen reader mode. When enabled, the window title will have {1} appended to the end.", '`#window.title#`', '`activeEditorState`')
+		},
 	}
 };
 
@@ -730,8 +779,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 	static readonly ID = 'workbench.contrib.dynamicSpeechAccessibilityConfiguration';
 
 	constructor(
-		@ISpeechService private readonly speechService: ISpeechService,
-		@IProductService private readonly productService: IProductService
+		@ISpeechService private readonly speechService: ISpeechService
 	) {
 		super();
 
@@ -759,6 +807,12 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'minimum': 0,
 					'tags': ['accessibility']
 				},
+				[AccessibilityVoiceSettingId.IgnoreCodeBlocks]: {
+					'markdownDescription': localize('voice.ignoreCodeBlocks', "Whether to ignore code snippets in text-to-speech synthesis."),
+					'type': 'boolean',
+					'default': false,
+					'tags': ['accessibility']
+				},
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
 					'markdownDescription': localize('voice.speechLanguage', "The language that text-to-speech and speech-to-text should use. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition and synthesizers."),
 					'type': 'string',
@@ -770,14 +824,13 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 				},
 				[AccessibilityVoiceSettingId.AutoSynthesize]: {
 					'type': 'string',
-					'enum': ['on', 'off', 'auto'],
+					'enum': ['on', 'off'],
 					'enumDescriptions': [
 						localize('accessibility.voice.autoSynthesize.on', "Enable the feature. When a screen reader is enabled, note that this will disable aria updates."),
 						localize('accessibility.voice.autoSynthesize.off', "Disable the feature."),
-						localize('accessibility.voice.autoSynthesize.auto', "When a screen reader is detected, disable the feature. Otherwise, enable the feature.")
 					],
 					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
-					'default': this.productService.quality !== 'stable' ? 'auto' : 'off', // TODO@bpasero decide on a default
+					'default': 'off',
 					'tags': ['accessibility']
 				}
 			}

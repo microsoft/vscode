@@ -168,6 +168,13 @@
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
 	"typescript.enablePromptUseWorkspaceTsdk": true,
-	"chat.commandCenter.enabled": true,
-	"eslint.useFlatConfig": true
+	"eslint.useFlatConfig": true,
+	"editor.occurrencesHighlightDelay": 0,
+	"typescript.experimental.expandableHover": true,
+	"git.diagnosticsCommitHook.Enabled": true,
+	"git.diagnosticsCommitHook.Sources": {
+		"*": "error",
+		"ts": "warning",
+		"eslint": "warning"
+	}
 }

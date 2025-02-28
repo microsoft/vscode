@@ -7,11 +7,12 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatConfirmation, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
+import { IChatWidgetService } from '../chat.js';
+import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 export class ChatConfirmationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -24,6 +25,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		context: IChatContentPartRenderContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -40,16 +42,19 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, buttons));
 		confirmationWidget.setShowButtons(!confirmation.isUsed);
 
+		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (isResponseVM(element)) {
 				const prompt = `${e.label}: "${confirmation.title}"`;
-				const data: IChatSendRequestOptions = e.isSecondary ?
+				const options: IChatSendRequestOptions = e.isSecondary ?
 					{ rejectedConfirmationData: [e.data] } :
 					{ acceptedConfirmationData: [e.data] };
-				data.agentId = element.agent?.id;
-				data.slashCommand = element.slashCommand?.name;
-				data.confirmation = e.label;
-				if (await this.chatService.sendRequest(element.sessionId, prompt, data)) {
+				options.agentId = element.agent?.id;
+				options.slashCommand = element.slashCommand?.name;
+				options.confirmation = e.label;
+				options.userSelectedModelId = chatWidgetService.getWidgetBySessionId(element.sessionId)?.input.currentLanguageModel;
+				if (await this.chatService.sendRequest(element.sessionId, prompt, options)) {
 					confirmation.isUsed = true;
 					confirmationWidget.setShowButtons(false);
 					this._onDidChangeHeight.fire();
