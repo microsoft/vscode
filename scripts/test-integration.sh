@@ -55,13 +55,13 @@ fi
 echo
 echo "### API tests (folder)"
 echo
-npm run test-extension -- -l vscode-api-tests-folder
+npm run test-extension -- -l vscode-api-tests-folder --enable-proposed-api=vscode.vscode-api-tests
 kill_app
 
 echo
 echo "### API tests (workspace)"
 echo
-npm run test-extension -- -l vscode-api-tests-workspace
+npm run test-extension -- -l vscode-api-tests-workspace --enable-proposed-api=vscode.vscode-api-tests
 kill_app
 
 echo
