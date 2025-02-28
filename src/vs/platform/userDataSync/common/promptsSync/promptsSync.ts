@@ -34,7 +34,7 @@ export function parsePrompts(syncData: ISyncData): IStringDictionary<string> {
 }
 
 /**
- * Synchronizer class for the global prompt files.
+ * Synchronizer class for the "user" prompt files.
  * Adopted from {@link SnippetsSynchroniser}.
  */
 export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDataSynchroniser {
