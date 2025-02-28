@@ -67,7 +67,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		super();
 		this.storageManager = this._register(new StorageManager(storageService));
 
-		const uninstallDisposable = this._register(Event.filter(extensionManagementService.onDidUninstallExtension, e => !e.error)(({ identifier }) => this._reset(identifier)));
+		const uninstallDisposable = this._register(Event.filter(extensionManagementService.onDidUninstallExtension, e => !e.error)(({ identifier }) => this._reset([identifier])));
 		let isDisposed = false;
 		this._register(toDisposable(() => isDisposed = true));
 		this.extensionsManager = this._register(instantiationService.createInstance(ExtensionsManager));
@@ -662,8 +662,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (changedExtensions.length) {
 			this._onEnablementChanged.fire(changedExtensions);
 		}
-		if (!isProfileSwitch) {
-			removed.forEach(({ identifier }) => this._reset(identifier));
+		if (!isProfileSwitch && removed.length) {
+			this._reset(removed.map(({ identifier }) => identifier));
 		}
 	}
 
@@ -689,14 +689,16 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return { trusted: this.workspaceTrustManagementService.isWorkspaceTrusted(), virtual: isVirtualWorkspace(this.contextService.getWorkspace()) };
 	}
 
-	private async _reset(extension: IExtensionIdentifier): Promise<void> {
+	private async _reset(extensions: IExtensionIdentifier[]): Promise<void> {
 		const controlManifest = await this.extensionManagementService.getExtensionsControlManifest();
-		if (isMalicious(extension, controlManifest)) {
-			return;
+		for (const extension of extensions) {
+			if (isMalicious(extension, controlManifest)) {
+				continue;
+			}
+			this._removeFromWorkspaceDisabledExtensions(extension);
+			this._removeFromWorkspaceEnabledExtensions(extension);
+			this.globalExtensionEnablementService.enableExtension(extension);
 		}
-		this._removeFromWorkspaceDisabledExtensions(extension);
-		this._removeFromWorkspaceEnabledExtensions(extension);
-		this.globalExtensionEnablementService.enableExtension(extension);
 	}
 }
 
