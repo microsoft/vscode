@@ -529,12 +529,10 @@ export interface IUserDataSyncEnablementService {
 	readonly onDidChangeEnablement: Event<boolean>;
 	isEnabled(): boolean;
 	canToggleEnablement(): boolean;
-
 	setEnablement(enabled: boolean): void;
 
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
 	isResourceEnabled(resource: SyncResource): boolean;
-
 	getResourceEnablement(resource: SyncResource): boolean | undefined;
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 
