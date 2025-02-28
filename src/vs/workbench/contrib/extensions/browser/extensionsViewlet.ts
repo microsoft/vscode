@@ -5,7 +5,7 @@
 
 import './media/extensionsViewlet.css';
 import { localize, localize2 } from '../../../../nls.js';
-import { timeout, Delayer, Promises } from '../../../../base/common/async.js';
+import { timeout, Delayer } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -16,10 +16,10 @@ import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus, addD
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, AutoRestartConfigurationKey } from '../common/extensions.js';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, AutoRestartConfigurationKey, IExtension } from '../common/extensions.js';
 import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction } from './extensionsActions.js';
-import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService, UninstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer, EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, ServerInstalledExtensionsView, DefaultRecommendedExtensionsView, UntrustedWorkspaceUnsupportedExtensionsView, UntrustedWorkspacePartiallySupportedExtensionsView, VirtualWorkspaceUnsupportedExtensionsView, VirtualWorkspacePartiallySupportedExtensionsView, DefaultPopularExtensionsView, DeprecatedExtensionsView, SearchMarketplaceExtensionsView, RecentlyUpdatedExtensionsView, OutdatedExtensionsView, StaticQueryExtensionsView, NONE_CATEGORY } from './extensionsViews.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -35,14 +35,13 @@ import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from '
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
-import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Query } from '../common/extensionQuery.js';
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
-import { EXTENSION_CATEGORIES, ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { MementoObject } from '../../../common/memento.js';
@@ -59,7 +58,6 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { coalesce } from '../../../../base/common/arrays.js';
 import { extractEditorsAndFilesDropData } from '../../../../platform/dnd/browser/dnd.js';
 import { extname } from '../../../../base/common/resources.js';
-import { isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -972,7 +970,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionManagementService private readonly extensionsManagementService: IExtensionManagementService,
-		@IHostService private readonly hostService: IHostService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
@@ -988,31 +986,44 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 			.then(() => this.loopCheckForMaliciousExtensions());
 	}
 
-	private checkForMaliciousExtensions(): Promise<void> {
-		return this.extensionsManagementService.getExtensionsControlManifest().then(extensionsControlManifest => {
+	private async checkForMaliciousExtensions(): Promise<void> {
+		try {
+			const extensionsToUninstall: UninstallExtensionInfo[] = [];
+			const maliciousExtensions: IExtension[] = [];
 
-			return this.extensionsManagementService.getInstalled(ExtensionType.User).then(installed => {
-				const maliciousExtensions = installed.filter(e => isMalicious(e.identifier, extensionsControlManifest));
+			await this.extensionsWorkbenchService.queryLocal();
 
-				if (maliciousExtensions.length) {
-					return Promises.settled(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e).then(() => {
-						this.notificationService.prompt(
-							Severity.Warning,
-							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", e.identifier.id),
-							[{
-								label: localize('reloadNow', "Reload Now"),
-								run: () => this.hostService.reload()
-							}],
-							{
-								sticky: true,
-								priority: NotificationPriority.URGENT
-							}
-						);
-					})));
-				} else {
-					return Promise.resolve(undefined);
+			for (const e of this.extensionsWorkbenchService.installed) {
+				if (e.local && e.isMalicious) {
+					maliciousExtensions.push(e);
+					extensionsToUninstall.push({
+						extension: e.local,
+						options: {
+							donotCheckDependents: true,
+							remove: true,
+						}
+					});
 				}
-			}).then(() => undefined);
-		}, err => this.logService.error(err));
+			}
+
+			if (!maliciousExtensions.length) {
+				return;
+			}
+
+			await this.extensionsWorkbenchService.setEnablement(maliciousExtensions, EnablementState.DisabledGlobally, true);
+			await this.extensionsManagementService.uninstallExtensions(extensionsToUninstall);
+
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize('malicious warning', "The following extensions were found to be problematic and have been removed: {0}", maliciousExtensions.map(e => e.identifier.id).join(', ')),
+				[],
+				{
+					sticky: true,
+					priority: NotificationPriority.URGENT
+				}
+			);
+		} catch (err) {
+			this.logService.error(err);
+		}
 	}
 }

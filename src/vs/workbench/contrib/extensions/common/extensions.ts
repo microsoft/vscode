@@ -147,7 +147,7 @@ export interface IExtensionsWorkbenchService {
 	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
-	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
+	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState, force?: boolean): Promise<void>;
 	isAutoUpdateEnabledFor(extensionOrPublisher: IExtension | string): boolean;
 	updateAutoUpdateEnablementFor(extensionOrPublisher: IExtension | string, enable: boolean): Promise<void>;
 	shouldRequireConsentToUpdate(extension: IExtension): Promise<string | undefined>;
