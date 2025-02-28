@@ -150,9 +150,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		if (isWindows && useCustomTitleStyle) {
 			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))((e) => {
 				const [x, y] = win.getPosition();
-				const cursorPos = electron.screen.getCursorScreenPoint();
-				const cx = cursorPos.x - x;
-				const cy = cursorPos.y - y;
+				const cursorPos = electron.screen.screenToDipPoint(e.point);
+				const cx = Math.floor(cursorPos.x) - x;
+				const cy = Math.floor(cursorPos.y) - y;
 
 				// In some cases, show the default system context menu
 				// 1) The mouse position is not within the title bar
