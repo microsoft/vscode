@@ -11,6 +11,7 @@ import { askForPromptSourceFolder } from './dialogs/askForPromptSourceFolder.js'
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
 import { appendToCommandPalette } from '../../../../../files/browser/fileActions.contribution.js';
@@ -108,6 +109,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LOCAL_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: commandFactory('local'),
+	when: PromptsConfig.ENABLED_CTX,
 });
 
 /**
@@ -117,6 +119,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: USER_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: commandFactory('user'),
+	when: PromptsConfig.ENABLED_CTX,
 });
 
 /**
@@ -128,6 +131,7 @@ appendToCommandPalette(
 		title: LOCAL_COMMAND_TITLE,
 		category: CHAT_CATEGORY,
 	},
+	PromptsConfig.ENABLED_CTX,
 );
 
 /**
@@ -139,4 +143,5 @@ appendToCommandPalette(
 		title: USER_COMMAND_TITLE,
 		category: CHAT_CATEGORY,
 	},
+	PromptsConfig.ENABLED_CTX,
 );
