@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallOperation, IAllowedExtensionsService, AllowedExtensionsConfigKey } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallOperation, IAllowedExtensionsService, AllowedExtensionsConfigKey, IExtensionsControlManifest } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from '../../common/extensionManagement.js';
 import { ExtensionEnablementService } from '../../browser/extensionEnablementService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -73,6 +73,9 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onDidChangeProfile: disposables.add(new Emitter<DidChangeProfileEvent>()).event,
 					onDidUpdateExtensionMetadata: disposables.add(new Emitter<DidUpdateExtensionMetadata>()).event,
 					onProfileAwareDidInstallExtensions: Event.None,
+					async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
+						return { malicious: [], deprecated: {}, search: [] };
+					},
 				},
 			}, null, null));
 		const extensionManagementService = disposables.add(instantiationService.createInstance(ExtensionManagementService));
@@ -149,7 +152,10 @@ suite('ExtensionEnablementService Test', () => {
 				onDidUninstallExtension: didUninstallEvent.event,
 				onDidChangeProfile: didChangeProfileExtensionsEvent.event,
 				onProfileAwareDidInstallExtensions: Event.None,
-				getInstalled: () => Promise.resolve(installed)
+				getInstalled: () => Promise.resolve(installed),
+				async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
+					return { malicious: [], deprecated: {}, search: [] };
+				},
 			},
 		}, null, null));
 		instantiationService.stub(ILogService, NullLogService);
@@ -462,8 +468,11 @@ suite('ExtensionEnablementService Test', () => {
 
 		await testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
 		await testObject.setEnablement([extension], EnablementState.DisabledGlobally);
+		const promise = Event.toPromise(testObject.onEnablementChanged);
+
 		didUninstallEvent.fire({ identifier: { id: 'pub.a' }, profileLocation: null! });
 
+		await promise;
 		assert.ok(testObject.isEnabled(extension));
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
 	});

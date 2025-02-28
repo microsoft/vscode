@@ -2526,9 +2526,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.localeService.setLocale({ id: locale, galleryExtension: extension.gallery, extensionId: extension.identifier.id, label: localizedLanguageName ?? extension.displayName });
 	}
 
-	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {
+	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState, force: boolean = false): Promise<void> {
 		extensions = Array.isArray(extensions) ? extensions : [extensions];
-		return this.promptAndSetEnablement(extensions, enablementState);
+		return this.promptAndSetEnablement(extensions, enablementState, force);
 	}
 
 	async uninstall(e: IExtension): Promise<void> {
@@ -2786,43 +2786,45 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		});
 	}
 
-	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<any> {
+	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState, force: boolean): Promise<any> {
 		const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 		if (enable) {
 			const allDependenciesAndPackedExtensions = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: true, pack: true });
-			return this.checkAndSetEnablement(extensions, allDependenciesAndPackedExtensions, enablementState);
+			return this.checkAndSetEnablement(extensions, allDependenciesAndPackedExtensions, enablementState, force);
 		} else {
 			const packedExtensions = this.getExtensionsRecursively(extensions, this.local, enablementState, { dependencies: false, pack: true });
 			if (packedExtensions.length) {
-				return this.checkAndSetEnablement(extensions, packedExtensions, enablementState);
+				return this.checkAndSetEnablement(extensions, packedExtensions, enablementState, force);
 			}
-			return this.checkAndSetEnablement(extensions, [], enablementState);
+			return this.checkAndSetEnablement(extensions, [], enablementState, force);
 		}
 	}
 
-	private async checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState): Promise<any> {
+	private async checkAndSetEnablement(extensions: IExtension[], otherExtensions: IExtension[], enablementState: EnablementState, force: boolean): Promise<any> {
 		const allExtensions = [...extensions, ...otherExtensions];
 		const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
 		if (!enable) {
 			for (const extension of extensions) {
 				const dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
 				if (dependents.length) {
-					const { result } = await this.dialogService.prompt({
-						title: nls.localize('disableDependents', "Disable Extension with Dependents"),
-						type: Severity.Warning,
-						message: this.getDependentsErrorMessageForDisablement(extension, allExtensions, dependents),
-						buttons: [{
-							label: nls.localize('disable all', 'Disable All'),
-							run: () => true
-						}],
-						cancelButton: {
-							run: () => false
+					if (!force) {
+						const { result } = await this.dialogService.prompt({
+							title: nls.localize('disableDependents', "Disable Extension with Dependents"),
+							type: Severity.Warning,
+							message: this.getDependentsErrorMessageForDisablement(extension, allExtensions, dependents),
+							buttons: [{
+								label: nls.localize('disable all', 'Disable All'),
+								run: () => true
+							}],
+							cancelButton: {
+								run: () => false
+							}
+						});
+						if (!result) {
+							throw new CancellationError();
 						}
-					});
-					if (!result) {
-						throw new CancellationError();
 					}
-					await this.checkAndSetEnablement(dependents, [extension], enablementState);
+					await this.checkAndSetEnablement(dependents, [extension], enablementState, force);
 				}
 			}
 		}
