@@ -56,11 +56,24 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.APPLICATION, true);
 	}
 
+	/**
+	 * TODO: @lego
+	 */
+	getResourceEnablement(resource: SyncResource): boolean | undefined {
+		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.APPLICATION);
+	}
+
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void {
-		if (this.isResourceEnabled(resource) !== enabled) {
-			const resourceEnablementKey = getEnablementKey(resource);
-			this.storeResourceEnablement(resourceEnablementKey, enabled);
+		const currentValue = this.getResourceEnablement(resource);
+
+		// TODO @legomushroom - add description?
+		// TODO @legomushroom - note! that it changes the behaviour slightly
+		if (currentValue === enabled) {
+			return;
 		}
+
+		const resourceEnablementKey = getEnablementKey(resource);
+		this.storeResourceEnablement(resourceEnablementKey, enabled);
 	}
 
 	getResourceSyncStateVersion(resource: SyncResource): string | undefined {
