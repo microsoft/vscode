@@ -731,7 +731,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
 			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
-			await this.accept(editor);
+			await this.accept(editor, kind);
 			return;
 		}
 
@@ -740,7 +740,7 @@ export class InlineCompletionsModel extends Disposable {
 		const ghostTextVal = firstPart.text;
 		const acceptUntilIndexExclusive = getAcceptUntilIndex(ghostTextPos, ghostTextVal);
 		if (acceptUntilIndexExclusive === ghostTextVal.length && ghostText.parts.length === 1) {
-			this.accept(editor);
+			this.accept(editor, kind);
 			return;
 		}
 		const partialGhostTextVal = ghostTextVal.substring(0, acceptUntilIndexExclusive);
