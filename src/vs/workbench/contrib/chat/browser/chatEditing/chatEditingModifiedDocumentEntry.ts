@@ -71,17 +71,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	readonly initialContent: string;
 
-	private readonly docSnapshot: ITextModel;
-	private readonly doc: ITextModel;
+	private readonly originalModel: ITextModel;
+	private readonly modifiedModel: ITextModel;
+
 	readonly docFileEditorModel: IResolvedTextFileEditorModel;
-
-	get originalModel(): ITextModel {
-		return this.docSnapshot;
-	}
-
-	get modifiedModel(): ITextModel {
-		return this.doc;
-	}
 
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
@@ -93,7 +86,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	readonly changesCount = this._diffInfo.map(diff => diff.changes.length);
 
-	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []); }, 500));
+	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []); }, 500));
 	private _editDecorations: string[] = [];
 
 
@@ -130,14 +123,14 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		);
 
 		this.docFileEditorModel = this._register(resourceRef).object as IResolvedTextFileEditorModel;
-		this.doc = resourceRef.object.textEditorModel;
+		this.modifiedModel = resourceRef.object.textEditorModel;
 		this.originalURI = ChatEditingTextModelContentProvider.getFileURI(telemetryInfo.sessionId, this.entryId, this.modifiedURI.path);
 
-		this.initialContent = initialContent ?? this.doc.getValue();
-		const docSnapshot = this.docSnapshot = this._register(
+		this.initialContent = initialContent ?? this.modifiedModel.getValue();
+		const docSnapshot = this.originalModel = this._register(
 			modelService.createModel(
-				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.doc.createSnapshot()),
-				languageService.createById(this.doc.getLanguageId()),
+				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.modifiedModel.createSnapshot()),
+				languageService.createById(this.modifiedModel.getLanguageId()),
 				this.originalURI,
 				false
 			)
@@ -154,7 +147,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		})();
 
 
-		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
+		this._register(this.modifiedModel.onDidChangeContent(e => this._mirrorEdits(e)));
 
 		this._register(toDisposable(() => {
 			this._clearCurrentEditLineDecoration();
@@ -168,7 +161,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	private _clearCurrentEditLineDecoration() {
-		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []);
+		this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []);
 	}
 
 	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
@@ -196,7 +189,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	restoreFromSnapshot(snapshot: ISnapshotEntry) {
 		this._stateObs.set(snapshot.state, undefined);
-		this.docSnapshot.setValue(snapshot.original);
+		this.originalModel.setValue(snapshot.original);
 		this._setDocValue(snapshot.current);
 		this._edit = snapshot.originalToCurrentEdit;
 		this._updateDiffInfoSeq();
@@ -247,21 +240,21 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			const e_ai = this._edit;
 			const e_user = edit;
 
-			const e_user_r = e_user.tryRebase(e_ai.inverse(this.docSnapshot.getValue()), true);
+			const e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()), true);
 
 			if (e_user_r === undefined) {
 				// user edits overlaps/conflicts with AI edits
 				this._edit = e_ai.compose(e_user);
 			} else {
-				const edits = OffsetEdits.asEditOperations(e_user_r, this.docSnapshot);
-				this.docSnapshot.applyEdits(edits);
+				const edits = OffsetEdits.asEditOperations(e_user_r, this.originalModel);
+				this.originalModel.applyEdits(edits);
 				this._edit = e_ai.tryRebase(e_user_r);
 			}
 
 			this._allEditsAreFromUs = false;
 			this._updateDiffInfoSeq();
 
-			const didResetToOriginalContent = this.doc.getValue() === this.initialContent;
+			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
 			const currentState = this._stateObs.get();
 			switch (currentState) {
 				case WorkingSetEntryState.Modified:
@@ -279,7 +272,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		// push stack element whenever streaming starts
 		const request = responseModel.session.getRequests().find(req => req.id === responseModel.requestId);
 		const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
-		this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
+		this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.modifiedModel, null));
 	}
 
 	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
@@ -308,14 +301,14 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			});
 		}
 
-		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, newDecorations);
+		this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, newDecorations);
 
 
 		transaction((tx) => {
 			if (!isLastEdits) {
 				this._stateObs.set(WorkingSetEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
-				const lineCount = this.doc.getLineCount();
+				const lineCount = this.modifiedModel.getLineCount();
 				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
 
 			} else {
@@ -337,7 +330,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			const newText = this.modifiedModel.getValueInRange(edit.modifiedRange);
 			edits.push(EditOperation.replace(edit.originalRange, newText));
 		}
-		this.docSnapshot.pushEditOperations(null, edits, _ => null);
+		this.originalModel.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Accepted, undefined);
@@ -351,10 +344,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}
 		const edits: ISingleEditOperation[] = [];
 		for (const edit of change.innerChanges ?? []) {
-			const newText = this.docSnapshot.getValueInRange(edit.originalRange);
+			const newText = this.originalModel.getValueInRange(edit.originalRange);
 			edits.push(EditOperation.replace(edit.modifiedRange, newText));
 		}
-		this.doc.pushEditOperations(null, edits, _ => null);
+		this.modifiedModel.pushEditOperations(null, edits, _ => null);
 		await this._updateDiffInfoSeq();
 		if (this._diffInfo.get().identical) {
 			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
@@ -367,7 +360,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._isEditFromUs = true;
 		try {
 			let result: ISingleEditOperation[] = [];
-			this.doc.pushEditOperations(null, edits, (undoEdits) => {
+			this.modifiedModel.pushEditOperations(null, edits, (undoEdits) => {
 				result = undoEdits;
 				return null;
 			});
@@ -389,38 +382,38 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	private async _updateDiffInfo(): Promise<IDocumentDiff | undefined> {
 
-		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
+		if (this.originalModel.isDisposed() || this.modifiedModel.isDisposed()) {
 			return undefined;
 		}
 
-		const docVersionNow = this.doc.getVersionId();
-		const snapshotVersionNow = this.docSnapshot.getVersionId();
+		const docVersionNow = this.modifiedModel.getVersionId();
+		const snapshotVersionNow = this.originalModel.getVersionId();
 
 		const ignoreTrimWhitespace = this._diffTrimWhitespace.get();
 
 		const diff = await this._editorWorkerService.computeDiff(
-			this.docSnapshot.uri,
-			this.doc.uri,
+			this.originalModel.uri,
+			this.modifiedModel.uri,
 			{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
 			'advanced'
 		);
 
-		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
+		if (this.originalModel.isDisposed() || this.modifiedModel.isDisposed()) {
 			return undefined;
 		}
 
 		// only update the diff if the documents didn't change in the meantime
-		if (this.doc.getVersionId() === docVersionNow && this.docSnapshot.getVersionId() === snapshotVersionNow) {
+		if (this.modifiedModel.getVersionId() === docVersionNow && this.originalModel.getVersionId() === snapshotVersionNow) {
 			const diff2 = diff ?? nullDocumentDiff;
 			this._diffInfo.set(diff2, undefined);
-			this._edit = OffsetEdits.fromLineRangeMapping(this.docSnapshot, this.doc, diff2.changes);
+			this._edit = OffsetEdits.fromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
 			return diff2;
 		}
 		return undefined;
 	}
 
 	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
-		this.docSnapshot.setValue(this.doc.createSnapshot());
+		this.originalModel.setValue(this.modifiedModel.createSnapshot());
 		this._diffInfo.set(nullDocumentDiff, tx);
 		this._edit = OffsetEdit.empty;
 		await this._collapse(tx);
@@ -432,7 +425,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			await this._fileService.del(this.modifiedURI);
 			this._onDidDelete.fire();
 		} else {
-			this._setDocValue(this.docSnapshot.getValue());
+			this._setDocValue(this.originalModel.getValue());
 			if (this._allEditsAreFromUs) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
@@ -443,14 +436,14 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	private _setDocValue(value: string): void {
-		if (this.doc.getValue() !== value) {
+		if (this.modifiedModel.getValue() !== value) {
 
-			this.doc.pushStackElement();
-			const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
+			this.modifiedModel.pushStackElement();
+			const edit = EditOperation.replace(this.modifiedModel.getFullModelRange(), value);
 
 			this._applyEdits([edit]);
 			this._updateDiffInfoSeq();
-			this.doc.pushStackElement();
+			this.modifiedModel.pushStackElement();
 		}
 	}
 
