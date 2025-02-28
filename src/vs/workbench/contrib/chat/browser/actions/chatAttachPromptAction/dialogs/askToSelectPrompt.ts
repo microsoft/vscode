@@ -76,12 +76,6 @@ export const askToSelectPrompt = async (
 ): Promise<void> => {
 	const { promptFiles, resource, quickInputService, labelService } = options;
 
-	// a sanity check - this function must be used only if there are prompt files to show
-	assert(
-		promptFiles.length > 0,
-		'Prompt files list must not be empty.',
-	);
-
 	const fileOptions = promptFiles.map((promptFile) => {
 		return createPickItem(promptFile, labelService);
 	});
