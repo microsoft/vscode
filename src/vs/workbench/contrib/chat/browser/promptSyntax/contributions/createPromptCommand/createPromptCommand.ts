@@ -30,9 +30,9 @@ const BASE_COMMAND_ID = 'workbench.command.prompts.create';
 const LOCAL_COMMAND_ID = `${BASE_COMMAND_ID}.local`;
 
 /**
- * Command ID for creating a 'global' prompt.
+ * Command ID for creating a 'user' prompt.
  */
-const GLOBAL_COMMAND_ID = `${BASE_COMMAND_ID}.global`;
+const USER_COMMAND_ID = `${BASE_COMMAND_ID}.user`;
 
 /**
  * Title of the 'create local prompt' command.
@@ -40,9 +40,9 @@ const GLOBAL_COMMAND_ID = `${BASE_COMMAND_ID}.global`;
 const LOCAL_COMMAND_TITLE = localize('commands.prompts.create.title.local', "Create Prompt");
 
 /**
- * Title of the 'create global prompt' command.
+ * Title of the 'create user prompt' command.
  */
-const GLOBAL_COMMAND_TITLE = localize('commands.prompts.create.title.global', "Create Global Prompt");
+const USER_COMMAND_TITLE = localize('commands.prompts.create.title.user', "Create User Prompt");
 
 /**
  * The command implementation.
@@ -95,7 +95,7 @@ const command = async (
 /**
  * Factory for creating the command handler with specific prompt `type`.
  */
-const commandFactory = (type: 'local' | 'global') => {
+const commandFactory = (type: 'local' | 'user') => {
 	return async (accessor: ServicesAccessor): Promise<void> => {
 		return command(accessor, type);
 	};
@@ -111,12 +111,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 /**
- * Register the "Create Global Prompt" command.
+ * Register the "Create User Prompt" command.
  */
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: GLOBAL_COMMAND_ID,
+	id: USER_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	handler: commandFactory('global'),
+	handler: commandFactory('user'),
 });
 
 /**
@@ -131,12 +131,12 @@ appendToCommandPalette(
 );
 
 /**
- * Register the "Create Global Prompt" command in the command palette.
+ * Register the "Create User Prompt" command in the command palette.
  */
 appendToCommandPalette(
 	{
-		id: GLOBAL_COMMAND_ID,
-		title: GLOBAL_COMMAND_TITLE,
+		id: USER_COMMAND_ID,
+		title: USER_COMMAND_TITLE,
 		category: CHAT_CATEGORY,
 	},
 );
