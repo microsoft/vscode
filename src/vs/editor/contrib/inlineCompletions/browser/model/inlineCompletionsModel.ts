@@ -619,10 +619,8 @@ export class InlineCompletionsModel extends Disposable {
 
 		const completion = completionWithUpdatedRange.toInlineCompletion(undefined);
 
-		if (completion.command) {
-			// Make sure the completion list will not be disposed.
-			completion.source.addRef();
-		}
+
+		completion.source.addRef();
 
 		try {
 			this._isAcceptingFully.set(true, undefined);
@@ -671,10 +669,10 @@ export class InlineCompletionsModel extends Disposable {
 				await this._commandService
 					.executeCommand(completion.command.id, ...(completion.command.arguments || []))
 					.then(undefined, onUnexpectedExternalError);
-				completion.source.removeRef();
 			}
 		} finally {
 			this._isAcceptingFully.set(false, undefined);
+			completion.source.removeRef();
 		}
 
 		this._inAcceptFlow.set(true, undefined);
