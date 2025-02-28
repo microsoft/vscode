@@ -16,10 +16,14 @@ import { IConfigurationOverrides, IConfigurationService } from '../../../configu
 const createMock = <T>(value: T): IConfigurationService => {
 	return mockService<IConfigurationService>({
 		getValue(key?: string | IConfigurationOverrides) {
-			assert.strictEqual(
-				key,
-				PromptsConfig.CONFIG_KEY,
-				`Mocked service supports only one configuration key: '${PromptsConfig.CONFIG_KEY}'.`,
+			assert(
+				typeof key === 'string',
+				`Expected string configuration key, got '${typeof key}'.`,
+			);
+
+			assert(
+				[PromptsConfig.CONFIG_KEY, PromptsConfig.LOCATIONS_CONFIG_KEY].includes(key),
+				`Unsupported configuration key '${key}'.`,
 			);
 
 			return value;
@@ -35,7 +39,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock(undefined);
 
 			assert.strictEqual(
-				PromptsConfig.getValue(configService),
+				PromptsConfig.getLocationsValue(configService),
 				undefined,
 				'Must read correct value.',
 			);
@@ -45,7 +49,7 @@ suite('PromptsConfig', () => {
 			const configService = createMock(null);
 
 			assert.strictEqual(
-				PromptsConfig.getValue(configService),
+				PromptsConfig.getLocationsValue(configService),
 				undefined,
 				'Must read correct value.',
 			);
@@ -54,7 +58,7 @@ suite('PromptsConfig', () => {
 		suite('• object', () => {
 			test('• empty', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.getValue(createMock({})),
+					PromptsConfig.getLocationsValue(createMock({})),
 					{},
 					'Must read correct value.',
 				);
@@ -62,7 +66,7 @@ suite('PromptsConfig', () => {
 
 			test('• only valid strings', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.getValue(createMock({
+					PromptsConfig.getLocationsValue(createMock({
 						'/root/.bashrc': true,
 						'../../folder/.hidden-folder/config.xml': true,
 						'/srv/www/Public_html/.htaccess': true,
@@ -96,7 +100,7 @@ suite('PromptsConfig', () => {
 
 			test('• filters out non valid entries', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.getValue(createMock({
+					PromptsConfig.getLocationsValue(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'../assets/img/logo.v2.png': true,
@@ -135,7 +139,7 @@ suite('PromptsConfig', () => {
 
 			test('• only invalid or false values', () => {
 				assert.deepStrictEqual(
-					PromptsConfig.getValue(createMock({
+					PromptsConfig.getLocationsValue(createMock({
 						'/etc/hosts.backup': '\t\n\t',
 						'./run.tests.sh': '\v',
 						'../assets/IMG/logo.v2.png': '',
