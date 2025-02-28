@@ -9,32 +9,32 @@ import { IRange, Range } from '../../../core/range.js';
 import { assert } from '../../../../../base/common/assert.js';
 
 /**
- * A token that represent a `markdown link` with a `range`. The `range`
+ * A token that represent a `markdown image` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class MarkdownLink extends MarkdownToken {
+export class MarkdownImage extends MarkdownToken {
 	/**
-	 * Check if this `markdown link` points to a valid URL address.
+	 * Check if this `markdown image link` points to a valid URL address.
 	 */
 	public readonly isURL: boolean;
 
 	constructor(
 		/**
-		 * The starting line number of the link (1-based indexing).
+		 * The starting line number of the image (1-based indexing).
 		 */
 		lineNumber: number,
 		/**
-		 * The starting column number of the link (1-based indexing).
+		 * The starting column number of the image (1-based indexing).
 		 */
 		columnNumber: number,
 		/**
-		 * The caption of the original link, including the square brackets.
+		 * The caption of the image, including the `!` and `square brackets`.
 		 */
-		public readonly caption: string,
+		private readonly caption: string,
 		/**
-		 * The reference of the original link, including the parentheses.
+		 * The reference of the image, including the parentheses.
 		 */
-		public readonly reference: string,
+		private readonly reference: string,
 	) {
 		assert(
 			!isNaN(lineNumber),
@@ -52,7 +52,12 @@ export class MarkdownLink extends MarkdownToken {
 		);
 
 		assert(
-			caption[0] === '[' && caption[caption.length - 1] === ']',
+			caption[0] === '!',
+			`The caption must start with '!' character, got "${caption}".`,
+		);
+
+		assert(
+			caption[1] === '[' && caption[caption.length - 1] === ']',
 			`The caption must be enclosed in square brackets, got "${caption}".`,
 		);
 
@@ -98,7 +103,7 @@ export class MarkdownLink extends MarkdownToken {
 			return false;
 		}
 
-		if (!(other instanceof MarkdownLink)) {
+		if (!(other instanceof MarkdownImage)) {
 			return false;
 		}
 
@@ -131,6 +136,6 @@ export class MarkdownLink extends MarkdownToken {
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
-		return `md-link("${this.text}")${this.range}`;
+		return `md-image("${this.text}")${this.range}`;
 	}
 }
