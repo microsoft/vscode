@@ -39,12 +39,12 @@ set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes
 
 echo.
 echo ### API tests (folder)
-call npm run test-extension -- -l vscode-api-tests-folder --enable-proposed-api=vscode.vscode-api-tests
+call npm run test-extension -- -l vscode-api-tests-folder --enable-proposed-api=vscode.vscode-api-tests %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### API tests (workspace)
-call npm run test-extension -- -l vscode-api-tests-workspace --enable-proposed-api=vscode.vscode-api-tests
+call npm run test-extension -- -l vscode-api-tests-workspace --enable-proposed-api=vscode.vscode-api-tests %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
