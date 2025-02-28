@@ -651,21 +651,9 @@ class ProfileSynchronizer extends Disposable {
 		this._register(userDataSyncEnablementService.onDidChangeResourceEnablement(([syncResource, enablement]) => this.onDidChangeResourceEnablement(syncResource, enablement)));
 		this._register(toDisposable(() => this._enabled.splice(0, this._enabled.length).forEach(([, , disposable]) => disposable.dispose())));
 		for (const syncResource of ALL_SYNC_RESOURCES) {
-			const isEnabled = userDataSyncEnablementService.isResourceEnabled(syncResource);
-
-			if (!isEnabled) {
-				continue;
+			if (userDataSyncEnablementService.isResourceEnabled(syncResource)) {
+				this.registerSynchronizer(syncResource);
 			}
-
-			/**
-			 * TODO: @legomushroom
-			 */
-			const enablementValue = userDataSyncEnablementService.getResourceEnablement(syncResource);
-			if ((syncResource === SyncResource.Prompts) && (enablementValue === undefined)) {
-				continue;
-			}
-
-			this.registerSynchronizer(syncResource);
 		}
 	}
 
