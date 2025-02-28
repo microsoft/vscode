@@ -391,7 +391,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		return settings;
 	}
 
-	private createCodeCompletionsSetting(container: HTMLElement, label: string, language: string, disposables: DisposableStore): void {
+	private createCodeCompletionsSetting(container: HTMLElement, label: string, language: string | '*', disposables: DisposableStore): void {
 		const settingId = 'github.copilot.enable';
 
 		const readSetting = () => {
@@ -400,7 +400,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				return false;
 			}
 
-			return Boolean(result[language]);
+			if (typeof result[language] !== 'undefined') {
+				return Boolean(result[language]); // go with setting if explicitly defined
+			}
+
+			return Boolean(result['*']); // fallback to global setting otherwise
 		};
 		const writeSetting = (checkbox: Checkbox) => {
 			let result = this.configurationService.getValue<Record<string, boolean>>(settingId);
