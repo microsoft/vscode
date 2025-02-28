@@ -257,6 +257,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const completions = providedCompletions?.flat() || [];
 		if (!explicitlyInvoked && !completions.length) {
+			this.hideSuggestWidget(true);
 			return;
 		}
 
