@@ -7,11 +7,11 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 
 /**
  * Configuration helper for the `reusable prompts` feature.
- * @see {@link CONFIG_KEY}.
+ * @see {@link CONFIG_KEY} and {@link LOCATIONS_CONFIG_KEY}.
  *
  * ### Functions
  *
- * - {@link getValue} allows to current read configuration value
+ * - {@link getLocationsValue} allows to current read configuration value
  * - {@link enabled} allows to check if the feature is enabled
  * - {@link promptSourceFolders} gets list of source folders for prompt files
  *
@@ -70,7 +70,12 @@ export namespace PromptsConfig {
 	 * Configuration key for the `prompt files` feature (also
 	 * known as `prompt files`, `prompt instructions`, etc.).
 	 */
-	export const CONFIG_KEY: string = 'chat.promptFiles';
+	export const CONFIG_KEY: string = 'chat.reusablePrompts';
+
+	/**
+	 * Configuration key for the locations of reusable prompt files.
+	 */
+	export const LOCATIONS_CONFIG_KEY: string = 'chat.reusablePrompt.locations';
 
 	/**
 	 * Default reusable prompt files source folder.
@@ -78,12 +83,25 @@ export namespace PromptsConfig {
 	export const DEFAULT_SOURCE_FOLDER = '.github/prompts';
 
 	/**
-	 * Get value of the `prompt files` configuration setting.
+	 * Checks if the feature is enabled.
+	 * @see {@link CONFIG_KEY}.
 	 */
-	export const getValue = (
+	export const enabled = (
+		configService: IConfigurationService,
+	): boolean => {
+		const enabledValue = configService.getValue(CONFIG_KEY);
+
+		return asBoolean(enabledValue) ?? false;
+	};
+
+	/**
+	 * Get value of the `reusable prompt locations` configuration setting.
+	 * @see {@link LOCATIONS_CONFIG_KEY}.
+	 */
+	export const getLocationsValue = (
 		configService: IConfigurationService,
 	): Record<string, boolean> | undefined => {
-		const configValue = configService.getValue(CONFIG_KEY);
+		const configValue = configService.getValue(LOCATIONS_CONFIG_KEY);
 
 		if (configValue === undefined || configValue === null || Array.isArray(configValue)) {
 			return undefined;
@@ -112,24 +130,13 @@ export namespace PromptsConfig {
 	};
 
 	/**
-	 * Checks if the feature is enabled.
-	 */
-	export const enabled = (
-		configService: IConfigurationService,
-	): boolean => {
-		const value = getValue(configService);
-
-		return value !== undefined;
-	};
-
-	/**
 	 * Gets list of source folders for prompt files.
 	 * Defaults to {@link DEFAULT_SOURCE_FOLDER}.
 	 */
 	export const promptSourceFolders = (
 		configService: IConfigurationService,
 	): string[] => {
-		const value = getValue(configService);
+		const value = getLocationsValue(configService);
 
 		// note! the `value &&` part handles the `undefined`, `null`, and `false` cases
 		if (value && (typeof value === 'object')) {
