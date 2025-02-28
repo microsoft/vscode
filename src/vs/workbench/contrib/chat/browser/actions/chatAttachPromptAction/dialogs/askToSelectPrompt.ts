@@ -117,6 +117,12 @@ export const askToSelectPrompt = async (
 
 	/**
 	 * If still no active item present, fall back to the first item in the list.
+	 * This can happen only if command was invoked not from a focused prompt file
+	 * (hence the `resource` is not provided in the options).
+	 *
+	 * Fixes the two main cases:
+	 *  - when no prompt files found it, pre-selects the documentation link
+	 *  - when there is only a single prompt file, pre-selects it
 	 */
 	if (!activeItem) {
 		activeItem = fileOptions[0];
