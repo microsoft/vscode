@@ -964,7 +964,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				hoverDelegate,
 				getKeyBinding: () => undefined,
 				actionViewItemProvider: (action, options) => {
-					if (action.id === 'workbench.action.chat.editing.attachFiles') {
+					if (action.id === 'workbench.action.chat.editing.attachContext') {
 						const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
 						return viewItem;
 					}
