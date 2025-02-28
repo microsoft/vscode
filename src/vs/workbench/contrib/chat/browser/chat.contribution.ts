@@ -200,19 +200,36 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'onExp']
 		},
 		[PromptsConfig.CONFIG_KEY]: {
-			type: 'object',
+			type: 'boolean',
 			title: nls.localize(
-				'chat.promptFiles.config.title',
-				"Prompt Files",
+				'chat.reusablePrompts.config.enabled.title',
+				"Reusable Prompts",
 			),
 			markdownDescription: nls.localize(
-				'chat.promptFiles.config.description',
+				'chat.reusablePrompts.config.enabled.description',
+				"Enable reusable prompts (`*{0}`) in Chat, Edits, and Inline Chat sessions. [Learn More]({0}).",
+				PROMPT_FILE_EXTENSION,
+				DOCUMENTATION_URL,
+			),
+			default: true,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['experimental'],
+		},
+		[PromptsConfig.LOCATIONS_CONFIG_KEY]: {
+			type: 'object',
+			title: nls.localize(
+				'chat.reusablePrompts.config.locations.title',
+				"Reusable Prompt Locations",
+			),
+			markdownDescription: nls.localize(
+				'chat.reusablePrompts.config.locations.description',
 				"Specify location(s) of reusable prompt files (`*{0}`) that can be attached in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
 				PROMPT_FILE_EXTENSION,
 				DOCUMENTATION_URL,
 			),
 			default: {
-				[PromptsConfig.DEFAULT_SOURCE_FOLDER]: false,
+				[PromptsConfig.DEFAULT_SOURCE_FOLDER]: true,
 			},
 			required: [PromptsConfig.DEFAULT_SOURCE_FOLDER],
 			additionalProperties: { type: 'boolean' },
