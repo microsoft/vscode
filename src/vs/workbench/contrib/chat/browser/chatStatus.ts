@@ -5,7 +5,7 @@
 
 import './media/chatStatus.css';
 import { safeIntl } from '../../../../base/common/date.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { language, OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -17,7 +17,7 @@ import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from '../../../../base/browser/dom.js';
 import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -157,8 +157,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private getEntryProps(): IStatusbarEntry {
-		const disposables = new DisposableStore();
-		this.entryDisposables.value = disposables;
+		this.entryDisposables.clear();
 
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
@@ -202,72 +201,74 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		// Copilot Limited User
 		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
-			tooltip = () => {
-				const container = $('div.chat-status-bar-entry-tooltip');
+			tooltip = {
+				element: token => {
+					const { container, disposables } = this.createContainer(token);
 
-				// Quota Indicator
-				{
-					const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
+					// Quota Indicator
+					{
+						const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
 
-					container.appendChild($('div.header', undefined, localize('usageTitle', "Copilot Free Usage")));
+						container.appendChild($('div.header', undefined, localize('usageTitle', "Copilot Free Usage")));
 
-					const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
-					const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
+						const chatQuotaIndicator = this.createQuotaIndicator(container, chatTotal, chatRemaining, localize('chatsLabel', "Chat messages"));
+						const completionsQuotaIndicator = this.createQuotaIndicator(container, completionsTotal, completionsRemaining, localize('completionsLabel', "Code completions"));
 
-					container.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
+						container.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
 
-					const cts = new CancellationTokenSource();
-					disposables.add(toDisposable(() => cts.dispose(true)));
-					this.chatEntitlementsService.resolve(cts.token).then(() => {
-						if (cts.token.isCancellationRequested) {
-							return;
-						}
+						this.chatEntitlementsService.resolve(token).then(() => {
+							if (token.isCancellationRequested) {
+								return;
+							}
 
-						const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
+							const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
 
-						chatQuotaIndicator(chatTotal, chatRemaining);
-						completionsQuotaIndicator(completionsTotal, completionsRemaining);
-					});
+							chatQuotaIndicator(chatTotal, chatRemaining);
+							completionsQuotaIndicator(completionsTotal, completionsRemaining);
+						});
+					}
+
+					// Settings
+					{
+						container.appendChild($('hr'));
+						container.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
+						this.createSettings(container, disposables);
+					}
+
+					// Shortcuts
+					{
+						container.appendChild($('hr'));
+						container.appendChild($('div.header', undefined, localize('keybindingsTitle', "Keybindings")));
+						this.createShortcuts(container, disposables);
+					}
+
+					return container;
 				}
-
-				// Settings
-				{
-					container.appendChild($('hr'));
-					container.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
-					this.createSettings(container, disposables);
-				}
-
-				// Shortcuts
-				{
-					container.appendChild($('hr'));
-					container.appendChild($('div.header', undefined, localize('keybindingsTitle', "Keybindings")));
-					this.createShortcuts(container, disposables);
-				}
-
-				return container;
 			};
 			command = ShowTooltipCommand;
 		}
 
 		// Any other User
 		else {
-			tooltip = () => {
-				const container = $('div.chat-status-bar-entry-tooltip');
+			tooltip = {
+				element: token => {
+					const { container, disposables } = this.createContainer(token);
 
-				// Settings
-				{
-					container.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
-					this.createSettings(container, disposables);
+					// Settings
+					{
+						container.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
+						this.createSettings(container, disposables);
+					}
+
+					// Shortcuts
+					{
+						container.appendChild($('hr'));
+						container.appendChild($('div.header', undefined, localize('keybindingsTitle', "Keybindings")));
+						this.createShortcuts(container, disposables);
+					}
+
+					return container;
 				}
-
-				// Shortcuts
-				{
-					container.appendChild($('hr'));
-					container.appendChild($('div.header', undefined, localize('keybindingsTitle', "Keybindings")));
-					this.createShortcuts(container, disposables);
-				}
-
-				return container;
 			};
 			command = ShowTooltipCommand;
 		}
@@ -280,6 +281,16 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			showInAllWindows: true,
 			kind,
 			tooltip
+		};
+	}
+
+	private createContainer(token: CancellationToken): { container: HTMLElement; disposables: DisposableStore } {
+		const disposables = this.entryDisposables.value = new DisposableStore();
+		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
+
+		return {
+			container: $('div.chat-status-bar-entry-tooltip'),
+			disposables
 		};
 	}
 
