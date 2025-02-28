@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../contextkey/common/contextkey.js';
 
 // TODO: @lego - update the docs
 // TODO: @lego - update unit tests
@@ -96,6 +97,11 @@ export namespace PromptsConfig {
 
 		return asBoolean(enabledValue) ?? false;
 	};
+
+	/**
+	 * TODO: @lego
+	 */
+	export const ENABLED_CTX = ContextKeyExpr.equals(`config.${CONFIG_KEY}`, true);
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
