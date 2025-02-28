@@ -7171,9 +7171,9 @@ declare namespace monaco.languages {
 	export interface PartialAcceptInfo {
 		kind: PartialAcceptTriggerKind;
 		acceptedLength: number;
-		addedLength?: number;
-		replacedRange?: IRange;
-		versionBeforeAccept?: number;
+		addedLength: number;
+		replacedRange: IRange;
+		versionBeforeAccept: number;
 	}
 
 	/**

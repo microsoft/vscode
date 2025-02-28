@@ -785,6 +785,9 @@ export class InlineCompletionsModel extends Disposable {
 			{
 				kind: PartialAcceptTriggerKind.Suggest,
 				acceptedLength,
+				addedLength: itemEdit.text.length,
+				versionBeforeAccept: this.textModel.getVersionId(),
+				replacedRange: completion.range
 			}
 		);
 	}

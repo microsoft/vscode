@@ -96,15 +96,15 @@ declare module 'vscode' {
 		/**
 		 * The length of characters added to the document by accepting inline completion.
 		 */
-		addedLength?: number;
+		addedLength: number;
 		/**
 		 * Version of the document before the inline completion was accepted.
 		 */
-		versionBeforeAccept?: number;
+		versionBeforeAccept: number;
 		/**
 		 * Replaced range in document at version before acceptance, where the inline completion was inserted.
 		 */
-		replacedRange?: Range;
+		replacedRange: Range;
 	}
 
 	export enum PartialAcceptTriggerKind {
