@@ -85,7 +85,8 @@ export class InlineCompletionsModel extends Disposable {
 		this._register(autorun(reader => {
 			/** @description call handleItemDidShow */
 			const item = this.inlineCompletionState.read(reader);
-			const completion = item?.inlineCompletion;
+			const inlineEdit = this.inlineEditState.read(reader);
+			const completion = item?.inlineCompletion ?? inlineEdit?.inlineCompletion;
 			if (completion?.semanticId !== lastItem?.semanticId) {
 				lastItem = completion;
 				if (completion) {
