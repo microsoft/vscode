@@ -99,9 +99,9 @@ export namespace PromptsConfig {
 	};
 
 	/**
-	 * TODO: @lego
+	 * Context key expression for the `reusable prompts` feature `enabled` status.
 	 */
-	export const ENABLED_CTX = ContextKeyExpr.equals(`config.${CONFIG_KEY}`, true);
+	export const enabledCtx = ContextKeyExpr.equals(`config.${CONFIG_KEY}`, true);
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.

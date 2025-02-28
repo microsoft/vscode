@@ -109,7 +109,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LOCAL_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: commandFactory('local'),
-	when: PromptsConfig.ENABLED_CTX,
+	when: PromptsConfig.enabledCtx,
 });
 
 /**
@@ -119,7 +119,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: USER_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: commandFactory('user'),
-	when: PromptsConfig.ENABLED_CTX,
+	when: PromptsConfig.enabledCtx,
 });
 
 /**
@@ -131,7 +131,7 @@ appendToCommandPalette(
 		title: LOCAL_COMMAND_TITLE,
 		category: CHAT_CATEGORY,
 	},
-	PromptsConfig.ENABLED_CTX,
+	PromptsConfig.enabledCtx,
 );
 
 /**
@@ -143,5 +143,5 @@ appendToCommandPalette(
 		title: USER_COMMAND_TITLE,
 		category: CHAT_CATEGORY,
 	},
-	PromptsConfig.ENABLED_CTX,
+	PromptsConfig.enabledCtx,
 );
