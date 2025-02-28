@@ -90,6 +90,7 @@ export class LineHeightManager {
 		console.log('totalHeightUntilLineNumber', lineNumber);
 		this.commit();
 		const searchIndex = this._binarySearchOverSpecialLinesArray(lineNumber);
+		console.log('searchIndex : ', searchIndex);
 		if (searchIndex >= 0) {
 			console.log('searchIndex >= 0');
 			console.log('this._orderedSpecialLines[searchIndex].prefixSum + this._orderedSpecialLines[searchIndex].maximumSpecialHeight : ', this._orderedSpecialLines[searchIndex].prefixSum + this._orderedSpecialLines[searchIndex].maximumSpecialHeight);
@@ -217,9 +218,6 @@ export class LineHeightManager {
 		if (startIndexOfDeletion >= 0) {
 			modifiedStartIndexOfDeletion = startIndexOfDeletion;
 			for (let i = startIndexOfDeletion - 1; i >= 0; i--) {
-				console.log('i : ', i);
-				console.log('this._orderedSpecialLines[i].lineNumber : ', this._orderedSpecialLines[i].lineNumber);
-				console.log('fromLineNumber : ', fromLineNumber);
 				if (this._orderedSpecialLines[i].lineNumber === fromLineNumber) {
 					modifiedStartIndexOfDeletion--;
 				} else {
@@ -230,9 +228,10 @@ export class LineHeightManager {
 			modifiedStartIndexOfDeletion = -(startIndexOfDeletion + 1);
 		}
 		const endIndexOfDeletion = this._binarySearchOverSpecialLinesArray(toLineNumber);
+		const deletionEndsOnSpecialLine = endIndexOfDeletion >= 0;
 		console.log('endIndexOfDeletion', endIndexOfDeletion);
 		let modifiedEndIndexOfDeletion: number;
-		if (endIndexOfDeletion >= 0) {
+		if (deletionEndsOnSpecialLine) {
 			modifiedEndIndexOfDeletion = endIndexOfDeletion;
 			for (let i = endIndexOfDeletion + 1; i < this._orderedSpecialLines.length; i++) {
 				if (this._orderedSpecialLines[i].lineNumber === toLineNumber) {
@@ -251,59 +250,188 @@ export class LineHeightManager {
 		console.log('modifiedEndIndexOfDeletion', modifiedEndIndexOfDeletion);
 
 		const newOrderedSpecialLines: SpecialLine[] = [];
-		let totalHeightDeleted: number = 0;
-		if (modifiedStartIndexOfDeletion === modifiedEndIndexOfDeletion &&
-			(this._orderedSpecialLines[modifiedStartIndexOfDeletion].lineNumber < fromLineNumber
-				|| this._orderedSpecialLines[modifiedStartIndexOfDeletion].lineNumber > toLineNumber)) {
-			totalHeightDeleted = deleteCount * this._defaultLineHeight;
 
-			for (let i = 0; i < this._orderedSpecialLines.length; i++) {
-				console.log('i : ', i);
-				if (i < modifiedStartIndexOfDeletion) {
-					newOrderedSpecialLines.push(this._orderedSpecialLines[i]);
+		console.log('deletionEndsOnSpecialLine : ', deletionEndsOnSpecialLine);
+		if (deletionEndsOnSpecialLine) {
+			let chosenMaximumHeight = this._orderedSpecialLines[modifiedEndIndexOfDeletion].maximumSpecialHeight;
+			for (let i = modifiedStartIndexOfDeletion - 1; i >= 0; i--) {
+				if (this._orderedSpecialLines[i].lineNumber === fromLineNumber - 1) {
+					chosenMaximumHeight = Math.max(chosenMaximumHeight, this._orderedSpecialLines[i].specialHeight);
 				} else {
-					const specialLine = this._orderedSpecialLines[i];
-					specialLine.lineNumber -= deleteCount;
-					specialLine.prefixSum -= totalHeightDeleted;
-					newOrderedSpecialLines.push(specialLine);
+					break;
 				}
 			}
-		} else {
-			const firstSpecialLineDeleted = this._orderedSpecialLines[modifiedStartIndexOfDeletion];
-			const lastSpecialLineDeleted = this._orderedSpecialLines[modifiedEndIndexOfDeletion];
-
-			console.log('firstSpecialLineDeleted : ', firstSpecialLineDeleted);
-			console.log('lastSpecialLineDeleted : ', lastSpecialLineDeleted);
-			totalHeightDeleted = lastSpecialLineDeleted.prefixSum
-				+ lastSpecialLineDeleted.maximumSpecialHeight
-				- firstSpecialLineDeleted.prefixSum
-				+ this._defaultLineHeight * (toLineNumber - lastSpecialLineDeleted.lineNumber)
-				+ this._defaultLineHeight * (firstSpecialLineDeleted.lineNumber - fromLineNumber);
-
+			console.log('chosenMaximumHeight : ', chosenMaximumHeight);
 
 			let numberOfDeletedLinesSoFar: number = 0;
+			let previousDeletedLineNumber: number | undefined;
+			let totalHeightToRemoveFromEndLine: number = 0;
+			let initialFromLineHeight: number = this._defaultLineHeight;
+			let totalHeightToRemoveAfterEndLine: number = 0;
+
 			for (let i = 0; i < this._orderedSpecialLines.length; i++) {
+				const specialLine = this._orderedSpecialLines[i];
 				console.log('i : ', i);
-				if (i < modifiedStartIndexOfDeletion) {
-					newOrderedSpecialLines.push(this._orderedSpecialLines[i]);
-				} else if (i > modifiedEndIndexOfDeletion) {
-					const specialLine = this._orderedSpecialLines[i];
-					console.log('specialLine.lineNumber : ', specialLine.lineNumber);
+				console.log('specialLine : ', specialLine);
+				console.log('specialLine.lineNumber : ', specialLine.lineNumber);
+				console.log('specialLine.maximumSpecialHeight : ', specialLine.maximumSpecialHeight);
+				console.log('fromLineNumber : ', fromLineNumber);
+				console.log('toLineNumber : ', toLineNumber);
+
+				if (specialLine.lineNumber < fromLineNumber - 1) {
+					console.log('specialLine.lineNumber < fromLineNumber - 1');
+					console.log('specialLine : ', specialLine);
+					newOrderedSpecialLines.push(specialLine);
+				}
+				if (specialLine.lineNumber >= fromLineNumber - 1 && specialLine.lineNumber <= toLineNumber) {
+					console.log('specialLine.lineNumber >= fromLineNumber - 1 && specialLine.lineNumber <= toLineNumber');
+					if (specialLine.lineNumber === fromLineNumber - 1) {
+						console.log('specialLine.lineNumber === fromLineNumber - 1');
+						console.log('totalHeightToRemoveFromEndLine : ', totalHeightToRemoveFromEndLine);
+						console.log('totalHeightToRemoveAfterEndLine : ', totalHeightToRemoveAfterEndLine);
+
+						if (previousDeletedLineNumber !== fromLineNumber - 1) {
+							totalHeightToRemoveFromEndLine += specialLine.maximumSpecialHeight;
+							totalHeightToRemoveAfterEndLine += chosenMaximumHeight - specialLine.maximumSpecialHeight;
+							previousDeletedLineNumber = fromLineNumber - 1;
+						}
+						initialFromLineHeight = specialLine.maximumSpecialHeight;
+						specialLine.maximumSpecialHeight = chosenMaximumHeight;
+						console.log('totalHeightToRemoveFromEndLine : ', totalHeightToRemoveFromEndLine);
+						console.log('totalHeightToRemoveAfterEndLine : ', totalHeightToRemoveAfterEndLine);
+						console.log('specialLine : ', specialLine);
+						newOrderedSpecialLines.push(specialLine);
+
+					} else if (specialLine.lineNumber === toLineNumber) {
+						console.log('specialLine.lineNumber === toLineNumber');
+						console.log('numberOfDeletedLinesSoFar : ', numberOfDeletedLinesSoFar);
+						console.log('chosenMaximumHeight : ', chosenMaximumHeight);
+						console.log('specialLine.maximumSpecialHeight : ', specialLine.maximumSpecialHeight);
+						console.log('deleteCount : ', deleteCount);
+
+						console.log('initialFromLineHeight : ', initialFromLineHeight);
+						console.log('totalHeightToRemoveFromEndLine : ', totalHeightToRemoveFromEndLine);
+						console.log('totalHeightToRemoveAfterEndLine : ', totalHeightToRemoveAfterEndLine);
+
+						if (previousDeletedLineNumber !== toLineNumber) {
+							if (previousDeletedLineNumber === undefined) {
+								// there is no previous deleted special line so only default line heights are deleted
+								totalHeightToRemoveFromEndLine += this._defaultLineHeight * (toLineNumber - fromLineNumber + 1);
+								// TODO: used to be specialLine.maximumSpecialHeight
+								totalHeightToRemoveAfterEndLine += Math.min(initialFromLineHeight, specialLine.maximumSpecialHeight) + this._defaultLineHeight * (toLineNumber - fromLineNumber);
+							} else {
+								// there was a special height deleted so now I need to add the height between
+								totalHeightToRemoveFromEndLine += this._defaultLineHeight * (toLineNumber - previousDeletedLineNumber - 1);
+								// TODO: used to be specialLine.maximumSpecialHeight
+								totalHeightToRemoveAfterEndLine += Math.min(initialFromLineHeight, specialLine.maximumSpecialHeight) + this._defaultLineHeight * (toLineNumber - previousDeletedLineNumber - 1);
+							}
+							previousDeletedLineNumber = toLineNumber;
+						}
+
+						console.log('totalHeightToRemoveFromEndLine : ', totalHeightToRemoveFromEndLine);
+						console.log('totalHeightToRemoveAfterEndLine : ', totalHeightToRemoveAfterEndLine);
+						console.log('previousDeletedLineNumber : ', previousDeletedLineNumber);
+						console.log('specialLine : ', specialLine);
+
+						specialLine.index -= numberOfDeletedLinesSoFar;
+						specialLine.maximumSpecialHeight = chosenMaximumHeight;
+						specialLine.prefixSum -= totalHeightToRemoveFromEndLine;
+						specialLine.lineNumber -= deleteCount;
+						newOrderedSpecialLines.push(specialLine);
+					} else {
+						console.log('else');
+						console.log('totalHeightToRemoveFromEndLine : ', totalHeightToRemoveFromEndLine);
+						console.log('totalHeightToRemoveAfterEndLine : ', totalHeightToRemoveAfterEndLine);
+						if (previousDeletedLineNumber !== specialLine.lineNumber) {
+							console.log('previousDeletedLineNumber !== specialLine.lineNumber');
+							if (previousDeletedLineNumber === undefined) {
+								totalHeightToRemoveFromEndLine += specialLine.maximumSpecialHeight + this._defaultLineHeight * (specialLine.lineNumber - fromLineNumber + 1);
+								totalHeightToRemoveAfterEndLine += specialLine.maximumSpecialHeight + this._defaultLineHeight * (toLineNumber - fromLineNumber);
+							} else {
+								totalHeightToRemoveFromEndLine += specialLine.maximumSpecialHeight + this._defaultLineHeight * (specialLine.lineNumber - previousDeletedLineNumber - 1);
+								totalHeightToRemoveAfterEndLine += totalHeightToRemoveFromEndLine;
+							}
+							previousDeletedLineNumber = specialLine.lineNumber;
+						}
+						console.log('totalHeightToRemoveFromEndLine : ', totalHeightToRemoveFromEndLine);
+						console.log('totalHeightToRemoveAfterEndLine : ', totalHeightToRemoveAfterEndLine);
+						console.log('previousDeletedLineNumber : ', previousDeletedLineNumber);
+
+						numberOfDeletedLinesSoFar++;
+						this._decorationIDToSpecialLine.delete(specialLine.decorationId);
+					}
+				}
+				if (specialLine.lineNumber > toLineNumber) {
+					console.log('specialLine.lineNumber > toLineNumber');
+					if (totalHeightToRemoveAfterEndLine === 0) {
+						totalHeightToRemoveAfterEndLine = deleteCount * this._defaultLineHeight;
+					}
+					console.log('numberOfDeletedLinesSoFar : ', numberOfDeletedLinesSoFar);
+					console.log('totalHeightToRemoveAfterEndLine : ', totalHeightToRemoveAfterEndLine);
+					console.log('deleteCount : ', deleteCount);
+					console.log('specialLine : ', specialLine);
+
 					specialLine.index -= numberOfDeletedLinesSoFar;
 					specialLine.lineNumber -= deleteCount;
-					console.log('specialLine.lineNumber : ', specialLine.lineNumber);
+					specialLine.prefixSum -= totalHeightToRemoveAfterEndLine;
+					newOrderedSpecialLines.push(specialLine);
+				}
+				console.log('specialLine : ', specialLine);
+				console.log('previousDeletedLineNumber : ', previousDeletedLineNumber);
+			}
+			console.log('newOrderedSpecialLines : ', JSON.stringify(newOrderedSpecialLines));
+		} else {
+			let numberOfDeletedLinesSoFar: number = 0;
+			let totalHeightDeleted: number = 0;
+			let previousDeletedLineNumber: number | undefined;
+
+			for (let i = 0; i < this._orderedSpecialLines.length; i++) {
+				const specialLine = this._orderedSpecialLines[i];
+				console.log('specialLine : ', specialLine);
+				console.log('specialLine.lineNumber : ', specialLine.lineNumber);
+
+				if (specialLine.lineNumber <= fromLineNumber) {
+					console.log('specialLine.lineNumber <= fromLineNumber');
+					console.log('specialLine : ', specialLine);
+					newOrderedSpecialLines.push(specialLine);
+				}
+				if (specialLine.lineNumber >= fromLineNumber + 1 && specialLine.lineNumber <= toLineNumber) {
+					console.log('specialLine.lineNumber >= fromLineNumber + 1 && specialLine.lineNumber <= toLineNumber');
+					if (previousDeletedLineNumber !== specialLine.lineNumber) {
+						console.log('previousDeletedLineNumber !== specialLine.lineNumber');
+						if (previousDeletedLineNumber === undefined) {
+							totalHeightDeleted += specialLine.maximumSpecialHeight + this._defaultLineHeight * (specialLine.lineNumber - fromLineNumber);
+						} else {
+							totalHeightDeleted += specialLine.maximumSpecialHeight;
+							totalHeightDeleted += this._defaultLineHeight * (specialLine.lineNumber - previousDeletedLineNumber - 1);
+						}
+						previousDeletedLineNumber = specialLine.lineNumber;
+					}
+					numberOfDeletedLinesSoFar++;
+					this._decorationIDToSpecialLine.delete(specialLine.decorationId);
+				}
+				if (specialLine.lineNumber > toLineNumber) {
+					console.log('specialLine.lineNumber > toLineNumber');
+					if (totalHeightDeleted === 0) {
+						totalHeightDeleted = deleteCount * this._defaultLineHeight;
+					}
+					if (previousDeletedLineNumber !== undefined && previousDeletedLineNumber <= toLineNumber) {
+						totalHeightDeleted += this._defaultLineHeight * (toLineNumber - previousDeletedLineNumber);
+						previousDeletedLineNumber = toLineNumber + 1;
+					}
+					console.log('numberOfDeletedLinesSoFar : ', numberOfDeletedLinesSoFar);
+					console.log('totalHeightDeleted : ', totalHeightDeleted);
+					console.log('deleteCount : ', deleteCount);
+					console.log('specialLine : ', specialLine);
+					specialLine.index -= numberOfDeletedLinesSoFar;
+					specialLine.lineNumber -= deleteCount;
 					specialLine.prefixSum -= totalHeightDeleted;
 					newOrderedSpecialLines.push(specialLine);
-				} else {
-					numberOfDeletedLinesSoFar++;
-					const specialLine = this._orderedSpecialLines[i];
-					this._decorationIDToSpecialLine.delete(specialLine.decorationId);
 				}
 			}
 		}
 
 		console.log('this._orderedSpecialLines.length : ', this._orderedSpecialLines.length);
-		console.log('totalHeightDeleted : ', totalHeightDeleted);
 
 		this._orderedSpecialLines = newOrderedSpecialLines;
 
