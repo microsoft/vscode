@@ -260,6 +260,16 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.initialContent = initialContent;
 		this._register(this.modifiedModel.onDidChangeContent(this.mirrorNotebookEdits, this));
 		this._maxModifiedLineNumbers.set(this.modifiedModel.cells.map(() => 0), undefined);
+
+		if (this.modifiedURI.scheme !== Schemas.untitled) {
+			this._register(this._fileService.watch(this.modifiedURI));
+			this._register(this._fileService.onDidFilesChange(e => {
+				if (e.affects(this.modifiedURI) && kind === ChatEditKind.Created && e.gotDeleted()) {
+					this._onDidDelete.fire();
+				}
+			}));
+		}
+
 		const diffs = cellDiffInfo.map((diff, i) => {
 			switch (diff.type) {
 				case 'unchanged': {
