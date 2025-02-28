@@ -1245,6 +1245,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private registerDataViews(container: ViewContainer): void {
 		this._register(this.instantiationService.createInstance(UserDataSyncDataViews, container));
 	}
+
 }
 
 class UserDataRemoteContentProvider implements ITextModelContentProvider {
