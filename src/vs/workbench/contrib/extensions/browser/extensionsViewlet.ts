@@ -1015,7 +1015,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('malicious warning', "The following extensions were found to be problematic and have been removed: {0}", maliciousExtensions.map(e => e.identifier.id).join(', ')),
+				localize('malicious warning', "The following extensions were found to be problematic and have been uninstalled: {0}", maliciousExtensions.map(e => e.identifier.id).join(', ')),
 				[],
 				{
 					sticky: true,
