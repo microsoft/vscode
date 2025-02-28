@@ -76,8 +76,14 @@ export const askToSelectPrompt = async (
 ): Promise<void> => {
 	const { promptFiles, resource, quickInputService, labelService } = options;
 
-	const fileOptions = promptFiles.map(({ uri }) => {
-		return createPickItem(uri, labelService);
+	// a sanity check - this function must be used only if there are prompt files to show
+	assert(
+		promptFiles.length > 0,
+		'Prompt files list must not be empty.',
+	);
+
+	const fileOptions = promptFiles.map((promptFile) => {
+		return createPickItem(promptFile, labelService);
 	});
 
 	/**
@@ -98,7 +104,12 @@ export const askToSelectPrompt = async (
 		// the currently active prompt file is always available in the selection dialog,
 		// even if it is not included in the prompts list otherwise(from location setting)
 		if (!activeItem) {
-			activeItem = createPickItem(resource, labelService);
+			activeItem = createPickItem({
+				uri: resource,
+				// "user" prompts are always registered in the prompts list, hence it
+				// should be safe to assume that `resource` is not "user" prompt here
+				type: 'local',
+			}, labelService);
 			fileOptions.push(activeItem);
 		}
 
@@ -191,16 +202,30 @@ export const askToSelectPrompt = async (
  * Creates a quick pick item for a prompt.
  */
 const createPickItem = (
-	uri: URI,
+	promptFile: IPromptPath,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
+	const { uri, type } = promptFile;
 	const fileWithoutExtension = getCleanPromptName(uri);
+
+	// if a "user" prompt, don't show its filesystem path in
+	// the user interface, but do that for all the "local" ones
+	const description = (type === 'user')
+		? localize(
+			'user-prompt.capitalized',
+			'User prompt',
+		)
+		: labelService.getUriLabel(dirname(uri), { relative: true });
+
+	const tooltip = (type === 'user')
+		? description
+		: uri.fsPath;
 
 	return {
 		type: 'item',
 		label: fileWithoutExtension,
-		description: labelService.getUriLabel(dirname(uri), { relative: true }),
-		tooltip: uri.fsPath,
+		description,
+		tooltip,
 		value: uri,
 		id: uri.toString(),
 	};
