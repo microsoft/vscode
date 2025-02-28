@@ -67,6 +67,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -970,6 +971,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionManagementService private readonly extensionsManagementService: IExtensionManagementService,
+		@IHostService private readonly hostService: IHostService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -1016,7 +1018,10 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize('malicious warning', "The following extensions were found to be problematic and have been uninstalled: {0}", maliciousExtensions.map(e => e.identifier.id).join(', ')),
-				[],
+				[{
+					label: localize('reloadNow', "Reload Now"),
+					run: () => this.hostService.reload()
+				}],
 				{
 					sticky: true,
 					priority: NotificationPriority.URGENT
