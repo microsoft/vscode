@@ -997,7 +997,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
 				testObject = await aWorkbenchService();
-				await testObject.whenInitialized;
 				const target = sinon.spy();
 				disposableStore.add(testObject.onChange(target));
 
