@@ -57,7 +57,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		}));
 
 		this._register(this.themeService.onDidColorThemeChange(e => {
-			const colorChanged = this.applyColors(e);
+			const colorChanged = this.applyColors(e.theme);
 			if (colorChanged) {
 				this._scheduleRender();
 			}

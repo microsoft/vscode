@@ -15,8 +15,11 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { WorkspaceService } from '../../../services/configuration/browser/configurationService.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('MainThreadConfiguration', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const proxy = {
 		$initializeConfiguration: () => { }

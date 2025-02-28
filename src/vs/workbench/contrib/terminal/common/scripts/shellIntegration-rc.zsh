@@ -203,7 +203,7 @@ __track_missing_env_vars() {
 
 __vsc_update_env() {
 	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
-		builtin printf '\e]633;EnvSingleStart;%s;\a' $__vsc_nonce
+		builtin printf '\e]633;EnvSingleStart;%s;%s;\a' 0 $__vsc_nonce
 		if [ $__vsc_use_aa -eq 1 ]; then
 			if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
 				# Associative array is empty, do not diff, just add

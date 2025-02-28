@@ -7,6 +7,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
@@ -24,16 +25,18 @@ class AcceptToolConfirmation extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
-				when: ChatContextKeys.inChatInput,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasToolConfirmation),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				// Override chatEditor.action.accept
+				weight: KeybindingWeight.WorkbenchContrib + 1,
 			},
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const lastItem = chatWidgetService.lastFocusedWidget?.viewModel?.getItems().at(-1);
+		const widget = chatWidgetService.lastFocusedWidget;
+		const lastItem = widget?.viewModel?.getItems().at(-1);
 		if (!isResponseVM(lastItem)) {
 			return;
 		}
@@ -42,6 +45,9 @@ class AcceptToolConfirmation extends Action2 {
 		if (unconfirmedToolInvocation) {
 			unconfirmedToolInvocation.confirmed.complete(true);
 		}
+
+		// Return focus to the chat input, in case it was in the tool confirmation editor
+		widget?.focusInput();
 	}
 }
 

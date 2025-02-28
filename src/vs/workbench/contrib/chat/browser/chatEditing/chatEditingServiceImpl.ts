@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
-import { findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../base/common/errors.js';
@@ -14,7 +13,6 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { derived, IObservable, observableValueOpts, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType, isString } from '../../../../../base/common/types.js';
@@ -33,10 +31,10 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, chatEditingSnapshotScheme, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
+import { IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -245,11 +243,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// each of them. Note that text edit groups can be updated
 		// multiple times during the process of response streaming.
 		const editsSeen: ({ seen: number; streaming: IStreamingEdits } | undefined)[] = [];
-		// Same deal as above, but for code block URIs. Code block URIs preceed a
-		// text edit group, and are used to allow us to start an editing state
-		// prior to the code actually streaming in. When a new edit block it seen,
-		// it'll look back and 'claim' the last unclaimed matchin codeblock URI.
-		const codeBlockUrisSeen: ({ uri: URI; streaming?: IStreamingEdits } | undefined)[] = [];
 
 		const editedFilesExist = new ResourceMap<Promise<void>>();
 		const ensureEditorOpen = (partUri: URI) => {
@@ -295,28 +288,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					continue;
 				}
 
-				if (part.kind === 'codeblockUri') {
-					ensureEditorOpen(part.uri);
-					codeBlockUrisSeen[i] ??= { uri: part.uri, streaming: session.startStreamingEdits(part.uri, responseModel, undoStop) };
-					continue;
-				}
-
 				if (part.kind !== 'textEditGroup' && part.kind !== 'notebookEditGroup') {
 					continue;
 				}
 
+				ensureEditorOpen(part.uri);
 
 				// get new edits and start editing session
 				let entry = editsSeen[i];
 				if (!entry) {
-					const codeBlockIndex = findLastIdx(codeBlockUrisSeen, e => e?.streaming && isEqual(e.uri, part.uri), i - 1);
-					if (codeBlockIndex !== -1) {
-						entry = { seen: 0, streaming: codeBlockUrisSeen[codeBlockIndex]!.streaming! };
-						codeBlockUrisSeen[codeBlockIndex]!.streaming = undefined;
-					} else {
-						entry = { seen: 0, streaming: session.startStreamingEdits(part.uri, responseModel, undoStop) };
-					}
-
+					entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, responseModel, undoStop) };
 					editsSeen[i] = entry;
 				}
 
@@ -326,7 +307,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
-						entry.streaming.pushNotebook(newEdits as ICellEditOperation[]);
+						newEdits.forEach(edit => {
+							if (TextEdit.isTextEdit(edit)) {
+								// Not possible, as Notebooks would have a different type.
+								return;
+							} else if (isCellTextEditOperation(edit)) {
+								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit]);
+							} else {
+								entry.streaming.pushNotebook([edit]);
+							}
+						});
 					} else if (part.kind === 'textEditGroup') {
 						entry.streaming.pushText(newEdits as TextEdit[]);
 					}

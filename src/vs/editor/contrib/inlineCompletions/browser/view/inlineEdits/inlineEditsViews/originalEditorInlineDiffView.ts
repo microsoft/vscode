@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../../../../base/common/observable.js';
 import { ICodeEditor, MouseTargetType } from '../../../../../../browser/editorBrowser.js';
@@ -19,7 +21,7 @@ import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMap
 import { EndOfLinePreference, IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from '../../../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
-import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView } from '../inlineEditsViewInterface.js';
 import { classNames } from '../utils/utils.js';
 
 export interface IOriginalEditorInlineDiffViewState {
@@ -35,8 +37,11 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		return allowsTrueInlineDiffRendering(mapping);
 	}
 
+	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	readonly onDidClick = this._onDidClick.event;
+
 	readonly isHovered = observableCodeEditor(this._originalEditor).isTargetHovered(
-		p => p.type === MouseTargetType.CONTENT_TEXT && p.detail.injectedText?.options.attachedData instanceof InlineEditAttachedData,
+		p => p.target.type === MouseTargetType.CONTENT_TEXT && p.target.detail.injectedText?.options.attachedData instanceof InlineEditAttachedData,
 		this._store
 	);
 
@@ -46,7 +51,6 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		private readonly _originalEditor: ICodeEditor,
 		private readonly _state: IObservable<IOriginalEditorInlineDiffViewState | undefined>,
 		private readonly _modifiedTextModel: ITextModel,
-		private readonly _host: IInlineEditsViewHost,
 	) {
 		super();
 
@@ -68,8 +72,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 			}
 			const a = e.target.detail.injectedText?.options.attachedData;
 			if (a instanceof InlineEditAttachedData) {
-				this._host.accept();
-				e.event.preventDefault();
+				this._onDidClick.fire(e.event);
 			}
 		}));
 

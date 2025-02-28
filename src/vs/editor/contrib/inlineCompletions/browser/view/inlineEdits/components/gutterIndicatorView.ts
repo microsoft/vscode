@@ -21,7 +21,6 @@ import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
-import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
 import { IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
 import { InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
@@ -32,7 +31,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _originalRange: IObservable<LineRange | undefined>,
 		private readonly _verticalOffset: IObservable<number>,
-		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
 		private readonly _host: IInlineEditsViewHost,
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
@@ -166,14 +164,12 @@ export class InlineEditsGutterIndicator extends Disposable {
 	private readonly _indicator = n.div({
 		class: 'inline-edits-view-gutter-indicator',
 		onclick: () => {
-			const model = this._model.get();
-			if (!model) { return; }
 			const docked = this._layout.map(l => l && l.docked).get();
 			this._editorObs.editor.focus();
 			if (docked) {
-				model.accept();
+				this._host.accept();
 			} else {
-				model.jump();
+				this._host.jump();
 			}
 		},
 		tabIndex: 0,

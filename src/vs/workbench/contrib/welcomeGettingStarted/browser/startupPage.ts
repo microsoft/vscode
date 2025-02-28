@@ -222,7 +222,7 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 	}
 
 	if (startupEditor.value !== startupEditor.userRemoteValue) {
-		logService.info(`Startup editor is configured to be "${startupEditor.value}". This setting will be overridden by "${startupEditor.userRemoteValue}".`);
+		logService.trace(`Startup editor is configured to be "${startupEditor.value}". This setting will be overridden by "${startupEditor.userRemoteValue}".`);
 	}
 
 	return startupEditor.value === 'welcomePage'

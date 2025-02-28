@@ -7304,6 +7304,7 @@ declare namespace monaco.languages {
 		readonly action?: Command;
 		/**
 		 * Is called the first time an inline completion is shown.
+		 * @deprecated. Use `onDidShow` of the provider instead.
 		*/
 		readonly shownCommand?: Command;
 		/**
@@ -7312,6 +7313,7 @@ declare namespace monaco.languages {
 		*/
 		readonly completeBracketPairs?: boolean;
 		readonly isInlineEdit?: boolean;
+		readonly showInlineEditMenu?: boolean;
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
 	}

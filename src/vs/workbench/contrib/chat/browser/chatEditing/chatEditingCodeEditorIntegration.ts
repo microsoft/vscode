@@ -36,7 +36,7 @@ import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../scm/common/quickDiff.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
@@ -210,13 +210,24 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		// ---- readonly while streaming
 
 		let actualOptions: IEditorOptions | undefined;
+
+		const restoreActualOptions = () => {
+			if (actualOptions !== undefined) {
+				this._editor.updateOptions(actualOptions);
+				actualOptions = undefined;
+			}
+		};
+
+		this._store.add(toDisposable(restoreActualOptions));
+
 		const shouldBeReadOnly = derived(this, r => {
 			const model = codeEditorObs.model.read(r);
 			if (!model) {
 				return false;
 			}
 			for (const session of chatEditingService.editingSessionsObs.read(r)) {
-				if (session.readEntry(model.uri, r) && session.state.read(r) === ChatEditingSessionState.StreamingEdits) {
+				const entry = session.readEntry(model.uri, r);
+				if (entry?.isCurrentlyBeingModifiedBy.read(r)) {
 					return true;
 				}
 			}
@@ -239,10 +250,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 					stickyScroll: { enabled: false }
 				});
 			} else {
-				if (actualOptions !== undefined) {
-					this._editor.updateOptions(actualOptions);
-					actualOptions = undefined;
-				}
+				restoreActualOptions();
 			}
 		}));
 	}
@@ -254,7 +262,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 	private _clear() {
 		this._diffLineDecorations.clear();
-		// this._currentChangeIndex.set(undefined, undefined);
+		this._clearDiffRendering();
 		this._currentIndex.set(-1, undefined);
 	}
 
@@ -414,8 +422,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			this._diffHunkWidgets.length = 0;
 			diffHunkDecoCollection.clear();
 		}));
-
-
 
 		const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
 

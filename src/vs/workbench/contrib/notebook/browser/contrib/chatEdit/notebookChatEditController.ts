@@ -22,6 +22,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { ctxNotebookHasEditorModification } from './notebookChatEditContext.js';
 import { NotebookDeletedCellDecorator } from '../../diff/inlineDiff/notebookDeletedCellDecorator.js';
 import { NotebookInsertedCellDecorator } from '../../diff/inlineDiff/notebookInsertedCellDecorator.js';
+import { ChatEditingModifiedDocumentEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 
 export class NotebookChatEditorControllerContrib extends Disposable implements INotebookEditorContribution {
 
@@ -53,7 +54,7 @@ class NotebookChatEditorController extends Disposable {
 	) {
 		super();
 		this._ctxHasEditorModification = ctxNotebookHasEditorModification.bindTo(contextKeyService);
-		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor));
+		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor, undefined));
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
@@ -84,7 +85,8 @@ class NotebookChatEditorController extends Disposable {
 				return;
 			}
 			const sessions = this._chatEditingService.editingSessionsObs.read(r);
-			return sessions.map(s => s.readEntry(model.uri, r)).find(r => !!r);
+			const entry = sessions.map(s => s.readEntry(model.uri, r)).find(r => !!r);
+			return entry instanceof ChatEditingModifiedDocumentEntry ? entry : undefined;
 		}).recomputeInitiallyAndOnChange(this._store);
 
 

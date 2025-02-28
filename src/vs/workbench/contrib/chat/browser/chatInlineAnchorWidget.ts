@@ -7,10 +7,8 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -92,8 +90,6 @@ export class InlineAnchorWidget extends Disposable {
 		const contextKeyService = this._register(originalContextKeyService.createScoped(element));
 		this._chatResourceContext = chatAttachmentResourceContextKey.bindTo(contextKeyService);
 
-		const anchorId = new Lazy(generateUuid);
-
 		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
 
 		let iconText: string;
@@ -109,18 +105,6 @@ export class InlineAnchorWidget extends Disposable {
 			iconText = this.data.symbol.name;
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
 
-			this._register(dom.addDisposableListener(element, 'click', () => {
-				telemetryService.publicLog2<{
-					anchorId: string;
-				}, {
-					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
-					owner: 'mjbvz';
-					comment: 'Provides insight into the usage of Chat features.';
-				}>('chat.inlineAnchor.openSymbol', {
-					anchorId: anchorId.value
-				});
-			}));
-
 			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, contextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
 		} else {
 			location = this.data;
@@ -130,35 +114,31 @@ export class InlineAnchorWidget extends Disposable {
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
 				label;
 
-			const fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
 
 			iconClasses = recomputeIconClasses();
 
-			this._register(themeService.onDidFileIconThemeChange(() => {
+			const refreshIconClasses = () => {
 				iconEl.classList.remove(...iconClasses);
 				iconClasses = recomputeIconClasses();
 				iconEl.classList.add(...iconClasses);
+			};
+
+			this._register(themeService.onDidFileIconThemeChange(() => {
+				refreshIconClasses();
 			}));
 
 			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
 			fileService.stat(location.uri)
 				.then(stat => {
 					isFolderContext.set(stat.isDirectory);
+					if (stat.isDirectory) {
+						fileKind = FileKind.FOLDER;
+						refreshIconClasses();
+					}
 				})
 				.catch(() => { });
-
-			this._register(dom.addDisposableListener(element, 'click', () => {
-				telemetryService.publicLog2<{
-					anchorId: string;
-				}, {
-					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
-					owner: 'mjbvz';
-					comment: 'Provides insight into the usage of Chat features.';
-				}>('chat.inlineAnchor.openResource', {
-					anchorId: anchorId.value
-				});
-			}));
 
 			// Context menu
 			this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async domEvent => {

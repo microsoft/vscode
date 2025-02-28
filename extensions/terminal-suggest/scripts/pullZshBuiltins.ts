@@ -14,6 +14,8 @@ if (platform() === 'win32') {
 	process.exit(1);
 }
 
+const latestZshVersion = 5.9;
+
 const shortDescriptions: Map<string, string> = new Map([
 	['.', 'Source a file'],
 	[':', 'No effect'],
@@ -135,7 +137,17 @@ let zshBuiltinsCommandDescriptionsCache = new Map<string, ICommandDetails>();
 async function createCommandDescriptionsCache(): Promise<void> {
 	const cachedCommandDescriptions: Map<string, { shortDescription?: string; description: string; args: string | undefined }> = new Map();
 	let output = '';
-
+	const zshVersionOutput = await execAsync('zsh --version').then(r => r.stdout);
+	const zshVersionMatch = zshVersionOutput.match(/zsh (\d+\.\d+)/);
+	if (!zshVersionMatch) {
+		console.error('\x1b[31mFailed to determine zsh version\x1b[0m');
+		process.exit(1);
+	}
+	const zshVersion = parseFloat(zshVersionMatch[1]);
+	if (zshVersion < latestZshVersion) {
+		console.error(`\x1b[31mZsh version must be ${latestZshVersion} or higher\x1b[0m`);
+		process.exit(1);
+	}
 	try {
 		output = await execAsync('pandoc --from man --to markdown --wrap=none < $(man -w zshbuiltins)').then(r => r.stdout);
 	} catch {
@@ -236,14 +248,21 @@ const main = async () => {
 			console.log('\x1b[31mmissing short description for commands:\n' + missingShortDescription.join('\n') + '\x1b[0m');
 		}
 
-		// Save the cache to a JSON file
-		const cacheFilePath = path.join(__dirname, '../src/shell/zshBuiltinsCache.json');
+		// Save the cache to a TypeScript file
+		const cacheFilePath = path.join(__dirname, '../src/shell/zshBuiltinsCache.ts');
 		const cacheObject = Object.fromEntries(zshBuiltinsCommandDescriptionsCache);
-		await fs.writeFile(cacheFilePath, JSON.stringify(cacheObject, null, 2), 'utf8');
-		console.log('saved command descriptions cache to zshBuiltinsCache.json with ', Object.keys(cacheObject).length, 'entries');
+		const tsContent = `${copyright}\n\nexport const zshBuiltinsCommandDescriptionsCache = ${JSON.stringify(cacheObject, null, 2)} as const;`;
+		await fs.writeFile(cacheFilePath, tsContent, 'utf8');
+		console.log('saved command descriptions cache to zshBuiltinsCache.ts with ', Object.keys(cacheObject).length, 'entries');
 	} catch (error) {
 		console.error('Error:', error);
 	}
 };
+
+const copyright = `
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/`;
 
 main();

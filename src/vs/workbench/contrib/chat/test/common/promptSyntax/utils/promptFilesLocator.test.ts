@@ -27,10 +27,14 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../..
 const mockConfigService = <T>(value: T): IConfigurationService => {
 	return mockService<IConfigurationService>({
 		getValue(key?: string | IConfigurationOverrides) {
-			assert.strictEqual(
-				key,
-				PromptsConfig.CONFIG_KEY,
-				`Mocked service supports only one configuration key: '${PromptsConfig.CONFIG_KEY}'.`,
+			assert(
+				typeof key === 'string',
+				`Expected string configuration key, got '${typeof key}'.`,
+			);
+
+			assert(
+				[PromptsConfig.CONFIG_KEY, PromptsConfig.LOCATIONS_CONFIG_KEY].includes(key),
+				`Unsupported configuration key '${key}'.`,
 			);
 
 			return value;

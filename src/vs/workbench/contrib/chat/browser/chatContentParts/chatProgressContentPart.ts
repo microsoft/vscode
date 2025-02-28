@@ -70,11 +70,14 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private renderFileWidgets(element: HTMLElement): void {
 		const links = element.querySelectorAll('a');
 		links.forEach(a => {
-			const href = a.getAttribute('data-href');
-			const uri = href ? URI.parse(href) : undefined;
-			if (uri?.scheme) {
-				const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
-				this._register(this.chatMarkdownAnchorService.register(widget));
+			// Empty link text -> render file widget
+			if (!a.textContent?.trim()) {
+				const href = a.getAttribute('data-href');
+				const uri = href ? URI.parse(href) : undefined;
+				if (uri?.scheme) {
+					const widget = this._register(this.instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }));
+					this._register(this.chatMarkdownAnchorService.register(widget));
+				}
 			}
 		});
 	}
@@ -115,5 +118,22 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		return other.kind === 'working' && this.workingProgress.isPaused === other.isPaused;
+	}
+}
+
+export class ChatCustomProgressPart {
+	public readonly domNode: HTMLElement;
+
+	constructor(
+		messageElement: HTMLElement,
+		icon: ThemeIcon,
+	) {
+		this.domNode = $('.progress-container');
+		const iconElement = $('div');
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		append(this.domNode, iconElement);
+
+		messageElement.classList.add('progress-step');
+		append(this.domNode, messageElement);
 	}
 }

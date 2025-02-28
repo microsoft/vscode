@@ -7,10 +7,9 @@ import * as vscode from 'vscode';
 import type { ICompletionResource } from '../types';
 import { execHelper, getAliasesHelper } from './common';
 import { type ExecOptionsWithStringEncoding } from 'node:child_process';
-import * as path from 'path';
-import * as fs from 'fs';
+import { zshBuiltinsCommandDescriptionsCache } from './zshBuiltinsCache';
 
-let zshBuiltinsCommandDescriptionsCache: Map<string, { shortDescription?: string; description: string; args: string | undefined }> | undefined;
+const commandDescriptionsCache: Map<string, { shortDescription?: string; description: string; args: string | undefined }> | undefined = parseCache(zshBuiltinsCommandDescriptionsCache);
 
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
@@ -39,22 +38,8 @@ async function getBuiltins(
 		});
 	}
 
-	if (!zshBuiltinsCommandDescriptionsCache) {
-		const cacheFilePath = path.join(__dirname, 'zshBuiltinsCache.json');
-		if (fs.existsSync(cacheFilePath)) {
-			try {
-				const cacheFileContent = fs.readFileSync(cacheFilePath, 'utf8');
-				const cacheObject = JSON.parse(cacheFileContent);
-				zshBuiltinsCommandDescriptionsCache = new Map(Object.entries(cacheObject));
-			} catch (e) {
-				console.error('Failed to load zsh builtins cache', e);
-			}
-		} else {
-			console.warn('zsh builtins cache not found');
-		}
-	}
 
-	for (const cmd of zshBuiltinsCommandDescriptionsCache?.keys() ?? []) {
+	for (const cmd of commandDescriptionsCache?.keys() ?? []) {
 		if (typeof cmd === 'string') {
 			try {
 				const result = getCommandDescription(cmd);
@@ -83,7 +68,7 @@ export function getCommandDescription(command: string): { documentation?: string
 	if (!zshBuiltinsCommandDescriptionsCache) {
 		return undefined;
 	}
-	const result = zshBuiltinsCommandDescriptionsCache?.get(command);
+	const result = commandDescriptionsCache?.get(command);
 	if (result?.shortDescription) {
 		return {
 			description: result.shortDescription,
@@ -97,4 +82,15 @@ export function getCommandDescription(command: string): { documentation?: string
 			documentation: result?.description
 		};
 	}
+}
+
+function parseCache(cache: Object): Map<string, { shortDescription?: string; description: string; args: string | undefined }> | undefined {
+	if (!cache) {
+		return undefined;
+	}
+	const result = new Map<string, { shortDescription?: string; description: string; args: string | undefined }>();
+	for (const [key, value] of Object.entries(cache)) {
+		result.set(key, value);
+	}
+	return result;
 }

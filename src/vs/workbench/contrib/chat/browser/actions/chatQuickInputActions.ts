@@ -80,8 +80,8 @@ class QuickChatGlobalAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.ChatTitleBarMenu,
-				group: 'e_quickChat',
-				order: 5
+				group: 'a_open',
+				order: 4
 			},
 			metadata: {
 				description: localize('toggle.desc', 'Toggle the quick chat'),

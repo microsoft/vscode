@@ -62,7 +62,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE $MINE is:issue is:closed reason:completed label:feature-request label:verification-needed -label:verified"
+    "value": "$REPOS $MILESTONE $MINE is:issue is:closed reason:completed label:feature-request label:verification-needed -label:verified -label:on-testplan"
   },
   {
     "kind": 1,
@@ -87,7 +87,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed reason:completed -assignee:@me -label:verified -label:z-author-verified label:feature-request label:verification-needed -label:verification-steps-needed -label:unreleased"
+    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed reason:completed -assignee:@me -label:verified -label:z-author-verified label:feature-request label:verification-needed -label:verification-steps-needed -label:unreleased -label:on-testplan"
   },
   {
     "kind": 1,
