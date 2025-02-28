@@ -5,7 +5,7 @@
 
 import { assert } from '../../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue, IObservable, ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
@@ -31,6 +31,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
@@ -100,6 +101,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		initialContent: string | undefined,
+		@IMarkerService markerService: IMarkerService,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -157,6 +159,17 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._register(autorun(r => {
 			this._diffTrimWhitespace.read(r);
 			this._updateDiffInfoSeq();
+		}));
+
+		const resourceFilter = this._register(new MutableDisposable());
+		this._register(autorun(r => {
+			const res = this.isCurrentlyBeingModifiedBy.read(r);
+			if (res) {
+				const req = res.session.getRequests().find(value => value.id === res.requestId);
+				resourceFilter.value = markerService.installResourceFilter(this.modifiedURI, req?.message.text || localize('default', "Chat Edits"));
+			} else {
+				resourceFilter.clear();
+			}
 		}));
 	}
 
