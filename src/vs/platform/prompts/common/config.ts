@@ -5,6 +5,9 @@
 
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 
+// TODO: @lego - update the docs
+// TODO: @lego - update unit tests
+
 /**
  * Configuration helper for the `reusable prompts` feature.
  * @see {@link CONFIG_KEY} and {@link LOCATIONS_CONFIG_KEY}.
@@ -67,15 +70,15 @@ import { IConfigurationService } from '../../configuration/common/configuration.
  */
 export namespace PromptsConfig {
 	/**
-	 * Configuration key for the `prompt files` feature (also
-	 * known as `prompt files`, `prompt instructions`, etc.).
+	 * Configuration key for the `reusable prompts` feature
+	 * (also known as `prompt files`, `prompt instructions`, etc.).
 	 */
 	export const CONFIG_KEY: string = 'chat.reusablePrompts';
 
 	/**
 	 * Configuration key for the locations of reusable prompt files.
 	 */
-	export const LOCATIONS_CONFIG_KEY: string = 'chat.reusablePrompt.locations';
+	export const LOCATIONS_CONFIG_KEY: string = 'chat.reusablePromptsLocations';
 
 	/**
 	 * Default reusable prompt files source folder.

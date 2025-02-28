@@ -8,12 +8,15 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { KeyMod, KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { isPromptFile } from '../../../../../../platform/prompts/common/constants.js';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { appendToCommandPalette } from '../../../../files/browser/fileActions.contribution.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchContributionsRegistry, Extensions } from '../../../../../common/contributions.js';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatAttachPromptActionOptions, ATTACH_PROMPT_ACTION_ID } from '../../actions/chatAttachPromptAction/chatAttachPromptAction.js';
@@ -62,27 +65,6 @@ const command = async (
 
 	await commandService.executeCommand(ATTACH_PROMPT_ACTION_ID, options);
 };
-
-/**
- * Register the "Use Prompt" command with its keybinding.
- */
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: COMMAND_KEY_BINDING,
-	handler: command,
-});
-
-/**
- * Register the "Use Prompt" command in the `command palette`.
- */
-appendToCommandPalette(
-	{
-		id: COMMAND_ID,
-		title: localize('commands.prompts.use.title', "Use Prompt"),
-		category: CHAT_CATEGORY,
-	},
-);
 
 /**
  * Get chat widget reference to attach prompt to.
@@ -144,3 +126,30 @@ const getActivePromptUri = (
 
 	return undefined;
 };
+
+/**
+ * Register the "Use Prompt" command with its keybinding.
+ */
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: COMMAND_KEY_BINDING,
+	handler: command,
+});
+
+/**
+ * Register the "Use Prompt" command in the `command palette`.
+ */
+appendToCommandPalette(
+	{
+		id: COMMAND_ID,
+		title: localize('commands.prompts.use.title', "Use Prompt"),
+		category: CHAT_CATEGORY,
+	},
+);
+
+class RunIfEnabled { }
+
+// register the command as a workbench contribution
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
+	.registerWorkbenchContribution(RunIfEnabled, LifecyclePhase.Eventually);
