@@ -731,13 +731,6 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		const alreadyRequestedUninstalls: Promise<any>[] = [];
 
 		const installedExtensionsMap = new ResourceMap<ILocalExtension[]>();
-		const getInstalledExtensions = async (profileLocation: URI) => {
-			let installed = installedExtensionsMap.get(profileLocation);
-			if (!installed) {
-				installedExtensionsMap.set(profileLocation, installed = await this.getInstalled(ExtensionType.User, profileLocation));
-			}
-			return installed;
-		};
 
 		for (const { extension, options } of extensions) {
 			const uninstallOptions: UninstallExtensionTaskOptions = {
@@ -751,32 +744,14 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			} else {
 				allTasks.push(createUninstallExtensionTask(extension, uninstallOptions));
 			}
-
-			if (uninstallOptions.remove) {
-				// Remove from all profiles
-				for (const profile of this.userDataProfilesService.profiles) {
-					if (this.uriIdentityService.extUri.isEqual(profile.extensionsResource, uninstallOptions.profileLocation)) {
-						continue;
-					}
-					const installed = await getInstalledExtensions(profile.extensionsResource);
-					const profileExtension = installed.find(e => areSameExtensions(e.identifier, extension.identifier));
-					if (profileExtension) {
-						const uninstallOptionsWithProfile = { ...uninstallOptions, profileLocation: profile.extensionsResource };
-						const uninstallExtensionTask = this.uninstallingExtensions.get(getUninstallExtensionTaskKey(profileExtension, uninstallOptionsWithProfile));
-						if (uninstallExtensionTask) {
-							this.logService.info('Extensions is already requested to uninstall', profileExtension.identifier.id);
-							alreadyRequestedUninstalls.push(uninstallExtensionTask.waitUntilTaskIsFinished());
-						} else {
-							allTasks.push(createUninstallExtensionTask(profileExtension, uninstallOptionsWithProfile));
-						}
-					}
-				}
-			}
 		}
 
 		try {
 			for (const task of allTasks.slice(0)) {
-				const installed = await getInstalledExtensions(task.options.profileLocation);
+				let installed = installedExtensionsMap.get(task.options.profileLocation);
+				if (!installed) {
+					installedExtensionsMap.set(task.options.profileLocation, installed = await this.getInstalled(ExtensionType.User, task.options.profileLocation));
+				}
 
 				if (task.options.donotIncludePack) {
 					this.logService.info('Uninstalling the extension without including packed extension', `${task.extension.identifier.id}@${task.extension.manifest.version}`);
