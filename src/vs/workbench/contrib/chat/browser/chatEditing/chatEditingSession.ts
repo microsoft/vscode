@@ -50,6 +50,7 @@ import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentE
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditingModifiedNotebookDiff, ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -77,7 +78,7 @@ class ThrottledSequencer extends Sequencer {
 				const p1 = promiseTask();
 				const p2 = noDelay
 					? Promise.resolve(undefined)
-					: timeout(this._minDuration);
+					: timeout(this._minDuration, CancellationToken.None);
 
 				const [result] = await Promise.all([p1, p2]);
 				return result;
