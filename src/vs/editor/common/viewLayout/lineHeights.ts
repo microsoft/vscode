@@ -387,16 +387,17 @@ export class LineHeightManager {
 
 			for (let i = 0; i < this._orderedSpecialLines.length; i++) {
 				const specialLine = this._orderedSpecialLines[i];
+				console.log('i : ', i);
 				console.log('specialLine : ', specialLine);
 				console.log('specialLine.lineNumber : ', specialLine.lineNumber);
 
-				if (specialLine.lineNumber <= fromLineNumber) {
+				if (specialLine.lineNumber < fromLineNumber) {
 					console.log('specialLine.lineNumber <= fromLineNumber');
 					console.log('specialLine : ', specialLine);
 					newOrderedSpecialLines.push(specialLine);
 				}
-				if (specialLine.lineNumber >= fromLineNumber + 1 && specialLine.lineNumber <= toLineNumber) {
-					console.log('specialLine.lineNumber >= fromLineNumber + 1 && specialLine.lineNumber <= toLineNumber');
+				if (specialLine.lineNumber >= fromLineNumber && specialLine.lineNumber <= toLineNumber) {
+					console.log('specialLine.lineNumber >= fromLineNumber && specialLine.lineNumber <= toLineNumber');
 					if (previousDeletedLineNumber !== specialLine.lineNumber) {
 						console.log('previousDeletedLineNumber !== specialLine.lineNumber');
 						if (previousDeletedLineNumber === undefined) {
@@ -405,6 +406,7 @@ export class LineHeightManager {
 							totalHeightDeleted += specialLine.maximumSpecialHeight;
 							totalHeightDeleted += this._defaultLineHeight * (specialLine.lineNumber - previousDeletedLineNumber - 1);
 						}
+						console.log('totalHeightDeleted : ', totalHeightDeleted);
 						previousDeletedLineNumber = specialLine.lineNumber;
 					}
 					numberOfDeletedLinesSoFar++;
@@ -421,12 +423,13 @@ export class LineHeightManager {
 					}
 					console.log('numberOfDeletedLinesSoFar : ', numberOfDeletedLinesSoFar);
 					console.log('totalHeightDeleted : ', totalHeightDeleted);
+					console.log('previousDeletedLineNumber : ', previousDeletedLineNumber);
 					console.log('deleteCount : ', deleteCount);
-					console.log('specialLine : ', specialLine);
 					specialLine.index -= numberOfDeletedLinesSoFar;
 					specialLine.lineNumber -= deleteCount;
 					specialLine.prefixSum -= totalHeightDeleted;
 					newOrderedSpecialLines.push(specialLine);
+					console.log('specialLine : ', specialLine);
 				}
 			}
 		}
