@@ -400,7 +400,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				return false;
 			}
 
-			return Boolean(result[language]);
+			return result[language] !== false;
 		};
 		const writeSetting = (checkbox: Checkbox) => {
 			let result = this.configurationService.getValue<Record<string, boolean>>(settingId);
