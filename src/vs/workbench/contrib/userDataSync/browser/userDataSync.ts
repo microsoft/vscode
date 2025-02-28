@@ -577,7 +577,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				// the sync feature, we want the resource to be pre-selected in the UI hence
 				// be consistent with other resource types in that regard; to achieve that
 				// we use the `true` fallback value here if the resource enablement state wasn't
-				// modified before (see https://github.com/microsoft/vscode-copilot/issues/13601)
+				// modified before
 				if (item.id === SyncResource.Prompts) {
 					const currentValue = this.userDataSyncEnablementService.getResourceEnablement(item.id);
 					return currentValue ?? true;
