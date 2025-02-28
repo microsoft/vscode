@@ -1359,6 +1359,7 @@ export class GettingStartedPage extends EditorPane {
 						container.appendChild(shortcutMessage);
 						const label = new KeybindingLabel(shortcutMessage, OS, { ...defaultKeybindingLabelStyles });
 						label.set(keybinding);
+						this.detailsPageDisposables.add(label);
 					}
 				}
 
