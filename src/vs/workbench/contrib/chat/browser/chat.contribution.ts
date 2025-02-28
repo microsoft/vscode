@@ -207,7 +207,7 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.reusablePrompts.config.enabled.description',
-				"Enable reusable prompt files (`*{0}`) in Chat, Edits, and Inline Chat sessions. [Learn More]({0}).",
+				"Enable reusable prompt files (`*{0}`) in Chat, Edits, and Inline Chat sessions. [Learn More]({1}).",
 				PROMPT_FILE_EXTENSION,
 				DOCUMENTATION_URL,
 			),
