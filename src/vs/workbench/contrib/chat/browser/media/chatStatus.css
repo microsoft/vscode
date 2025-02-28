@@ -62,7 +62,7 @@
 
 .chat-status-bar-entry-tooltip .shortcuts .shortcut {
 	display: flex;
-	gap: 10px;
+	gap: 15px;
 
 	/** Make room for the hover feedback */
 	margin-left: -3px;
