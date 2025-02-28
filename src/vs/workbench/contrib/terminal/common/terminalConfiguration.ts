@@ -486,7 +486,7 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
 			type: 'boolean',
 			tags: ['preview'],
-			default: product.quality !== 'stable',
+			default: product.quality !== 'stable'
 		},
 		[TerminalSettingId.SplitCwd]: {
 			description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -610,7 +610,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
 			markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
 			type: 'boolean',
-			default: product.quality !== 'stable',
+			default: product.quality !== 'stable'
 		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
