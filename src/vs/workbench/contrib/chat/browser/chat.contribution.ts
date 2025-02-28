@@ -216,6 +216,7 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental'],
 		},
+		// TODO: @lego - add more tags?
 		[PromptsConfig.LOCATIONS_CONFIG_KEY]: {
 			type: 'object',
 			title: nls.localize(
