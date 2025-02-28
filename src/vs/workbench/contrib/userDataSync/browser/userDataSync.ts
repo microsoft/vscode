@@ -571,7 +571,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
+			quickPick.selectedItems = this.getEnabledResourceOptions(items);
 			let accepted: boolean = false;
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
 				accepted = true;
@@ -590,6 +590,25 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 			}));
 			quickPick.show();
+		});
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private getEnabledResourceOptions(
+		items: readonly ConfigureSyncQuickPickItem[],
+	): readonly ConfigureSyncQuickPickItem[] {
+		return items.filter((item) => {
+			const { id } = item;
+
+			// TODO: @legomushroom
+			if (id === SyncResource.Prompts) {
+				const currentValue = this.userDataSyncEnablementService.getResourceEnablement(id);
+				return currentValue ?? true;
+			}
+
+			return this.userDataSyncEnablementService.isResourceEnabled(item.id);
 		});
 	}
 
@@ -650,7 +669,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.ok = true;
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
+			quickPick.selectedItems = this.getEnabledResourceOptions(items);
 			disposables.add(quickPick.onDidAccept(async () => {
 				if (quickPick.selectedItems.length) {
 					this.updateConfiguration(items, quickPick.selectedItems);
