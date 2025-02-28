@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IExtensionManagementService, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH, InstallOperation, IAllowedExtensionsService, EXTENSION_UNINSTALL_MALICIOUS_CONTEXT } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH, InstallOperation, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IWorkbenchExtensionManagementService, IExtensionManagementServer, ExtensionInstallLocation } from '../common/extensionManagement.js';
 import { areSameExtensions, BetterMergeId, getExtensionDependencies } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
@@ -67,7 +67,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		super();
 		this.storageManager = this._register(new StorageManager(storageService));
 
-		const uninstallDisposable = this._register(Event.filter(extensionManagementService.onDidUninstallExtension, e => !e.error && !e.context?.[EXTENSION_UNINSTALL_MALICIOUS_CONTEXT])(({ identifier }) => this._reset(identifier)));
+		const uninstallDisposable = this._register(Event.filter(extensionManagementService.onDidUninstallExtension, e => !e.error)(({ identifier }) => this._reset(identifier)));
 		let isDisposed = false;
 		this._register(toDisposable(() => isDisposed = true));
 		this.extensionsManager = this._register(instantiationService.createInstance(ExtensionsManager));
@@ -738,7 +738,7 @@ class ExtensionsManager extends Disposable {
 			this.updateExtensions(e.reduce<IExtension[]>((result, { local, operation }) => {
 				if (local && operation !== InstallOperation.Migrate) { result.push(local); } return result;
 			}, []), [], undefined, false)));
-		this._register(Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error && !e.context?.[EXTENSION_UNINSTALL_MALICIOUS_CONTEXT]))(e => this.updateExtensions([], [e.identifier], e.server, false)));
+		this._register(Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))(e => this.updateExtensions([], [e.identifier], e.server, false)));
 		this._register(this.extensionManagementService.onDidChangeProfile(({ added, removed, server }) => {
 			this.updateExtensions(added, removed.map(({ identifier }) => identifier), server, true);
 		}));
