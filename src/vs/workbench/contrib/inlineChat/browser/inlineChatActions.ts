@@ -70,8 +70,8 @@ export class StartSessionAction extends Action2 {
 			icon: START_INLINE_CHAT,
 			menu: {
 				id: MenuId.ChatTitleBarMenu,
-				group: 'd_inlineChat',
-				order: 10,
+				group: 'a_open',
+				order: 3,
 			}
 		});
 	}
@@ -386,8 +386,7 @@ export class CloseAction extends AbstractInline1ChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
-					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
-					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.Messages)
+					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
 				),
 			}]
 		});

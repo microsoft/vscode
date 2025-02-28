@@ -19,7 +19,6 @@ import { WorkbenchList } from '../../../../platform/list/browser/listService.js'
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
 import { collectContextMenuActions, getActionViewItemProvider } from './util.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -55,10 +54,9 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -149,16 +147,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const menu = menus.repositoryContextMenu;
 		const actions = collectContextMenuActions(menu);
 
-		const actionRunner = this._register(new RepositoryActionRunner(() => {
+		const actionRunner = new RepositoryActionRunner(() => {
 			return this.list.getSelectedElements();
-		}));
+		});
 		actionRunner.onWillRun(() => this.list.domFocus());
 
 		this.contextMenuService.showContextMenu({
 			actionRunner,
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => provider
+			getActionsContext: () => provider,
+			onHide: () => actionRunner.dispose()
 		});
 	}
 

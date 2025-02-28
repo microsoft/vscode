@@ -15,6 +15,11 @@ import { DefaultLineHeight } from '../diffElementViewModel.js';
 import { CellDiffInfo } from '../notebookDiffViewModel.js';
 import { INotebookEditor } from '../../notebookBrowser.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { MenuWorkbenchToolBar, HiddenItemStrategy } from '../../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 
 const ttPolicy = createTrustedTypesPolicy('notebookRenderer', { createHTML: value => value });
 
@@ -22,13 +27,16 @@ export interface INotebookDeletedCellDecorator {
 	getTop(deletedIndex: number): number | undefined;
 }
 
+
 export class NotebookDeletedCellDecorator extends Disposable implements INotebookDeletedCellDecorator {
 	private readonly zoneRemover = this._register(new DisposableStore());
 	private readonly createdViewZones = new Map<number, string>();
 	private readonly deletedCellInfos = new Map<number, { height: number; previousIndex: number; offset: number }>();
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
+		private readonly toolbar: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -40,7 +48,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 		}
 		const cells = this._notebookEditor.getCellsInRange({ start: info.previousIndex, end: info.previousIndex + 1 });
 		if (!cells.length) {
-			return;
+			return this._notebookEditor.getLayoutInfo().height + info.offset;
 		}
 		const cell = cells[0];
 		const cellHeight = this._notebookEditor.getHeightOfElement(cell);
@@ -48,10 +56,26 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 		return top + cellHeight + info.offset;
 	}
 
+	reveal(deletedIndex: number) {
+		const top = this.getTop(deletedIndex);
+		if (typeof top === 'number') {
+			this._notebookEditor.focusContainer();
+			this._notebookEditor.revealOffsetInCenterIfOutsideViewport(top);
+
+			const info = this.deletedCellInfos.get(deletedIndex);
+
+			if (info) {
+				const prevIndex = info.previousIndex;
+				this._notebookEditor.setFocus({ start: prevIndex, end: prevIndex });
+				this._notebookEditor.setSelections([{ start: prevIndex, end: prevIndex }]);
+			}
+		}
+	}
+
 	public apply(diffInfo: CellDiffInfo[], original: NotebookTextModel): void {
 		this.clear();
 
-		let currentIndex = 0;
+		let currentIndex = -1;
 		const deletedCellsToRender: { cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]; index: number } = { cells: [], index: 0 };
 		diffInfo.forEach(diff => {
 			if (diff.type === 'delete') {
@@ -86,7 +110,7 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 		const rootContainer = document.createElement('div');
 		const widgets: NotebookDeletedCellWidget[] = [];
 		const heights = await Promise.all(cells.map(async cell => {
-			const widget = new NotebookDeletedCellWidget(this._notebookEditor, cell.cell.getValue(), cell.cell.language, rootContainer, cell.originalIndex, this.languageService);
+			const widget = new NotebookDeletedCellWidget(this._notebookEditor, this.toolbar, cell.cell.getValue(), cell.cell.language, rootContainer, cell.originalIndex, this.languageService, this.instantiationService);
 			widgets.push(widget);
 			const height = await widget.render();
 			this.deletedCellInfos.set(cell.originalIndex, { height, previousIndex: cell.previousIndex, offset: 0 });
@@ -133,14 +157,17 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 
 export class NotebookDeletedCellWidget extends Disposable {
 	private readonly container: HTMLElement;
+	// private readonly toolbar: HTMLElement;
+
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		// private readonly _index: number,
+		private readonly _toolbarOptions: { menuId: MenuId; className: string; telemetrySource?: string; argFactory: (deletedCellIndex: number) => any } | undefined,
 		private readonly code: string,
 		private readonly language: string,
 		container: HTMLElement,
-		public readonly originalIndex: number,
+		private readonly _originalIndex: number,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.container = DOM.append(container, document.createElement('div'));
@@ -171,11 +198,36 @@ export class NotebookDeletedCellWidget extends Disposable {
 				+ layoutInfo?.contentLeft ? `margin-left: ${layoutInfo}px;` : ''
 		+ `white-space: pre;`;
 
-
-
 		const rootContainer = this.container;
 		rootContainer.classList.add('code-cell-row');
+
+		if (this._toolbarOptions) {
+			const toolbar = document.createElement('div');
+			toolbar.className = this._toolbarOptions?.className;
+			rootContainer.appendChild(toolbar);
+
+			const scopedInstaService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this._notebookEditor.scopedContextKeyService])));
+			const toolbarWidget = scopedInstaService.createInstance(MenuWorkbenchToolBar, toolbar, this._toolbarOptions.menuId, {
+				telemetrySource: this._toolbarOptions.telemetrySource,
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: { primaryGroup: () => true },
+				menuOptions: {
+					renderShortTitle: true,
+					arg: this._toolbarOptions.argFactory(this._originalIndex),
+				},
+			});
+
+			this._store.add(toolbarWidget);
+
+			toolbar.style.position = 'absolute';
+			toolbar.style.right = '40px';
+			toolbar.style.zIndex = '10';
+			toolbar.classList.add('hover'); // Show by default
+		}
+
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
+		container.style.position = 'relative'; // Add this line
+
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		const cellContainer = DOM.append(container, DOM.$('.cell.code'));
 		DOM.append(focusIndicatorLeft, DOM.$('div.execution-count-label'));

@@ -45,7 +45,6 @@ import { EnablementState } from '../../../services/extensionManagement/common/ex
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotebookEditorWorkerService } from '../common/services/notebookWorkerService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -96,7 +95,6 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 		@ILogService private readonly logService: ILogService,
-		@INotebookEditorWorkerService private readonly _notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService
 	) {
 		super(NotebookEditor.ID, group, telemetryService, themeService, storageService);
@@ -146,7 +144,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 	override getActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			// this is being disposed by the consumer
-			return this._instantiationService.createInstance(NotebooKernelActionViewItem, action, this, options);
+			return this._register(this._instantiationService.createInstance(NotebooKernelActionViewItem, action, this, options));
 		}
 		return undefined;
 	}
@@ -334,7 +332,6 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 			}
 
 			this._handlePerfMark(perf, input, model.notebook);
-			this._handlePromptRecommendations(model.notebook);
 		} catch (e) {
 			this.logService.warn('NotebookEditorWidget#setInput failed', e);
 			if (isEditorOpenError(e)) {
@@ -503,24 +500,6 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 			codeLength,
 			markdownLength,
 			notebookStatsLoaded
-		});
-	}
-
-	private _handlePromptRecommendations(model: NotebookTextModel) {
-		this._notebookEditorWorkerService.canPromptRecommendation(model.uri).then(shouldPrompt => {
-			type WorkbenchNotebookShouldPromptRecommendationClassification = {
-				owner: 'rebornix';
-				comment: 'The notebook file metrics. Used to get a better understanding of if we should prompt for notebook extension recommendations';
-				shouldPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Should we prompt for notebook extension recommendations' };
-			};
-
-			type WorkbenchNotebookShouldPromptRecommendationEvent = {
-				shouldPrompt: boolean;
-			};
-
-			this.telemetryService.publicLog2<WorkbenchNotebookShouldPromptRecommendationEvent, WorkbenchNotebookShouldPromptRecommendationClassification>('notebook/shouldPromptRecommendation', {
-				shouldPrompt: shouldPrompt
-			});
 		});
 	}
 

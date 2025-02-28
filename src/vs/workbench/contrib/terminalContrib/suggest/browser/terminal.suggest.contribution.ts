@@ -32,6 +32,7 @@ import { SuggestDetailsClassName } from '../../../../services/suggest/browser/si
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import './terminalSymbolIcons.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 

@@ -24,8 +24,8 @@ export class ChatEditingTextModelContentProvider implements ITextModelContentPro
 	}
 
 	constructor(
+		private readonly _chatEditingService: IChatEditingService,
 		@IModelService private readonly _modelService: IModelService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
@@ -59,8 +59,8 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 	}
 
 	constructor(
+		private readonly _chatEditingService: IChatEditingService,
 		@IModelService private readonly _modelService: IModelService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {

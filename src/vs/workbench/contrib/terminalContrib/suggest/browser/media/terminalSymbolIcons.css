@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { executeCommandTimeout } from './executeCommand';
-
-export const executeCommand: Fig.ExecuteCommandFunction = (args) =>
-	executeCommandTimeout(args);
+.monaco-editor .codicon.codicon-symbol-method-arrow,
+.monaco-workbench .codicon.codicon-symbol-method-arrow { color: var(--vscode-terminalSymbolIcon-aliasForeground); }
+.monaco-editor .codicon.codicon-flag,
+.monaco-workbench .codicon.codicon-flag { color: var(--vscode-terminalSymbolIcon-flagForeground); }

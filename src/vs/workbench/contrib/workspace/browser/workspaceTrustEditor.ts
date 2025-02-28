@@ -1052,9 +1052,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private addTrustButtonToElement(parent: HTMLElement): void {
-		const trustAction = new Action('workspace.trust.button.action.grant', localize('trustButton', "Trust"), undefined, true, async () => {
+		const trustAction = this.rerenderDisposables.add(new Action('workspace.trust.button.action.grant', localize('trustButton', "Trust"), undefined, true, async () => {
 			await this.workspaceTrustManagementService.setWorkspaceTrust(true);
-		});
+		}));
 
 		const trustActions = [{ action: trustAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter')[0] }];
 
@@ -1065,9 +1065,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 			const trustMessageElement = append(parent, $('.trust-message-box'));
 			trustMessageElement.innerText = localize('trustMessage', "Trust the authors of all files in the current folder or its parent '{0}'.", name);
 
-			const trustParentAction = new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
+			const trustParentAction = this.rerenderDisposables.add(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
 				await this.workspaceTrustManagementService.setParentFolderTrust(true);
-			});
+			}));
 
 			trustActions.push({ action: trustParentAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Shift+Enter' : 'Ctrl+Shift+Enter')[0] });
 		}
@@ -1077,9 +1077,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private addDontTrustButtonToElement(parent: HTMLElement): void {
 		this.createButtonRow(parent, [{
-			action: new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
+			action: this.rerenderDisposables.add(new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
 				await this.workspaceTrustManagementService.setWorkspaceTrust(false);
-			}),
+			})),
 			keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter')[0]
 		}]);
 	}

@@ -23,6 +23,7 @@ export const EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT = 'skipPublisherTrus
 export const EXTENSION_INSTALL_SOURCE_CONTEXT = 'extensionInstallSource';
 export const EXTENSION_INSTALL_DEP_PACK_CONTEXT = 'dependecyOrPackExtensionInstall';
 export const EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT = 'clientTargetPlatform';
+export const EXTENSION_UNINSTALL_MALICIOUS_CONTEXT = 'uninstallMaliciousExtension';
 
 export const enum ExtensionInstallSource {
 	COMMAND = 'command',
@@ -415,6 +416,7 @@ export interface UninstallExtensionEvent {
 
 export interface DidUninstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
+	readonly context?: IStringDictionary<any>;
 	readonly error?: string;
 	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
@@ -534,9 +536,9 @@ export type InstallOptions = {
 	donotVerifySignature?: boolean;
 	operation?: InstallOperation;
 	profileLocation?: URI;
-	installOnlyNewlyAddedFromExtensionPack?: boolean;
 	productVersion?: IProductVersion;
 	keepExisting?: boolean;
+	downloadExtensionsLocally?: boolean;
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
@@ -549,6 +551,10 @@ export type UninstallOptions = {
 	readonly donotCheckDependents?: boolean;
 	readonly versionOnly?: boolean;
 	readonly remove?: boolean;
+	/**
+	 * Context passed through to DidUninstallExtensionEvent
+	 */
+	context?: IStringDictionary<any>;
 };
 
 export interface IExtensionManagementParticipant {

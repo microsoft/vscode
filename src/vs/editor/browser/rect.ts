@@ -108,6 +108,13 @@ export class Rect {
 			&& this.bottom >= other.bottom;
 	}
 
+	containsPoint(point: Point): boolean {
+		return this.left <= point.x
+			&& this.top <= point.y
+			&& this.right >= point.x
+			&& this.bottom >= point.y;
+	}
+
 	moveToBeContainedIn(parent: Rect): Rect {
 		const width = this.width;
 		const height = this.height;

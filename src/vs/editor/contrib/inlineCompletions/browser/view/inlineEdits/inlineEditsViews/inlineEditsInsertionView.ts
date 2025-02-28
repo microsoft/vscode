@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, n } from '../../../../../../../base/browser/dom.js';
+import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedWithStore, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
+import { Rect } from '../../../../../../browser/rect.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
@@ -18,14 +20,18 @@ import { Range } from '../../../../../../common/core/range.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens } from '../../../../../../common/tokens/lineTokens.js';
 import { TokenArray } from '../../../../../../common/tokens/tokenArray.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
 import { GhostTextView } from '../../ghostText/ghostTextView.js';
 import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, modifiedChangedLineBackgroundColor } from '../theme.js';
-import { createRectangle, mapOutFalsy } from '../utils/utils.js';
+import { createRectangle, getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs = observableCodeEditor(this._editor);
+
+	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _state = derived(this, reader => {
 		const state = this._input.read(reader);
@@ -42,10 +48,42 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		return { lineNumber: state.lineNumber, column: state.startColumn, text: state.text };
 	});
 
+	private readonly _maxPrefixTrim = derived(reader => {
+		const state = this._state.read(reader);
+		if (!state) {
+			return { prefixLeftOffset: 0, prefixTrim: 0 };
+
+		}
+		const textModel = this._editor.getModel()!;
+		const eol = textModel.getEOL();
+		const startsWithEol = state.text.startsWith(eol);
+		const originalRange = new LineRange(state.lineNumber, state.lineNumber + (startsWithEol ? 0 : 1));
+		let modifiedLines = state.text.split(eol);
+		if (startsWithEol) {
+			modifiedLines = modifiedLines.splice(1);
+		} else {
+			modifiedLines[0] = textModel.getLineContent(state.lineNumber) + modifiedLines[0];
+		}
+
+		return getPrefixTrim([], originalRange, modifiedLines, this._editor);
+	});
+
 	private readonly _ghostText = derived<GhostText | undefined>(reader => {
 		const state = this._state.read(reader);
+		const prefixTrim = this._maxPrefixTrim.read(reader);
 		if (!state) { return undefined; }
-		return new GhostText(state.lineNumber, [new GhostTextPart(state.column, state.text, false)]);
+
+		const textModel = this._editor.getModel()!;
+		const eol = textModel.getEOL();
+		const modifiedLines = state.text.split(eol);
+
+		const inlineDecorations = modifiedLines.map((line, i) => new InlineDecoration(
+			new Range(i + 1, i === 0 ? 1 : prefixTrim.prefixTrim + 1, i + 1, line.length + 1),
+			'modified-background',
+			InlineDecorationType.Regular
+		));
+
+		return new GhostText(state.lineNumber, [new GhostTextPart(state.column, state.text, false, inlineDecorations)]);
 	});
 
 	protected readonly _ghostTextView = this._register(this._instantiationService.createInstance(GhostTextView,
@@ -58,6 +96,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		},
 		observableValue(this, { syntaxHighlightingEnabled: true, extraClasses: ['inline-edit'] }),
 		true,
+		true
 	));
 
 	constructor(
@@ -73,6 +112,10 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 	) {
 		super();
 
+		this._register(this._ghostTextView.onDidClick((e) => {
+			this._onDidClick.fire(e);
+		}));
+
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._nonOverflowView.element,
 			position: constObservable(null),
@@ -80,7 +123,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			minContentWidthInPx: derived(reader => {
 				const info = this._overlayLayout.read(reader);
 				if (info === null) { return 0; }
-				return info.code1.x - info.codeStart1.x;
+				return info.minContentWidthRequired;
 			}),
 		}));
 	}
@@ -163,10 +206,12 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
+		const verticalScrollbarWidth = this._editorObs.layoutInfoVerticalScrollbarWidth.read(reader);
 
-		const left = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
-		const codeLeft = editorLayout.contentLeft;
-		if (left <= codeLeft) {
+		const right = editorLayout.contentLeft + this._editorMaxContentWidthInRange.read(reader) - horizontalScrollOffset;
+		const prefixLeftOffset = this._maxPrefixTrim.read(reader).prefixLeftOffset ?? 0 /* fix due to observable bug? */;
+		const left = editorLayout.contentLeft + prefixLeftOffset - horizontalScrollOffset;
+		if (right <= left) {
 			return null;
 		}
 
@@ -177,19 +222,14 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		const top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop + topTrim;
 		const bottom = top + height;
 
-		const code1 = new Point(left, top);
-		const codeStart1 = new Point(codeLeft, top);
-		const code2 = new Point(left, bottom);
-		const codeStart2 = new Point(codeLeft, bottom);
+		const overlay = new Rect(left, top, right, bottom);
 
 		return {
-			code1,
-			codeStart1,
-			code2,
-			codeStart2,
-			horizontalScrollOffset,
-			padding: 3,
+			overlay,
+			contentLeft: editorLayout.contentLeft,
+			minContentWidthRequired: prefixLeftOffset + overlay.width + verticalScrollbarWidth,
 			borderRadius: 4,
+			padding: 3
 		};
 	}).recomputeInitiallyAndOnChange(this._store);
 
@@ -201,16 +241,18 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		if (!overlayLayoutObs) { return undefined; }
 
 		const layoutInfo = overlayLayoutObs.read(reader);
+		const overlay = layoutInfo.overlay;
+		const croppedOverlay = new Rect(Math.max(overlay.left, layoutInfo.contentLeft), overlay.top, overlay.right, overlay.bottom);
 
 		const rectangleOverlay = createRectangle(
 			{
-				topLeft: layoutInfo.codeStart1,
-				width: layoutInfo.code1.x - layoutInfo.codeStart1.x + 1,
-				height: layoutInfo.code2.y - layoutInfo.code1.y + 1,
+				topLeft: croppedOverlay.getLeftTop(),
+				width: croppedOverlay.width + 1,
+				height: croppedOverlay.height + 1,
 			},
 			layoutInfo.padding,
 			layoutInfo.borderRadius,
-			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
+			{ hideLeft: croppedOverlay.left !== overlay.left }
 		);
 
 		const modifiedBorderColor = getModifiedBorderColor(this._host.tabAction).read(reader);
@@ -242,5 +284,5 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 		[this._foregroundSvg],
 	]).keepUpdated(this._store);
 
-	readonly isHovered = constObservable(false);
+	readonly isHovered = this._ghostTextView.isHovered;
 }

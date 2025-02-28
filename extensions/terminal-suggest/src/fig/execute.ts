@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { osIsWindows } from '../../helpers/os';
-import { spawnHelper2 } from '../../shell/common';
-import { withTimeout } from '../shared/utils';
+import { osIsWindows } from '../helpers/os';
+import { spawnHelper2 } from '../shell/common';
+import { withTimeout } from './shared/utils';
 
 export const cleanOutput = (output: string) =>
 	output
@@ -21,7 +21,6 @@ export const executeCommandTimeout = async (
 	const command = [input.command, ...input.args].join(' ');
 	try {
 		console.info(`About to run shell command '${command}'`);
-		const start = performance.now();
 		const result = await withTimeout(
 			Math.max(timeout, input.timeout ?? 0),
 			spawnHelper2(input.command, input.args, {
@@ -30,11 +29,6 @@ export const executeCommandTimeout = async (
 				timeout: input.timeout,
 			})
 		);
-		const end = performance.now();
-		console.info(`Result of shell command '${command}'`, {
-			result,
-			time: end - start,
-		});
 
 		const cleanStdout = cleanOutput(result.stdout);
 		const cleanStderr = cleanOutput(result.stderr);
@@ -54,3 +48,15 @@ export const executeCommandTimeout = async (
 		throw err;
 	}
 };
+
+
+export const executeCommand: Fig.ExecuteCommandFunction = (args) =>
+	executeCommandTimeout(args);
+
+export interface IFigExecuteExternals {
+	executeCommand: Fig.ExecuteCommandFunction;
+	executeCommandTimeout: (
+		input: Fig.ExecuteCommandInput,
+		timeout: number,
+	) => Promise<Fig.ExecuteCommandOutput>;
+}

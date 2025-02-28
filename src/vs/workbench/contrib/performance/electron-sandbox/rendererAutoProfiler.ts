@@ -38,7 +38,7 @@ export class RendererProfiling {
 		}
 
 		timerService.perfBaseline.then(perfBaseline => {
-			_logService.info(`[perf] Render performance baseline is ${perfBaseline}ms`);
+			(_environmentService.isBuilt ? _logService.info : _logService.trace).apply(_logService, [`[perf] Render performance baseline is ${perfBaseline}ms`]);
 
 			if (perfBaseline < 0) {
 				// too slow

@@ -23,6 +23,7 @@ import { IChange } from '../../../editor/common/diff/legacyLinesDiffComputer.js'
 import * as editorCommon from '../../../editor/common/editorCommon.js';
 import { StandardTokenType } from '../../../editor/common/encodedTokenAttributes.js';
 import * as languages from '../../../editor/common/languages.js';
+import { CompletionItemLabel } from '../../../editor/common/languages.js';
 import { CharacterPair, CommentRule, EnterAction } from '../../../editor/common/languages/languageConfiguration.js';
 import { EndOfLineSequence } from '../../../editor/common/model.js';
 import { IModelChangedEvent } from '../../../editor/common/model/mirrorTextModel.js';
@@ -84,7 +85,7 @@ import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../servic
 import * as search from '../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
-import { TerminalCompletionItem, TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
+import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
@@ -237,8 +238,8 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 }
 
 export interface MainThreadDocumentsShape extends IDisposable {
-	$tryCreateDocument(options?: { language?: string; content?: string }): Promise<UriComponents>;
-	$tryOpenDocument(uri: UriComponents): Promise<UriComponents>;
+	$tryCreateDocument(options?: { language?: string; content?: string; encoding?: string }): Promise<UriComponents>;
+	$tryOpenDocument(uri: UriComponents, options?: { encoding?: string }): Promise<UriComponents>;
 	$trySaveDocument(uri: UriComponents): Promise<boolean>;
 }
 
@@ -471,7 +472,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$emitDocumentSemanticTokensEvent(eventHandle: number): void;
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void;
 	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, yieldsToExtensionIds: string[], debounceDelayMs: number | undefined): void;
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined): void;
 	$registerInlineEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void;
@@ -1477,6 +1478,8 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$unregisterEditSessionIdentityProvider(handle: number): void;
 	$registerCanonicalUriProvider(handle: number, scheme: string): void;
 	$unregisterCanonicalUriProvider(handle: number): void;
+	$decode(content: VSBuffer, resource: UriComponents | undefined, options?: { encoding?: string }): Promise<string>;
+	$encode(content: string, resource: UriComponents | undefined, options?: { encoding?: string }): Promise<VSBuffer>;
 }
 
 export interface IFileChangeDto {
@@ -1489,7 +1492,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$unregisterProvider(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 
-	$stat(uri: UriComponents): Promise<files.IStat>;
+	$stat(resource: UriComponents): Promise<files.IStat>;
 	$readdir(resource: UriComponents): Promise<[string, files.FileType][]>;
 	$readFile(resource: UriComponents): Promise<VSBuffer>;
 	$writeFile(resource: UriComponents, content: VSBuffer): Promise<void>;
@@ -1886,13 +1889,14 @@ export interface IDataTransferFileDTO {
 }
 
 export interface DataTransferItemDTO {
+	id: string;
 	readonly asString: string;
 	readonly fileData: IDataTransferFileDTO | undefined;
 	readonly uriListData?: ReadonlyArray<string | UriComponents>;
 }
 
 export interface DataTransferDTO {
-	readonly items: Array<[/* type */string, DataTransferItemDTO]>;
+	items: Array<readonly [/* type */string, DataTransferItemDTO]>;
 }
 
 export interface CheckboxUpdate {
@@ -2330,6 +2334,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideInlineEditsForRange(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void;
 	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, info: languages.PartialAcceptInfo): void;
+	$handleInlineCompletionRejection(handle: number, pid: number, idx: number): void;
 	$freeInlineCompletionsList(handle: number, pid: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: languages.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
@@ -2426,11 +2431,22 @@ export interface ITerminalCompletionContextDto {
 	allowFallbackCompletions: boolean;
 }
 
+export interface ITerminalCompletionItemDto {
+	label: string | CompletionItemLabel;
+	detail?: string;
+	documentation?: string | IMarkdownString;
+	icon?: ThemeIcon | undefined;
+	isFile?: boolean | undefined;
+	isDirectory?: boolean | undefined;
+	isKeyword?: boolean | undefined;
+	replacementIndex: number;
+	replacementLength: number;
+}
 
 export interface ITerminalCompletionProvider {
 	id: string;
 	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<TerminalCompletionItem[] | TerminalCompletionListDto<TerminalCompletionItem> | undefined>;
+	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<TerminalCompletionListDto<ITerminalCompletionItemDto> | undefined>;
 	triggerCharacters?: string[];
 	isBuiltin?: boolean;
 }
@@ -2438,7 +2454,7 @@ export interface ITerminalCompletionProvider {
  * Represents a collection of {@link CompletionItem completion items} to be presented
  * in the editor.
  */
-export class TerminalCompletionListDto<T extends TerminalCompletionItem = TerminalCompletionItem> {
+export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = ITerminalCompletionItemDto> {
 
 	/**
 	 * Resources should be shown in the completions list
@@ -2465,6 +2481,7 @@ export class TerminalCompletionListDto<T extends TerminalCompletionItem = Termin
 export interface TerminalResourceRequestConfigDto {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
+	fileExtensions?: string[];
 	cwd?: UriComponents;
 	pathSeparator: string;
 }
@@ -2496,7 +2513,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
-	$provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto, token: CancellationToken): Promise<TerminalCompletionItem[] | TerminalCompletionListDto | undefined>;
+	$provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto, token: CancellationToken): Promise<TerminalCompletionListDto | undefined>;
 }
 
 export interface ExtHostTerminalShellIntegrationShape {
@@ -2504,7 +2521,7 @@ export interface ExtHostTerminalShellIntegrationShape {
 	$shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void;
 	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
-	$shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[]): void;
+	$shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[], isTrusted: boolean): void;
 	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
 	$closeTerminal(instanceId: number): void;
 }

@@ -51,6 +51,7 @@ export interface NativeParsedArgs {
 	'no-cached-data'?: boolean;
 	verbose?: boolean;
 	trace?: boolean;
+	'trace-memory-infra'?: boolean;
 	'trace-category-filter'?: string;
 	'trace-options'?: string;
 	'open-devtools'?: boolean;
