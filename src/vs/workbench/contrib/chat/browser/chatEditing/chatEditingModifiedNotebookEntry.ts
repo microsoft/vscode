@@ -740,7 +740,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}, 0);
 
 		const totalNumberOfLines = this.modifiedModel.cells.reduce((totalLines, cell) => totalLines + (cell.textModel?.getLineCount() ?? 0), 0);
-		return Math.min(1, totalNumberOfUpdatedLines / totalNumberOfLines);
+		return totalNumberOfLines === 0 ? 0 : Math.min(1, totalNumberOfUpdatedLines / totalNumberOfLines);
 	}
 
 	override createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
