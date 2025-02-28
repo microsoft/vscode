@@ -133,7 +133,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: COMMAND_KEY_BINDING,
 	handler: command,
-	when: PromptsConfig.ENABLED_CTX,
+	when: PromptsConfig.enabledCtx,
 });
 
 /**
@@ -145,5 +145,5 @@ appendToCommandPalette(
 		title: localize('commands.prompts.use.title', "Use Prompt"),
 		category: CHAT_CATEGORY,
 	},
-	PromptsConfig.ENABLED_CTX,
+	PromptsConfig.enabledCtx,
 );
