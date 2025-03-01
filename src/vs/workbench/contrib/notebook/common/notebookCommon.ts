@@ -123,7 +123,7 @@ export interface NotebookCellMetadata {
 export interface NotebookCellInternalMetadata {
 	/**
 	 * Used only for diffing of Notebooks.
-	 * This is not persisted and will only be populated at the time we need to diff two notebooks.
+	 * This is not persisted and generally useful only when diffing two notebooks.
 	 * Useful only after we've manually matched a few cells together so we know which cells are matching.
 	 */
 	cellId?: string;
