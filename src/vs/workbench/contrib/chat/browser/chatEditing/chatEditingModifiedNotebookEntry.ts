@@ -393,6 +393,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	protected override _createUndoRedoElement(_response: IChatResponseModel): IUndoRedoElement | undefined {
+		// TODO@amunger
 		return undefined;
 	}
 
