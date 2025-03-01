@@ -21,7 +21,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -55,6 +55,7 @@ import { language } from '../../../../../base/common/platform.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { ChatEntitlement, IChatEntitlementsService } from '../../common/chatEntitlementsService.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -694,11 +695,9 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		@IChatAgentService agentService: IChatAgentService,
 		@IChatQuotasService chatQuotasService: IChatQuotasService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatEntitlementsService chatEntitlementsService: IChatEntitlementsService
 	) {
 		super();
-
-		const contextKeySet = new Set([ChatContextKeys.Setup.signedOut.key]);
 
 		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatTitleBarMenu, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
@@ -713,7 +712,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 
 			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
 			const { chatQuotaExceeded, completionsQuotaExceeded } = chatQuotasService.quotas;
-			const signedOut = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key) ?? false;
+			const signedOut = chatEntitlementsService.entitlement === ChatEntitlement.Unknown;
 
 			let primaryActionId: string;
 			let primaryActionTitle: string;
@@ -745,7 +744,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		}, Event.any(
 			agentService.onDidChangeAgents,
 			chatQuotasService.onDidChangeQuotaExceeded,
-			Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(contextKeySet))
+			chatEntitlementsService.onDidChangeEntitlement
 		));
 
 		// Reduces flicker a bit on reload/restart

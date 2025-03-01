@@ -52,7 +52,7 @@ import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { IChatQuotasService } from '../common/chatQuotasService.js';
+import { ChatQuotasService, IChatQuotasService } from '../common/chatQuotasService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -64,11 +64,10 @@ import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extension
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlements, IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 
@@ -99,13 +98,39 @@ export class ChatEntitlementsService extends Disposable implements IChatEntitlem
 
 	declare _serviceBrand: undefined;
 
+	readonly onDidChangeEntitlement = Event.map(
+		Event.filter(
+			this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
+				ChatContextKeys.Setup.pro.key,
+				ChatContextKeys.Setup.limited.key,
+				ChatContextKeys.Setup.canSignUp.key,
+				ChatContextKeys.Setup.signedOut.key
+			])), this._store
+		), () => { }, this._store
+	);
+
 	readonly context: Lazy<ChatSetupContext> | undefined;
 	readonly requests: Lazy<ChatSetupRequests> | undefined;
+
+	get entitlement(): ChatEntitlement {
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.pro.key) === true) {
+			return ChatEntitlement.Pro;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
+			return ChatEntitlement.Limited;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.canSignUp.key) === true) {
+			return ChatEntitlement.Available;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key) === true) {
+			return ChatEntitlement.Unknown;
+		}
+
+		return ChatEntitlement.Unresolved;
+	}
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -138,8 +163,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
-		@IChatEntitlementsService chatEntitlementsService: ChatEntitlementsService,
+		@IChatEntitlementsService chatEntitlementsService: ChatEntitlementsService
 	) {
 		super();
 
@@ -154,7 +178,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		this.registerChatWelcome(controller, context);
 		this.registerActions(context, requests);
 		this.registerUrlLinkHandler();
-		this.registerSetting(context);
 	}
 
 	private registerChatWelcome(controller: Lazy<ChatSetupController>, context: ChatSetupContext): void {
@@ -335,36 +358,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}));
 	}
-
-	private registerSetting(context: ChatSetupContext): void {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-
-		let lastNode: IConfigurationNode | undefined;
-		const registerSetting = () => {
-			const treatmentId = context.state.entitlement === ChatEntitlement.Limited ?
-				'chatAgentMaxRequestsFree' :
-				'chatAgentMaxRequestsPro';
-			this.experimentService.getTreatment<number>(treatmentId).then(value => {
-				const defaultValue = value ?? (context.state.entitlement === ChatEntitlement.Limited ? 5 : 15);
-				const node: IConfigurationNode = {
-					id: 'chatSidebar',
-					title: localize('interactiveSessionConfigurationTitle', "Chat"),
-					type: 'object',
-					properties: {
-						'chat.agent.maxRequests': {
-							type: 'number',
-							markdownDescription: localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot Edits to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should keep working. \n\n> **Note**: For users on the Copilot Free plan, note that each agent mode request currently uses one chat request."),
-							default: defaultValue,
-							tags: ['experimental']
-						},
-					}
-				};
-				configurationRegistry.updateConfigurations({ remove: lastNode ? [lastNode] : [], add: [node] });
-				lastNode = node;
-			});
-		};
-		this._register(Event.runAndSubscribe(Event.debounce(context.onDidChange, () => { }, 1000), () => registerSetting()));
-	}
 }
 
 //#endregion
@@ -427,7 +420,7 @@ class ChatSetupRequests extends Disposable {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ILogService private readonly logService: ILogService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
+		@IChatQuotasService private readonly chatQuotasService: ChatQuotasService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -602,13 +595,16 @@ class ChatSetupRequests extends Disposable {
 			entitlement = ChatEntitlement.Unavailable;
 		}
 
+		const chatRemaining = entitlementsResponse.limited_user_quotas?.chat;
+		const completionsRemaining = entitlementsResponse.limited_user_quotas?.completions;
+
 		const entitlements: IChatEntitlements = {
 			entitlement,
 			quotas: {
 				chatTotal: entitlementsResponse.monthly_quotas?.chat,
 				completionsTotal: entitlementsResponse.monthly_quotas?.completions,
-				chatRemaining: entitlementsResponse.limited_user_quotas?.chat,
-				completionsRemaining: entitlementsResponse.limited_user_quotas?.completions,
+				chatRemaining: typeof chatRemaining === 'number' ? Math.max(0, chatRemaining) : undefined,
+				completionsRemaining: typeof completionsRemaining === 'number' ? Math.max(0, completionsRemaining) : undefined,
 				resetDate: entitlementsResponse.limited_user_reset_date
 			}
 		};
