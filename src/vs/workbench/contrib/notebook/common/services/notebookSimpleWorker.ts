@@ -185,21 +185,18 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	}
 
 	public $acceptNewModel(uri: string, metadata: NotebookDocumentMetadata, transientDocumentMetadata: TransientDocumentMetadata, cells: IMainCellDto[]): void {
-		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), cells.map(dto => {
-			const internalMetadataCellId = dto.internalMetadata?.cellId || '';
-			return new MirrorCell(
-				dto.handle,
-				URI.parse(dto.url),
-				dto.source,
-				dto.eol,
-				dto.versionId,
-				dto.language,
-				dto.cellKind,
-				dto.outputs,
-				dto.metadata,
-				{ cellId: internalMetadataCellId }
-			);
-		}), metadata, transientDocumentMetadata);
+		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), cells.map(dto => new MirrorCell(
+			dto.handle,
+			URI.parse(dto.url),
+			dto.source,
+			dto.eol,
+			dto.versionId,
+			dto.language,
+			dto.cellKind,
+			dto.outputs,
+			dto.metadata,
+			dto.internalMetadata
+		)), metadata, transientDocumentMetadata);
 	}
 
 	public $acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
