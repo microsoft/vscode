@@ -392,13 +392,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.cellEntryMap.forEach(entry => !entry.disposed && entry.clearCurrentEditLineDecoration());
 	}
 
-	protected override _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement {
-		throw new Error('NOT IMPLEMENTED');
+	protected override _createUndoRedoElement(_response: IChatResponseModel): IUndoRedoElement | undefined {
+		return undefined;
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
-		// return false;
-		throw new Error('NOT IMPLEMENTED');
+		return createSnapshot(this.originalModel, this.transientOptions, this.configurationService) === createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 	}
 
 	override async acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {

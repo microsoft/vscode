@@ -227,10 +227,12 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._autoAcceptCtrl.get()?.cancel();
 
 		const undoRedoElement = this._createUndoRedoElement(responseModel);
-		this._undoRedoService.pushElement(undoRedoElement);
+		if (undoRedoElement) {
+			this._undoRedoService.pushElement(undoRedoElement);
+		}
 	}
 
-	protected abstract _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement;
+	protected abstract _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined;
 
 	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
 
