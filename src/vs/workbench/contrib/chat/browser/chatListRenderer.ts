@@ -19,7 +19,7 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -986,7 +986,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		part.codeblocks?.forEach((info, i) => {
 			codeBlocksByResponseId[codeBlockStartIndex + i] = info;
-			info.uriPromise.then(uri => {
+			part.addDisposable!(thenIfNotDisposed(info.uriPromise, uri => {
 				if (!uri) {
 					return;
 				}
@@ -998,7 +998,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						this.codeBlocksByEditorUri.delete(uri);
 					}
 				}));
-			});
+			}));
 		});
 
 	}
