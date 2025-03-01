@@ -52,7 +52,7 @@ import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_ACTION_LABEL } from './
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, preferCopilotEditsView, showCopilotView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { IChatQuotasService } from '../common/chatQuotasService.js';
+import { ChatQuotasService, IChatQuotasService } from '../common/chatQuotasService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -420,7 +420,7 @@ class ChatSetupRequests extends Disposable {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ILogService private readonly logService: ILogService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
+		@IChatQuotasService private readonly chatQuotasService: ChatQuotasService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -595,13 +595,16 @@ class ChatSetupRequests extends Disposable {
 			entitlement = ChatEntitlement.Unavailable;
 		}
 
+		const chatRemaining = entitlementsResponse.limited_user_quotas?.chat;
+		const completionsRemaining = entitlementsResponse.limited_user_quotas?.completions;
+
 		const entitlements: IChatEntitlements = {
 			entitlement,
 			quotas: {
 				chatTotal: entitlementsResponse.monthly_quotas?.chat,
 				completionsTotal: entitlementsResponse.monthly_quotas?.completions,
-				chatRemaining: entitlementsResponse.limited_user_quotas?.chat,
-				completionsRemaining: entitlementsResponse.limited_user_quotas?.completions,
+				chatRemaining: typeof chatRemaining === 'number' ? Math.max(0, chatRemaining) : undefined,
+				completionsRemaining: typeof completionsRemaining === 'number' ? Math.max(0, completionsRemaining) : undefined,
 				resetDate: entitlementsResponse.limited_user_reset_date
 			}
 		};

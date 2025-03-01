@@ -19,9 +19,6 @@ export interface IChatQuotasService {
 	readonly onDidChangeQuotaRemaining: Event<void>;
 
 	readonly quotas: IChatQuotas;
-
-	acceptQuotas(quotas: IChatQuotas): void;
-	clearQuotas(): void;
 }
 
 export interface IChatQuotas {
@@ -96,7 +93,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 	acceptQuotas(quotas: IChatQuotas): void {
 		const oldQuota = this._quotas;
-		this._quotas = this.massageQuotas(quotas);
+		this._quotas = quotas;
 		this.updateContextKeys();
 
 		if (
@@ -112,14 +109,6 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 		) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
-	}
-
-	private massageQuotas(quotas: IChatQuotas): IChatQuotas {
-		return {
-			...quotas,
-			chatRemaining: typeof quotas.chatRemaining === 'number' ? Math.max(0, quotas.chatRemaining) : undefined,
-			completionsRemaining: typeof quotas.completionsRemaining === 'number' ? Math.max(0, quotas.completionsRemaining) : undefined
-		};
 	}
 
 	clearQuotas(): void {

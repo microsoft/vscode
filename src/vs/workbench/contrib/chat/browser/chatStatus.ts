@@ -259,12 +259,12 @@ class ChatStatusDashboard extends Disposable {
 			this.element.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
 
 			(async () => {
-				await this.chatEntitlementsService.resolve(token);
-				if (token.isCancellationRequested) {
+				const res = await this.chatEntitlementsService.resolve(token);
+				if (!res?.quotas || token.isCancellationRequested) {
 					return;
 				}
 
-				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatQuotasService.quotas;
+				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = res.quotas;
 
 				chatQuotaIndicator(chatTotal, chatRemaining);
 				completionsQuotaIndicator(completionsTotal, completionsRemaining);
