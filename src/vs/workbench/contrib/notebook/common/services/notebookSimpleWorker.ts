@@ -56,7 +56,8 @@ class MirrorCell {
 		hashValue = doHash(this.language, hashValue);
 		hashValue = doHash(this.getValue(), hashValue);
 		hashValue = doHash(this.metadata, hashValue);
-		hashValue = doHash({ ...this.internalMetadata, 'cellId': '' }, hashValue);
+		// For purpose of diffing only cellId matters, rest do not
+		hashValue = doHash(this.internalMetadata?.cellId || '', hashValue);
 		for (const op of this.outputs) {
 			hashValue = doHash(op.metadata, hashValue);
 			for (const output of op.outputs) {
