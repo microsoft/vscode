@@ -24,6 +24,7 @@ import { LeftBracket, RightBracket } from '../../../common/codecs/simpleCodec/to
 import { MarkdownDecoder, TMarkdownToken } from '../../../common/codecs/markdownCodec/markdownDecoder.js';
 import { LeftParenthesis, RightParenthesis } from '../../../common/codecs/simpleCodec/tokens/parentheses.js';
 import { LeftAngleBracket, RightAngleBracket } from '../../../common/codecs/simpleCodec/tokens/angleBrackets.js';
+import { MarkdownImage } from '../../../common/codecs/markdownCodec/tokens/markdownImage.js';
 
 /**
  * A reusable test utility that asserts that a `TestMarkdownDecoder` instance
@@ -363,6 +364,287 @@ suite('MarkdownDecoder', () => {
 		});
 	});
 
+
+	suite('• images', () => {
+		suite('• general', () => {
+			test('• base cases', async () => {
+				const test = testDisposables.add(
+					new TestMarkdownDecoder(),
+				);
+
+				const inputData = [
+					'\t![alt text](./some/path/to/file.jpg) ',
+					'plain text \f![label](./image.png)\v and more text',
+					// '<!-- comment\r\ntext\n\ngoes here --> usual text follows',
+					// '\t<!---->\t',
+					// 'haalo\t<!-- [link label](/some/path/to/file.md)',
+				];
+
+				await test.run(
+					inputData,
+					[
+						// `1st`
+						new Tab(new Range(1, 1, 1, 2)),
+						new MarkdownImage(1, 2, '![alt text]', '(./some/path/to/file.jpg)'),
+						new Space(new Range(1, 38, 1, 39)),
+						new NewLine(new Range(1, 39, 1, 40)),
+						// `2nd`
+						new Word(new Range(2, 1, 2, 6), 'plain'),
+						new Space(new Range(2, 6, 2, 7)),
+						new Word(new Range(2, 7, 2, 11), 'text'),
+						new Space(new Range(2, 11, 2, 12)),
+						new FormFeed(new Range(2, 12, 2, 13)),
+						new MarkdownImage(2, 13, '![label]', '(./image.png)'),
+						new VerticalTab(new Range(2, 34, 2, 35)),
+						new Space(new Range(2, 35, 2, 36)),
+						new Word(new Range(2, 36, 2, 39), 'and'),
+						new Space(new Range(2, 39, 2, 40)),
+						new Word(new Range(2, 40, 2, 44), 'more'),
+						new Space(new Range(2, 44, 2, 45)),
+						new Word(new Range(2, 45, 2, 49), 'text'),
+						// new NewLine(new Range(2, 49, 2, 50)),
+					],
+				);
+			});
+
+			// test('• nuanced', async () => {
+			// 	const test = testDisposables.add(
+			// 		new TestMarkdownDecoder(),
+			// 	);
+
+			// 	const inputData = [
+			// 		// comment inside `<>` brackets
+			// 		' \f <<!--commen\t-->>',
+			// 		// comment contains `<[]>` brackets and `!`
+			// 		'<!--<[!c⚽︎mment!]>-->\t\t',
+			// 		// comment contains `<!--` and new lines
+			// 		'\v<!--some\r\ntext\n\t<!--inner\r\ntext-->\t\t',
+			// 		// comment contains `<!--` and never closed properly
+			// 		' <!--<!--inner\r\ntext-- >\t\v\f ',
+			// 	];
+
+			// 	await test.run(
+			// 		inputData,
+			// 		[
+			// 			// `1st`
+			// 			new Space(new Range(1, 1, 1, 2)),
+			// 			new FormFeed(new Range(1, 2, 1, 3)),
+			// 			new Space(new Range(1, 3, 1, 4)),
+			// 			new LeftAngleBracket(new Range(1, 4, 1, 5)),
+			// 			new MarkdownComment(new Range(1, 5, 1, 5 + 14), '<!--commen\t-->'),
+			// 			new RightAngleBracket(new Range(1, 19, 1, 20)),
+			// 			new NewLine(new Range(1, 20, 1, 21)),
+			// 			// `2nd`
+			// 			new MarkdownComment(new Range(2, 1, 2, 1 + 21), '<!--<[!c⚽︎mment!]>-->'),
+			// 			new Tab(new Range(2, 22, 2, 23)),
+			// 			new Tab(new Range(2, 23, 2, 24)),
+			// 			new NewLine(new Range(2, 24, 2, 25)),
+			// 			// `3rd`
+			// 			new VerticalTab(new Range(3, 1, 3, 2)),
+			// 			new MarkdownComment(new Range(3, 2, 3 + 3, 1 + 7), '<!--some\r\ntext\n\t<!--inner\r\ntext-->'),
+			// 			new Tab(new Range(6, 8, 6, 9)),
+			// 			new Tab(new Range(6, 9, 6, 10)),
+			// 			new NewLine(new Range(6, 10, 6, 11)),
+			// 			// `4rd`
+			// 			new Space(new Range(7, 1, 7, 2)),
+			// 			// note! comment does not have correct closing `-->`, hence the comment extends
+			// 			//       to the end of the text, and therefore includes the \t\v\f and space at the end
+			// 			new MarkdownComment(new Range(7, 2, 8, 1 + 12), '<!--<!--inner\r\ntext-- >\t\v\f '),
+			// 		],
+			// 	);
+			// });
+		});
+
+		// suite('• broken', () => {
+		// 	test('• invalid', async () => {
+		// 		const test = testDisposables.add(
+		// 			new TestMarkdownDecoder(),
+		// 		);
+
+		// 		const inputLines = [
+		// 			// incomplete link reference with empty caption
+		// 			'[ ](./real/file path/file⇧name.md',
+		// 			// space between caption and reference is disallowed
+		// 			'[link text] (./file path/name.txt)',
+		// 		];
+
+		// 		await test.run(
+		// 			inputLines,
+		// 			[
+		// 				// `1st` line
+		// 				new LeftBracket(new Range(1, 1, 1, 2)),
+		// 				new Space(new Range(1, 2, 1, 3)),
+		// 				new RightBracket(new Range(1, 3, 1, 4)),
+		// 				new LeftParenthesis(new Range(1, 4, 1, 5)),
+		// 				new Word(new Range(1, 5, 1, 5 + 11), './real/file'),
+		// 				new Space(new Range(1, 16, 1, 17)),
+		// 				new Word(new Range(1, 17, 1, 17 + 17), 'path/file⇧name.md'),
+		// 				new NewLine(new Range(1, 34, 1, 35)),
+		// 				// `2nd` line
+		// 				new LeftBracket(new Range(2, 1, 2, 2)),
+		// 				new Word(new Range(2, 2, 2, 2 + 4), 'link'),
+		// 				new Space(new Range(2, 6, 2, 7)),
+		// 				new Word(new Range(2, 7, 2, 7 + 4), 'text'),
+		// 				new RightBracket(new Range(2, 11, 2, 12)),
+		// 				new Space(new Range(2, 12, 2, 13)),
+		// 				new LeftParenthesis(new Range(2, 13, 2, 14)),
+		// 				new Word(new Range(2, 14, 2, 14 + 6), './file'),
+		// 				new Space(new Range(2, 20, 2, 21)),
+		// 				new Word(new Range(2, 21, 2, 21 + 13), 'path/name.txt'),
+		// 				new RightParenthesis(new Range(2, 34, 2, 35)),
+		// 			],
+		// 		);
+		// 	});
+
+		// 	suite('• stop characters inside caption/reference (new lines)', () => {
+		// 		for (const stopCharacter of [CarriageReturn, NewLine]) {
+		// 			let characterName = '';
+
+		// 			if (stopCharacter === CarriageReturn) {
+		// 				characterName = '\\r';
+		// 			}
+		// 			if (stopCharacter === NewLine) {
+		// 				characterName = '\\n';
+		// 			}
+
+		// 			assert(
+		// 				characterName !== '',
+		// 				'The "characterName" must be set, got "empty line".',
+		// 			);
+
+		// 			test(`• stop character - "${characterName}"`, async () => {
+		// 				const test = testDisposables.add(
+		// 					new TestMarkdownDecoder(),
+		// 				);
+
+		// 				const inputLines = [
+		// 					// stop character inside link caption
+		// 					`[haa${stopCharacter.symbol}loů](./real/💁/name.txt)`,
+		// 					// stop character inside link reference
+		// 					`[ref text](/etc/pat${stopCharacter.symbol}h/to/file.md)`,
+		// 					// stop character between line caption and link reference is disallowed
+		// 					`[text]${stopCharacter.symbol}(/etc/ path/file.md)`,
+		// 				];
+
+
+		// 				await test.run(
+		// 					inputLines,
+		// 					[
+		// 						// `1st` input line
+		// 						new LeftBracket(new Range(1, 1, 1, 2)),
+		// 						new Word(new Range(1, 2, 1, 2 + 3), 'haa'),
+		// 						new stopCharacter(new Range(1, 5, 1, 6)), // <- stop character
+		// 						new Word(new Range(2, 1, 2, 1 + 3), 'loů'),
+		// 						new RightBracket(new Range(2, 4, 2, 5)),
+		// 						new LeftParenthesis(new Range(2, 5, 2, 6)),
+		// 						new Word(new Range(2, 6, 2, 6 + 18), './real/💁/name.txt'),
+		// 						new RightParenthesis(new Range(2, 24, 2, 25)),
+		// 						new NewLine(new Range(2, 25, 2, 26)),
+		// 						// `2nd` input line
+		// 						new LeftBracket(new Range(3, 1, 3, 2)),
+		// 						new Word(new Range(3, 2, 3, 2 + 3), 'ref'),
+		// 						new Space(new Range(3, 5, 3, 6)),
+		// 						new Word(new Range(3, 6, 3, 6 + 4), 'text'),
+		// 						new RightBracket(new Range(3, 10, 3, 11)),
+		// 						new LeftParenthesis(new Range(3, 11, 3, 12)),
+		// 						new Word(new Range(3, 12, 3, 12 + 8), '/etc/pat'),
+		// 						new stopCharacter(new Range(3, 20, 3, 21)), // <- stop character
+		// 						new Word(new Range(4, 1, 4, 1 + 12), 'h/to/file.md'),
+		// 						new RightParenthesis(new Range(4, 13, 4, 14)),
+		// 						new NewLine(new Range(4, 14, 4, 15)),
+		// 						// `3nd` input line
+		// 						new LeftBracket(new Range(5, 1, 5, 2)),
+		// 						new Word(new Range(5, 2, 5, 2 + 4), 'text'),
+		// 						new RightBracket(new Range(5, 6, 5, 7)),
+		// 						new stopCharacter(new Range(5, 7, 5, 8)), // <- stop character
+		// 						new LeftParenthesis(new Range(6, 1, 6, 2)),
+		// 						new Word(new Range(6, 2, 6, 2 + 5), '/etc/'),
+		// 						new Space(new Range(6, 7, 6, 8)),
+		// 						new Word(new Range(6, 8, 6, 8 + 12), 'path/file.md'),
+		// 						new RightParenthesis(new Range(6, 20, 6, 21)),
+		// 					],
+		// 				);
+		// 			});
+		// 		}
+		// 	});
+
+		// 	/**
+		// 	 * Same as above but these stop characters do not move the caret to the next line.
+		// 	 */
+		// 	suite('• stop characters inside caption/reference (same line)', () => {
+		// 		for (const stopCharacter of [VerticalTab, FormFeed]) {
+		// 			let characterName = '';
+
+		// 			if (stopCharacter === VerticalTab) {
+		// 				characterName = '\\v';
+		// 			}
+		// 			if (stopCharacter === FormFeed) {
+		// 				characterName = '\\f';
+		// 			}
+
+		// 			assert(
+		// 				characterName !== '',
+		// 				'The "characterName" must be set, got "empty line".',
+		// 			);
+
+		// 			test(`• stop character - "${characterName}"`, async () => {
+		// 				const test = testDisposables.add(
+		// 					new TestMarkdownDecoder(),
+		// 				);
+
+		// 				const inputLines = [
+		// 					// stop character inside link caption
+		// 					`[haa${stopCharacter.symbol}loů](./real/💁/name.txt)`,
+		// 					// stop character inside link reference
+		// 					`[ref text](/etc/pat${stopCharacter.symbol}h/to/file.md)`,
+		// 					// stop character between line caption and link reference is disallowed
+		// 					`[text]${stopCharacter.symbol}(/etc/ path/file.md)`,
+		// 				];
+
+
+		// 				await test.run(
+		// 					inputLines,
+		// 					[
+		// 						// `1st` input line
+		// 						new LeftBracket(new Range(1, 1, 1, 2)),
+		// 						new Word(new Range(1, 2, 1, 2 + 3), 'haa'),
+		// 						new stopCharacter(new Range(1, 5, 1, 6)), // <- stop character
+		// 						new Word(new Range(1, 6, 1, 6 + 3), 'loů'),
+		// 						new RightBracket(new Range(1, 9, 1, 10)),
+		// 						new LeftParenthesis(new Range(1, 10, 1, 11)),
+		// 						new Word(new Range(1, 11, 1, 11 + 18), './real/💁/name.txt'),
+		// 						new RightParenthesis(new Range(1, 29, 1, 30)),
+		// 						new NewLine(new Range(1, 30, 1, 31)),
+		// 						// `2nd` input line
+		// 						new LeftBracket(new Range(2, 1, 2, 2)),
+		// 						new Word(new Range(2, 2, 2, 2 + 3), 'ref'),
+		// 						new Space(new Range(2, 5, 2, 6)),
+		// 						new Word(new Range(2, 6, 2, 6 + 4), 'text'),
+		// 						new RightBracket(new Range(2, 10, 2, 11)),
+		// 						new LeftParenthesis(new Range(2, 11, 2, 12)),
+		// 						new Word(new Range(2, 12, 2, 12 + 8), '/etc/pat'),
+		// 						new stopCharacter(new Range(2, 20, 2, 21)), // <- stop character
+		// 						new Word(new Range(2, 21, 2, 21 + 12), 'h/to/file.md'),
+		// 						new RightParenthesis(new Range(2, 33, 2, 34)),
+		// 						new NewLine(new Range(2, 34, 2, 35)),
+		// 						// `3nd` input line
+		// 						new LeftBracket(new Range(3, 1, 3, 2)),
+		// 						new Word(new Range(3, 2, 3, 2 + 4), 'text'),
+		// 						new RightBracket(new Range(3, 6, 3, 7)),
+		// 						new stopCharacter(new Range(3, 7, 3, 8)), // <- stop character
+		// 						new LeftParenthesis(new Range(3, 8, 3, 9)),
+		// 						new Word(new Range(3, 9, 3, 9 + 5), '/etc/'),
+		// 						new Space(new Range(3, 14, 3, 15)),
+		// 						new Word(new Range(3, 15, 3, 15 + 12), 'path/file.md'),
+		// 						new RightParenthesis(new Range(3, 27, 3, 28)),
+		// 					],
+		// 				);
+		// 			});
+		// 		}
+		// 	});
+		// });
+	});
+
 	suite('• comments', () => {
 		suite('• general', () => {
 			test('• base cases', async () => {
@@ -472,7 +754,6 @@ suite('MarkdownDecoder', () => {
 				);
 			});
 		});
-
 
 		test('• invalid', async () => {
 			const test = testDisposables.add(
