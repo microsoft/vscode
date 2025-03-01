@@ -274,13 +274,20 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 	const suffixes = detectLinkSuffixes(line);
 	for (const suffix of suffixes) {
 		const beforeSuffix = line.substring(0, suffix.suffix.index);
-		const matcher = pathOrLinkDeterminer.test(beforeSuffix)
-			? pathWithSuffixPathCharacters
-			: linkWithSuffixPathCharacters;
-		const possiblePathMatch = beforeSuffix.match(matcher);
-		if (possiblePathMatch && possiblePathMatch.index !== undefined && possiblePathMatch.groups?.path) {
-			let linkStartIndex = possiblePathMatch.index;
-			let path = possiblePathMatch.groups.path;
+
+		let possibleMatch;
+		const shouldPathOrLink = pathOrLinkDeterminer.test(beforeSuffix);
+		const possiblePathMatch = beforeSuffix.match(pathWithSuffixPathCharacters);
+		const possibleLinkMatch = beforeSuffix.match(linkWithSuffixPathCharacters);
+		if (shouldPathOrLink && !possibleLinkMatch) {
+			possibleMatch = possiblePathMatch;
+		} else if ((shouldPathOrLink && possibleLinkMatch) || !shouldPathOrLink) {
+			possibleMatch = possibleLinkMatch;
+		}
+
+		if (possibleMatch && possibleMatch.index !== undefined && possibleMatch.groups?.path) {
+			let linkStartIndex = possibleMatch.index;
+			let path = possibleMatch.groups.path;
 			// Extract a path prefix if it exists (not part of the path, but part of the underlined
 			// section)
 			let prefix: ILinkPartialRange | undefined = undefined;
