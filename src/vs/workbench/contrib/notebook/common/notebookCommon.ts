@@ -19,7 +19,6 @@ import { ISplice } from '../../../../base/common/sequence.js';
 import { ThemeColor } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { ILineChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import * as editorCommon from '../../../../editor/common/editorCommon.js';
 import { Command, WorkspaceEditMetadata } from '../../../../editor/common/languages.js';
 import { IReadonlyTextBuffer, ITextModel } from '../../../../editor/common/model.js';
@@ -955,7 +954,6 @@ export interface INotebookCellStatusBarItemProvider {
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
 	metadataChanged: boolean;
-	linesDiff?: { originalCellhandle: number; modifiedCellhandle: number; lineChanges: ILineChange[] }[];
 }
 
 export interface INotebookCellStatusBarItem {
