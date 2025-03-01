@@ -968,9 +968,9 @@ export class AttachContextAction extends Action2 {
 registerAction2(class AttachFilesAction extends AttachContextAction {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.editing.attachFiles',
-			title: localize2('workbench.action.chat.editing.attachFiles.label', "Add Files to Copilot Edits"),
-			shortTitle: localize2('workbench.action.chat.editing.attachFiles.shortLabel', "Add Files..."),
+			id: 'workbench.action.chat.editing.attachContext',
+			title: localize2('workbench.action.chat.editing.attachContext.label', "Add Context to Copilot Edits"),
+			shortTitle: localize2('workbench.action.chat.editing.attachContext.shortLabel', "Add Context..."),
 			f1: false,
 			category: CHAT_CATEGORY,
 			menu: { id: MenuId.ChatInputAttachmentToolbar, group: 'navigation' },

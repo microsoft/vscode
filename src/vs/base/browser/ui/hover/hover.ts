@@ -387,7 +387,16 @@ export function isManagedHoverTooltipMarkdownString(obj: unknown): obj is IManag
 	return typeof candidate === 'object' && 'markdown' in candidate && 'markdownNotSupportedFallback' in candidate;
 }
 
-export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | HTMLElement | undefined;
+export interface IManagedHoverTooltipHTMLElement {
+	element: (token: CancellationToken) => HTMLElement | Promise<HTMLElement>;
+}
+
+export function isManagedHoverTooltipHTMLElement(obj: unknown): obj is IManagedHoverTooltipHTMLElement {
+	const candidate = obj as IManagedHoverTooltipHTMLElement;
+	return typeof candidate === 'object' && 'element' in candidate;
+}
+
+export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | IManagedHoverTooltipHTMLElement | HTMLElement | undefined;
 export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManagedHoverContent);
 
 export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'linkHandler' | 'trapFocus'> {

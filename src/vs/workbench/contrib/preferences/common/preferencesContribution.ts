@@ -128,7 +128,7 @@ registry.registerConfiguration({
 		},
 		'workbench.settings.useWeightedKeySearch': {
 			'type': 'boolean',
-			'default': false,
+			'default': true,
 			'description': nls.localize('useWeightedKeySearch', "Controls whether to use an experimental ranking algorithm for search results in the Settings editor. The newer algorithm is still in development and aims to show fewer and more relevant results."),
 			'scope': ConfigurationScope.WINDOW,
 			'tags': ['experimental']

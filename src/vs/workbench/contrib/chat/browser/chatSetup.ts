@@ -639,7 +639,9 @@ class ChatSetupRequests extends Disposable {
 				}
 			}, token);
 		} catch (error) {
-			this.logService.error(`[chat setup] request: error ${error}`);
+			if (!token.isCancellationRequested) {
+				this.logService.error(`[chat setup] request: error ${error}`);
+			}
 
 			return undefined;
 		}

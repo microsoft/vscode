@@ -88,7 +88,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		const treeSitterTree = this._parseSessionDisposables.add(new TreeSitterParseResult(new Parser(), language, this._logService, this._telemetryService));
 		this._parseResult = treeSitterTree;
 		this._parseSessionDisposables.add(treeSitterTree.onDidUpdate(e => {
-			if (e.ranges && (e.versionId > this._versionId)) {
+			if (e.ranges && (e.versionId >= this._versionId)) {
 				this._versionId = e.versionId;
 				this._onDidChangeParseResult.fire({ ranges: e.ranges, versionId: e.versionId });
 			}

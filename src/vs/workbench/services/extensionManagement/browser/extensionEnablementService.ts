@@ -8,7 +8,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IExtensionManagementService, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH, InstallOperation, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IWorkbenchExtensionManagementService, IExtensionManagementServer, ExtensionInstallLocation } from '../common/extensionManagement.js';
-import { areSameExtensions, BetterMergeId, getExtensionDependencies, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { areSameExtensions, BetterMergeId, getExtensionDependencies } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -49,7 +49,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IGlobalExtensionEnablementService protected readonly globalExtensionEnablementService: IGlobalExtensionEnablementService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -67,7 +67,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		super();
 		this.storageManager = this._register(new StorageManager(storageService));
 
-		const uninstallDisposable = this._register(Event.filter(extensionManagementService.onDidUninstallExtension, e => !e.error)(({ identifier }) => this._reset([identifier])));
+		const uninstallDisposable = this._register(Event.filter(extensionManagementService.onDidUninstallExtension, e => !e.error)(({ identifier }) => this._reset(identifier)));
 		let isDisposed = false;
 		this._register(toDisposable(() => isDisposed = true));
 		this.extensionsManager = this._register(instantiationService.createInstance(ExtensionsManager));
@@ -662,8 +662,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (changedExtensions.length) {
 			this._onEnablementChanged.fire(changedExtensions);
 		}
-		if (!isProfileSwitch && removed.length) {
-			this._reset(removed.map(({ identifier }) => identifier));
+		if (!isProfileSwitch) {
+			removed.forEach(({ identifier }) => this._reset(identifier));
 		}
 	}
 
@@ -689,16 +689,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return { trusted: this.workspaceTrustManagementService.isWorkspaceTrusted(), virtual: isVirtualWorkspace(this.contextService.getWorkspace()) };
 	}
 
-	private async _reset(extensions: IExtensionIdentifier[]): Promise<void> {
-		const controlManifest = await this.extensionManagementService.getExtensionsControlManifest();
-		for (const extension of extensions) {
-			if (isMalicious(extension, controlManifest)) {
-				continue;
-			}
-			this._removeFromWorkspaceDisabledExtensions(extension);
-			this._removeFromWorkspaceEnabledExtensions(extension);
-			this.globalExtensionEnablementService.enableExtension(extension);
-		}
+	private _reset(extension: IExtensionIdentifier) {
+		this._removeFromWorkspaceDisabledExtensions(extension);
+		this._removeFromWorkspaceEnabledExtensions(extension);
+		this.globalExtensionEnablementService.enableExtension(extension);
 	}
 }
 
