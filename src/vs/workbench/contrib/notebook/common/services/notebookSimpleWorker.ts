@@ -56,7 +56,8 @@ class MirrorCell {
 		hashValue = doHash(this.language, hashValue);
 		hashValue = doHash(this.getValue(), hashValue);
 		hashValue = doHash(this.metadata, hashValue);
-		hashValue = doHash({ ...this.internalMetadata, 'cellId': '' }, hashValue);
+		// For purpose of diffing only cellId matters, rest do not
+		hashValue = doHash({ 'cellId': '' }, hashValue);
 		for (const op of this.outputs) {
 			hashValue = doHash(op.metadata, hashValue);
 			for (const output of op.outputs) {
@@ -184,18 +185,21 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	}
 
 	public $acceptNewModel(uri: string, metadata: NotebookDocumentMetadata, transientDocumentMetadata: TransientDocumentMetadata, cells: IMainCellDto[]): void {
-		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), cells.map(dto => new MirrorCell(
-			dto.handle,
-			URI.parse(dto.url),
-			dto.source,
-			dto.eol,
-			dto.versionId,
-			dto.language,
-			dto.cellKind,
-			dto.outputs,
-			dto.metadata,
-			dto.internalMetadata
-		)), metadata, transientDocumentMetadata);
+		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), cells.map(dto => {
+			const internalMetadataCellId = dto.internalMetadata?.cellId || '';
+			return new MirrorCell(
+				dto.handle,
+				URI.parse(dto.url),
+				dto.source,
+				dto.eol,
+				dto.versionId,
+				dto.language,
+				dto.cellKind,
+				dto.outputs,
+				dto.metadata,
+				{ cellId: internalMetadataCellId }
+			);
+		}), metadata, transientDocumentMetadata);
 	}
 
 	public $acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
