@@ -99,13 +99,39 @@ export class ChatEntitlementsService extends Disposable implements IChatEntitlem
 
 	declare _serviceBrand: undefined;
 
+	readonly onDidChangeEntitlement = Event.map(
+		Event.filter(
+			this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
+				ChatContextKeys.Setup.pro.key,
+				ChatContextKeys.Setup.limited.key,
+				ChatContextKeys.Setup.canSignUp.key,
+				ChatContextKeys.Setup.signedOut.key
+			])), this._store
+		), () => { }, this._store
+	);
+
 	readonly context: Lazy<ChatSetupContext> | undefined;
 	readonly requests: Lazy<ChatSetupRequests> | undefined;
+
+	get entitlement(): ChatEntitlement {
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.pro.key) === true) {
+			return ChatEntitlement.Pro;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
+			return ChatEntitlement.Limited;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.canSignUp.key) === true) {
+			return ChatEntitlement.Available;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key) === true) {
+			return ChatEntitlement.Unknown;
+		}
+
+		return ChatEntitlement.Unresolved;
+	}
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 

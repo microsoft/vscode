@@ -77,6 +77,7 @@ import { revealInSideBarCommand } from '../../files/browser/fileActions.contribu
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEntitlement, IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
@@ -1618,6 +1619,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatEntitlementsService chatEntitlementsService: IChatEntitlementsService,
 		@ICommandService commandService: ICommandService,
 	) {
 		const modelActionsProvider: IActionProvider = {
@@ -1640,7 +1642,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 
 				const models: ILanguageModelChatMetadataAndIdentifier[] = this.delegate.getModels();
 				const actions = models.map(entry => setLanguageModelAction(entry));
-				if (contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
+				if (chatEntitlementsService.entitlement === ChatEntitlement.Limited) {
 					actions.push(new Separator());
 					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan') }));
 				}

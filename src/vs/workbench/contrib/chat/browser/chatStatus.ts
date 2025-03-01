@@ -16,7 +16,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventLike, EventType } from '../../../../base/browser/dom.js';
-import { IChatEntitlementsService } from '../common/chatEntitlementsService.js';
+import { ChatEntitlement, IChatEntitlementsService } from '../common/chatEntitlementsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -106,6 +106,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
+		@IChatEntitlementsService private readonly chatEntitlementsService: IChatEntitlementsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
@@ -134,12 +135,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 		}));
 
-		const contextKeysSet = new Set([
-			ChatContextKeys.Setup.limited.key,
-			ChatContextKeys.Setup.installed.key,
-			ChatContextKeys.Setup.canSignUp.key,
-			ChatContextKeys.Setup.signedOut.key
-		]);
+		const contextKeysSet = new Set([ChatContextKeys.Setup.installed.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (!this.entry) {
 				return;
@@ -151,6 +147,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		}));
 
 		this._register(this.chatQuotasService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.chatEntitlementsService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
 	}
 
 	private getEntryProps(): IStatusbarEntry {
@@ -182,14 +179,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		// Copilot Not Installed
 		else if (
 			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false ||
-			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.canSignUp.key) === true
+			this.chatEntitlementsService.entitlement === ChatEntitlement.Available
 		) {
 			tooltip = CHAT_SETUP_ACTION_LABEL.value;
 			command = TOGGLE_CHAT_ACTION_ID;
 		}
 
 		// Signed out
-		else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key) === true) {
+		else if (this.chatEntitlementsService.entitlement === ChatEntitlement.Unknown) {
 			text = '$(copilot-not-connected)';
 			ariaLabel = localize('signInToUseCopilot', "Sign in to Use Copilot...");
 			tooltip = localize('signInToUseCopilot', "Sign in to Use Copilot...");
@@ -251,7 +248,7 @@ class ChatStatusDashboard extends Disposable {
 		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
 		// Quota Indicator
-		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
+		if (this.chatEntitlementsService.entitlement === ChatEntitlement.Limited) {
 			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
 
 			this.element.appendChild($('div.header', undefined, localize('usageTitle', "Copilot Free Usage")));

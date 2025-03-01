@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const IChatEntitlementsService = createDecorator<IChatEntitlementsService>('chatEntitlementsService');
@@ -41,6 +42,10 @@ export interface IQuotas {
 export interface IChatEntitlementsService {
 
 	_serviceBrand: undefined;
+
+	readonly onDidChangeEntitlement: Event<void>;
+
+	readonly entitlement: ChatEntitlement;
 
 	resolve(token: CancellationToken): Promise<IChatEntitlements | undefined>;
 }
