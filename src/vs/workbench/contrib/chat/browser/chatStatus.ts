@@ -272,11 +272,12 @@ class ChatStatusDashboard extends Disposable {
 				chatQuotaIndicator(chatTotal, chatRemaining);
 				completionsQuotaIndicator(completionsTotal, completionsRemaining);
 			})();
+
+			this.element.appendChild($('hr'));
 		}
 
 		// Settings
 		{
-			this.element.appendChild($('hr'));
 			this.element.appendChild($('div.header', undefined, localize('settingsTitle', "Settings")));
 			this.createSettings(this.element, disposables);
 		}
