@@ -152,7 +152,7 @@ function isPromptInstructionsQuickPickItem(obj: unknown): obj is IReusablePrompt
 		return false;
 	}
 
-	return ('kind' in obj && obj.kind === 'prompt-instructions');
+	return ('kind' in obj && obj.kind === 'reusable-prompt');
 }
 
 interface IRelatedFilesQuickPickItem extends IQuickPickItem {
@@ -235,16 +235,17 @@ interface IDiagnosticsQuickPickItemWithFilter extends IQuickPickItem {
 /**
  * Quick pick item for reusable prompt attachment.
  */
+const REUSABLE_PROMPT_PICK_ID = 'reusable-prompt';
 interface IReusablePromptQuickPickItem extends IQuickPickItem {
 	/**
 	 * The ID of the quick pick item.
 	 */
-	id: 'reusable-prompt';
+	id: typeof REUSABLE_PROMPT_PICK_ID;
 
 	/**
 	 * Unique kind identifier of the reusable prompt attachment.
 	 */
-	kind: 'reusable-prompt';
+	kind: typeof REUSABLE_PROMPT_PICK_ID;
 
 	/**
 	 * Keybinding of the command.
@@ -825,8 +826,8 @@ export class AttachContextAction extends Action2 {
 			const keybinding = keybindingService.lookupKeybinding(USE_PROMPT_COMMAND_ID, contextKeyService);
 
 			quickPickItems.push({
-				kind: 'reusable-prompt',
-				id: 'reusable-prompt',
+				id: REUSABLE_PROMPT_PICK_ID,
+				kind: REUSABLE_PROMPT_PICK_ID,
 				label: localize('chatContext.attach.prompt.label', 'Prompt...'),
 				iconClass: ThemeIcon.asClassName(Codicon.bookmark),
 				keybinding,
@@ -967,9 +968,9 @@ export class AttachContextAction extends Action2 {
 registerAction2(class AttachFilesAction extends AttachContextAction {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.editing.attachFiles',
-			title: localize2('workbench.action.chat.editing.attachFiles.label', "Add Files to Copilot Edits"),
-			shortTitle: localize2('workbench.action.chat.editing.attachFiles.shortLabel', "Add Files..."),
+			id: 'workbench.action.chat.editing.attachContext',
+			title: localize2('workbench.action.chat.editing.attachContext.label', "Add Context to Copilot Edits"),
+			shortTitle: localize2('workbench.action.chat.editing.attachContext.shortLabel', "Add Context..."),
 			f1: false,
 			category: CHAT_CATEGORY,
 			menu: { id: MenuId.ChatInputAttachmentToolbar, group: 'navigation' },

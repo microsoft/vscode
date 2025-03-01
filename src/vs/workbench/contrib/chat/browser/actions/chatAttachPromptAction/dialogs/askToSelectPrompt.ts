@@ -11,6 +11,7 @@ import { IChatAttachPromptActionOptions } from '../chatAttachPromptAction.js';
 import { IPromptPath } from '../../../../common/promptSyntax/service/types.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { dirname, extUri } from '../../../../../../../base/common/resources.js';
+import { DOCUMENTATION_URL } from '../../../../common/promptSyntax/constants.js';
 import { isLinux, isWindows } from '../../../../../../../base/common/platform.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -51,6 +52,20 @@ export interface ISelectPromptOptions {
 }
 
 /**
+ * A special quick pick item that links to the documentation.
+ */
+const DOCS_OPTION: WithUriValue<IQuickPickItem> = {
+	type: 'item',
+	label: localize(
+		'commands.prompts.use.select-dialog.docs-label',
+		'Learn how to create reusable prompts',
+	),
+	description: DOCUMENTATION_URL,
+	tooltip: DOCUMENTATION_URL,
+	value: URI.parse(DOCUMENTATION_URL),
+};
+
+/**
  * Shows the prompt selection dialog to the user that allows to select a prompt file(s).
  *
  * If {@link ISelectPromptOptions.resource resource} is provided, the dialog will have
@@ -61,15 +76,14 @@ export const askToSelectPrompt = async (
 ): Promise<void> => {
 	const { promptFiles, resource, quickInputService, labelService } = options;
 
-	// a sanity check - this function must be used only if there are prompt files to show
-	assert(
-		promptFiles.length > 0,
-		'Prompt files list must not be empty.',
-	);
-
-	const fileOptions = promptFiles.map(({ uri }) => {
-		return createPickItem(uri, labelService);
+	const fileOptions = promptFiles.map((promptFile) => {
+		return createPickItem(promptFile, labelService);
 	});
+
+	/**
+	 * Add a link to the documentation to the end of prompts list.
+	 */
+	fileOptions.push(DOCS_OPTION);
 
 	// if a resource is provided, create an `activeItem` for it to pre-select
 	// it in the UI, and sort the list so the active item appears at the top
@@ -84,7 +98,12 @@ export const askToSelectPrompt = async (
 		// the currently active prompt file is always available in the selection dialog,
 		// even if it is not included in the prompts list otherwise(from location setting)
 		if (!activeItem) {
-			activeItem = createPickItem(resource, labelService);
+			activeItem = createPickItem({
+				uri: resource,
+				// "user" prompts are always registered in the prompts list, hence it
+				// should be safe to assume that `resource` is not "user" prompt here
+				type: 'local',
+			}, labelService);
 			fileOptions.push(activeItem);
 		}
 
@@ -99,6 +118,19 @@ export const askToSelectPrompt = async (
 
 			return 0;
 		});
+	}
+
+	/**
+	 * If still no active item present, fall back to the first item in the list.
+	 * This can happen only if command was invoked not from a focused prompt file
+	 * (hence the `resource` is not provided in the options).
+	 *
+	 * Fixes the two main cases:
+	 *  - when no prompt files found it, pre-selects the documentation link
+	 *  - when there is only a single prompt file, pre-selects it
+	 */
+	if (!activeItem) {
+		activeItem = fileOptions[0];
 	}
 
 	// otherwise show the prompt file selection dialog
@@ -129,8 +161,17 @@ export const askToSelectPrompt = async (
 			const { selectedItems } = quickPick;
 			const { alt, ctrlCmd } = quickPick.keyMods;
 
+			// sanity check to confirm our expectations
+			assert(
+				selectedItems.length === 1,
+				`Only one item can be accepted, got '${selectedItems.length}'.`,
+			);
+
+			// whether user selected the docs link option
+			const docsSelected = (selectedItems[0] === DOCS_OPTION);
+
 			// if `super` key was pressed, open the selected prompt file(s)
-			if (ctrlCmd) {
+			if (ctrlCmd || docsSelected) {
 				return await openFiles(selectedItems, openerService);
 			}
 
@@ -155,16 +196,30 @@ export const askToSelectPrompt = async (
  * Creates a quick pick item for a prompt.
  */
 const createPickItem = (
-	uri: URI,
+	promptFile: IPromptPath,
 	labelService: ILabelService,
 ): WithUriValue<IQuickPickItem> => {
+	const { uri, type } = promptFile;
 	const fileWithoutExtension = getCleanPromptName(uri);
+
+	// if a "user" prompt, don't show its filesystem path in
+	// the user interface, but do that for all the "local" ones
+	const description = (type === 'user')
+		? localize(
+			'user-prompt.capitalized',
+			'User prompt',
+		)
+		: labelService.getUriLabel(dirname(uri), { relative: true });
+
+	const tooltip = (type === 'user')
+		? description
+		: uri.fsPath;
 
 	return {
 		type: 'item',
 		label: fileWithoutExtension,
-		description: labelService.getUriLabel(dirname(uri), { relative: true }),
-		tooltip: uri.fsPath,
+		description,
+		tooltip,
 		value: uri,
 		id: uri.toString(),
 	};

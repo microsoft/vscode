@@ -35,7 +35,7 @@ import { StatusbarEntryItem } from './statusbarItem.js';
 import { StatusBarFocused } from '../../../common/contextkeys.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
-import { isManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { isManagedHoverTooltipHTMLElement, isManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 
 export interface IStatusbarEntryContainer extends IDisposable {
 
@@ -152,7 +152,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			if (
 				typeof content === 'function' ||
 				isHTMLElement(content) ||
-				(isManagedHoverTooltipMarkdownString(content) && typeof content.markdown === 'function')
+				(isManagedHoverTooltipMarkdownString(content) && typeof content.markdown === 'function') ||
+				isManagedHoverTooltipHTMLElement(content)
 			) {
 				// override the delay for content that is rich (e.g. html or long running)
 				// so that it appears more instantly. these hovers carry more important

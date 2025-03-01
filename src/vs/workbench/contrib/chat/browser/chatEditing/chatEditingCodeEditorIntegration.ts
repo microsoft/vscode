@@ -221,17 +221,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._store.add(toDisposable(restoreActualOptions));
 
 		const shouldBeReadOnly = derived(this, r => {
-			const model = codeEditorObs.model.read(r);
-			if (!model) {
-				return false;
-			}
-			for (const session of chatEditingService.editingSessionsObs.read(r)) {
-				const entry = session.readEntry(model.uri, r);
-				if (entry?.isCurrentlyBeingModifiedBy.read(r)) {
-					return true;
-				}
-			}
-			return false;
+			return enabledObs.read(r) && Boolean(_entry.isCurrentlyBeingModifiedBy.read(r));
 		});
 
 		this._store.add(autorun(r => {

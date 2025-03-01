@@ -82,11 +82,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFiles(): Promise<readonly IPromptPath[]> {
-		const globalLocations = [this.userDataService.currentProfile.promptsHome];
+		const userLocations = [this.userDataService.currentProfile.promptsHome];
 
 		const prompts = await Promise.all([
-			this.fileLocator.listFilesIn(globalLocations, [])
-				.then(withType('global')),
+			this.fileLocator.listFilesIn(userLocations, [])
+				.then(withType('user')),
 			this.fileLocator.listFiles([])
 				.then(withType('local')),
 		]);
@@ -100,11 +100,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// sanity check to make sure we don't miss a new prompt type
 		// added in the future
 		assert(
-			type === 'local' || type === 'global',
+			type === 'local' || type === 'user',
 			`Unknown prompt type '${type}'.`,
 		);
 
-		const prompts = (type === 'global')
+		const prompts = (type === 'user')
 			? [this.userDataService.currentProfile.promptsHome]
 			: this.fileLocator.getConfigBasedSourceFolders();
 
@@ -116,7 +116,7 @@ export class PromptsService extends Disposable implements IPromptsService {
  * Utility to add a provided prompt `type` to a prompt URI.
  */
 const addType = (
-	type: 'local' | 'global',
+	type: 'local' | 'user',
 ): (uri: URI) => IPromptPath => {
 	return (uri) => {
 		return { uri, type: type };
@@ -127,7 +127,7 @@ const addType = (
  * Utility to add a provided prompt `type` to a list of prompt URIs.
  */
 const withType = (
-	type: 'local' | 'global',
+	type: 'local' | 'user',
 ): (uris: readonly URI[]) => (readonly IPromptPath[]) => {
 	return (uris) => {
 		return uris

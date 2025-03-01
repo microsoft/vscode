@@ -478,4 +478,7 @@ export class TestMarkerService implements IMarkerService {
 	changeAll(owner: string, data: IResourceMarker[]): void { }
 	remove(owner: string, resources: URI[]): void { }
 	read(filter?: { owner?: string | undefined; resource?: URI | undefined; severities?: number | undefined; take?: number | undefined } | undefined): IMarker[] { return []; }
+	installResourceFilter(resource: URI, reason: string): IDisposable {
+		return { dispose: () => { /* TODO: Implement cleanup logic */ } };
+	}
 }
