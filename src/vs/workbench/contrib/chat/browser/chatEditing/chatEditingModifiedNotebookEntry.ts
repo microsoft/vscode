@@ -43,17 +43,18 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { NotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditor.js';
 import { INotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
-import { CellDiffInfo, computeDiff } from '../../../notebook/browser/diff/notebookDiffViewModel.js';
+import { CellDiffInfo } from '../../../notebook/browser/diff/notebookDiffViewModel.js';
 import { CellEditState, getNotebookEditorFromEditorPane } from '../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookSetting, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { computeDiff } from '../../../notebook/common/notebookDiff.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../../notebook/common/services/notebookWorkerService.js';
-import { ChatEditKind, IEditSessionEntryDiff, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedFileEntryEditorIntegration, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
@@ -66,63 +67,6 @@ import { ChatEditingNotebookFileSystemProvider } from './chatEditingNotebookFile
 const noopKeep = () => Promise.resolve(true);
 const noopUndo = () => Promise.resolve(true);
 const SnapshotLanguageId = 'VSCodeChatNotebookSnapshotLanguage';
-
-export class ChatEditingModifiedNotebookDiff {
-	static NewModelCounter: number = 0;
-	constructor(
-		private readonly original: ISnapshotEntry,
-		private readonly modified: ISnapshotEntry,
-		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
-		@INotebookLoggingService private readonly notebookLoggingService: INotebookLoggingService,
-		@INotebookEditorModelResolverService private readonly notebookEditorModelService: INotebookEditorModelResolverService,
-	) {
-
-	}
-
-	async computeDiff(): Promise<IEditSessionEntryDiff> {
-
-		let added = 0;
-		let removed = 0;
-
-		const disposables = new DisposableStore();
-		try {
-			const [modifiedRef, originalRef] = await Promise.all([
-				this.notebookEditorModelService.resolve(this.modified.snapshotUri),
-				this.notebookEditorModelService.resolve(this.original.snapshotUri)
-			]);
-			disposables.add(modifiedRef);
-			disposables.add(originalRef);
-			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.original.snapshotUri, this.modified.snapshotUri);
-			const result = computeDiff(originalRef.object.notebook, modifiedRef.object.notebook, notebookDiff);
-			result.cellDiffInfo.forEach(diff => {
-				switch (diff.type) {
-					case 'modified':
-					case 'insert':
-						added++;
-						break;
-					case 'delete':
-						removed++;
-						break;
-					default:
-						break;
-				}
-			});
-		} catch (e) {
-			this.notebookLoggingService.error('Notebook Chat', 'Error computing diff:\n' + e);
-		} finally {
-			disposables.dispose();
-		}
-
-		return {
-			added,
-			removed,
-			identical: added === 0 && removed === 0,
-			quitEarly: false,
-			modifiedURI: this.modified.snapshotUri,
-			originalURI: this.original.snapshotUri,
-		};
-	}
-}
 
 export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifiedFileEntry {
 	static NewModelCounter: number = 0;
