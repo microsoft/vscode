@@ -13,10 +13,9 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatQuotasService } from '../common/chatQuotasService.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventLike, EventType } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, IChatEntitlementsService } from '../common/chatEntitlementsService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -105,8 +104,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
-		@IChatEntitlementsService private readonly chatEntitlementsService: IChatEntitlementsService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
@@ -146,8 +144,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 		}));
 
-		this._register(this.chatQuotasService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
-		this._register(this.chatEntitlementsService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
 	}
 
 	private getEntryProps(): IStatusbarEntry {
@@ -158,7 +156,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let kind: StatusbarEntryKind | undefined;
 
 		// Quota Exceeded
-		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
+		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatEntitlementService.quotas;
 		if (chatQuotaExceeded || completionsQuotaExceeded) {
 			let quotaWarning: string;
 			if (chatQuotaExceeded && !completionsQuotaExceeded) {
@@ -179,14 +177,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		// Copilot Not Installed
 		else if (
 			this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.installed.key) === false ||
-			this.chatEntitlementsService.entitlement === ChatEntitlement.Available
+			this.chatEntitlementService.entitlement === ChatEntitlement.Available
 		) {
 			tooltip = CHAT_SETUP_ACTION_LABEL.value;
 			command = TOGGLE_CHAT_ACTION_ID;
 		}
 
 		// Signed out
-		else if (this.chatEntitlementsService.entitlement === ChatEntitlement.Unknown) {
+		else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 			text = '$(copilot-not-connected)';
 			ariaLabel = localize('signInToUseCopilot', "Sign in to Use Copilot...");
 			tooltip = localize('signInToUseCopilot', "Sign in to Use Copilot...");
@@ -229,8 +227,7 @@ class ChatStatusDashboard extends Disposable {
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
-		@IChatEntitlementsService private readonly chatEntitlementsService: IChatEntitlementsService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -248,8 +245,8 @@ class ChatStatusDashboard extends Disposable {
 		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 
 		// Quota Indicator
-		if (this.chatEntitlementsService.entitlement === ChatEntitlement.Limited) {
-			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatQuotasService.quotas;
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Limited) {
+			const { chatTotal, chatRemaining, completionsTotal, completionsRemaining, quotaResetDate } = this.chatEntitlementService.quotas;
 
 			this.element.appendChild($('div.header', undefined, localize('usageTitle', "Copilot Free Usage")));
 
@@ -259,12 +256,12 @@ class ChatStatusDashboard extends Disposable {
 			this.element.appendChild($('div.description', undefined, localize('limitQuota', "Limits will reset on {0}.", this.dateFormatter.value.format(quotaResetDate))));
 
 			(async () => {
-				const res = await this.chatEntitlementsService.resolve(token);
-				if (!res?.quotas || token.isCancellationRequested) {
+				await this.chatEntitlementService.update(token);
+				if (token.isCancellationRequested) {
 					return;
 				}
 
-				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = res.quotas;
+				const { chatTotal, chatRemaining, completionsTotal, completionsRemaining } = this.chatEntitlementService.quotas;
 
 				chatQuotaIndicator(chatTotal, chatRemaining);
 				completionsQuotaIndicator(completionsTotal, completionsRemaining);
