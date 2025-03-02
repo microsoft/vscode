@@ -267,7 +267,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	protected override _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement {
 		const request = response.session.getRequests().find(req => req.id === response.requestId);
 		const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
-		return new SingleModelEditStackElement(label, 'chat.edit', this.doc, null);
+		return new SingleModelEditStackElement(label, 'chat.edit', this.modifiedModel, null);
 	}
 
 	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
