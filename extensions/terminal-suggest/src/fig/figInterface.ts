@@ -80,7 +80,7 @@ export async function getFigSuggestions(
 
 			const commandAndAliases = (osIsWindows()
 				? availableCommands.filter(command => specLabel === removeAnyFileExtension(command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label)))
-				: availableCommands.filter(command => specLabel === (typeof command.label === 'string' ? command.label : command.label.label) || command.definitionCommand));
+				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
 					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
