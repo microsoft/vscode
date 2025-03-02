@@ -109,7 +109,7 @@ Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong
 
 #ifdef AppxPackageFullname
 [UninstallRun]
-Filename: "powershell.exe"; Parameters: "Invoke-Command -ScriptBlock {{Remove-AppxPackage -Package ""{#AppxPackageFullname}""}"; Check: IsWindows11OrLater and QualityIsInsiders; Flags: shellexec waituntilterminated runhidden
+Filename: "powershell.exe"; Parameters: "-Command 'Invoke-Command -ScriptBlock {{Remove-AppxPackage -Package \"{#AppxPackageFullname}\"}}' -NonInteractive -NoProfile -NoLogo"; Check: IsWindows11OrLater and QualityIsInsiders; Flags: shellexec waituntilterminated runhidden
 #endif
 
 [Registry]
@@ -1489,7 +1489,7 @@ procedure RemoveAppxPackage();
 var
   RemoveAppxPackageResultCode: Integer;
 begin
-  ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+  ShellExec('', 'powershell.exe', '-NonInteractive -NoProfile -NoLogo -Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'' -Confirm:$false -ErrorAction SilentlyContinue'), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
   if not WizardIsTaskSelected('addcontextmenufiles') then begin
     RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\{#RegValueName}ContextMenu');
   end;
