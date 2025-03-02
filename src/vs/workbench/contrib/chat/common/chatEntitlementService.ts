@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
-export const IChatEntitlementsService = createDecorator<IChatEntitlementsService>('chatEntitlementsService');
+export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
 
 export enum ChatEntitlement {
 	/** Signed out */
@@ -24,22 +24,19 @@ export enum ChatEntitlement {
 	Pro
 }
 
-export interface IChatEntitlements {
-	readonly entitlement: ChatEntitlement;
-	readonly quotas?: IQuotas;
-}
+export interface IChatQuotas {
+	readonly chatQuotaExceeded: boolean;
+	readonly completionsQuotaExceeded: boolean;
+	readonly quotaResetDate: Date | undefined;
 
-export interface IQuotas {
 	readonly chatTotal?: number;
 	readonly completionsTotal?: number;
 
 	readonly chatRemaining?: number;
 	readonly completionsRemaining?: number;
-
-	readonly resetDate?: string;
 }
 
-export interface IChatEntitlementsService {
+export interface IChatEntitlementService {
 
 	_serviceBrand: undefined;
 
@@ -47,5 +44,10 @@ export interface IChatEntitlementsService {
 
 	readonly entitlement: ChatEntitlement;
 
-	resolve(token: CancellationToken): Promise<IChatEntitlements | undefined>;
+	readonly onDidChangeQuotaExceeded: Event<void>;
+	readonly onDidChangeQuotaRemaining: Event<void>;
+
+	readonly quotas: IChatQuotas;
+
+	update(token: CancellationToken): Promise<void>;
 }
