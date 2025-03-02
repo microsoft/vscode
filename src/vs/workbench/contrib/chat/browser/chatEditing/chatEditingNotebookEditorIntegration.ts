@@ -121,7 +121,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 			const validCells = new Set<NotebookCellTextModel>();
 			changes.forEach((diff) => {
-				if (diff.modifiedCellIndex === undefined) {
+				if (diff.modifiedCellIndex === undefined || diff.modifiedCellIndex >= notebookModel.cells.length) {
 					return;
 				}
 				const cell = notebookModel.cells[diff.modifiedCellIndex];

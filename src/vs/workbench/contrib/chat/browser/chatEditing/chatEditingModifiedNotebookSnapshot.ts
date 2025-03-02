@@ -7,6 +7,7 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
+import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
 import { ICellDto2, IOutputItemDto, NotebookData, NotebookSetting, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 
@@ -43,40 +44,92 @@ export function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): 
 	}
 }
 
-export function serializeSnapshot(data: NotebookData, transientOptions: TransientOptions | undefined): string {
-	data.cells.forEach(cell => {
-		const outputs = cell.outputs.map(output => {
-			// Ensure we're in full control of the data being stored.
-			// Possible we have classes instead of plain objects.
-			return {
-				outputId: output.outputId,
-				metadata: output.metadata,
-				outputs: output.outputs.map(item => {
-					return {
-						data: item.data,
-						mime: item.mime,
-					} satisfies IOutputItemDto;
-				}),
-			};
-		});
+export class SnapshotComparer {
+	private readonly data: NotebookData;
+	constructor(initialCotent: string) {
+		this.data = deserializeSnapshot(initialCotent).data;
+	}
+
+	isEqual(notebook: NotebookData | NotebookTextModel): boolean {
+		if (notebook.cells.length !== this.data.cells.length) {
+			return false;
+		}
+		if (JSON.stringify(notebook.metadata) !== JSON.stringify(this.data.metadata)) {
+			return false;
+		}
+		for (let i = 0; i < notebook.cells.length; i++) {
+			const notebookCell = notebook.cells[i];
+			const comparerCell = this.data.cells[i];
+			if (notebookCell instanceof NotebookCellTextModel) {
+				if (!notebookCell.fastEqual(comparerCell, true)) {
+					return false;
+				}
+			} else {
+				if (notebookCell.cellKind !== comparerCell.cellKind) {
+					return false;
+				}
+				if (notebookCell.language !== comparerCell.language) {
+					return false;
+				}
+				if (notebookCell.mime !== comparerCell.mime) {
+					return false;
+				}
+				if (notebookCell.source !== comparerCell.source) {
+					return false;
+				}
+				if (notebookCell.outputs.length !== comparerCell.outputs.length) {
+					return false;
+				}
+				if (JSON.stringify(notebookCell.metadata) !== JSON.stringify(comparerCell.metadata)) {
+					return false;
+				}
+				if (JSON.stringify(sanitizeCellDto2(notebookCell, true)) !== JSON.stringify(sanitizeCellDto2(comparerCell, true))) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+}
+
+function sanitizeCellDto2(cell: ICellDto2, ignoreInternalMetadata?: boolean): ICellDto2 {
+	const outputs = cell.outputs.map(output => {
 		// Ensure we're in full control of the data being stored.
 		// Possible we have classes instead of plain objects.
 		return {
-			cellKind: cell.cellKind,
-			language: cell.language,
-			metadata: cell.metadata,
-			outputs,
-			mime: cell.mime,
-			source: cell.source,
-			collapseState: cell.collapseState,
-			// No need to store the internal metadata, as this can contain unique information such as cell ids.
-			// Also its not something that can be persisted, hence no need to try to restore that either.
-			internalMetadata: undefined
-		} satisfies ICellDto2;
+			outputId: output.outputId,
+			metadata: output.metadata,
+			outputs: output.outputs.map(item => {
+				return {
+					data: item.data,
+					mime: item.mime,
+				} satisfies IOutputItemDto;
+			}),
+		};
 	});
+	// Ensure we're in full control of the data being stored.
+	// Possible we have classes instead of plain objects.
+	return {
+		cellKind: cell.cellKind,
+		language: cell.language,
+		metadata: cell.metadata,
+		outputs,
+		mime: cell.mime,
+		source: cell.source,
+		collapseState: cell.collapseState,
+		internalMetadata: ignoreInternalMetadata ? undefined : cell.internalMetadata
+	} satisfies ICellDto2;
+}
+
+function serializeSnapshot(data: NotebookData, transientOptions: TransientOptions | undefined): string {
+	const dataDto: NotebookData = {
+		cells: data.cells.map(cell => sanitizeCellDto2(cell)),
+		metadata: data.metadata,
+	};
 	return JSON.stringify([
 		JSON.stringify(transientOptions)
-		, JSON.stringify(data, (_key, value) => {
+		, JSON.stringify(dataDto, (_key, value) => {
 			if (value instanceof VSBuffer) {
 				return {
 					type: BufferMarker,
