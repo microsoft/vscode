@@ -109,7 +109,7 @@ Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong
 
 #ifdef AppxPackageFullname
 [UninstallRun]
-Filename: "powershell.exe"; Parameters: "-Command 'Invoke-Command -ScriptBlock {{Remove-AppxPackage -Package \"{#AppxPackageFullname}\"}}' -NonInteractive -NoProfile -NoLogo"; Check: IsWindows11OrLater and QualityIsInsiders; Flags: shellexec waituntilterminated runhidden
+Filename: "powershell.exe"; Parameters: "-Command 'Invoke-Command -ScriptBlock {{Remove-AppxPackage -Package \"{#AppxPackageFullname}\" -Confirm:$false -ErrorAction SilentlyContinue}}' -NonInteractive -NoProfile -NoLogo"; Check: IsWindows11OrLater and QualityIsInsiders; Flags: shellexec waituntilterminated runhidden
 #endif
 
 [Registry]
