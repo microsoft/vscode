@@ -28,11 +28,12 @@ import { ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IC
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
-import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { NotebookDto } from './mainThreadNotebookDto.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -136,7 +137,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 
 		const inputValue = widget?.inputEditor.getValue() ?? '';
-		this._chatService.transferChatSession({ sessionId, inputValue }, URI.revive(toWorkspace));
+		const location = widget.location;
+		const toolsAgentModeEnabled = this._chatAgentService.toolsAgentModeEnabled;
+		this._chatService.transferChatSession({ sessionId, inputValue, location, toolsAgentModeEnabled }, URI.revive(toWorkspace));
 	}
 
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {
@@ -160,6 +163,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
+			},
+			setRequestPaused: (requestId, isPaused) => {
+				this._proxy.$setRequestPaused(handle, requestId, isPaused);
 			},
 			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
@@ -222,7 +228,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $handleProgressChunk(requestId: string, progress: IChatProgressDto, responsePartHandle?: number): Promise<number | void> {
-		const revivedProgress = revive(progress) as IChatProgress;
+		const revivedProgress = progress.kind === 'notebookEdit' ? ChatNotebookEdit.fromChatEdit(revive(progress)) : revive(progress) as IChatProgress;
 		if (revivedProgress.kind === 'progressTask') {
 			const handle = ++this._responsePartHandlePool;
 			const responsePartId = `${requestId}_${handle}`;
@@ -381,4 +387,15 @@ function computeCompletionRanges(model: ITextModel, position: Position, reg: Reg
 	}
 
 	return { insert, replace };
+}
+
+namespace ChatNotebookEdit {
+	export function fromChatEdit(part: IChatNotebookEditDto): IChatNotebookEdit {
+		return {
+			kind: 'notebookEdit',
+			uri: part.uri,
+			done: part.done,
+			edits: part.edits.map(NotebookDto.fromCellEditOperationDto)
+		};
+	}
 }

@@ -7,7 +7,6 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import * as iconv from '@vscode/iconv-lite-umd';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
@@ -23,9 +22,8 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isDescendant, isLinuxSnap, isRemote, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
-import { detectEncoding } from './encoding';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
@@ -1166,7 +1164,10 @@ export class Repository implements Disposable {
 	}
 
 	diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
-		return this.run(Operation.Diff, () => this.repository.diffTrees(treeish1, treeish2));
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.root));
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
+
+		return this.run(Operation.Diff, () => this.repository.diffTrees(treeish1, treeish2, { similarityThreshold }));
 	}
 
 	getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
@@ -1219,19 +1220,9 @@ export class Repository implements Disposable {
 		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
 	}
 
-	async stage(resource: Uri, contents: string): Promise<void> {
-		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
+	async stage(resource: Uri, contents: string, encoding: string): Promise<void> {
 		await this.run(Operation.Stage, async () => {
-			const configFiles = workspace.getConfiguration('files', Uri.file(resource.fsPath));
-			let encoding = configFiles.get<string>('encoding') ?? 'utf8';
-			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding') === true;
-			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings') ?? [];
-
-			if (autoGuessEncoding) {
-				encoding = detectEncoding(Buffer.from(contents), candidateGuessEncodings) ?? encoding;
-			}
-
-			encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+			const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 			await this.repository.stage(path, contents, encoding);
 
 			this._onDidChangeOriginalResource.fire(resource);
@@ -1291,20 +1282,7 @@ export class Repository implements Disposable {
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
 			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
 
-		if (this.mergeInProgress) {
-			await this.run(
-				Operation.MergeContinue,
-				async () => {
-					if (opts.all) {
-						const addOpts = opts.all === 'tracked' ? { update: true } : {};
-						await this.repository.add([], addOpts);
-					}
-
-					await this.repository.mergeContinue();
-					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
-				},
-				() => this.commitOperationGetOptimisticResourceGroups(opts));
-		} else if (this.rebaseCommit) {
+		if (this.rebaseCommit) {
 			await this.run(
 				Operation.RebaseContinue,
 				async () => {
@@ -1370,6 +1348,9 @@ export class Repository implements Disposable {
 	}
 
 	async clean(resources: Uri[]): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
+
 		await this.run(
 			Operation.Clean(!this.optimisticUpdateEnabled()),
 			async () => {
@@ -1407,7 +1388,14 @@ export class Repository implements Disposable {
 					}
 				});
 
-				await this.repository.clean(toClean);
+				if (discardUntrackedChangesToTrash) {
+					const limiter = new Limiter<void>(5);
+					await Promise.all(toClean.map(fsPath => limiter.queue(
+						async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+				} else {
+					await this.repository.clean(toClean);
+				}
+
 				try {
 					await this.repository.checkout('', toCheckout);
 				} catch (err) {
@@ -1664,8 +1652,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
-		await this.run(Operation.DeleteRemoteTag, () => this.repository.deleteRemoteTag(remoteName, tagName));
+	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
+		await this.run(Operation.DeleteRemoteRef, () => this.repository.deleteRemoteRef(remoteName, refName, options));
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
@@ -1795,6 +1783,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Pull, async () => {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const autoStash = config.get<boolean>('autoStash');
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 
@@ -1804,7 +1793,7 @@ export class Repository implements Disposable {
 				}
 
 				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags });
+					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags, autoStash });
 				}
 			});
 		});
@@ -1851,12 +1840,18 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this._push(remote, undefined, false, false, forcePushMode, true));
 	}
 
-	async blame(path: string): Promise<string> {
-		return await this.run(Operation.Blame(true), () => this.repository.blame(path));
+	async blame(filePath: string): Promise<string> {
+		return await this.run(Operation.Blame(true), () => {
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.blame(path);
+		});
 	}
 
-	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
-		return await this.run(Operation.Blame(false), () => this.repository.blame2(path, ref));
+	async blame2(filePath: string, ref?: string): Promise<BlameInformation[] | undefined> {
+		return await this.run(Operation.Blame(false), () => {
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.blame2(path, ref);
+		});
 	}
 
 	@throttle
@@ -1878,6 +1873,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Sync, async () => {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const autoStash = config.get<boolean>('autoStash');
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 				const followTags = config.get<boolean>('followTagsWhenSync');
@@ -1890,7 +1886,7 @@ export class Repository implements Disposable {
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken });
+						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken, autoStash });
 					}
 				};
 
@@ -1972,17 +1968,15 @@ export class Repository implements Disposable {
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const defaultEncoding = configFiles.get<string>('encoding');
-			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
-			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings');
 
 			try {
-				return await this.repository.bufferString(`${ref}:${path}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
+				const content = await this.repository.buffer(`${ref}:${path}`);
+				return await workspace.decode(content, Uri.file(filePath));
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
 					const gitRelativePath = await this.repository.getGitRelativePath(ref, path);
-					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
+					const content = await this.repository.buffer(`${ref}:${gitRelativePath}`);
+					return await workspace.decode(content, Uri.file(filePath));
 				}
 
 				throw err;
@@ -2002,7 +1996,10 @@ export class Repository implements Disposable {
 	}
 
 	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
-		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
+		return this.run(Operation.GetObjectDetails, () => {
+			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			return this.repository.getObjectDetails(ref, path);
+		});
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
@@ -2527,7 +2524,10 @@ export class Repository implements Disposable {
 	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const shouldAutoStash = config.get<boolean>('autoStash')
-			&& this.workingTreeGroup.resourceStates.some(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+			&& this.repository.git.compareGitVersionTo('2.27.0') < 0
+			&& (this.indexGroup.resourceStates.length > 0
+				|| this.workingTreeGroup.resourceStates.some(
+					r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED));
 
 		if (!shouldAutoStash) {
 			return await runOperation();
@@ -2765,8 +2765,25 @@ export class Repository implements Disposable {
 			return this.unpublishedCommits;
 		}
 
-		if (this.HEAD && this.HEAD.name && this.HEAD.upstream && this.HEAD.ahead && this.HEAD.ahead > 0) {
-			const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+		if (!this.HEAD?.name) {
+			this.unpublishedCommits = new Set<string>();
+			return this.unpublishedCommits;
+		}
+
+		if (this.HEAD.upstream) {
+			// Upstream
+			if (this.HEAD.ahead === 0) {
+				this.unpublishedCommits = new Set<string>();
+			} else {
+				const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+				const ref2 = this.HEAD.name;
+
+				const revList = await this.repository.revList(ref1, ref2);
+				this.unpublishedCommits = new Set<string>(revList);
+			}
+		} else if (this.historyProvider.currentHistoryItemBaseRef) {
+			// Base
+			const ref1 = this.historyProvider.currentHistoryItemBaseRef.id;
 			const ref2 = this.HEAD.name;
 
 			const revList = await this.repository.revList(ref1, ref2);

@@ -151,7 +151,16 @@ export const USER_LOCAL_AND_REMOTE_SETTINGS = [
 ];
 
 let proxyConfiguration: IConfigurationNode[] = [];
+let previousUseHostProxy: boolean | undefined = undefined;
+let previousUseHostProxyDefault: boolean | undefined = undefined;
 function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = true): void {
+	if (previousUseHostProxy === useHostProxy && previousUseHostProxyDefault === useHostProxyDefault) {
+		return;
+	}
+
+	previousUseHostProxy = useHostProxy;
+	previousUseHostProxyDefault = useHostProxyDefault;
+
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	const oldProxyConfiguration = proxyConfiguration;
 	proxyConfiguration = [

@@ -52,16 +52,49 @@ export async function showEditsView(viewsService: IViewsService): Promise<IChatW
 	return (await viewsService.openView<ChatViewPane>(EditsViewId))?.widget;
 }
 
-export function ensureSideBarChatViewSize(viewDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService): void {
-	const location = viewDescriptorService.getViewLocationById(ChatViewId);
+export function preferCopilotEditsView(viewsService: IViewsService): boolean {
+	if (viewsService.getFocusedView()?.id === ChatViewId || !!viewsService.getActiveViewWithId(ChatViewId)) {
+		return false;
+	}
+
+	return !!viewsService.getActiveViewWithId(EditsViewId);
+}
+
+export function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
+
+	// Ensure main window is in front
+	if (layoutService.activeContainer !== layoutService.mainContainer) {
+		layoutService.mainContainer.focus();
+	}
+
+	// Bring up the correct view
+	if (preferCopilotEditsView(viewsService)) {
+		return showEditsView(viewsService);
+	} else {
+		return showChatView(viewsService);
+	}
+}
+
+export function ensureSideBarChatViewSize(viewDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService, viewsService: IViewsService): void {
+	const viewId = preferCopilotEditsView(viewsService) ? EditsViewId : ChatViewId;
+
+	const location = viewDescriptorService.getViewLocationById(viewId);
 	if (location === ViewContainerLocation.Panel) {
 		return; // panel is typically very wide
 	}
 
 	const viewPart = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
 	const partSize = layoutService.getSize(viewPart);
-	if (partSize.width < 400) {
-		layoutService.setSize(viewPart, { width: 400, height: partSize.height });
+
+	let adjustedChatWidth: number | undefined;
+	if (partSize.width < 400 && layoutService.mainContainerDimension.width > 1200) {
+		adjustedChatWidth = 400; // up to 400px if window bounds permit
+	} else if (partSize.width < 300) {
+		adjustedChatWidth = 300; // at minimum 300px
+	}
+
+	if (typeof adjustedChatWidth === 'number') {
+		layoutService.setSize(viewPart, { width: adjustedChatWidth, height: partSize.height });
 	}
 }
 
@@ -103,13 +136,12 @@ export interface IChatAccessibilityService {
 export interface IChatCodeBlockInfo {
 	readonly ownerMarkdownPartId: string;
 	readonly codeBlockIndex: number;
-	readonly element: ChatTreeItem;
+	readonly elementId: string;
 	readonly uri: URI | undefined;
 	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly isStreaming: boolean;
 	focus(): void;
-	getContent(): string;
 }
 
 export interface IChatFileTreeInfo {
@@ -128,6 +160,8 @@ export interface IChatListItemRendererOptions {
 	readonly renderCodeBlockPills?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
+	readonly referencesExpandedWhenEmptyResponse?: boolean;
+	readonly progressMessageAtBottomOfResponse?: boolean;
 }
 
 export interface IChatWidgetViewOptions {
@@ -156,6 +190,7 @@ export interface IChatWidgetViewOptions {
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	enableImplicitContext?: boolean;
+	enableWorkingSet?: 'explicit' | 'implicit';
 }
 
 export interface IChatViewViewContext {
@@ -214,6 +249,7 @@ export interface IChatWidget {
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): void;
 	getViewState(): IChatViewState;
+	togglePaused(): void;
 }
 
 

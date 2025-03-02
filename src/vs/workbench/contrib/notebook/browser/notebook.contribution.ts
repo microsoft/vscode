@@ -100,12 +100,13 @@ import './contrib/kernelDetection/notebookKernelDetection.js';
 import './contrib/cellDiagnostics/cellDiagnostics.js';
 import './contrib/multicursor/notebookMulticursor.js';
 import './contrib/multicursor/notebookSelectionHighlight.js';
+import './contrib/notebookVariables/notebookInlineVariables.js';
 
 // Diff Editor Contribution
 import './diff/notebookDiffActions.js';
 
 // Chat Edit Contributions
-import './contrib/chatEdit/notebookChatEditController.js';
+import './contrib/chatEdit/contribution.js';
 
 // Services
 import { editorOptionsRegistry } from '../../../../editor/common/config/editorOptions.js';
@@ -1235,6 +1236,17 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false
 		},
+		[NotebookSetting.notebookInlineValues]: {
+			markdownDescription: nls.localize('notebook.inlineValues.description', "Control whether to show inline values within notebook code cells after cell execution. Values will remain until the cell is edited, re-executed, or explicitly cleared via the Clear All Outputs toolbar button or the `Notebook: Clear Inline Values` command."),
+			type: 'string',
+			enum: ['on', 'auto', 'off'],
+			enumDescriptions: [
+				nls.localize('notebook.inlineValues.on', "Always show inline values, with a regex fallback if no inline value provider is registered. Note: There may be a performance impact in larger cells if the fallback is used."),
+				nls.localize('notebook.inlineValues.auto', "Show inline values only when an inline value provider is registered."),
+				nls.localize('notebook.inlineValues.off', "Never show inline values."),
+			],
+			default: 'off'
+		},
 		[NotebookSetting.cellFailureDiagnostics]: {
 			markdownDescription: nls.localize('notebook.cellFailureDiagnostics', "Show available diagnostics for cell failures."),
 			type: 'boolean',
@@ -1250,5 +1262,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false
 		},
+		[NotebookSetting.markupFontFamily]: {
+			markdownDescription: nls.localize('notebook.markup.fontFamily', "Controls the font family of rendered markup in notebooks. When left blank, this will fall back to the default workbench font family."),
+			type: 'string',
+			default: '',
+			tags: ['notebookLayout']
+		}
 	}
 });

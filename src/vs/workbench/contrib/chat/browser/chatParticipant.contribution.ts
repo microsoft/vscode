@@ -9,7 +9,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -31,6 +31,89 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
 import { ChatViewId } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
+
+// --- Chat Container &  View Registration
+
+const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+	id: CHAT_SIDEBAR_PANEL_ID,
+	title: localize2('chat.viewContainer.label', "Chat"),
+	icon: Codicon.commentDiscussion,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [CHAT_SIDEBAR_PANEL_ID, { mergeViewWithContainerWhenSingleView: true }]),
+	storageId: CHAT_SIDEBAR_PANEL_ID,
+	hideIfEmpty: true,
+	order: 100,
+}, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
+
+const chatViewDescriptor: IViewDescriptor[] = [{
+	id: ChatViewId,
+	containerIcon: chatViewContainer.icon,
+	containerTitle: chatViewContainer.title.value,
+	singleViewPaneContainerTitle: chatViewContainer.title.value,
+	name: localize2('chat.viewContainer.label', "Chat"),
+	canToggleVisibility: false,
+	canMoveView: true,
+	openCommandActionDescriptor: {
+		id: CHAT_SIDEBAR_PANEL_ID,
+		title: chatViewContainer.title,
+		mnemonicTitle: localize({ key: 'miToggleChat', comment: ['&& denotes a mnemonic'] }, "&&Chat"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+			mac: {
+				primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+			}
+		},
+		order: 1
+	},
+	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
+	when: ContextKeyExpr.or(
+		ChatContextKeys.Setup.hidden.negate(),
+		ChatContextKeys.Setup.installed,
+		ChatContextKeys.panelParticipantRegistered,
+		ChatContextKeys.extensionInvalid
+	)
+}];
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(chatViewDescriptor, chatViewContainer);
+
+// --- Edits Container &  View Registration
+
+const editsViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+	id: CHAT_EDITING_SIDEBAR_PANEL_ID,
+	title: localize2('chatEditing.viewContainer.label', "Copilot Edits"),
+	icon: Codicon.editSession,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [CHAT_EDITING_SIDEBAR_PANEL_ID, { mergeViewWithContainerWhenSingleView: true }]),
+	storageId: CHAT_EDITING_SIDEBAR_PANEL_ID,
+	hideIfEmpty: true,
+	order: 101,
+}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
+
+const editsViewDescriptor: IViewDescriptor[] = [{
+	id: 'workbench.panel.chat.view.edits',
+	containerIcon: editsViewContainer.icon,
+	containerTitle: editsViewContainer.title.value,
+	singleViewPaneContainerTitle: editsViewContainer.title.value,
+	name: editsViewContainer.title,
+	canToggleVisibility: false,
+	canMoveView: true,
+	openCommandActionDescriptor: {
+		id: CHAT_EDITING_SIDEBAR_PANEL_ID,
+		title: editsViewContainer.title,
+		mnemonicTitle: localize({ key: 'miToggleEdits', comment: ['&& denotes a mnemonic'] }, "Copilot Ed&&its"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+			linux: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+			}
+		},
+		order: 2
+	},
+	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
+	when: ContextKeyExpr.or(
+		ChatContextKeys.Setup.hidden.negate(),
+		ChatContextKeys.Setup.installed,
+		ChatContextKeys.editingParticipantRegistered
+	)
+}];
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(editsViewDescriptor, editsViewContainer);
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
@@ -166,16 +249,12 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatExtensionPointHandler';
 
-	private _viewContainer: ViewContainer;
 	private _participantRegistrationDisposables = new DisposableMap<string>();
 
 	constructor(
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this._viewContainer = this.registerViewContainer();
-		this.registerDefaultParticipantView();
-		this.registerChatEditingView();
 		this.handleAndRegisterChatExtensions();
 	}
 
@@ -268,109 +347,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					this._participantRegistrationDisposables.deleteAndDispose(getParticipantKey(extension.description.identifier, providerDescriptor.id));
 				}
 			}
-		});
-	}
-
-	private registerViewContainer(): ViewContainer {
-		// Register View Container
-		const title = localize2('chat.viewContainer.label', "Chat");
-		const icon = Codicon.commentDiscussion;
-		const viewContainerId = CHAT_SIDEBAR_PANEL_ID;
-		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
-			id: viewContainerId,
-			title,
-			icon,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
-			storageId: viewContainerId,
-			hideIfEmpty: true,
-			order: 100,
-		}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
-
-		return viewContainer;
-	}
-
-	private registerDefaultParticipantView(): IDisposable {
-		const viewDescriptor: IViewDescriptor[] = [{
-			id: ChatViewId,
-			containerIcon: this._viewContainer.icon,
-			containerTitle: this._viewContainer.title.value,
-			singleViewPaneContainerTitle: this._viewContainer.title.value,
-			name: localize2('chat.viewContainer.label', "Chat"),
-			canToggleVisibility: false,
-			canMoveView: true,
-			openCommandActionDescriptor: {
-				id: CHAT_SIDEBAR_PANEL_ID,
-				title: this._viewContainer.title,
-				mnemonicTitle: localize({ key: 'miToggleChat', comment: ['&& denotes a mnemonic'] }, "&&Chat"),
-				keybindings: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
-					}
-				},
-				order: 1
-			},
-			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
-			when: ContextKeyExpr.or(
-				ChatContextKeys.Setup.hidden.negate(),
-				ChatContextKeys.Setup.installed,
-				ChatContextKeys.panelParticipantRegistered,
-				ChatContextKeys.extensionInvalid
-			)
-		}];
-		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
-
-		return toDisposable(() => {
-			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, this._viewContainer);
-		});
-	}
-
-	private registerChatEditingView(): IDisposable {
-		const title = localize2('chatEditing.viewContainer.label', "Copilot Edits");
-		const icon = Codicon.editSession;
-		const viewContainerId = CHAT_EDITING_SIDEBAR_PANEL_ID;
-		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
-			id: viewContainerId,
-			title,
-			icon,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
-			storageId: viewContainerId,
-			hideIfEmpty: true,
-			order: 101,
-		}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
-
-		const id = 'workbench.panel.chat.view.edits';
-		const viewDescriptor: IViewDescriptor[] = [{
-			id,
-			containerIcon: viewContainer.icon,
-			containerTitle: title.value,
-			singleViewPaneContainerTitle: title.value,
-			name: { value: title.value, original: title.value },
-			canToggleVisibility: false,
-			canMoveView: true,
-			openCommandActionDescriptor: {
-				id: viewContainerId,
-				title,
-				mnemonicTitle: localize({ key: 'miToggleEdits', comment: ['&& denotes a mnemonic'] }, "Copilot Ed&&its"),
-				keybindings: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-					linux: {
-						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
-					}
-				},
-				order: 2
-			},
-			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
-			when: ContextKeyExpr.or(
-				ChatContextKeys.Setup.installed,
-				ChatContextKeys.editingParticipantRegistered
-			)
-		}];
-		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
-
-		return toDisposable(() => {
-			Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
-			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, viewContainer);
 		});
 	}
 }

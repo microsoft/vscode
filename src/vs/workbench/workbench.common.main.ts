@@ -269,7 +269,6 @@ import './contrib/extensions/browser/extensions.contribution.js';
 import './contrib/extensions/browser/extensionsViewlet.js';
 
 // Output View
-import './contrib/output/common/outputChannelModelService.js';
 import './contrib/output/browser/output.contribution.js';
 import './contrib/output/browser/outputView.js';
 

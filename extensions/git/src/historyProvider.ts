@@ -7,12 +7,12 @@
 import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, getCommitShortHash } from './util';
-import { toGitUri } from './uri';
-import { Branch, LogOptions, Ref, RefType } from './api/git';
+import { toMultiFileDiffEditorUris } from './uri';
+import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
-import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
+import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 
 function toSourceControlHistoryItemRef(repository: Repository, ref: Ref): SourceControlHistoryItemRef {
 	const rootUri = Uri.file(repository.root);
@@ -136,12 +136,27 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					historyItemRefName = this.repository.HEAD.name;
 
 					// Remote
-					this._currentHistoryItemRemoteRef = this.repository.HEAD.upstream ? {
-						id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-						name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-						revision: this.repository.HEAD.upstream.commit,
-						icon: new ThemeIcon('cloud')
-					} : undefined;
+					if (this.repository.HEAD.upstream) {
+						if (this.repository.HEAD.upstream.remote === '.') {
+							// Local branch
+							this._currentHistoryItemRemoteRef = {
+								id: `refs/heads/${this.repository.HEAD.upstream.name}`,
+								name: this.repository.HEAD.upstream.name,
+								revision: this.repository.HEAD.upstream.commit,
+								icon: new ThemeIcon('gi-branch')
+							};
+						} else {
+							// Remote branch
+							this._currentHistoryItemRemoteRef = {
+								id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+								name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+								revision: this.repository.HEAD.upstream.commit,
+								icon: new ThemeIcon('cloud')
+							};
+						}
+					} else {
+						this._currentHistoryItemRemoteRef = undefined;
+					}
 
 					// Base
 					if (this._HEAD?.name !== this.repository.HEAD.name) {
@@ -267,6 +282,19 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 			const commits = await this.repository.log({ ...logOptions, silent: true });
 
+			// Avatars
+			const avatarQuery = {
+				commits: commits.map(c => ({
+					hash: c.hash,
+					authorName: c.authorName,
+					authorEmail: c.authorEmail
+				} satisfies AvatarQueryCommit)),
+				size: 20
+			} satisfies AvatarQuery;
+
+			const commitAvatars = await provideSourceControlHistoryItemAvatar(
+				this.historyItemDetailProviderRegistry, this.repository, avatarQuery);
+
 			await ensureEmojis();
 
 			const historyItems: SourceControlHistoryItem[] = [];
@@ -280,6 +308,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					? `${message.substring(0, newLineIndex)}\u2026`
 					: message;
 
+				const avatarUrl = commitAvatars?.get(commit.hash);
 				const references = this._resolveHistoryItemRefs(commit);
 
 				historyItems.push({
@@ -289,6 +318,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					message: messageWithLinks,
 					author: commit.authorName,
 					authorEmail: commit.authorEmail,
+					authorIcon: avatarUrl ? Uri.parse(avatarUrl) : new ThemeIcon('account'),
 					displayId: getCommitShortHash(Uri.file(this.repository.root), commit.hash),
 					timestamp: commit.authorDate?.getTime(),
 					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
@@ -318,10 +348,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			// History item change
 			historyItemChanges.push({
 				uri: historyItemUri,
-				originalUri: toGitUri(change.originalUri, historyItemParentId),
-				modifiedUri: toGitUri(change.uri, historyItemId),
-				renameUri: change.renameUri,
-			});
+				...toMultiFileDiffEditorUris(change, historyItemParentId, historyItemId)
+			} satisfies SourceControlHistoryItemChange);
 
 			// History item change decoration
 			const letter = Resource.getStatusLetter(change.status);
@@ -380,6 +408,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const references: SourceControlHistoryItemRef[] = [];
 
 		for (const ref of commit.refNames) {
+			if (ref === 'refs/remotes/origin/HEAD') {
+				continue;
+			}
+
 			switch (true) {
 				case ref.startsWith('HEAD -> refs/heads/'):
 					references.push({

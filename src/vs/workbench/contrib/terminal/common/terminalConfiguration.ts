@@ -7,11 +7,12 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { TerminalLocationString, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
-import { terminalContribConfiguration } from '../terminalContribExports.js';
+import { terminalContribConfiguration, TerminalContribSettingId } from '../terminalContribExports.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT } from './terminal.js';
 
 const terminalDescriptors = '\n- ' + [
@@ -183,7 +184,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontLigaturesFeatureSettings]: {
 			markdownDescription: localize('terminal.integrated.fontLigatures.featureSettings', "Controls what font feature settings are used when ligatures are enabled, in the format of the `font-feature-settings` CSS property. Some examples which may be valid depending on the font:") + '\n\n- ' + [
 				`\`"calt" off, "ss03"\``,
-				`\`"liga" on"\``,
+				`\`"liga" on\``,
 				`\`"calt" off, "dlig" on\``
 			].join('\n- '),
 			type: 'string',
@@ -377,7 +378,7 @@ const terminalConfiguration: IConfigurationNode = {
 			scope: ConfigurationScope.RESOURCE
 		},
 		[TerminalSettingId.ConfirmOnExit]: {
-			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions."),
+			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions. Background terminals like those launched by some extensions will not trigger the confirmation."),
 			type: 'string',
 			enum: ['never', 'always', 'hasChildProcesses'],
 			enumDescriptions: [
@@ -481,11 +482,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		[TerminalSettingId.ExperimentalWindowsUseConptyDll]: {
-			markdownDescription: localize('terminal.integrated.experimentalWindowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.20.240626001) shipped with VS Code, instead of the one bundled with Windows."),
+		[TerminalSettingId.WindowsUseConptyDll]: {
+			markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
 			type: 'boolean',
-			tags: ['experimental'],
-			default: false
+			tags: ['preview'],
+			default: product.quality !== 'stable'
 		},
 		[TerminalSettingId.SplitCwd]: {
 			description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -606,6 +607,11 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'both'
 		},
+		[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
+			markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
+			type: 'boolean',
+			default: product.quality !== 'stable'
+		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
@@ -618,7 +624,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.EnableImages]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS. This will only work on Windows for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.ExperimentalWindowsUseConptyDll}#\``),
+			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS. This will only work on Windows for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
 			type: 'boolean',
 			default: false
 		},

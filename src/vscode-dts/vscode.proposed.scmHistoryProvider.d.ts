@@ -53,6 +53,7 @@ declare module 'vscode' {
 		readonly displayId?: string;
 		readonly author?: string;
 		readonly authorEmail?: string;
+		readonly authorIcon?: IconPath;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
 		readonly references?: SourceControlHistoryItemRef[];
@@ -64,14 +65,13 @@ declare module 'vscode' {
 		readonly description?: string;
 		readonly revision?: string;
 		readonly category?: string;
-		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		readonly icon?: IconPath;
 	}
 
 	export interface SourceControlHistoryItemChange {
 		readonly uri: Uri;
 		readonly originalUri: Uri | undefined;
 		readonly modifiedUri: Uri | undefined;
-		readonly renameUri: Uri | undefined;
 	}
 
 	export interface SourceControlHistoryItemRefsChangeEvent {

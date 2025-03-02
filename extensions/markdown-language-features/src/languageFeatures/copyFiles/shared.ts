@@ -11,6 +11,7 @@ import { getDocumentDir } from '../../util/document';
 import { Schemes } from '../../util/schemes';
 import { UriList } from '../../util/uriList';
 import { resolveSnippet } from './snippets';
+import { mediaFileExtensions, MediaKind } from '../../util/mimes';
 
 /** Base kind for any sort of markdown link, including both path and media links */
 export const baseLinkEditKind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'link');
@@ -21,39 +22,6 @@ export const linkEditKind = baseLinkEditKind.append('uri');
 export const imageEditKind = baseLinkEditKind.append('image');
 export const audioEditKind = baseLinkEditKind.append('audio');
 export const videoEditKind = baseLinkEditKind.append('video');
-
-enum MediaKind {
-	Image,
-	Video,
-	Audio,
-}
-
-export const mediaFileExtensions = new Map<string, MediaKind>([
-	// Images
-	['avif', MediaKind.Image],
-	['bmp', MediaKind.Image],
-	['gif', MediaKind.Image],
-	['ico', MediaKind.Image],
-	['jpe', MediaKind.Image],
-	['jpeg', MediaKind.Image],
-	['jpg', MediaKind.Image],
-	['png', MediaKind.Image],
-	['psd', MediaKind.Image],
-	['svg', MediaKind.Image],
-	['tga', MediaKind.Image],
-	['tif', MediaKind.Image],
-	['tiff', MediaKind.Image],
-	['webp', MediaKind.Image],
-
-	// Videos
-	['ogg', MediaKind.Video],
-	['mp4', MediaKind.Video],
-
-	// Audio Files
-	['mp3', MediaKind.Audio],
-	['aac', MediaKind.Audio],
-	['wav', MediaKind.Audio],
-]);
 
 export function getSnippetLabelAndKind(counter: { readonly insertedAudioCount: number; readonly insertedVideoCount: number; readonly insertedImageCount: number; readonly insertedLinkCount: number }): {
 	label: string;
@@ -207,6 +175,7 @@ export function createUriListSnippet(
 	uris: ReadonlyArray<{
 		readonly uri: vscode.Uri;
 		readonly str?: string;
+		readonly kind?: MediaKind;
 	}>,
 	options?: UriListSnippetOptions,
 ): UriSnippet | undefined {
@@ -229,7 +198,7 @@ export function createUriListSnippet(
 	uris.forEach((uri, i) => {
 		const mdPath = (!options?.preserveAbsoluteUris ? getRelativeMdPath(documentDir, uri.uri) : undefined) ?? uri.str ?? uri.uri.toString();
 
-		const desiredKind = getDesiredLinkKind(uri.uri, options);
+		const desiredKind = getDesiredLinkKind(uri.uri, uri.kind, options);
 
 		if (desiredKind === DesiredLinkKind.Link) {
 			insertedLinkCount++;
@@ -276,7 +245,7 @@ enum DesiredLinkKind {
 	Audio,
 }
 
-function getDesiredLinkKind(uri: vscode.Uri, options: UriListSnippetOptions | undefined): DesiredLinkKind {
+function getDesiredLinkKind(uri: vscode.Uri, uriFileKind: MediaKind | undefined, options: UriListSnippetOptions | undefined): DesiredLinkKind {
 	if (options?.linkKindHint instanceof vscode.DocumentDropOrPasteEditKind) {
 		if (linkEditKind.contains(options.linkKindHint)) {
 			return DesiredLinkKind.Link;
@@ -286,6 +255,14 @@ function getDesiredLinkKind(uri: vscode.Uri, options: UriListSnippetOptions | un
 			return DesiredLinkKind.Audio;
 		} else if (videoEditKind.contains(options.linkKindHint)) {
 			return DesiredLinkKind.Video;
+		}
+	}
+
+	if (typeof uriFileKind !== 'undefined') {
+		switch (uriFileKind) {
+			case MediaKind.Video: return DesiredLinkKind.Video;
+			case MediaKind.Audio: return DesiredLinkKind.Audio;
+			case MediaKind.Image: return DesiredLinkKind.Image;
 		}
 	}
 

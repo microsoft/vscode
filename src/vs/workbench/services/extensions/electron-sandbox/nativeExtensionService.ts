@@ -467,16 +467,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		if (!recommendation) {
 			return false;
 		}
-		const sendTelemetry = (userReaction: 'install' | 'enable' | 'cancel') => {
-			/* __GDPR__
-			"remoteExtensionRecommendations:popup" : {
-				"owner": "sandy081",
-				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-			}
-			*/
-			this._telemetryService.publicLog('remoteExtensionRecommendations:popup', { userReaction, extensionId: resolverExtensionId });
-		};
 
 		const resolverExtensionId = recommendation.extensionId;
 		const allExtensions = await this._scanAllLocalExtensions();
@@ -488,7 +478,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					[{
 						label: nls.localize('enable', 'Enable and Reload'),
 						run: async () => {
-							sendTelemetry('enable');
 							await this._extensionEnablementService.setEnablement([toExtension(extension)], EnablementState.EnabledGlobally);
 							await this._hostService.reload();
 						}
@@ -506,7 +495,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				[{
 					label: nls.localize('install', 'Install and Reload'),
 					run: async () => {
-						sendTelemetry('install');
 						const [galleryExtension] = await this._extensionGalleryService.getExtensions([{ id: resolverExtensionId }], CancellationToken.None);
 						if (galleryExtension) {
 							await this._extensionManagementService.installFromGallery(galleryExtension);
@@ -520,7 +508,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				{
 					sticky: true,
 					priority: NotificationPriority.URGENT,
-					onCancel: () => sendTelemetry('cancel')
 				}
 			);
 

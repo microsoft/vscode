@@ -1209,7 +1209,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 						);
 					}
 				} else if (isUserDataProfile(copyFrom)) {
-					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
 					profile = await this.userDataProfileImportExportService.createFromProfile(
 						copyFrom,
 						{
@@ -1222,7 +1221,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 						token ?? CancellationToken.None
 					);
 				} else {
-					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
 					profile = await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon, transient });
 				}
 			}

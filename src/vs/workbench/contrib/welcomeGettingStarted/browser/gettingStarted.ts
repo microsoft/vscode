@@ -72,6 +72,7 @@ import { GettingStartedIndexList } from './gettingStartedList.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -736,17 +737,6 @@ export class GettingStartedPage extends EditorPane {
 					this.webview.setHtml(body);
 				}
 			}));
-
-			this.stepDisposables.add(this.webview.onMessage(async e => {
-				const message: string = e.message as string;
-				if (message === 'playVideo') {
-					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', {
-						command: 'playVideo',
-						walkthroughId: this.currentWalkthrough?.id,
-						argument: stepId,
-					});
-				}
-			}));
 		}
 	}
 
@@ -831,8 +821,8 @@ export class GettingStartedPage extends EditorPane {
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});
 
-		this.detailsPageScrollbar = this._register(new DomScrollableElement(this.stepsContent, { className: 'full-height-scrollable' }));
-		this.categoriesPageScrollbar = this._register(new DomScrollableElement(this.categoriesSlide, { className: 'full-height-scrollable categoriesScrollbar' }));
+		this.detailsPageScrollbar = this._register(new DomScrollableElement(this.stepsContent, { className: 'full-height-scrollable', vertical: ScrollbarVisibility.Hidden }));
+		this.categoriesPageScrollbar = this._register(new DomScrollableElement(this.categoriesSlide, { className: 'full-height-scrollable categoriesScrollbar', vertical: ScrollbarVisibility.Hidden }));
 
 		this.stepsSlide.appendChild(this.detailsPageScrollbar.getDomNode());
 
@@ -1369,6 +1359,7 @@ export class GettingStartedPage extends EditorPane {
 						container.appendChild(shortcutMessage);
 						const label = new KeybindingLabel(shortcutMessage, OS, { ...defaultKeybindingLabelStyles });
 						label.set(keybinding);
+						this.detailsPageDisposables.add(label);
 					}
 				}
 

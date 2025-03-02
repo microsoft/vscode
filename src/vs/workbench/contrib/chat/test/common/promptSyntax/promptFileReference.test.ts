@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IMockFolder, MockFilesystem } from './testUtils/mockFilesystem.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptFileReference } from '../../../common/promptSyntax/parsers/types.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
@@ -19,35 +19,14 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { TErrorCondition } from '../../../common/promptSyntax/parsers/basePromptParser.js';
 import { FileReference } from '../../../common/promptSyntax/codecs/tokens/fileReference.js';
 import { FilePromptParser } from '../../../common/promptSyntax/parsers/filePromptParser.js';
-import { wait, waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
+import { waitRandom, randomBoolean } from '../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationService } from '../../../../../../platform/configuration/common/configurationService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NonPromptSnippetFile, RecursiveReference, FileOpenFailed } from '../../../common/promptFileReferenceErrors.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-
-/**
- * Represents a file system node.
- */
-interface IFilesystemNode {
-	name: string;
-}
-
-/**
- * Represents a file node.
- */
-interface IFile extends IFilesystemNode {
-	contents: string;
-}
-
-/**
- * Represents a folder node.
- */
-interface IFolder extends IFilesystemNode {
-	children: (IFolder | IFile)[];
-}
+import { NotPromptFile, RecursiveReference, OpenFailed, FolderReference } from '../../../common/promptFileReferenceErrors.js';
 
 /**
  * Represents a file reference with an expected
@@ -80,7 +59,7 @@ class ExpectedReference {
  */
 class TestPromptFileReference extends Disposable {
 	constructor(
-		private readonly fileStructure: IFolder,
+		private readonly fileStructure: IMockFolder[],
 		private readonly rootFileUri: URI,
 		private readonly expectedReferences: ExpectedReference[],
 		@IFileService private readonly fileService: IFileService,
@@ -98,13 +77,10 @@ class TestPromptFileReference extends Disposable {
 	 */
 	public async run() {
 		// create the files structure on the disk
-		await this.createFolder(
-			this.fileService,
-			this.fileStructure,
-		);
+		await (this.initService.createInstance(MockFilesystem, this.fileStructure)).mock();
 
 		// randomly test with and without delay to ensure that the file
-		// reference resolution is not suseptible to race conditions
+		// reference resolution is not susceptible to race conditions
 		if (randomBoolean()) {
 			await waitRandom(5);
 		}
@@ -118,9 +94,8 @@ class TestPromptFileReference extends Disposable {
 			),
 		).start();
 
-		// nested child references are resolved asynchronously in
-		// the background and the process can take some time to complete
-		await wait(50);
+		// wait until entire prompts tree is resolved
+		await rootReference.allSettled();
 
 		// resolve the root file reference including all nested references
 		const resolvedReferences: readonly (IPromptFileReference | undefined)[] = rootReference.allReferences;
@@ -167,40 +142,12 @@ class TestPromptFileReference extends Disposable {
 			].join('\n')
 		);
 	}
-
-	/**
-	 * Create the provided filesystem folder structure.
-	 */
-	async createFolder(
-		fileService: IFileService,
-		folder: IFolder,
-		parentFolder?: URI,
-	): Promise<void> {
-		const folderUri = parentFolder
-			? URI.joinPath(parentFolder, folder.name)
-			: URI.file(folder.name);
-
-		if (await fileService.exists(folderUri)) {
-			await fileService.del(folderUri);
-		}
-		await fileService.createFolder(folderUri);
-
-		for (const child of folder.children) {
-			const childUri = URI.joinPath(folderUri, child.name);
-			// create child file
-			if ('contents' in child) {
-				await fileService.writeFile(childUri, VSBuffer.fromString(child.contents));
-				continue;
-			}
-
-			// recursively create child filesystem structure
-			await this.createFolder(fileService, child, folderUri);
-		}
-	}
 }
 
 /**
  * Create expected file reference for testing purposes.
+ *
+ * Note! This utility also use for `markdown links` at the moment.
  *
  * @param filePath The expected path of the file reference (without the `#file:` prefix).
  * @param lineNumber The expected line number of the file reference.
@@ -242,7 +189,7 @@ suite('PromptFileReference (Unix)', function () {
 		instantiationService.stub(IConfigurationService, nullConfigService);
 	});
 
-	test('resolves nested file references', async function () {
+	test('• resolves nested file references', async function () {
 		if (isWindows) {
 			this.skip();
 		}
@@ -255,7 +202,7 @@ suite('PromptFileReference (Unix)', function () {
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
-			{
+			[{
 				name: rootFolderName,
 				children: [
 					{
@@ -271,14 +218,14 @@ suite('PromptFileReference (Unix)', function () {
 						children: [
 							{
 								name: 'file3.prompt.md',
-								contents: `\n\n\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content`,
+								contents: `\n[](./some-other-folder/non-existing-folder)\n\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content`,
 							},
 							{
 								name: 'some-other-folder',
 								children: [
 									{
 										name: 'file4.prompt.md',
-										contents: 'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference\n\n\nand some\n non-prompt #file:./some-non-prompt-file.md',
+										contents: 'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference\n\n\nand some\n non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
 									},
 									{
 										name: 'file.txt',
@@ -289,7 +236,7 @@ suite('PromptFileReference (Unix)', function () {
 										children: [
 											{
 												name: 'another-file.prompt.md',
-												contents: 'another-file.prompt.md contents\t [#file:file.txt](../file.txt)',
+												contents: `[](${rootFolder}/folder1/some-other-folder)\nanother-file.prompt.md contents\t [#file:file.txt](../file.txt)`,
 											},
 											{
 												name: 'one_more_file_just_in_case.prompt.md',
@@ -302,7 +249,7 @@ suite('PromptFileReference (Unix)', function () {
 						],
 					},
 				],
-			},
+			}],
 			/**
 			 * The root file path to start the resolve process from.
 			 */
@@ -318,15 +265,35 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1'),
 					createTestFileReference(
+						`./some-other-folder/non-existing-folder`,
+						2,
+						1,
+					),
+					new OpenFailed(
+						URI.joinPath(rootUri, './folder1/some-other-folder/non-existing-folder'),
+						'Reference to non-existing file cannot be opened.',
+					),
+				),
+				new ExpectedReference(
+					URI.joinPath(rootUri, './folder1'),
+					createTestFileReference(
 						`/${rootFolderName}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md`,
 						3,
 						26,
 					),
 				),
 				new ExpectedReference(
+					URI.joinPath(rootUri, './folder1/some-other-folder'),
+					createTestFileReference('.', 1, 1),
+					new FolderReference(
+						URI.joinPath(rootUri, './folder1/some-other-folder'),
+						'This folder is not a prompt file!',
+					),
+				),
+				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder/yetAnotherFolder🤭'),
-					createTestFileReference('../file.txt', 1, 35),
-					new NonPromptSnippetFile(
+					createTestFileReference('../file.txt', 2, 35),
+					new NotPromptFile(
 						URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
 						'Ughh oh, that is not a prompt file!',
 					),
@@ -338,7 +305,7 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder'),
 					createTestFileReference('./some-non-existing/file.prompt.md', 1, 30),
-					new FileOpenFailed(
+					new OpenFailed(
 						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
 						'Failed to open non-existring prompt snippets file',
 					),
@@ -346,9 +313,17 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder'),
 					createTestFileReference('./some-non-prompt-file.md', 5, 13),
-					new FileOpenFailed(
+					new OpenFailed(
 						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
 						'Oh no!',
+					),
+				),
+				new ExpectedReference(
+					URI.joinPath(rootUri, './some-other-folder/folder1'),
+					createTestFileReference('../../folder1', 5, 48),
+					new FolderReference(
+						URI.joinPath(rootUri, './folder1'),
+						'Uggh ohh!',
 					),
 				),
 			]
@@ -357,7 +332,7 @@ suite('PromptFileReference (Unix)', function () {
 		await test.run();
 	});
 
-	test('does not fall into infinite reference recursion', async function () {
+	test('• does not fall into infinite reference recursion', async function () {
 		if (isWindows) {
 			this.skip();
 		}
@@ -370,7 +345,7 @@ suite('PromptFileReference (Unix)', function () {
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
-			{
+			[{
 				name: rootFolderName,
 				children: [
 					{
@@ -418,7 +393,7 @@ suite('PromptFileReference (Unix)', function () {
 						],
 					},
 				],
-			},
+			}],
 			/**
 			 * The root file path to start the resolve process from.
 			 */
@@ -464,7 +439,7 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder'),
 					createTestFileReference('../some-non-existing/file.prompt.md', 1, 30),
-					new FileOpenFailed(
+					new OpenFailed(
 						URI.joinPath(rootUri, './folder1/some-non-existing/file.prompt.md'),
 						'Uggh ohh!',
 					),
@@ -497,7 +472,7 @@ suite('PromptFileReference (Unix)', function () {
 				new ExpectedReference(
 					rootUri,
 					createTestFileReference('./file1.md', 6, 2),
-					new NonPromptSnippetFile(
+					new NotPromptFile(
 						URI.joinPath(rootUri, './file1.md'),
 						'Uggh oh!',
 					),

@@ -73,6 +73,7 @@ export class CodeLensContribution implements IEditorContribution {
 
 	dispose(): void {
 		this._localDispose();
+		this._localToDispose.dispose();
 		this._disposables.dispose();
 		this._oldCodeLensModels.dispose();
 		this._currentCodeLensModel?.dispose();

@@ -27,7 +27,6 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenEvent, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
@@ -475,11 +474,17 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		if (historyItem.author) {
+			const icon = URI.isUri(historyItem.authorIcon)
+				? `![${historyItem.author}](${historyItem.authorIcon.toString()}|width=20,height=20)`
+				: ThemeIcon.isThemeIcon(historyItem.authorIcon)
+					? `$(${historyItem.authorIcon.id})`
+					: '$(account)';
+
 			if (historyItem.authorEmail) {
 				const emailTitle = localize('emailLinkTitle', "Email");
-				markdown.appendMarkdown(`$(account) [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
+				markdown.appendMarkdown(`${icon} [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
 			} else {
-				markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
+				markdown.appendMarkdown(`${icon} **${historyItem.author}**`);
 			}
 
 			if (historyItem.timestamp) {
@@ -619,7 +624,7 @@ class HistoryItemHoverDelegate extends WorkbenchHoverDelegate {
 		@IHoverService hoverService: IHoverService,
 
 	) {
-		super('element', true, () => this.getHoverOptions(), configurationService, hoverService);
+		super('element', { instantHover: true }, () => this.getHoverOptions(), configurationService, hoverService);
 	}
 
 	private getHoverOptions(): Partial<IHoverOptions> {
@@ -1244,14 +1249,13 @@ export class SCMHistoryViewPane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService
 	) {
 		super({
 			...options,
 			titleMenuId: MenuId.SCMHistoryTitle,
 			showActions: ViewPaneShowActions.WhenExpanded
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
 		this._scmCurrentHistoryItemRefHasRemote = ContextKeys.SCMCurrentHistoryItemRefHasRemote.bindTo(this.scopedContextKeyService);
@@ -1408,7 +1412,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		return this._treeViewModel?.repository.get()?.provider;
 	}
 
-	override getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === PICK_REPOSITORY_ACTION_ID) {
 			const repository = this._treeViewModel?.repository.get();
 			if (repository) {
@@ -1422,7 +1426,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			}
 		}
 
-		return super.getActionViewItem(action, options);
+		return super.createActionViewItem(action, options);
 	}
 
 	override focus(): void {

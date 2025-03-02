@@ -394,7 +394,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						try {
 							await model.resolve(options);
 						} catch (error) {
-							onUnexpectedError(error);
+							if (!model.isDisposed()) {
+								onUnexpectedError(error); // only log if the model is still around
+							}
 						}
 					})();
 				}

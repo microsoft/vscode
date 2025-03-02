@@ -5,8 +5,8 @@
 
 import { IAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import './media/scm.css';
 import { localize } from '../../../../nls.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -63,22 +63,12 @@ export class SCMTitleMenu implements IDisposable {
 	}
 }
 
-interface IContextualResourceMenuItem {
+interface IContextualMenuItem {
 	readonly menu: IMenu;
 	dispose(): void;
 }
 
 class SCMMenusItem implements IDisposable {
-
-	private readonly _resourceGroupMenu = new MutableDisposable<IMenu>();
-	get resourceGroupMenu(): IMenu {
-		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmResourceGroupResourceCount', this.group.resources.length],
-		]);
-
-		this._resourceGroupMenu.value = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
-		return this._resourceGroupMenu.value;
-	}
 
 	private _resourceFolderMenu: IMenu | undefined;
 	get resourceFolderMenu(): IMenu {
@@ -89,14 +79,47 @@ class SCMMenusItem implements IDisposable {
 		return this._resourceFolderMenu;
 	}
 
+	private genericResourceGroupMenu: IMenu | undefined;
+	private contextualResourceGroupMenus: Map<string /* contextValue */, IContextualMenuItem> | undefined;
+
 	private genericResourceMenu: IMenu | undefined;
-	private contextualResourceMenus: Map<string /* contextValue */, IContextualResourceMenuItem> | undefined;
+	private contextualResourceMenus: Map<string /* contextValue */, IContextualMenuItem> | undefined;
 
 	constructor(
-		private readonly group: ISCMResourceGroup,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly menuService: IMenuService
 	) { }
+
+	getResourceGroupMenu(resourceGroup: ISCMResourceGroup): IMenu {
+		if (typeof resourceGroup.contextValue === 'undefined') {
+			if (!this.genericResourceGroupMenu) {
+				this.genericResourceGroupMenu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, this.contextKeyService);
+			}
+
+			return this.genericResourceGroupMenu;
+		}
+
+		if (!this.contextualResourceGroupMenus) {
+			this.contextualResourceGroupMenus = new Map<string, IContextualMenuItem>();
+		}
+
+		let item = this.contextualResourceGroupMenus.get(resourceGroup.contextValue);
+
+		if (!item) {
+			const contextKeyService = this.contextKeyService.createOverlay([['scmResourceGroupState', resourceGroup.contextValue]]);
+			const menu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
+
+			item = {
+				menu, dispose() {
+					menu.dispose();
+				}
+			};
+
+			this.contextualResourceGroupMenus.set(resourceGroup.contextValue, item);
+		}
+
+		return item.menu;
+	}
 
 	getResourceMenu(resource: ISCMResource): IMenu {
 		if (typeof resource.contextValue === 'undefined') {
@@ -108,7 +131,7 @@ class SCMMenusItem implements IDisposable {
 		}
 
 		if (!this.contextualResourceMenus) {
-			this.contextualResourceMenus = new Map<string, IContextualResourceMenuItem>();
+			this.contextualResourceMenus = new Map<string, IContextualMenuItem>();
 		}
 
 		let item = this.contextualResourceMenus.get(resource.contextValue);
@@ -130,9 +153,15 @@ class SCMMenusItem implements IDisposable {
 	}
 
 	dispose(): void {
-		this._resourceGroupMenu?.dispose();
-		this._resourceFolderMenu?.dispose();
+		this.genericResourceGroupMenu?.dispose();
 		this.genericResourceMenu?.dispose();
+		this._resourceFolderMenu?.dispose();
+
+		if (this.contextualResourceGroupMenus) {
+			dispose(this.contextualResourceGroupMenus.values());
+			this.contextualResourceGroupMenus.clear();
+			this.contextualResourceGroupMenus = undefined;
+		}
 
 		if (this.contextualResourceMenus) {
 			dispose(this.contextualResourceMenus.values());
@@ -188,7 +217,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	}
 
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu {
-		return this.getOrCreateResourceGroupMenusItem(group).resourceGroupMenu;
+		return this.getOrCreateResourceGroupMenusItem(group).getResourceGroupMenu(group);
 	}
 
 	getResourceMenu(resource: ISCMResource): IMenu {
@@ -208,7 +237,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 				['multiDiffEditorEnableViewChanges', group.multiDiffEditorEnableViewChanges],
 			]);
 
-			result = new SCMMenusItem(group, contextKeyService, this.menuService);
+			result = new SCMMenusItem(contextKeyService, this.menuService);
 			this.resourceGroupMenusItems.set(group, result);
 		}
 
@@ -247,8 +276,8 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 		// Duplicate the `SCMTitle` menu items to the `SCMSourceControlInline` menu. We do this
 		// so that menu items can be independently hidden/shown in the "Source Control" and the
 		// "Source Control Repositories" views.
-		MenuRegistry.onDidChangeMenu(e => {
-			if (!e.has(MenuId.SCMTitle)) {
+		this.disposables.add(Event.runAndSubscribe(MenuRegistry.onDidChangeMenu, e => {
+			if (e && !e.has(MenuId.SCMTitle)) {
 				return;
 			}
 
@@ -256,7 +285,7 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 			for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
 				this.repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
 			}
-		}, this, this.disposables);
+		}));
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {

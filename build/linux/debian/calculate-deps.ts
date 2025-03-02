@@ -6,8 +6,8 @@
 import { spawnSync } from 'child_process';
 import { constants, statSync } from 'fs';
 import { tmpdir } from 'os';
-import path = require('path');
-import * as manifests from '../../../cgmanifest.json';
+import path from 'path';
+import manifests from '../../../cgmanifest.json';
 import { additionalDeps } from './dep-lists';
 import { DebianArchString } from './types';
 

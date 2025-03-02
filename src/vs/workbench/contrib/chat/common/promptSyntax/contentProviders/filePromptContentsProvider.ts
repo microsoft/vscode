@@ -5,12 +5,13 @@
 
 import { IPromptContentsProvider } from './types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { assert } from '../../../../../../base/common/assert.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { PromptContentsProviderBase } from './promptContentsProviderBase.js';
 import { VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { FileOpenFailed, NonPromptSnippetFile } from '../../promptFileReferenceErrors.js';
+import { OpenFailed, NotPromptFile, ParseError, FolderReference } from '../../promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 
 /**
@@ -55,21 +56,41 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 		_event: FileChangesEvent | 'full',
 		cancellationToken?: CancellationToken,
 	): Promise<VSBufferReadableStream> {
-		if (cancellationToken?.isCancellationRequested) {
-			throw new CancellationError();
-		}
+		assert(
+			!cancellationToken?.isCancellationRequested,
+			new CancellationError(),
+		);
 
 		// get the binary stream of the file contents
 		let fileStream;
 		try {
+			// ensure that the referenced URI points to a file before
+			// trying to get a stream for its contents
+			const info = await this.fileService.resolve(this.uri);
+
+			// validate that the cancellation was not yet requested
+			assert(
+				!cancellationToken?.isCancellationRequested,
+				new CancellationError(),
+			);
+
+			assert(
+				info.isFile,
+				new FolderReference(this.uri),
+			);
+
 			fileStream = await this.fileService.readFileStream(this.uri);
 		} catch (error) {
-			throw new FileOpenFailed(this.uri, error);
+			if (error instanceof ParseError) {
+				throw error;
+			}
+
+			throw new OpenFailed(this.uri, error);
 		}
 
 		assertDefined(
 			fileStream,
-			new FileOpenFailed(this.uri, 'Failed to open file stream.'),
+			new OpenFailed(this.uri, 'Failed to open file stream.'),
 		);
 
 		// after the promise above complete, this object can be already disposed or
@@ -82,7 +103,7 @@ export class FilePromptContentProvider extends PromptContentsProviderBase<FileCh
 
 		// if URI doesn't point to a prompt snippet file, don't try to resolve it
 		if (!this.isPromptSnippet()) {
-			throw new NonPromptSnippetFile(this.uri);
+			throw new NotPromptFile(this.uri);
 		}
 
 		return fileStream.value;

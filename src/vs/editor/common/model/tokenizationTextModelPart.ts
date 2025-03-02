@@ -379,6 +379,10 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 class GrammarTokens extends AbstractTokens {
 	private _tokenizer: TokenizerWithStateStoreAndTextModel | null = null;
+	protected _backgroundTokenizationState: BackgroundTokenizationState = BackgroundTokenizationState.InProgress;
+	protected readonly _onDidChangeBackgroundTokenizationState: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
+
 	private _defaultBackgroundTokenizer: DefaultBackgroundTokenizer | null = null;
 	private readonly _backgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
 

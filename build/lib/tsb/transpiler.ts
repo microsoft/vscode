@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as esbuild from 'esbuild';
-import * as ts from 'typescript';
-import * as threads from 'node:worker_threads';
-import * as Vinyl from 'vinyl';
+import esbuild from 'esbuild';
+import ts from 'typescript';
+import threads from 'node:worker_threads';
+import Vinyl from 'vinyl';
 import { cpus } from 'node:os';
 
 interface TranspileReq {

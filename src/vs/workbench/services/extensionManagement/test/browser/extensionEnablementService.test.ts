@@ -8,7 +8,7 @@ import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtensio
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from '../../common/extensionManagement.js';
 import { ExtensionEnablementService } from '../../browser/extensionEnablementService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -72,6 +72,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onDidUninstallExtension: disposables.add(new Emitter<DidUninstallExtensionEvent>()).event,
 					onDidChangeProfile: disposables.add(new Emitter<DidChangeProfileEvent>()).event,
 					onDidUpdateExtensionMetadata: disposables.add(new Emitter<DidUpdateExtensionMetadata>()).event,
+					onProfileAwareDidInstallExtensions: Event.None,
 				},
 			}, null, null));
 		const extensionManagementService = disposables.add(instantiationService.createInstance(ExtensionManagementService));
@@ -147,6 +148,7 @@ suite('ExtensionEnablementService Test', () => {
 				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
 				onDidChangeProfile: didChangeProfileExtensionsEvent.event,
+				onProfileAwareDidInstallExtensions: Event.None,
 				getInstalled: () => Promise.resolve(installed)
 			},
 		}, null, null));

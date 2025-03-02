@@ -112,7 +112,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const cc = new CommandCenter(git, model, context.globalState, logger, telemetryReporter);
 	disposables.push(
 		cc,
-		new GitFileSystemProvider(model),
+		new GitFileSystemProvider(model, logger),
 		new GitDecorations(model),
 		new GitBlameController(model),
 		new GitTimelineProvider(model, cc),

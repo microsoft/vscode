@@ -14,7 +14,6 @@ import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
@@ -1098,7 +1097,7 @@ function parseGitBlame(data: string): BlameInformation[] {
 			authorName = line.substring('author '.length);
 		}
 		if (commitHash && line.startsWith('author-mail ')) {
-			authorEmail = line.substring('author-mail '.length);
+			authorEmail = line.substring('author-mail <'.length, line.length - 1);
 		}
 		if (commitHash && line.startsWith('author-time ')) {
 			authorTime = Number(line.substring('author-time '.length)) * 1000;
@@ -1127,8 +1126,9 @@ function parseGitBlame(data: string): BlameInformation[] {
 }
 
 export interface PullOptions {
-	unshallow?: boolean;
-	tags?: boolean;
+	readonly unshallow?: boolean;
+	readonly tags?: boolean;
+	readonly autoStash?: boolean;
 	readonly cancellationToken?: CancellationToken;
 }
 
@@ -1329,18 +1329,6 @@ export class Repository {
 			.filter(entry => !!entry);
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
-		const stdout = await this.buffer(object);
-
-		if (autoGuessEncoding) {
-			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
-		}
-
-		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-
-		return iconv.decode(stdout, encoding);
-	}
-
 	async buffer(object: string): Promise<Buffer> {
 		const child = this.stream(['show', '--textconv', object]);
 
@@ -1367,14 +1355,17 @@ export class Repository {
 	}
 
 	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number }> {
-		if (!treeish) { // index
+		if (!treeish || treeish === ':1' || treeish === ':2' || treeish === ':3') { // index
 			const elements = await this.lsfiles(path);
 
 			if (elements.length === 0) {
 				throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
 			}
 
-			const { mode, object } = elements[0];
+			const { mode, object } = treeish !== ''
+				? elements.find(e => e.stage === treeish.substring(1)) ?? elements[0]
+				: elements[0];
+
 			const catFile = await this.exec(['cat-file', '-s', object]);
 			const size = parseInt(catFile.stdout);
 
@@ -1388,7 +1379,7 @@ export class Repository {
 		}
 
 		const { mode, object, size } = elements[0];
-		return { mode, object, size: parseInt(size) };
+		return { mode, object, size: parseInt(size) || 0 };
 	}
 
 	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {
@@ -1592,8 +1583,14 @@ export class Repository {
 		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
 
-	async diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
-		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR', treeish1];
+	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<Change[]> {
+		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR'];
+
+		if (options?.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		args.push(treeish1);
 
 		if (treeish2) {
 			args.push(treeish2);
@@ -1886,16 +1883,6 @@ export class Repository {
 		await this.exec(['merge', '--abort']);
 	}
 
-	async mergeContinue(): Promise<void> {
-		const args = ['merge', '--continue'];
-
-		try {
-			await this.exec(args, { env: { GIT_EDITOR: 'true' } });
-		} catch (commitErr) {
-			await this.handleCommitError(commitErr);
-		}
-	}
-
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
 		let args = ['tag'];
 
@@ -1917,8 +1904,14 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
-		const args = ['push', '--delete', remoteName, tagName];
+	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
+		const args = ['push', remoteName, '--delete'];
+
+		if (options?.force) {
+			args.push('--force');
+		}
+
+		args.push(refName);
 		await this.exec(args);
 	}
 
@@ -2076,6 +2069,11 @@ export class Repository {
 
 		if (options.unshallow) {
 			args.push('--unshallow');
+		}
+
+		// --auto-stash option is only available `git pull --merge` starting with git 2.27.0
+		if (options.autoStash && this._git.compareGitVersionTo('2.27.0') !== -1) {
+			args.push('--autostash');
 		}
 
 		if (rebase) {
@@ -2445,7 +2443,9 @@ export class Repository {
 
 				// Upstream commit
 				if (HEAD && HEAD.upstream) {
-					const ref = `refs/remotes/${HEAD.upstream.remote}/${HEAD.upstream.name}`;
+					const ref = HEAD.upstream.remote !== '.'
+						? `refs/remotes/${HEAD.upstream.remote}/${HEAD.upstream.name}`
+						: `refs/heads/${HEAD.upstream.name}`;
 					const commit = await this.revParse(ref);
 					HEAD = { ...HEAD, upstream: { ...HEAD.upstream, commit } };
 				}
@@ -2736,7 +2736,7 @@ export class Repository {
 				return {
 					type: RefType.Head,
 					name: branchName,
-					upstream: upstream ? {
+					upstream: upstream !== '' && status !== '[gone]' ? {
 						name: upstreamRef ? upstreamRef.substring(11) : upstream.substring(index + 1),
 						remote: remoteName ? remoteName : upstream.substring(0, index)
 					} : undefined,

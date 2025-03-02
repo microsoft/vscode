@@ -6,12 +6,11 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
-import { IGalleryExtension, AllowedExtensionsConfigKey, IAllowedExtensionsService } from './extensionManagement.js';
+import { IGalleryExtension, AllowedExtensionsConfigKey, IAllowedExtensionsService, AllowedExtensionsConfigValueType } from './extensionManagement.js';
 import { ExtensionType, IExtension, TargetPlatform } from '../../extensions/common/extensions.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { IStringDictionary } from '../../../base/common/collections.js';
 import { isBoolean, isObject, isUndefined } from '../../../base/common/types.js';
 import { Emitter } from '../../../base/common/event.js';
 
@@ -26,17 +25,18 @@ function isIExtension(extension: any): extension is IExtension {
 
 const VersionRegex = /^(?<version>\d+\.\d+\.\d+(-.*)?)(@(?<platform>.+))?$/;
 
-type AllowedExtensionsConfigValueType = IStringDictionary<boolean | string | string[]>;
-
 export class AllowedExtensionsService extends Disposable implements IAllowedExtensionsService {
 
 	_serviceBrand: undefined;
 
-	private allowedExtensions: AllowedExtensionsConfigValueType | undefined;
 	private readonly publisherOrgs: string[];
 
+	private _allowedExtensionsConfigValue: AllowedExtensionsConfigValueType | undefined;
+	get allowedExtensionsConfigValue(): AllowedExtensionsConfigValueType | undefined {
+		return this._allowedExtensionsConfigValue;
+	}
 	private _onDidChangeAllowedExtensions = this._register(new Emitter<void>());
-	readonly onDidChangeAllowedExtensions = this._onDidChangeAllowedExtensions.event;
+	readonly onDidChangeAllowedExtensionsConfigValue = this._onDidChangeAllowedExtensions.event;
 
 	constructor(
 		@IProductService productService: IProductService,
@@ -44,10 +44,10 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 	) {
 		super();
 		this.publisherOrgs = productService.extensionPublisherOrgs?.map(p => p.toLowerCase()) ?? [];
-		this.allowedExtensions = this.getAllowedExtensionsValue();
+		this._allowedExtensionsConfigValue = this.getAllowedExtensionsValue();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AllowedExtensionsConfigKey)) {
-				this.allowedExtensions = this.getAllowedExtensionsValue();
+				this._allowedExtensionsConfigValue = this.getAllowedExtensionsValue();
 				this._onDidChangeAllowedExtensions.fire();
 			}
 		}));
@@ -66,7 +66,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 	}
 
 	isAllowed(extension: IGalleryExtension | IExtension | { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString {
-		if (!this.allowedExtensions) {
+		if (!this._allowedExtensionsConfigValue) {
 			return true;
 		}
 
@@ -96,7 +96,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 		}
 
 		const settingsCommandLink = URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify({ query: `@id:${AllowedExtensionsConfigKey}` }))}`).toString();
-		const extensionValue = this.allowedExtensions[id];
+		const extensionValue = this._allowedExtensionsConfigValue[id];
 		const extensionReason = new MarkdownString(nls.localize('specific extension not allowed', "it is not in the [allowed list]({0})", settingsCommandLink));
 		if (!isUndefined(extensionValue)) {
 			if (isBoolean(extensionValue)) {
@@ -125,7 +125,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 		}
 
 		const publisherKey = publisherDisplayName && this.publisherOrgs.includes(publisherDisplayName) ? publisherDisplayName : publisher;
-		const publisherValue = this.allowedExtensions[publisherKey];
+		const publisherValue = this._allowedExtensionsConfigValue[publisherKey];
 		if (!isUndefined(publisherValue)) {
 			if (isBoolean(publisherValue)) {
 				return publisherValue ? true : new MarkdownString(nls.localize('publisher not allowed', "the extensions from this publisher are not in the [allowed list]({1})", publisherKey, settingsCommandLink));
@@ -136,7 +136,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 			return true;
 		}
 
-		if (this.allowedExtensions['*'] === true) {
+		if (this._allowedExtensionsConfigValue['*'] === true) {
 			return true;
 		}
 

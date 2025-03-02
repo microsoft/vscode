@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { IDiffResult, ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
-import { doHash, numberHash } from '../../../../../base/common/hash.js';
+import { doHash, hash, numberHash } from '../../../../../base/common/hash.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRequestHandler, IWorkerServer } from '../../../../../base/common/worker/simpleWorker.js';
@@ -18,7 +18,7 @@ import { filter } from '../../../../../base/common/objects.js';
 
 class MirrorCell {
 	private readonly textModel: MirrorModel;
-	private _hash?: Promise<number>;
+	private _hash?: number;
 	public get eol() {
 		return this._eol === '\r\n' ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF;
 	}
@@ -46,17 +46,18 @@ class MirrorCell {
 		return this.textModel.getValue();
 	}
 
-	async getComparisonValue(): Promise<number> {
+	getComparisonValue(): number {
 		return this._hash ??= this._getHash();
 	}
 
-	private async _getHash() {
+	private _getHash() {
 		let hashValue = numberHash(104579, 0);
 
 		hashValue = doHash(this.language, hashValue);
 		hashValue = doHash(this.getValue(), hashValue);
 		hashValue = doHash(this.metadata, hashValue);
-		hashValue = doHash(this.internalMetadata, hashValue);
+		// For purpose of diffing only cellId matters, rest do not
+		hashValue = doHash(this.internalMetadata?.cellId || '', hashValue);
 		for (const op of this.outputs) {
 			hashValue = doHash(op.metadata, hashValue);
 			for (const output of op.outputs) {
@@ -64,14 +65,12 @@ class MirrorCell {
 			}
 		}
 
-		// note: hash has not updated within the Promise.all since we must retain order
-		const digests = await Promise.all(this.outputs.flatMap(op =>
-			op.outputs.map(o => crypto.subtle.digest('sha-1', o.data.buffer))
-		));
+		const digests = this.outputs.flatMap(op =>
+			op.outputs.map(o => hash(Array.from(o.data.buffer)))
+		);
 		for (const digest of digests) {
-			hashValue = numberHash(new Int32Array(digest)[0], hashValue);
+			hashValue = numberHash(digest, hashValue);
 		}
-
 
 		return hashValue;
 	}
@@ -147,21 +146,21 @@ class MirrorNotebookDocument {
 
 class CellSequence implements ISequence {
 
-	static async create(textModel: MirrorNotebookDocument) {
+	static create(textModel: MirrorNotebookDocument) {
 		const hashValue = new Int32Array(textModel.cells.length);
-		await Promise.all(textModel.cells.map(async (c, i) => {
-			hashValue[i] = await c.getComparisonValue();
-		}));
+		textModel.cells.map((c, i) => {
+			hashValue[i] = c.getComparisonValue();
+		});
 		return new CellSequence(hashValue);
 	}
 
-	static async createWithCellId(textModel: MirrorNotebookDocument): Promise<Map<string, number>> {
+	static createWithCellId(textModel: MirrorNotebookDocument): Map<string, number> {
 		const hashValue = new Map<string, number>();
-		await Promise.all(textModel.cells.map(async (c, i) => {
-			const value = await c.getComparisonValue();
+		textModel.cells.map((c, i) => {
+			const value = c.getComparisonValue();
 			const id: string = (c.metadata?.id || '') as string;
 			hashValue.set(id, value);
-		}));
+		});
 		return hashValue;
 	}
 
@@ -193,7 +192,8 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			dto.language,
 			dto.cellKind,
 			dto.outputs,
-			dto.metadata
+			dto.metadata,
+			dto.internalMetadata
 		)), metadata, transientDocumentMetadata);
 	}
 
@@ -218,10 +218,8 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 
-		const [originalSeq, modifiedSeq] = await Promise.all([
-			CellSequence.create(original),
-			CellSequence.create(modified),
-		]);
+		const originalSeq = CellSequence.create(original);
+		const modifiedSeq = CellSequence.create(modified);
 
 		const diff = new LcsDiff(originalSeq, modifiedSeq);
 		const diffResult = diff.ComputeDiff(false);
@@ -230,41 +228,44 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const modifiedMetadata = filter(modified.metadata, key => !modified.transientDocumentMetadata[key]);
 		return {
 			metadataChanged: JSON.stringify(originalMetadata) !== JSON.stringify(modifiedMetadata),
-			cellsDiff: diffResult,
-			// linesDiff: cellLineChanges
+			cellsDiff: this.$computeDiffWithCellIds(original, modified) || diffResult,
 		};
 	}
 
-	async $computeDiffWithCellIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): Promise<IDiffResult | undefined> {
-		const originalCellIds = original.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
-		const modifiedCellIds = modified.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
-
-		if (originalCellIds.some(c => !c.id) || modifiedCellIds.some(c => !c.id)) {
+	$computeDiffWithCellIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): IDiffResult | undefined {
+		const originalCellIndexIds = original.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		const modifiedCellIndexIds = modified.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		const originalCellIds = originalCellIndexIds.map(c => c.id);
+		const modifiedCellIds = modifiedCellIndexIds.map(c => c.id);
+		const orderOrOriginalCellIds = originalCellIds.filter(id => modifiedCellIds.includes(id)).join(',');
+		const orderOrModifiedCellIds = modifiedCellIds.filter(id => originalCellIds.includes(id)).join(',');
+		if (originalCellIndexIds.some(c => !c.id) || modifiedCellIndexIds.some(c => !c.id) || orderOrOriginalCellIds !== orderOrModifiedCellIds) {
 			return;
 		}
 
 		const diffResult: IDiffResult = { changes: [], quitEarly: false, };
 
-		const computeCellHashesById = async (notebook: MirrorNotebookDocument) => {
+		const computeCellHashesById = (notebook: MirrorNotebookDocument) => {
 			const hashValue = new Map<string, number>();
-			await Promise.all(notebook.cells.map(async (c, i) => {
-				const value = await c.getComparisonValue();
+			notebook.cells.map((c, i) => {
+				const value = c.getComparisonValue();
 				// Verified earlier that these cannot be empty.
 				const id: string = (c.metadata?.id || '') as string;
 				hashValue.set(id, value);
-			}));
+			});
 			return hashValue;
 		};
 
-		const [originalSeq, modifiedSeq] = await Promise.all([computeCellHashesById(original), computeCellHashesById(modified)]);
+		const originalSeq = computeCellHashesById(original);
+		const modifiedSeq = computeCellHashesById(modified);
 
-		while (modifiedCellIds.length) {
-			const modifiedCell = modifiedCellIds.shift()!;
-			const originalCell = originalCellIds.find(c => c.id === modifiedCell.id);
+		while (modifiedCellIndexIds.length) {
+			const modifiedCell = modifiedCellIndexIds.shift()!;
+			const originalCell = originalCellIndexIds.find(c => c.id === modifiedCell.id);
 			if (originalCell) {
 				// Everything before this cell is a deletion
-				const index = originalCellIds.indexOf(originalCell);
-				const deletedFromOriginal = originalCellIds.splice(0, index + 1);
+				const index = originalCellIndexIds.indexOf(originalCell);
+				const deletedFromOriginal = originalCellIndexIds.splice(0, index + 1);
 
 				if (deletedFromOriginal.length === 1) {
 					if (originalSeq.get(originalCell.id) === modifiedSeq.get(originalCell.id)) {
@@ -293,7 +294,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			else {
 				// This is a new cell.
 				diffResult.changes.push({
-					originalStart: originalCellIds.length ? originalCellIds[0].index : original.cells.length,
+					originalStart: originalCellIndexIds.length ? originalCellIndexIds[0].index : original.cells.length,
 					originalLength: 0,
 					modifiedStart: modifiedCell.index,
 					modifiedLength: 1
@@ -302,11 +303,11 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		}
 
 		// If we still have some original cells, then those have been removed.
-		if (originalCellIds.length) {
+		if (originalCellIndexIds.length) {
 			diffResult.changes.push({
-				originalStart: originalCellIds[0].index,
-				originalLength: originalCellIds.length,
-				modifiedStart: modifiedCellIds.length,
+				originalStart: originalCellIndexIds[0].index,
+				originalLength: originalCellIndexIds.length,
+				modifiedStart: modifiedCellIndexIds.length,
 				modifiedLength: 0
 			});
 		}

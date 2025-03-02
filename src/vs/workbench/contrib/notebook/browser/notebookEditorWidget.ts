@@ -1614,6 +1614,28 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
+		store.add(cell.onCellDecorationsChanged(e => {
+			e.added.forEach(options => {
+				if (options.className) {
+					this.deltaCellContainerClassNames(cell.id, [options.className], []);
+				}
+
+				if (options.outputClassName) {
+					this.deltaCellContainerClassNames(cell.id, [options.outputClassName], []);
+				}
+			});
+
+			e.removed.forEach(options => {
+				if (options.className) {
+					this.deltaCellContainerClassNames(cell.id, [], [options.className]);
+				}
+
+				if (options.outputClassName) {
+					this.deltaCellContainerClassNames(cell.id, [], [options.outputClassName]);
+				}
+			});
+		}));
+
 		return store;
 	}
 
@@ -2463,6 +2485,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					} else {
 						await this.revealInView(cell);
 					}
+
 				}
 
 			}
@@ -2609,6 +2632,37 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return Promise.all(requests);
 	}
 
+	private async _warmupSelection(includeOutput: boolean, selectedCellRanges: ICellRange[]) {
+		if (!this.hasModel() || !this.viewModel) {
+			return;
+		}
+
+		const cells = this.viewModel.viewCells;
+		const requests = [];
+
+		for (const range of selectedCellRanges) {
+			for (let i = range.start; i < range.end; i++) {
+				if (cells[i].cellKind === CellKind.Markup && !this._webview!.markupPreviewMapping.has(cells[i].id)) {
+					requests.push(this.createMarkupPreview(cells[i]));
+				}
+			}
+		}
+
+		if (includeOutput && this._list) {
+			for (const range of selectedCellRanges) {
+				for (let i = range.start; i < range.end; i++) {
+					const cell = this._list.element(i);
+
+					if (cell?.cellKind === CellKind.Code) {
+						requests.push(this._warmupCell((cell as CodeCellViewModel)));
+					}
+				}
+			}
+		}
+
+		return Promise.all(requests);
+	}
+
 	async find(query: string, options: INotebookFindOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false, ownerID?: string): Promise<CellFindMatchWithIndex[]> {
 		if (!this._notebookViewModel) {
 			return [];
@@ -2633,10 +2687,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		});
 
 		if (this._webview) {
-			// request all outputs to be rendered
+			// request all or some outputs to be rendered
 			// measure perf
 			const start = Date.now();
-			await this._warmupAll(!!options.includeOutput);
+			if (options.findScope && options.findScope.findScopeType === NotebookFindScopeType.Cells && options.findScope.selectedCellRanges) {
+				await this._warmupSelection(!!options.includeOutput, options.findScope.selectedCellRanges);
+			} else {
+				await this._warmupAll(!!options.includeOutput);
+			}
 			const end = Date.now();
 			this.logService.debug('Find', `Warmup time: ${end - start}ms`);
 

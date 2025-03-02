@@ -13,7 +13,7 @@ import { DisposableStore, repositoryHasGitHubRemote } from './util';
 import { GithubPushErrorHandler } from './pushErrorHandler';
 import { GitBaseExtension } from './typings/git-base';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
-import { GithubBranchProtectionProviderManager } from './branchProtection';
+import { GitHubBranchProtectionProviderManager } from './branchProtection';
 import { GitHubCanonicalUriProvider } from './canonicalUriProvider';
 import { VscodeDevShareProvider } from './shareProviders';
 import { GitHubSourceControlHistoryItemDetailsProvider } from './historyItemDetailsProvider';
@@ -98,7 +98,7 @@ function initializeGitExtension(context: ExtensionContext, telemetryReporter: Te
 
 						disposables.add(registerCommands(gitAPI));
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
-						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState, logger, telemetryReporter));
+						disposables.add(new GitHubBranchProtectionProviderManager(gitAPI, context.globalState, logger, telemetryReporter));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler(telemetryReporter)));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
 						disposables.add(gitAPI.registerSourceControlHistoryItemDetailsProvider(new GitHubSourceControlHistoryItemDetailsProvider(gitAPI, logger)));

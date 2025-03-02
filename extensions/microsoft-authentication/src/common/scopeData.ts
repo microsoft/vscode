@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const DEFAULT_TENANT = 'organizations';
+import { workspace } from 'vscode';
+
+const DEFAULT_CLIENT_ID_V1 = 'aebc6443-996d-45c2-90f0-388ff96faa56';
+const DEFAULT_TENANT_V1 = 'organizations';
+const DEFAULT_CLIENT_ID_V2 = 'c27c220f-ce2f-4904-927d-333864217eeb';
+const DEFAULT_TENANT_V2 = 'common';
 
 const OIDC_SCOPES = ['openid', 'email', 'profile', 'offline_access'];
 const GRAPH_TACK_ON_SCOPE = 'User.Read';
 
 export class ScopeData {
+
+	private readonly _defaultClientId: string;
+	private readonly _defaultTenant: string;
 
 	/**
 	 * The full list of scopes including:
@@ -40,6 +47,14 @@ export class ScopeData {
 	readonly tenant: string;
 
 	constructor(readonly originalScopes: readonly string[] = []) {
+		if (workspace.getConfiguration('microsoft-authentication').get<'v1' | 'v2'>('clientIdVersion') === 'v2') {
+			this._defaultClientId = DEFAULT_CLIENT_ID_V2;
+			this._defaultTenant = DEFAULT_TENANT_V2;
+		} else {
+			this._defaultClientId = DEFAULT_CLIENT_ID_V1;
+			this._defaultTenant = DEFAULT_TENANT_V1;
+		}
+
 		const modifiedScopes = [...originalScopes];
 		modifiedScopes.sort();
 		this.allScopes = modifiedScopes;
@@ -55,7 +70,7 @@ export class ScopeData {
 				return current.split('VSCODE_CLIENT_ID:')[1];
 			}
 			return prev;
-		}, undefined) ?? DEFAULT_CLIENT_ID;
+		}, undefined) ?? this._defaultClientId;
 	}
 
 	private getTenantId(scopes: string[]) {
@@ -64,7 +79,7 @@ export class ScopeData {
 				return current.split('VSCODE_TENANT:')[1];
 			}
 			return prev;
-		}, undefined) ?? DEFAULT_TENANT;
+		}, undefined) ?? this._defaultTenant;
 	}
 
 	private getScopesToSend(scopes: string[]) {

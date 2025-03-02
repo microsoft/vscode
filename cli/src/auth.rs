@@ -104,7 +104,7 @@ impl AuthProvider {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StoredCredential {
 	#[serde(rename = "p")]
-	provider: AuthProvider,
+	pub(crate) provider: AuthProvider,
 	#[serde(rename = "a")]
 	access_token: String,
 	#[serde(rename = "r")]

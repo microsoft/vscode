@@ -298,6 +298,10 @@ export class SequencerByKey<TKey> {
 		this.promiseMap.set(key, newPromise);
 		return newPromise;
 	}
+
+	keys(): IterableIterator<TKey> {
+		return this.promiseMap.keys();
+	}
 }
 
 interface IScheduledLater extends IDisposable {
