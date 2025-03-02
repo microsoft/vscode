@@ -117,11 +117,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerActions(context: ChatSetupContext, requests: ChatSetupRequests): void {
-
 		const chatSetupTriggerContext = ContextKeyExpr.or(
 			ChatContextKeys.Setup.installed.negate(),
 			ChatContextKeys.Setup.canSignUp
 		);
+
 		class ChatSetupTriggerAction extends Action2 {
 
 			constructor() {

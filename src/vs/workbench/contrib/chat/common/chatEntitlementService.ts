@@ -164,7 +164,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	readonly onDidChangeQuotaRemaining = this._onDidChangeQuotaRemaining.event;
 
 	private _quotas: IChatQuotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined };
-	get quotas(): IChatQuotas { return this._quotas; }
+	get quotas() { return this._quotas; }
 
 	private readonly chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
 	private readonly completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
@@ -209,10 +209,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		}));
 	}
 
-	async update(token: CancellationToken): Promise<void> {
-		await this.requests?.value.forceResolveEntitlement(undefined, token);
-	}
-
 	acceptQuotas(quotas: IChatQuotas): void {
 		const oldQuota = this._quotas;
 		this._quotas = quotas;
@@ -245,6 +241,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	//#endregion
+
+	async update(token: CancellationToken): Promise<void> {
+		await this.requests?.value.forceResolveEntitlement(undefined, token);
+	}
 }
 
 //#endregion
