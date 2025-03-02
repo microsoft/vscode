@@ -92,6 +92,7 @@ export interface IFilesConfigurationService {
 
 	toggleAutoSave(): Promise<void>;
 
+	enableAutoSaveAfterShortDelay(resourceOrEditor: EditorInput | URI): IDisposable;
 	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable;
 
 	//#endregion
@@ -147,6 +148,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private currentHotExitConfiguration: string;
 
 	private readonly autoSaveConfigurationCache = new LRUCache<URI, ICachedAutoSaveConfiguration>(1000);
+
+	private readonly autoSaveAfterShortDelayOverrides = new ResourceMap<number /* counter */>();
 	private readonly autoSaveDisabledOverrides = new ResourceMap<number /* counter */>();
 
 	private readonly autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(this.contextKeyService);
@@ -377,6 +380,11 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean {
 		const resource = this.toResource(resourceOrEditor);
+
+		if (resource && this.autoSaveAfterShortDelayOverrides.has(resource)) {
+			return true; // overridden to be enabled after short delay
+		}
+
 		if (this.getAutoSaveConfiguration(resource).isShortAutoSaveDelay) {
 			return !resource || !this.autoSaveDisabledOverrides.has(resource);
 		}
@@ -386,6 +394,10 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined, saveReason?: SaveReason): IAutoSaveMode {
 		const resource = this.toResource(resourceOrEditor);
+		if (resource && this.autoSaveAfterShortDelayOverrides.has(resource)) {
+			return { mode: AutoSaveMode.AFTER_SHORT_DELAY }; // overridden to be enabled after short delay
+		}
+
 		if (resource && this.autoSaveDisabledOverrides.has(resource)) {
 			return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.DISABLED };
 		}
@@ -444,6 +456,25 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		}
 
 		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
+	}
+
+	enableAutoSaveAfterShortDelay(resourceOrEditor: EditorInput | URI): IDisposable {
+		const resource = this.toResource(resourceOrEditor);
+		if (!resource) {
+			return Disposable.None;
+		}
+
+		const counter = this.autoSaveAfterShortDelayOverrides.get(resource) ?? 0;
+		this.autoSaveAfterShortDelayOverrides.set(resource, counter + 1);
+
+		return toDisposable(() => {
+			const counter = this.autoSaveAfterShortDelayOverrides.get(resource) ?? 0;
+			if (counter <= 1) {
+				this.autoSaveAfterShortDelayOverrides.delete(resource);
+			} else {
+				this.autoSaveAfterShortDelayOverrides.set(resource, counter - 1);
+			}
+		});
 	}
 
 	disableAutoSave(resourceOrEditor: EditorInput | URI): IDisposable {
