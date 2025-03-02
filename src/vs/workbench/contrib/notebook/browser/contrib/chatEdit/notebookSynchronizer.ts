@@ -10,7 +10,7 @@ import { INotebookService } from '../../../common/notebookService.js';
 import { bufferToStream, streamToBuffer, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { raceCancellation, ThrottledDelayer } from '../../../../../../base/common/async.js';
-import { CellDiffInfo, computeDiff, prettyChanges } from '../../diff/notebookDiffViewModel.js';
+import { CellDiffInfo, prettyChanges } from '../../diff/notebookDiffViewModel.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { INotebookEditorWorkerService } from '../../../common/services/notebookWorkerService.js';
 import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, NotebookData, NotebookSetting } from '../../../common/notebookCommon.js';
@@ -31,6 +31,7 @@ import { INotebookEditorService } from '../../services/notebookEditorService.js'
 import { CellEditState } from '../../notebookBrowser.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ChatEditingModifiedDocumentEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
+import { computeDiff } from '../../../common/notebookDiff.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
