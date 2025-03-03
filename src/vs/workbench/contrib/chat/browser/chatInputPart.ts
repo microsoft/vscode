@@ -1409,6 +1409,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	async renderChatRelatedFiles(chatEditingSession: IChatEditingSession, anchor: HTMLElement) {
 		dom.clearNode(anchor);
+		dom.setVisibility(Boolean(chatEditingSession.workingSet.size), anchor);
+
 		const hoverDelegate = getDefaultHoverDelegate('element');
 		for (const [uri, metadata] of chatEditingSession.workingSet) {
 			if (metadata.state !== WorkingSetEntryState.Suggested) {
