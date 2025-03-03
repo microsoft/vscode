@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equals.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorunWithStore, derived, derivedObservableWithCache, derivedOpts, derivedWithStore, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
@@ -48,6 +49,7 @@ export class InlineEditsView extends Disposable {
 		view: ReturnType<typeof InlineEditsView.prototype.determineView>;
 		userJumpedToIt: boolean;
 		editorWidth: number;
+		timestamp: number;
 	} | undefined;
 
 	constructor(
@@ -69,8 +71,10 @@ export class InlineEditsView extends Disposable {
 					...this._wordReplacementViews.read(reader).map(w => w.onDidClick),
 					this._inlineDiffView.onDidClick,
 				)(e => {
-					e.preventDefault();
-					this._host.accept();
+					if (this._viewHasBeenShownLongThan(350)) {
+						e.preventDefault();
+						this._host.accept();
+					}
 				})
 			);
 		}));
@@ -393,7 +397,7 @@ export class InlineEditsView extends Disposable {
 
 		const view = this.determineView(edit, reader, diff, newText, originalDisplayRange);
 
-		this._previousView = { id: this.getCacheId(edit), view, userJumpedToIt: edit.userJumpedToIt, editorWidth: this._editor.getLayoutInfo().width };
+		this._previousView = { id: this.getCacheId(edit), view, userJumpedToIt: edit.userJumpedToIt, editorWidth: this._editor.getLayoutInfo().width, timestamp: Date.now() };
 
 		switch (view) {
 			case 'insertionInline': return { kind: 'insertionInline' as const };
@@ -452,6 +456,16 @@ export class InlineEditsView extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	private _viewHasBeenShownLongThan(durationMs: number): boolean {
+		const viewCreationTime = this._previousView?.timestamp;
+		if (!viewCreationTime) {
+			throw new BugIndicatingError('viewHasBeenShownLongThan called before a view has been shown');
+		}
+
+		const currentTime = Date.now();
+		return (currentTime - viewCreationTime) >= durationMs;
 	}
 }
 
