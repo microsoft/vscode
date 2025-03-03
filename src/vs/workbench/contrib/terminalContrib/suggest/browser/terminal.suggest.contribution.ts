@@ -229,7 +229,7 @@ registerActiveInstanceAction({
 		// Up is bound to other workbench keybindings that this needs to beat
 		primary: KeyCode.UpArrow,
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.or(SimpleSuggestContext.FocusedFirstSuggestion.negate(), ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.UpArrowNavigatesHistory}`, false))
+		when: ContextKeyExpr.or(SimpleSuggestContext.HasNavigated, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.UpArrowNavigatesHistory}`, false))
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.selectPreviousSuggestion()
 });
@@ -368,7 +368,7 @@ registerActiveInstanceAction({
 	keybinding:
 	{
 		primary: KeyCode.UpArrow,
-		when: ContextKeyExpr.and(SimpleSuggestContext.FocusedFirstSuggestion, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.UpArrowNavigatesHistory}`, true)),
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasNavigated.negate(), ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.UpArrowNavigatesHistory}`, true)),
 		weight: KeybindingWeight.WorkbenchContrib + 2
 	},
 	run: (activeInstance) => {
