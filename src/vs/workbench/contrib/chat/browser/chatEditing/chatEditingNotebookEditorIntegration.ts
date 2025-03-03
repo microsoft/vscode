@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, ObservablePromise, observableValue } from '../../../../../base/common/observable.js';
 import { debouncedObservable } from '../../../../../base/common/observableInternal/utils.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -24,6 +26,25 @@ import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js
 import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
 import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 
+interface IDocumentDiffWithModelsAndActions {
+	/**
+	 * The changes between the original and modified document.
+	 */
+	diff: ISettableObservable<IDocumentDiff>;
+	/**
+	 * The original model.
+	 * Cell text models load asynchronously, so this is an observable promise.
+	 */
+	originalModel: ObservablePromise<ITextModel>;
+	/**
+	 * The modified model.
+	 * Cell text models load asynchronously, so this is an observable promise.
+	 */
+	modifiedModel: ObservablePromise<ITextModel>;
+	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
+	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
+}
+
 /**
  * All entries will contain a IDocumentDiff
  * Even when there are no changes, diff will contain the number of lines in the document.
@@ -33,25 +54,21 @@ export type ICellDiffInfo = {
 	originalCellIndex: number;
 	modifiedCellIndex: number;
 	type: 'unchanged';
-	diff: IDocumentDiff2; // Null diff Change (property to be consistent with others, also we have a list of all line numbers)
-} | {
+} & IDocumentDiffWithModelsAndActions | {
 	originalCellIndex: number;
 	modifiedCellIndex: number;
 	type: 'modified';
-	diff: IDocumentDiff2; // List of the changes.
-} |
-{
-	modifiedCellIndex: undefined;
-	originalCellIndex: number;
-	type: 'delete';
-	diff: IDocumentDiff2; // List of all the lines deleted.
-} |
-{
-	modifiedCellIndex: number;
-	originalCellIndex: undefined;
-	type: 'insert';
-	diff: IDocumentDiff2; // List of all the new lines.
-};
+} & IDocumentDiffWithModelsAndActions |
+	{
+		modifiedCellIndex: undefined;
+		originalCellIndex: number;
+		type: 'delete';
+	} & IDocumentDiffWithModelsAndActions |
+	{
+		modifiedCellIndex: number;
+		originalCellIndex: undefined;
+		type: 'insert';
+	} & IDocumentDiffWithModelsAndActions;
 
 
 export class ChatEditingNotebookEditorIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
@@ -91,12 +108,12 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 			if (!_entry.isCurrentlyBeingModifiedBy.read(r)
 				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
-				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.identical && !c.diff.identical)
+				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.read(r).identical)
 			) {
 				lastModifyingRequestId = _entry.lastModifyingRequestId;
 				const firstModifiedCell = cellChanges.read(r).
 					filter(c => c.type !== 'unchanged' && c.type !== 'delete').
-					filter(c => !c.diff.identical).
+					filter(c => !c.diff.read(r).identical).
 					reduce((prev, curr) => curr.modifiedCellIndex < prev ? curr.modifiedCellIndex : prev, Number.MAX_SAFE_INTEGER);
 				if (typeof firstModifiedCell !== 'number' || firstModifiedCell === Number.MAX_SAFE_INTEGER) {
 					return;
@@ -110,7 +127,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		this._register(autorun(r => {
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
-			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.identical);
+			const changes = sortedCellChanges.filter(c => c.type !== 'modified' && c.type !== 'delete' && !c.diff.read(r).identical);
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
@@ -120,20 +137,29 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			}
 
 			const validCells = new Set<NotebookCellTextModel>();
-			changes.forEach((diff) => {
-				if (diff.modifiedCellIndex === undefined) {
+			changes.forEach((change) => {
+				if (change.modifiedCellIndex === undefined || change.modifiedCellIndex >= notebookModel.cells.length) {
 					return;
 				}
-				const cell = notebookModel.cells[diff.modifiedCellIndex];
-				const editor = notebookEditor.codeEditors.find(([vm,]) => vm.handle === notebookModel.cells[diff.modifiedCellIndex].handle)?.[1];
-				if (!editor || !cell) {
+				const cell = notebookModel.cells[change.modifiedCellIndex];
+				const editor = notebookEditor.codeEditors.find(([vm,]) => vm.handle === notebookModel.cells[change.modifiedCellIndex].handle)?.[1];
+				const modifiedModel = change.modifiedModel.promiseResult.read(r)?.data;
+				const originalModel = change.originalModel.promiseResult.read(r)?.data;
+				if (!editor || !cell || !originalModel || !modifiedModel) {
 					return;
 				}
+				const diff = {
+					...change.diff.read(r),
+					modifiedModel,
+					originalModel,
+					keep: change.keep,
+					undo: change.undo
+				} satisfies IDocumentDiff2;
 				validCells.add(cell);
 				if (this.cellEditorIntegrations.has(cell)) {
-					this.cellEditorIntegrations.get(cell)!.diff.set(diff.diff, undefined);
+					this.cellEditorIntegrations.get(cell)!.diff.set(diff, undefined);
 				} else {
-					const diff2 = observableValue(`diff${cell.handle}`, diff.diff);
+					const diff2 = observableValue(`diff${cell.handle}`, diff);
 					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2);
 					this.cellEditorIntegrations.set(cell, { integration, diff: diff2 });
 					this._register(integration);
@@ -167,7 +193,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 				if (currentChange) {
 					const change = currentChange.change;
 					const indexInChange = currentChange.index;
-					const diffChangeIndex = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged' && !c.diff.identical)).findIndex(c => c === change);
+					const diffChangeIndex = sortCellChanges(this.cellChanges.get().filter(c => c.type !== 'unchanged' && !c.diff.read(r).identical)).findIndex(c => c === change);
 
 					if (diffChangeIndex !== -1) {
 						this._currentIndex.set(diffChangeIndex + indexInChange, undefined);
@@ -192,16 +218,16 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 				argFactory: (deletedCellIndex: number) => {
 					return {
 						accept() {
-							const entry = cellChanges.get().find(c => c.type === 'delete' && c.originalCellIndex === deletedCellIndex)?.diff;
+							const entry = cellChanges.get().find(c => c.type === 'delete' && c.originalCellIndex === deletedCellIndex);
 							if (entry) {
-								return entry.keep(entry.changes[0]);
+								return entry.keep(entry.diff.get().changes[0]);
 							}
 							return Promise.resolve(true);
 						},
 						reject() {
-							const entry = cellChanges.get().find(c => c.type === 'delete' && c.originalCellIndex === deletedCellIndex)?.diff;
+							const entry = cellChanges.get().find(c => c.type === 'delete' && c.originalCellIndex === deletedCellIndex);
 							if (entry) {
-								return entry.undo(entry.changes[0]);
+								return entry.undo(entry.diff.get().changes[0]);
 							}
 							return Promise.resolve(true);
 						},
@@ -218,7 +244,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 		this._register(autorun(r => {
 			// We can have inserted cells that have been accepted, in those cases we do not wany any decorators on them.
-			const changes = cellChanges.read(r).filter(c => c.type === 'insert' ? !c.diff.identical : true);
+			const changes = cellChanges.read(r).filter(c => c.type === 'insert' ? !c.diff.read(r).identical : true);
 			const decorators = this.insertDeleteDecorators.read(r);
 			if (decorators) {
 				decorators.insertedCellDecorator.apply(changes);
@@ -471,7 +497,7 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 
 		this._store.add(autorun(r => {
 			const index = notebookDiffEditor.currentChangedIndex.read(r);
-			const numberOfCellChanges = cellChanges.read(r).filter(c => !c.diff.identical);
+			const numberOfCellChanges = cellChanges.read(r).filter(c => !c.diff.read(r).identical);
 			if (numberOfCellChanges.length && index >= 0 && index < numberOfCellChanges.length) {
 				// Notebook Diff editor only supports navigating through changes to cells.
 				// However in chat we take changes to lines in the cells into account.
@@ -497,7 +523,7 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 	}
 
 	next(_wrap: boolean): boolean {
-		const changes = this.cellChanges.get().filter(c => !c.diff.identical).length;
+		const changes = this.cellChanges.get().filter(c => !c.diff.get().identical).length;
 		if (this.notebookDiffEditor.currentChangedIndex.get() === changes - 1) {
 			return false;
 		}
@@ -506,7 +532,7 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 	}
 
 	previous(_wrap: boolean): boolean {
-		const changes = this.cellChanges.get().filter(c => !c.diff.identical).length;
+		const changes = this.cellChanges.get().filter(c => !c.diff.get().identical).length;
 		if (this.notebookDiffEditor.currentChangedIndex.get() === changes - 1) {
 			return false;
 		}
@@ -531,18 +557,19 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 }
 
 export function countChanges(changes: ICellDiffInfo[]): number {
-	return changes.reduce((count, diff) => {
+	return changes.reduce((count, change) => {
+		const diff = change.diff.get();
 		// When we accept some of the cell insert/delete the items might still be in the list.
-		if (diff.diff.identical) {
+		if (diff.identical) {
 			return count;
 		}
-		switch (diff.type) {
+		switch (change.type) {
 			case 'delete':
 				return count + 1; // We want to see 1 deleted entry in the pill for navigation
 			case 'insert':
 				return count + 1; // We want to see 1 new entry in the pill for navigation
 			case 'modified':
-				return count + diff.diff.changes.length;
+				return count + diff.changes.length;
 			default:
 				return count;
 		}

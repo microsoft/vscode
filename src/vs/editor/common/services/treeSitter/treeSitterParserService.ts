@@ -22,9 +22,9 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { PromiseResult } from '../../../../base/common/observable.js';
 import { Range } from '../../core/range.js';
-import { Position } from '../../core/position.js';
 import { LimitedQueue } from '../../../../base/common/async.js';
 import { TextLength } from '../../core/textLength.js';
+import { getClosestPreviousNodes, gotoNthChild, gotoParent, nextSiblingOrParentSibling } from './cursorUtils.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -88,7 +88,7 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		const treeSitterTree = this._parseSessionDisposables.add(new TreeSitterParseResult(new Parser(), language, this._logService, this._telemetryService));
 		this._parseResult = treeSitterTree;
 		this._parseSessionDisposables.add(treeSitterTree.onDidUpdate(e => {
-			if (e.ranges && (e.versionId > this._versionId)) {
+			if (e.ranges && (e.versionId >= this._versionId)) {
 				this._versionId = e.versionId;
 				this._onDidChangeParseResult.fire({ ranges: e.ranges, versionId: e.versionId });
 			}
@@ -133,16 +133,6 @@ const enum TelemetryParseType {
 	Incremental = 'incrementalParse'
 }
 
-interface ChangedRange {
-	newNodeId: number;
-	newStartPosition: Position;
-	newEndPosition: Position;
-	newStartIndex: number;
-	newEndIndex: number;
-	oldStartIndex: number;
-	oldEndIndex: number;
-}
-
 export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResult {
 	private _tree: Parser.Tree | undefined;
 	private _lastFullyParsed: Parser.Tree | undefined;
@@ -172,91 +162,13 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	get tree() { return this._lastFullyParsed; }
 	get isDisposed() { return this._isDisposed; }
 
-	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree): ChangedRange[] {
+	private findChangedNodes(newTree: Parser.Tree, oldTree: Parser.Tree): Parser.Node[] {
 		const newCursor = newTree.walk();
 		const oldCursor = oldTree.walk();
-		const gotoNextSibling = () => {
-			const n = newCursor.gotoNextSibling();
-			const o = oldCursor.gotoNextSibling();
-			if (n !== o) {
-				throw new Error('Trees are out of sync');
-			}
-			return n && o;
-		};
-		const gotoParent = () => {
-			const n = newCursor.gotoParent();
-			const o = oldCursor.gotoParent();
-			if (n !== o) {
-				throw new Error('Trees are out of sync');
-			}
-			return n && o;
-		};
-		const gotoNthChild = (index: number) => {
-			const n = newCursor.gotoFirstChild();
-			const o = oldCursor.gotoFirstChild();
-			if (n !== o) {
-				throw new Error('Trees are out of sync');
-			}
-			if (index === 0) {
-				return n && o;
-			}
-			for (let i = 1; i <= index; i++) {
-				const nn = newCursor.gotoNextSibling();
-				const oo = oldCursor.gotoNextSibling();
-				if (nn !== oo) {
-					throw new Error('Trees are out of sync');
-				}
-				if (!nn || !oo) {
-					return false;
-				}
-			}
-			return n && o;
-		};
 
-		const changedRanges: ChangedRange[] = [];
+		const nodes: Parser.Node[] = [];
 		let next = true;
-		const nextSiblingOrParentSibling = () => {
-			do {
-				if (newCursor.currentNode.nextSibling) {
-					return gotoNextSibling();
-				}
-				if (newCursor.currentNode.parent) {
-					gotoParent();
-				}
-			} while (newCursor.currentNode.nextSibling || newCursor.currentNode.parent);
-			return false;
-		};
 
-		const getClosestPreviousNodes = (): { old: Parser.Node; new: Parser.Node } | undefined => {
-			// Go up parents until the end of the parent is before the start of the current.
-			const newFindPrev = newTree.walk();
-			newFindPrev.resetTo(newCursor);
-			const oldFindPrev = oldTree.walk();
-			oldFindPrev.resetTo(oldCursor);
-			const startingNode = newCursor.currentNode;
-			do {
-				if (newFindPrev.currentNode.previousSibling && ((newFindPrev.currentNode.endIndex - newFindPrev.currentNode.startIndex) !== 0)) {
-					newFindPrev.gotoPreviousSibling();
-					oldFindPrev.gotoPreviousSibling();
-				} else {
-					while (!newFindPrev.currentNode.previousSibling && newFindPrev.currentNode.parent) {
-						newFindPrev.gotoParent();
-						oldFindPrev.gotoParent();
-					}
-					newFindPrev.gotoPreviousSibling();
-					oldFindPrev.gotoPreviousSibling();
-				}
-			} while ((newFindPrev.currentNode.endIndex > startingNode.startIndex)
-			&& (newFindPrev.currentNode.parent || newFindPrev.currentNode.previousSibling)
-
-				&& (newFindPrev.currentNode.id !== startingNode.id));
-
-			if ((newFindPrev.currentNode.id !== startingNode.id) && newFindPrev.currentNode.endIndex <= startingNode.startIndex) {
-				return { old: oldFindPrev.currentNode, new: newFindPrev.currentNode };
-			} else {
-				return undefined;
-			}
-		};
 		do {
 			if (newCursor.currentNode.hasChanges) {
 				// Check if only one of the children has changes.
@@ -272,71 +184,110 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 					return c?.hasChanges;
 				});
 				// If we have changes and we *had* an error, the whole node should be refreshed.
-				if ((changedChildren.length === 0) || oldCursor.currentNode.hasError) {
+				if ((changedChildren.length === 0)) {
 					// walk up again until we get to the first one that's named as unnamed nodes can be too granular
 					while (newCursor.currentNode.parent && !newCursor.currentNode.isNamed && next) {
-						next = gotoParent();
+						next = gotoParent(newCursor, oldCursor);
 					}
 
 					const newNode = newCursor.currentNode;
-					const oldNode = oldCursor.currentNode;
-
-					const newEndPosition = new Position(newNode.endPosition.row + 1, newNode.endPosition.column + 1);
-					const oldEndIndex = oldNode.endIndex;
-
-					// Fill holes between nodes.
-					const closestPrev = getClosestPreviousNodes();
-					const newStartPosition = new Position(closestPrev ? closestPrev.new.endPosition.row + 1 : newNode.startPosition.row + 1, closestPrev ? closestPrev.new.endPosition.column + 1 : newNode.startPosition.column + 1);
-					const newStartIndex = closestPrev ? closestPrev.new.endIndex : newNode.startIndex;
-					const oldStartIndex = closestPrev ? closestPrev.old.endIndex : oldNode.startIndex;
-
-					changedRanges.push({ newStartPosition, newEndPosition, oldStartIndex, oldEndIndex, newNodeId: newNode.id, newStartIndex, newEndIndex: newNode.endIndex });
-					next = nextSiblingOrParentSibling();
+					nodes.push(newNode);
+					next = nextSiblingOrParentSibling(newCursor, oldCursor);
 				} else if (changedChildren.length >= 1) {
-					next = gotoNthChild(indexChangedChildren[0]);
+					next = gotoNthChild(newCursor, oldCursor, indexChangedChildren[0]);
 				}
 			} else {
-				next = nextSiblingOrParentSibling();
+				next = nextSiblingOrParentSibling(newCursor, oldCursor);
 			}
 		} while (next);
 
-		if (changedRanges.length === 0 && newTree.rootNode.hasChanges) {
-			return [{ newStartPosition: new Position(newTree.rootNode.startPosition.row + 1, newTree.rootNode.startPosition.column + 1), newEndPosition: new Position(newTree.rootNode.endPosition.row + 1, newTree.rootNode.endPosition.column + 1), oldStartIndex: oldTree.rootNode.startIndex, oldEndIndex: oldTree.rootNode.endIndex, newStartIndex: newTree.rootNode.startIndex, newEndIndex: newTree.rootNode.endIndex, newNodeId: newTree.rootNode.id }];
-		} else {
-			return changedRanges;
-		}
+		return nodes;
 	}
 
-	private calculateRangeChange(model: ITextModel, changedNodes: ChangedRange[] | undefined): RangeChange[] | undefined {
-		if (!changedNodes) {
-			return undefined;
-		}
+	private findTreeChanges(newTree: Parser.Tree, changedNodes: Parser.Node[]): RangeChange[] {
+		const mergedChanges: RangeChange[] = [];
 
-		// Collapse conginguous ranges
-		const ranges: RangeChange[] = [];
-		for (let i = 0; i < changedNodes.length; i++) {
-			const node = changedNodes[i];
+		// Find the parent in the new tree of the changed node
+		for (let nodeIndex = 0; nodeIndex < changedNodes.length; nodeIndex++) {
+			const node = changedNodes[nodeIndex];
 
-			// Check if contiguous with previous
-			const prevNode = changedNodes[i - 1];
-			if ((i > 0) && prevNode.newEndPosition.equals(node.newStartPosition)) {
-				const prevRangeChange = ranges[ranges.length - 1];
-				prevRangeChange.newRange = new Range(prevRangeChange.newRange.startLineNumber, prevRangeChange.newRange.startColumn, node.newEndPosition.lineNumber, node.newEndPosition.column);
-				prevRangeChange.oldRangeLength = node.oldEndIndex - prevNode.oldStartIndex;
-				prevRangeChange.newRangeEndOffset = node.newEndIndex;
+			if (mergedChanges.length > 0) {
+				if ((node.startIndex > mergedChanges[mergedChanges.length - 1].newRangeStartOffset) && (node.endIndex < mergedChanges[mergedChanges.length - 1].newRangeEndOffset)) {
+					// This node is within the previous range, skip it
+					continue;
+				}
+			}
+
+			const cursor = newTree.walk();
+			const cursorContainersNode = () => cursor.startIndex <= node.startIndex && cursor.endIndex >= node.endIndex;
+
+			while (cursorContainersNode()) {
+				// See if we can go to a child
+				let child = cursor.gotoFirstChild();
+				let foundChild = false;
+				while (child) {
+					if (cursorContainersNode()) {
+						foundChild = true;
+						break;
+					} else {
+						child = cursor.gotoNextSibling();
+					}
+				}
+				if (!foundChild) {
+					cursor.gotoParent();
+					break;
+				}
+				if (cursor.currentNode.childCount === 0) {
+					break;
+				}
+			}
+
+			let nodesInRange: Parser.Node[];
+			// It's possible we end up with a really large range if the parent node is big
+			// Try to avoid this large range by finding several smaller nodes that together encompass the range of the changed node.
+			const foundNodeSize = cursor.endIndex - cursor.startIndex;
+			if (foundNodeSize > 5000) {
+				// Try to find 3 consecutive nodes that together encompass the changed node.
+				let child = cursor.gotoFirstChild();
+				nodesInRange = [];
+				while (child) {
+					if (cursor.startIndex <= node.startIndex && cursor.endIndex > node.startIndex) {
+						// Found the starting point of our nodes
+						nodesInRange.push(cursor.currentNode);
+						do {
+							child = cursor.gotoNextSibling();
+						} while (child && (cursor.endIndex < node.endIndex));
+
+						nodesInRange.push(cursor.currentNode);
+						break;
+					}
+					child = cursor.gotoNextSibling();
+				}
 			} else {
-				ranges.push({ newRange: Range.fromPositions(node.newStartPosition, node.newEndPosition), oldRangeLength: node.oldEndIndex - node.oldStartIndex, newRangeStartOffset: node.newStartIndex, newRangeEndOffset: node.newEndIndex });
+				nodesInRange = [cursor.currentNode];
 			}
-		}
 
-		if (ranges.length > 0) {
-			const lastRange = ranges[ranges.length - 1];
-			const maxLine = model.getLineCount();
-			if (lastRange.newRange.endLineNumber > maxLine) {
-				lastRange.newRange = new Range(lastRange.newRange.startLineNumber, lastRange.newRange.startColumn, maxLine, model.getLineMaxColumn(maxLine));
+			// Fill in gaps between nodes
+			// Reset the cursor to the first node in the range;
+			while (cursor.currentNode.id !== nodesInRange[0].id) {
+				cursor.gotoPreviousSibling();
+			}
+			const previousNode = getClosestPreviousNodes(cursor, newTree);
+			const startingPosition = previousNode ? previousNode.endPosition : nodesInRange[0].startPosition;
+			const startingIndex = previousNode ? previousNode.endIndex : nodesInRange[0].startIndex;
+			const endingPosition = nodesInRange[nodesInRange.length - 1].endPosition;
+			const endingIndex = nodesInRange[nodesInRange.length - 1].endIndex;
+
+			const newChange = { newRange: new Range(startingPosition.row + 1, startingPosition.column + 1, endingPosition.row + 1, endingPosition.column + 1), newRangeStartOffset: startingIndex, newRangeEndOffset: endingIndex };
+			if ((mergedChanges.length > 0) && (mergedChanges[mergedChanges.length - 1].newRangeEndOffset >= newChange.newRangeStartOffset)) {
+				// Merge the changes
+				mergedChanges[mergedChanges.length - 1].newRange = Range.fromPositions(mergedChanges[mergedChanges.length - 1].newRange.getStartPosition(), newChange.newRange.getEndPosition());
+				mergedChanges[mergedChanges.length - 1].newRangeEndOffset = newChange.newRangeEndOffset;
+			} else {
+				mergedChanges.push(newChange);
 			}
 		}
-		return ranges;
+		return mergedChanges;
 	}
 
 	private _onDidChangeContentQueue: LimitedQueue = new LimitedQueue();
@@ -354,15 +305,19 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				return;
 			}
 
-			let ranges: RangeChange[] | undefined;
+			const oldTree = this._lastFullyParsed;
+			let changedNodes: Parser.Node[] | undefined;
 			if (this._lastFullyParsedWithEdits && this._lastFullyParsed) {
-				ranges = this.calculateRangeChange(model, this.findChangedNodes(this._lastFullyParsedWithEdits, this._lastFullyParsed));
+				changedNodes = this.findChangedNodes(this._lastFullyParsedWithEdits, this._lastFullyParsed);
 			}
 
 			const completed = await this._parseAndUpdateTree(model, version);
 			if (completed) {
-				if (!ranges) {
-					ranges = [{ newRange: model.getFullModelRange(), oldRangeLength: model.getValueLength(), newRangeStartOffset: 0, newRangeEndOffset: model.getValueLength() }];
+				let ranges: RangeChange[] | undefined;
+				if (!changedNodes) {
+					ranges = [{ newRange: model.getFullModelRange(), newRangeStartOffset: 0, newRangeEndOffset: model.getValueLength() }];
+				} else if (oldTree && changedNodes) {
+					ranges = this.findTreeChanges(completed, changedNodes);
 				}
 				this._onDidUpdate.fire({ ranges, versionId: version });
 			}

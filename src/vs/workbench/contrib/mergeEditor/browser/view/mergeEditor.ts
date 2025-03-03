@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Color } from '../../../../../base/common/color.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -39,7 +39,7 @@ import { readTransientState, writeTransientState } from '../../../codeEditor/bro
 import { MergeEditorInput } from '../mergeEditorInput.js';
 import { IMergeEditorInputModel } from '../mergeEditorInputModel.js';
 import { MergeEditorModel } from '../model/mergeEditorModel.js';
-import { deepMerge, PersistentStore, thenIfNotDisposed } from '../utils.js';
+import { deepMerge, PersistentStore } from '../utils.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { BaseCodeEditorView } from './editors/baseCodeEditorView.js';
 import { ScrollSynchronizer } from './scrollSynchronizer.js';

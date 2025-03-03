@@ -16,19 +16,19 @@ import { terminalContribConfiguration, TerminalContribSettingId } from '../termi
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT } from './terminal.js';
 
 const terminalDescriptors = '\n- ' + [
-	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
+	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory."),
 	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. On Windows, this will only be displayed when shell integration is enabled."),
-	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
-	'`\${workspaceFolderName}`: ' + localize('workspaceFolderName', "the `name` of the workspace in which the terminal was launched"),
-	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
-	'`\${process}`: ' + localize('process', "the name of the terminal process"),
-	'`\${progress}`: ' + localize('progress', "the progress state as reported by the `OSC 9;4` sequence"),
-	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when surrounded by variables with values or static text.", '(` - `)'),
-	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
-	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
-	'`\${shellType}`: ' + localize('shellType', "the detected shell type"),
-	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration. This also requires high confidence in the detected command line which may not work in some prompt frameworks."),
-	'`\${shellPromptInput}`: ' + localize('shellPromptInput', "the shell's full prompt input according to shell integration"),
+	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched."),
+	'`\${workspaceFolderName}`: ' + localize('workspaceFolderName', "the `name` of the workspace in which the terminal was launched."),
+	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace."),
+	'`\${process}`: ' + localize('process', "the name of the terminal process."),
+	'`\${progress}`: ' + localize('progress', "the progress state as reported by the `OSC 9;4` sequence."),
+	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when it's surrounded by variables with values or static text.", '(` - `)'),
+	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process."),
+	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task."),
+	'`\${shellType}`: ' + localize('shellType', "the detected shell type."),
+	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration. This also requires high confidence in the detected command line, which may not work in some prompt frameworks."),
+	'`\${shellPromptInput}`: ' + localize('shellPromptInput', "the shell's full prompt input according to shell integration."),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 let terminalTitle = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
@@ -486,7 +486,7 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
 			type: 'boolean',
 			tags: ['preview'],
-			default: product.quality !== 'stable',
+			default: product.quality !== 'stable'
 		},
 		[TerminalSettingId.SplitCwd]: {
 			description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -610,7 +610,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
 			markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
 			type: 'boolean',
-			default: product.quality !== 'stable',
+			default: product.quality !== 'stable'
 		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),

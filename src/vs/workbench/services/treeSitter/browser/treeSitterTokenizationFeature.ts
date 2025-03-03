@@ -111,8 +111,8 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 	private _query: Parser.Query | undefined;
 	private readonly _onDidChangeTokens: Emitter<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._register(new Emitter());
 	public readonly onDidChangeTokens: Event<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._onDidChangeTokens.event;
-	private readonly _onDidCompleteFirstTokenization: Emitter<{ textModel: ITextModel }> = this._register(new Emitter());
-	public readonly onDidCompleteFirstTokenization: Event<{ textModel: ITextModel }> = this._onDidCompleteFirstTokenization.event;
+	private readonly _onDidCompleteBackgroundTokenization: Emitter<{ textModel: ITextModel }> = this._register(new Emitter());
+	public readonly onDidChangeBackgroundTokenization: Event<{ textModel: ITextModel }> = this._onDidCompleteBackgroundTokenization.event;
 	private _colorThemeData!: ColorThemeData;
 	private _languageAddedListener: IDisposable | undefined;
 	private _codeEditors: TreeSitterCodeEditors;
@@ -133,13 +133,15 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 		this._register(this._codeEditors.onDidChangeViewport(e => {
 			this._parseAndTokenizeViewPort(e.model, e.ranges);
 		}));
+		this._register(this._codeEditors.onDidRemoveEditor(e => {
+			this._tokenizationStoreService.delete(e);
+		}));
 		this._codeEditors.getInitialViewPorts().then(async (viewports) => {
 			for (const viewport of viewports) {
 				this._parseAndTokenizeViewPort(viewport.model, viewport.ranges);
 			}
 		});
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, (e) => this._updateTheme(e)));
-		let hasDoneFullTokenization = false;
 		this._register(this._treeSitterService.onDidUpdateTree((e) => {
 			if (e.textModel.getLanguageId() !== this._languageId) {
 				return;
@@ -154,20 +156,12 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				return;
 			}
 
-			let updatePromise: Promise<void>;
 			// First time we see a tree we need to build a token store.
 			if (!this._tokenizationStoreService.hasTokens(e.textModel)) {
 				// This will likely not happen as we first handle all models, which are ready before trees.
-				updatePromise = this._firstTreeUpdate(e.textModel, e.versionId);
+				this._firstTreeUpdate(e.textModel, e.versionId);
 			} else {
-				updatePromise = this._handleTreeUpdate(e);
-			}
-
-			if (!hasDoneFullTokenization) {
-				hasDoneFullTokenization = true;
-				updatePromise.then(() => {
-					this._onDidCompleteFirstTokenization.fire({ textModel: e.textModel });
-				});
+				this._handleTreeUpdate(e);
 			}
 		}));
 	}
@@ -265,12 +259,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					newRange: range,
 					newRangeStartOffset,
 					newRangeEndOffset,
-					oldRangeLength: newRangeEndOffset - newRangeStartOffset
 				};
 			}
 		} else {
 			const valueLength = textModel.getValueLength();
-			rangeChanges = [{ newRange: new Range(1, 1, maxLine, textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength, oldRangeLength: valueLength }];
+			rangeChanges = [{ newRange: new Range(1, 1, maxLine, textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength }];
 		}
 		return this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
 	}
@@ -368,6 +361,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			});
 			await new Promise<void>(resolve => setTimeout0(resolve));
 		}
+		this._onDidCompleteBackgroundTokenization.fire({ textModel });
 	}
 
 	private _refreshNeedsRefresh(textModel: ITextModel, versionId: number) {
@@ -382,8 +376,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			rangeChanges[i] = {
 				newRange: range.range,
 				newRangeStartOffset: range.startOffset,
-				newRangeEndOffset: range.endOffset,
-				oldRangeLength: range.endOffset - range.startOffset
+				newRangeEndOffset: range.endOffset
 			};
 		}
 		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
@@ -452,8 +445,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 						ranges: [{
 							newRange: modelRange,
 							newRangeStartOffset: 0,
-							newRangeEndOffset: model.getValueLength(),
-							oldRangeLength: model.getValueLength()
+							newRangeEndOffset: model.getValueLength()
 						}],
 						textModel: model,
 						versionId: model.getVersionId()

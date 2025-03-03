@@ -71,6 +71,16 @@ export class ChatAttachmentModel extends Disposable {
 		this.addContext(this.asVariableEntry(uri, range));
 	}
 
+	addFolder(uri: URI) {
+		this.addContext({
+			value: uri,
+			id: uri.toString(),
+			name: basename(uri),
+			isFile: false,
+			isDirectory: true,
+		});
+	}
+
 	asVariableEntry(uri: URI, range?: IRange, isMarkedReadonly?: boolean): IChatRequestVariableEntry {
 		return {
 			value: range ? { uri, range } : uri,

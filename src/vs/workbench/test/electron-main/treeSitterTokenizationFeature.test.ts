@@ -72,6 +72,9 @@ class MockTelemetryService implements ITelemetryService {
 }
 
 class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
+	delete(model: ITextModel): void {
+		throw new Error('Method not implemented.');
+	}
 	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {
 		return true;
 	}
@@ -381,7 +384,6 @@ class y {
 		assert.strictEqual(change.ranges[0].newRangeEndOffset, 32);
 		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
 		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 7);
-		assert.strictEqual(change.ranges[0].oldRangeLength, 28);
 
 		updateListener?.dispose();
 		modelService.destroyModel(model.uri);

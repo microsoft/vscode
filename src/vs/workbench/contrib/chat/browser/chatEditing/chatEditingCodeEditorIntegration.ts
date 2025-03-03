@@ -221,17 +221,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._store.add(toDisposable(restoreActualOptions));
 
 		const shouldBeReadOnly = derived(this, r => {
-			const model = codeEditorObs.model.read(r);
-			if (!model) {
-				return false;
-			}
-			for (const session of chatEditingService.editingSessionsObs.read(r)) {
-				const entry = session.readEntry(model.uri, r);
-				if (entry?.isCurrentlyBeingModifiedBy.read(r)) {
-					return true;
-				}
-			}
-			return false;
+			return enabledObs.read(r) && Boolean(_entry.isCurrentlyBeingModifiedBy.read(r));
 		});
 
 		this._store.add(autorun(r => {
@@ -240,13 +230,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 				actualOptions ??= {
 					readOnly: this._editor.getOption(EditorOption.readOnly),
-					renderValidationDecorations: this._editor.getOption(EditorOption.renderValidationDecorations),
 					stickyScroll: this._editor.getOption(EditorOption.stickyScroll)
 				};
 
 				this._editor.updateOptions({
 					readOnly: true,
-					renderValidationDecorations: 'off',
 					stickyScroll: { enabled: false }
 				});
 			} else {
