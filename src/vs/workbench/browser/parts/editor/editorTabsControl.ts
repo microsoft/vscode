@@ -45,6 +45,14 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
+// MEMBRANE: see membraneActionsToolbar initialization below
+/* eslint-disable no-duplicate-imports */
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { Separator } from 'vs/base/common/actions';
+import { AuxiliaryBarVisibleContext } from 'vs/workbench/common/contextkeys';
+import { Codicon } from 'vs/base/common/codicons';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
 	constructor(
@@ -96,12 +104,14 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
 	private static readonly EDITOR_TAB_HEIGHT = {
-		normal: 35 as const,
+		// MEMBRANE: thinner editor tabs
+		normal: 30 as const,
 		compact: 22 as const
 	};
 
 	protected editorActionsToolbarContainer: HTMLElement | undefined;
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
+	private membraneActionsToolbar: WorkbenchToolBar | undefined;
 	private readonly editorActionsToolbarDisposables = this._register(new DisposableStore());
 	private readonly editorActionsDisposables = this._register(new DisposableStore());
 
@@ -135,7 +145,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(themeService);
 
@@ -226,6 +237,44 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 				this.notificationService.error(e.error);
 			}
 		}));
+
+		// MEMBRANE: Additional toolbar items that appear to the right of the "..." overflow menu. This is basically a copy
+		// of the above code for editorActionsToolbar but using MembraneEditorTitle instead of EditorTitle.
+		this.membraneActionsToolbar = this.editorActionsToolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: 'Additional Editor actions', // IMPORTANT: we match on this in css
+			actionRunner: this.editorActionsToolbarDisposables.add(new EditorCommandsContextActionRunner(context)),
+			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+		}));
+		this.membraneActionsToolbar.context = context;
+		this.editorActionsToolbarDisposables.add(this.membraneActionsToolbar.actionRunner.onDidRun(e => {
+			if (e.error && !isCancellationError(e.error)) {
+				this.notificationService.error(e.error);
+			}
+		}));
+		// Update when the auxiliary bar is opened/closed
+		this.editorActionsToolbarDisposables.add(this.contextKeyService.onDidChangeContext((e) => {
+			if (e.affectsSome(new Set([AuxiliaryBarVisibleContext.key]))) {
+				this.updateMembraneActions();
+			}
+		}));
+		this.updateMembraneActions();
+	}
+
+	// MEMBRANE: see membraneActionsToolbar initialization above
+	private updateMembraneActions() {
+		const membraneActions: IAction[] = [];
+		const show = this.contextKeyService.contextMatchesRules(AuxiliaryBarVisibleContext.toNegated());
+		if (show) {
+			membraneActions.push(new Separator());
+			membraneActions.push(new MenuItemAction({
+				id: 'workbench.action.toggleAuxiliaryBar',
+				title: 'Show Auxiliary Bar',
+				icon: Codicon.chevronLeft,
+			}, undefined, undefined, undefined, this.contextKeyService, this.commandService));
+		}
+		this.membraneActionsToolbar?.setActions(membraneActions, []);
 	}
 
 	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
@@ -257,6 +306,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
 		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
 		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
+
+
 	}
 
 	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;

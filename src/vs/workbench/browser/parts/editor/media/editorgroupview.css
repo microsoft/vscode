@@ -144,7 +144,8 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar {
 	display: none;
-	height: 35px;
+	/* MEMBRANE: thinner editor tabs */
+	height: 30px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.empty.locked > .editor-group-container-toolbar,

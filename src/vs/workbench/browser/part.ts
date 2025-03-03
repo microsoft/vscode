@@ -152,7 +152,8 @@ export abstract class Part extends Component implements ISerializableView {
 
 class PartLayout {
 
-	private static readonly TITLE_HEIGHT = 35;
+	// MEMBRANE: thinner editor tabs (not really needed because we don't show them, but for consistency with css)
+	private static readonly TITLE_HEIGHT = 30;
 
 	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
 

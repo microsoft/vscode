@@ -438,10 +438,13 @@
 
 /* Editor Actions Toolbar */
 
+/* MEMBRANE: These changes allows us to have two toolbars in the editor title for the show aux bar button */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+	display: flex;
+	flex-direction: row;
 	cursor: default;
 	flex: initial;
-	padding: 0 8px 0 4px;
+	padding: 0 0 0 4px;
 	height: var(--editor-group-tab-height);
 }
 
@@ -465,4 +468,21 @@
 
 	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
 	display: none;
+}
+
+/* MEMBRANE: Positioning of button to open the aux bar so that it matches gaze's */
+.monaco-workbench .actions-container[aria-label="Additional Editor actions"] .menu-entry {
+	margin-right: 0px !important;
+}
+.monaco-workbench .actions-container[aria-label="Additional Editor actions"] .codicon-chevron-left {
+	border-radius: 0px;
+	padding: 7px;
+	margin-bottom: 0px;
+}
+.monaco-workbench .actions-container[aria-label="Additional Editor actions"] .disabled {
+	margin-right: 0px !important;
+}
+.monaco-workbench .actions-container[aria-label="Additional Editor actions"] .separator {
+	height: 30px;
+	opacity: 0.25;
 }

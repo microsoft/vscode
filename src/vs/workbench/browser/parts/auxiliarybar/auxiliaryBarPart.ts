@@ -84,7 +84,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		super(
 			Parts.AUXILIARYBAR_PART,
 			{
-				hasTitle: true,
+				// MEMBRANE: hide title area for auxiliary bar
+				hasTitle: false,
 				borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
 			},
 			AuxiliaryBarPart.activePanelSettingsKey,

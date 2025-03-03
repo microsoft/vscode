@@ -56,6 +56,7 @@ import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -149,9 +150,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IPathService private readonly pathService: IPathService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@ICommandService commandService: ICommandService
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, commandService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the

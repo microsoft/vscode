@@ -11,10 +11,11 @@
 	display: flex;
 }
 
-/* MEMBRANE: add back composite title except for Navigator and Logs */
+/* MEMBRANE: add back composite title except for some Membrane views */
 .monaco-workbench .part:has(.content > .composite:not(
 	[id="workbench.view.extension.membraneContainer"],
-	[id="workbench.view.extension.membraneLogs"]
+	[id="workbench.view.extension.membraneLogs"],
+	[id="workbench.view.extension.membraneAuxContainer"]
 )) {
 	height: 100% !important;
 
