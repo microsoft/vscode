@@ -32,7 +32,8 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark  {
 	display: flex;
 	height: 100%;
-	max-width: 290px;
+	/* MEMBRANE: smaller watermark */
+	max-width: 128px;
 	margin: auto;
 	flex-direction: column;
 	align-items: center;
