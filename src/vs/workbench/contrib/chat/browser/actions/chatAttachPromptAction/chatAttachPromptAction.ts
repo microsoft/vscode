@@ -11,8 +11,9 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
-import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt.js';
+import { ISelectPromptOptions, askToSelectPrompt } from './dialogs/askToSelectPrompt/askToSelectPrompt.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 
@@ -50,16 +51,12 @@ export class AttachPromptAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const viewsService = accessor.get(IViewsService);
 		const openerService = accessor.get(IOpenerService);
+		const dialogService = accessor.get(IDialogService);
 		const promptsService = accessor.get(IPromptsService);
 		const quickInputService = accessor.get(IQuickInputService);
 
 		// find all prompt files in the user workspace
 		const promptFiles = await promptsService.listPromptFiles();
-
-		// if no prompt files found, show instructions on how to create one
-		if (promptFiles.length === 0) {
-			return await showHowToCreateLink(openerService, quickInputService);
-		}
 
 		await askToSelectPrompt({
 			...options,
@@ -67,6 +64,7 @@ export class AttachPromptAction extends Action2 {
 			fileService,
 			viewsService,
 			labelService,
+			dialogService,
 			openerService,
 			quickInputService,
 		});
