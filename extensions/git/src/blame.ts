@@ -362,7 +362,7 @@ export class GitBlameController {
 				}
 
 				window.onDidChangeActiveTextEditor(e => this._updateTextEditorBlameInformation(e), this, this._enablementDisposables);
-				window.onDidChangeTextEditorSelection(e => this._updateTextEditorBlameInformation(e.textEditor, true), this, this._enablementDisposables);
+				window.onDidChangeTextEditorSelection(e => this._updateTextEditorBlameInformation(e.textEditor, 'selection'), this, this._enablementDisposables);
 				window.onDidChangeTextEditorDiffInformation(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._enablementDisposables);
 			}
 		} else {
@@ -421,7 +421,7 @@ export class GitBlameController {
 	}
 
 	@throttle
-	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined, showBlameInformationForPositionZero = false): Promise<void> {
+	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined, reason?: 'selection'): Promise<void> {
 		if (textEditor) {
 			if (!textEditor.diffInformation || textEditor !== window.activeTextEditor) {
 				return;
@@ -445,7 +445,7 @@ export class GitBlameController {
 		// Do not show blame information when there is a single selection and it is at the beginning
 		// of the file [0, 0, 0, 0] unless the user explicitly navigates the cursor there. We do this
 		// to avoid showing blame information when the editor is not focused.
-		if (!showBlameInformationForPositionZero && textEditor.selections.length === 1 &&
+		if (reason !== 'selection' && textEditor.selections.length === 1 &&
 			textEditor.selections[0].start.line === 0 && textEditor.selections[0].start.character === 0 &&
 			textEditor.selections[0].end.line === 0 && textEditor.selections[0].end.character === 0) {
 			this.textEditorBlameInformation = undefined;
@@ -470,8 +470,11 @@ export class GitBlameController {
 				// Resource on the right-hand side of the diff editor when viewing a resource from the index.
 				const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
 
-				// Working tree + index diff information is present and it is stale
+				// Working tree + index diff information is present and it is stale. Diff information
+				// may be stale when the selection changes because of a content change and the diff
+				// information is not yet updated.
 				if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
+					this.textEditorBlameInformation = undefined;
 					return;
 				}
 
@@ -484,16 +487,22 @@ export class GitBlameController {
 			// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
 			const diffInformationWorkingTree = getWorkingTreeDiffInformation(textEditor);
 
-			// Working tree diff information is not present or it is stale
+			// Working tree diff information is not present or it is stale. Diff information
+			// may be stale when the selection changes because of a content change and the diff
+			// information is not yet updated.
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
+				this.textEditorBlameInformation = undefined;
 				return;
 			}
 
 			// Working tree + index diff information
 			const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
 
-			// Working tree + index diff information is present and it is stale
+			// Working tree + index diff information is present and it is stale. Diff information
+			// may be stale when the selection changes because of a content change and the diff
+			// information is not yet updated.
 			if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
+				this.textEditorBlameInformation = undefined;
 				return;
 			}
 
@@ -526,7 +535,10 @@ export class GitBlameController {
 		for (const lineNumber of new Set(textEditor.selections.map(s => s.active.line))) {
 			// Check if the line is contained in the working tree diff information
 			if (lineRangesContainLine(workingTreeChanges, lineNumber + 1)) {
-				lineBlameInformation.push({ lineNumber, blameInformation: l10n.t('Not Committed Yet') });
+				if (reason === 'selection') {
+					// Only show the `Not Committed Yet` message upon selection change due to navigation
+					lineBlameInformation.push({ lineNumber, blameInformation: l10n.t('Not Committed Yet') });
+				}
 				continue;
 			}
 
