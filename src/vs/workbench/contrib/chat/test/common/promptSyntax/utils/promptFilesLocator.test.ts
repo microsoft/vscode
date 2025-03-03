@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { createURI } from '../testUtils/createUri.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
@@ -83,7 +83,7 @@ suite('PromptFilesLocator', () => {
 		initService.stub(IConfigurationService, mockConfigService(configValue));
 
 		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
-			const uri = createURI(path);
+			const uri = URI.file(path);
 
 			return mockObject<IWorkspaceFolder>({
 				uri,
@@ -110,32 +110,6 @@ suite('PromptFilesLocator', () => {
 				);
 			});
 
-			test('• object config value', async () => {
-				const locator = await createPromptsLocator({
-					'/Users/legomushroom/repos/prompts/': true,
-					'/tmp/prompts/': false,
-				}, EMPTY_WORKSPACE, []);
-
-				assert.deepStrictEqual(
-					await locator.listFiles([]),
-					[],
-					'No prompts must be found.',
-				);
-			});
-
-			test('• array config value', async () => {
-				const locator = await createPromptsLocator([
-					'relative/path/to/prompts/',
-					'/abs/path',
-				], EMPTY_WORKSPACE, []);
-
-				assert.deepStrictEqual(
-					await locator.listFiles([]),
-					[],
-					'No prompts must be found.',
-				);
-			});
-
 			test('• null config value', async () => {
 				const locator = await createPromptsLocator(null, EMPTY_WORKSPACE, []);
 
@@ -146,8 +120,11 @@ suite('PromptFilesLocator', () => {
 				);
 			});
 
-			test('• string config value', async () => {
-				const locator = await createPromptsLocator('/etc/hosts/prompts', EMPTY_WORKSPACE, []);
+			test('• object config value', async () => {
+				const locator = await createPromptsLocator({
+					[URI.file('/Users/legomushroom/repos/prompts/').path]: true,
+					[URI.file('/tmp/prompts/').path]: false,
+				}, EMPTY_WORKSPACE, []);
 
 				assert.deepStrictEqual(
 					await locator.listFiles([]),
@@ -161,15 +138,15 @@ suite('PromptFilesLocator', () => {
 			test('• object config value', async () => {
 				const locator = await createPromptsLocator(
 					{
-						'/Users/legomushroom/repos/prompts': true,
-						'/tmp/prompts/': true,
-						'/absolute/path/prompts': false,
-						'.copilot/prompts': true,
+						[URI.file('/Users/legomushroom/repos/prompts').path]: true,
+						[URI.file('/tmp/prompts/').path]: true,
+						[URI.file('/absolute/path/prompts').path]: false,
+						['.copilot/prompts']: true,
 					},
 					EMPTY_WORKSPACE,
 					[
 						{
-							name: '/Users/legomushroom/repos/prompts',
+							name: URI.file('/Users/legomushroom/repos/prompts').path,
 							children: [
 								{
 									name: 'test.prompt.md',
@@ -182,7 +159,7 @@ suite('PromptFilesLocator', () => {
 							],
 						},
 						{
-							name: '/tmp/prompts',
+							name: URI.file('/tmp/prompts').path,
 							children: [
 								{
 									name: 'translate.to-rust.prompt.md',
@@ -191,7 +168,7 @@ suite('PromptFilesLocator', () => {
 							],
 						},
 						{
-							name: '/absolute/path/prompts',
+							name: URI.file('/absolute/path/prompts').path,
 							children: [
 								{
 									name: 'some-prompt-file.prompt.md',
@@ -204,9 +181,9 @@ suite('PromptFilesLocator', () => {
 				assert.deepStrictEqual(
 					await locator.listFiles([]),
 					[
-						createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
-						createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
-						createURI('/tmp/prompts/translate.to-rust.prompt.md'),
+						URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+						URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+						URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
 					],
 					'Must find correct prompts.',
 				);
@@ -288,11 +265,11 @@ suite('PromptFilesLocator', () => {
 					assert.deepStrictEqual(
 						await locator.listFiles([]),
 						[
-							createURI('/Users/legomushroom/repos/vscode/.github/prompts/my.prompt.md'),
-							createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
-							createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
-							createURI('/tmp/prompts/translate.to-rust.prompt.md'),
-							createURI('/Users/legomushroom/repos/vscode/.copilot/prompts/default.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/.github/prompts/my.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+							URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/.copilot/prompts/default.prompt.md'),
 						],
 						'Must find correct prompts.',
 					);
@@ -374,10 +351,10 @@ suite('PromptFilesLocator', () => {
 					assert.deepStrictEqual(
 						await locator.listFiles([]),
 						[
-							createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
-							createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
-							createURI('/tmp/prompts/translate.to-rust.prompt.md'),
-							createURI('/Users/legomushroom/repos/vscode/.copilot/prompts/default.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+							URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/.copilot/prompts/default.prompt.md'),
 						],
 						'Must find correct prompts.',
 					);
@@ -498,11 +475,11 @@ suite('PromptFilesLocator', () => {
 					assert.deepStrictEqual(
 						await locator.listFiles([]),
 						[
-							createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
-							createURI('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
-							createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
-							createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
-							createURI('/tmp/prompts/translate.to-rust.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
+							URI.file('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+							URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
 						],
 						'Must find correct prompts.',
 					);
@@ -618,13 +595,13 @@ suite('PromptFilesLocator', () => {
 					assert.deepStrictEqual(
 						await locator.listFiles([]),
 						[
-							createURI('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
-							createURI('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
-							createURI('/var/shared/prompts/.github/prompts/prompt-name.prompt.md'),
-							createURI('/var/shared/prompts/.github/prompts/name-of-the-prompt.prompt.md'),
-							createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
-							createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
-							createURI('/tmp/prompts/translate.to-rust.prompt.md'),
+							URI.file('/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md'),
+							URI.file('/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md'),
+							URI.file('/var/shared/prompts/.github/prompts/prompt-name.prompt.md'),
+							URI.file('/var/shared/prompts/.github/prompts/name-of-the-prompt.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+							URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
 						],
 						'Must find correct prompts.',
 					);
@@ -741,9 +718,9 @@ suite('PromptFilesLocator', () => {
 					assert.deepStrictEqual(
 						await locator.listFiles([]),
 						[
-							createURI('/Users/legomushroom/repos/prompts/test.prompt.md'),
-							createURI('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
-							createURI('/tmp/prompts/translate.to-rust.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/test.prompt.md'),
+							URI.file('/Users/legomushroom/repos/prompts/refactor-tests.prompt.md'),
+							URI.file('/tmp/prompts/translate.to-rust.prompt.md'),
 						],
 						'Must find correct prompts.',
 					);
