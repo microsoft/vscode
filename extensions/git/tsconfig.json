@@ -25,7 +25,6 @@
 		"../../src/vscode-dts/vscode.proposed.statusBarItemTooltip.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputMultiDiff.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputTextMerge.d.ts",
-		"../../src/vscode-dts/vscode.proposed.textDocumentEncoding.d.ts",
 		"../../src/vscode-dts/vscode.proposed.textEditorDiffInformation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.timeline.d.ts",
 		"../types/lib.textEncoder.d.ts"
