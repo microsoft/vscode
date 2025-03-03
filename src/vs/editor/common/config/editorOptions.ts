@@ -770,11 +770,6 @@ export interface IEditorOptions {
 	experimentalEditContextEnabled?: boolean;
 
 	/**
-	 * Sets whether the new experimental edit context should be used instead of the text area when the accessibility mode is enabled.
-	 */
-	experimentalEditContextAccessibilityModeEnabled?: boolean;
-
-	/**
 	 * Controls support for changing how content is pasted into the editor.
 	 */
 	pasteAs?: IPasteAsOptions;
@@ -1949,10 +1944,7 @@ class EffectiveExperimentalEditContextEnabled extends ComputedEditorOption<Edito
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): boolean {
 		const editContextSupported = typeof (globalThis as any).EditContext === 'function';
-		return editContextSupported && (
-			(env.accessibilitySupport !== AccessibilitySupport.Enabled && options.get(EditorOption.experimentalEditContextEnabled))
-			|| (env.accessibilitySupport === AccessibilitySupport.Enabled && options.get(EditorOption.experimentalEditContextEnabled) && options.get(EditorOption.experimentalEditContextAccessibilityModeEnabled))
-		);
+		return editContextSupported && options.get(EditorOption.experimentalEditContextEnabled);
 	}
 }
 
@@ -5531,7 +5523,6 @@ export const enum EditorOption {
 	dragAndDrop,
 	dropIntoEditor,
 	experimentalEditContextEnabled,
-	experimentalEditContextAccessibilityModeEnabled,
 	emptySelectionClipboard,
 	experimentalGpuAcceleration,
 	experimentalWhitespaceRendering,
@@ -5918,13 +5909,6 @@ export const EditorOptions = {
 		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', product.quality !== 'stable',
 		{
 			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
-			included: platform.isChrome || platform.isEdge || platform.isNative
-		}
-	)),
-	experimentalEditContextAccessibilityModeEnabled: register(new EditorBooleanOption(
-		EditorOption.experimentalEditContextAccessibilityModeEnabled, 'experimentalEditContextAccessibilityModeEnabled', false,
-		{
-			description: nls.localize('experimentalEditContextAccessibilityModeEnabled', "Sets whether the new experimental edit context should be used instead of the text area when the accessibility mode is enabled."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
 		}
 	)),
