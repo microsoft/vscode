@@ -229,6 +229,7 @@
 			</array>
 		</dict>
 	</dict>
+
 	<key>scopeName</key>
 	<string>source.js.regexp</string>
 	<key>uuid</key>
