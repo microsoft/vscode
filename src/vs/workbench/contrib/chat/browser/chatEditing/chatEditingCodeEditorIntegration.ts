@@ -230,13 +230,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 				actualOptions ??= {
 					readOnly: this._editor.getOption(EditorOption.readOnly),
-					renderValidationDecorations: this._editor.getOption(EditorOption.renderValidationDecorations),
 					stickyScroll: this._editor.getOption(EditorOption.stickyScroll)
 				};
 
 				this._editor.updateOptions({
 					readOnly: true,
-					renderValidationDecorations: 'off',
 					stickyScroll: { enabled: false }
 				});
 			} else {
