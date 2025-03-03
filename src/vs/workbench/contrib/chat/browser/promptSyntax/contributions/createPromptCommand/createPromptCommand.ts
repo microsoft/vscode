@@ -14,7 +14,6 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
-import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IPromptPath, IPromptsService } from '../../../../common/promptSyntax/service/types.js';
