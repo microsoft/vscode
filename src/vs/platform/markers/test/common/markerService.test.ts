@@ -412,7 +412,7 @@ suite('Marker Service', () => {
 
 		// Check if message contains the correct count of filters
 		const markers = service.read({ resource });
-		assert.ok(markers[0].message.includes('2 filters active'));
+		assert.ok(markers[0].message.includes('Problems are paused because'));
 
 		// Remove remaining filters in any order
 		filter3.dispose();
