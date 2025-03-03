@@ -7,7 +7,6 @@ import assert from 'assert';
 import { createURI } from '../testUtils/createUri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename } from '../../../../../../../base/common/resources.js';
-import { isWindows } from '../../../../../../../base/common/platform.js';
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
@@ -57,10 +56,6 @@ const mockWorkspaceService = (folders: IWorkspaceFolder[]): IWorkspaceContextSer
 
 suite('PromptFilesLocator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	if (isWindows) {
-		return;
-	}
 
 	let initService: TestInstantiationService;
 	setup(async () => {
