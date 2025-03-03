@@ -208,6 +208,7 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.modelSelections[0] ?? new Selection(1, 1, 1, 1);
 		this._screenReaderSupport.onCursorStateChanged(e);
+		this._updateEditContext();
 		return true;
 	}
 
