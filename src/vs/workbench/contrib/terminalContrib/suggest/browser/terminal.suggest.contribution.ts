@@ -57,7 +57,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService
 	) {
 		super();
 		this.add(toDisposable(() => {
