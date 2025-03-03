@@ -34,7 +34,6 @@ export async function handleButtonClick(
 	const { item, button } = context;
 	const { value } = item;
 
-
 	// `edit` button was pressed, open the prompt file in editor
 	if (button === EDIT_BUTTON) {
 		return await openerService.open(value);
@@ -57,6 +56,10 @@ export async function handleButtonClick(
 			`'${value.fsPath}' points to a folder.`,
 		);
 
+		// don't close the main prompt selection dialog by the confirmation dialog
+		const previousIgnoreFocusOut = quickPick.ignoreFocusOut;
+		quickPick.ignoreFocusOut = true;
+
 		const filename = getCleanPromptName(value);
 		const { confirmed } = await dialogService.confirm({
 			message: localize(
@@ -66,12 +69,18 @@ export async function handleButtonClick(
 			),
 		});
 
+		// restore the previous value of the `ignoreFocusOut` property
+		quickPick.ignoreFocusOut = previousIgnoreFocusOut;
+
+		// if prompt deletion was not confirmed, nothing to do
 		if (!confirmed) {
 			return;
 		}
 
+		// prompt deletion was comfirmed so delete the prompt file
 		await fileService.del(value);
 
+		// remove the deleted prompt from the selection dialog list
 		let removedIndex = -1;
 		quickPick.items = quickPick.items.filter((option, index) => {
 			if (option === item) {
@@ -83,14 +92,18 @@ export async function handleButtonClick(
 			return true;
 		});
 
+		// if the deleted item was active item, find a new item to set as active
 		if (activeItem && (activeItem === item)) {
 			assert(
 				removedIndex >= 0,
 				'Removed item index must be a valid index.',
 			);
 
+			// we set the previous item as new active, or the next item
+			// if removed prompt item was in the beginning of the list
 			const newActiveItemIndex = Math.max(removedIndex - 1, 0);
 			const newActiveItem: WithUriValue<IQuickPickItem> | undefined = quickPick.items[newActiveItemIndex];
+
 			quickPick.activeItems = newActiveItem ? [newActiveItem] : [];
 		}
 
