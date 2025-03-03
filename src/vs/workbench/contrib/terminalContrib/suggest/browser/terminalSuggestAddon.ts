@@ -426,7 +426,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 
 			// If the cursor moved to the left
-			if (this._mostRecentPromptInputState && promptInputState.cursorIndex < this._mostRecentPromptInputState.cursorIndex) {
+			if (this._mostRecentPromptInputState && promptInputState.cursorIndex < this._mostRecentPromptInputState.cursorIndex && promptInputState.cursorIndex > 0) {
 				// Backspace or left past a trigger character
 				if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
 					const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
