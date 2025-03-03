@@ -9,7 +9,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { ICellDto2, IOutputItemDto, NotebookData, NotebookSetting, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellEditOperation, IOutputItemDto, NotebookData, NotebookSetting, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 
 const BufferMarker = 'ArrayBuffer-4f56482b-5a03-49ba-8356-210d3b0c1c3d';
 
@@ -38,6 +38,14 @@ export function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): 
 	try {
 		const { transientOptions, data } = deserializeSnapshot(snapshot);
 		notebook.restoreSnapshot(data, transientOptions);
+		const edits: ICellEditOperation[] = [];
+		data.cells.forEach((cell, index) => {
+			const cellId = cell.internalMetadata?.cellId;
+			if (cellId) {
+				edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { cellId } });
+			}
+		});
+		notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 	}
 	catch (ex) {
 		console.error('Error restoring Notebook snapshot', ex);

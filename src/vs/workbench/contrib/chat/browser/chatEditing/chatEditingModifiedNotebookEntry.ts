@@ -123,14 +123,15 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			} else {
 				// Both models are the same, ensure the cell ids are the same, this way we get a perfect diffing.
 				// No need to generate edits for this.
+				const edits: ICellEditOperation[] = [];
 				notebook.cells.forEach((cell, index) => {
-					const cellId = generateUuid();
-					cell.internalMetadata = cell.internalMetadata || {};
-					cell.internalMetadata.cellId = cellId;
-					const originalCell = originalRef.object.notebook.cells[index];
-					originalCell.internalMetadata = originalCell.internalMetadata || {};
-					originalCell.internalMetadata.cellId = cellId;
+					const cellId = cell.internalMetadata?.cellId;
+					if (cellId) {
+						edits.push({ editType: CellEditType.PartialInternalMetadata, index, internalMetadata: { cellId } });
+					}
 				});
+				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+
 			}
 			initialContent = initialContent || createSnapshot(originalRef.object.notebook, options.serializer.options, configurationServie);
 			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
@@ -188,11 +189,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.originalURI = this.originalModel.uri;
 		this.initialContent = initialContent;
 		this._maxModifiedLineNumbers.set(this.modifiedModel.cells.map(() => 0), undefined);
-		this.computeDiffAndInitializeModelsFromDiff();
+		this.initializeModelsFromDiff();
 		this._register(this.modifiedModel.onDidChangeContent(this.mirrorNotebookEdits, this));
 	}
 
-	initializeModelsFromDiff(cellsDiffInfo: CellDiffInfo[]) {
+	initializeModelsFromDiffImpl(cellsDiffInfo: CellDiffInfo[]) {
+		this.cellEntryMap.forEach(entry => entry.dispose());
+		this.cellEntryMap.clear();
 		const diffs = cellsDiffInfo.map((cellDiff, i) => {
 			switch (cellDiff.type) {
 				case 'delete':
@@ -208,17 +211,22 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this._changesCount.set(countChanges(diffs), undefined);
 	}
 
-	initializeUnchangedModels() {
-		const cellsDiffInfo: CellDiffInfo[] = this.modifiedModel.cells.map((_, index) => {
-			return { type: 'unchanged', originalCellIndex: index, modifiedCellIndex: index } satisfies CellDiffInfo;
-		});
-		this.initializeModelsFromDiff(cellsDiffInfo);
-	}
-
-	async computeDiffAndInitializeModelsFromDiff() {
+	private computeRequestId: number = 0;
+	async initializeModelsFromDiff() {
+		if (this._areOriginalAndModifiedIdenticalImpl()) {
+			const cellsDiffInfo: CellDiffInfo[] = this.modifiedModel.cells.map((_, index) => {
+				return { type: 'unchanged', originalCellIndex: index, modifiedCellIndex: index } satisfies CellDiffInfo;
+			});
+			this.initializeModelsFromDiffImpl(cellsDiffInfo);
+			return;
+		}
+		const id = ++this.computeRequestId;
 		const cellsDiffInfo: CellDiffInfo[] = [];
 		try {
 			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.originalURI, this.modifiedURI);
+			if (id !== this.computeRequestId) {
+				return;
+			}
 			const result = computeDiff(this.originalModel, this.modifiedModel, notebookDiff);
 			if (result.cellDiffInfo.length) {
 				cellsDiffInfo.push(...result.cellDiffInfo);
@@ -226,7 +234,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		} catch (ex) {
 			this.loggingService.error('Notebook Chat', 'Error computing diff:\n' + ex);
 		}
-		this.initializeModelsFromDiff(cellsDiffInfo);
+		this.initializeModelsFromDiffImpl(cellsDiffInfo);
 	}
 	updateCellDiffInfo(cellsDiffInfo: ICellDiffInfo[], transcation: ITransaction | undefined) {
 		this._cellsDiffInfo.set(sortCellChanges(cellsDiffInfo), transcation);
@@ -257,6 +265,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 		if (currentState === WorkingSetEntryState.Modified && didResetToOriginalContent) {
 			this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+			this.updateCellDiffInfo([], undefined);
 			return;
 		}
 
@@ -389,12 +398,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
-		await this._applyEdits(async () => {
-			const snapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
-			restoreSnapshot(this.originalModel, snapshot);
-		});
+		const snapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
+		restoreSnapshot(this.originalModel, snapshot);
 		this.updateCellDiffInfo([], tx);
-		this.initializeUnchangedModels();
+		this.initializeModelsFromDiff();
 		await this._collapse(tx);
 	}
 
@@ -416,7 +423,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					await this.modifiedResourceRef.object.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
 				}
 			});
-			this.initializeUnchangedModels();
+			this.initializeModelsFromDiff();
 			await this._collapse(tx);
 		}
 	}
@@ -446,7 +453,12 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
-		return createSnapshot(this.originalModel, this.transientOptions, this.configurationService) === createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
+		return this._areOriginalAndModifiedIdenticalImpl();
+	}
+
+	private _areOriginalAndModifiedIdenticalImpl(): boolean {
+		const snapshot = createSnapshot(this.originalModel, this.transientOptions, this.configurationService);
+		return new SnapshotComparer(snapshot).isEqual(this.modifiedModel);
 	}
 
 	override async acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
@@ -860,12 +872,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this._stateObs.set(snapshot.state, undefined);
 		restoreSnapshot(this.originalModel, snapshot.original);
 		this.restoreSnapshotInModifiedModel(snapshot.current);
-		this.computeDiffAndInitializeModelsFromDiff();
+		this.updateCellDiffInfo([], undefined);
+		this.initializeModelsFromDiff();
 	}
 
 	override resetToInitialContent(): void {
 		this.restoreSnapshotInModifiedModel(this.initialContent);
-		this.computeDiffAndInitializeModelsFromDiff();
+		this.initializeModelsFromDiff();
 	}
 
 	private restoreSnapshotInModifiedModel(snapshot: string) {
@@ -1013,7 +1026,7 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService
 	) {
 		super();
-		this.initialContent = this.modifiedModel.getValue();
+		this.initialContent = this.originalModel.getValue();
 		this._register(disposables);
 		this.changesCount = this._diffInfo.map(diff => diff.changes.length);
 		this._register(this.modifiedModel.onDidChangeContent(e => {
