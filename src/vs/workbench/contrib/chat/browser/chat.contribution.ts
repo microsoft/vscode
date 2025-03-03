@@ -78,10 +78,9 @@ import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDeco
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
-import { ChatQuotasService, IChatQuotasService } from '../common/chatQuotasService.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
-import { ChatEntitlementsService, ChatSetupContribution } from './chatSetup.js';
-import { ChatEntitlement, IChatEntitlementsService } from '../common/chatEntitlementsService.js';
+import { ChatSetupContribution } from './chatSetup.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidgetService } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
@@ -310,7 +309,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatEntitlementsService private readonly entitlementService: IChatEntitlementsService,
+		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -547,8 +546,7 @@ registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delay
 registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
-registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);
-registerSingleton(IChatEntitlementsService, ChatEntitlementsService, InstantiationType.Delayed);
+registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);

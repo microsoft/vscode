@@ -37,7 +37,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
@@ -193,9 +193,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		@IFileService fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IModelService private readonly modelService: IModelService
+		@IModelService private readonly modelService: IModelService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
-		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, instantiationService);
+		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, undoRedoService, instantiationService);
 		this._register(modifiedResourceRef);
 		this._register(originalResourceRef);
 		this.modifiedModel = modifiedResourceRef.object.notebook;
@@ -333,6 +334,15 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	protected override _resetEditsState(tx: ITransaction): void {
 		super._resetEditsState(tx);
 		this.cellEntryMap.forEach(entry => !entry.disposed && entry.clearCurrentEditLineDecoration());
+	}
+
+	protected override _createUndoRedoElement(_response: IChatResponseModel): IUndoRedoElement | undefined {
+		// TODO@amunger
+		return undefined;
+	}
+
+	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
+		return createSnapshot(this.originalModel, this.transientOptions, this.configurationService) === createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 	}
 
 	override async acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
