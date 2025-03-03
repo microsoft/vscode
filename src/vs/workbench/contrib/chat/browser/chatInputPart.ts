@@ -991,6 +991,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const attachments = [...this.attachmentModel.attachments.entries()];
 		dom.setVisibility(Boolean(attachments.length) || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty()) || Boolean(this.implicitContext?.value) || !this.instructionAttachmentsPart.empty, this.attachmentsContainer);
+		dom.setVisibility(Boolean(attachments.length), this.attachedContextContainer);
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
