@@ -398,9 +398,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	protected override async _doAccept(tx: ITransaction | undefined): Promise<void> {
+		this.updateCellDiffInfo([], tx);
 		const snapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		restoreSnapshot(this.originalModel, snapshot);
-		this.updateCellDiffInfo([], tx);
 		this.initializeModelsFromDiff();
 		await this._collapse(tx);
 	}
@@ -869,14 +869,15 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	override restoreFromSnapshot(snapshot: ISnapshotEntry): void {
+		this.updateCellDiffInfo([], undefined);
 		this._stateObs.set(snapshot.state, undefined);
 		restoreSnapshot(this.originalModel, snapshot.original);
 		this.restoreSnapshotInModifiedModel(snapshot.current);
-		this.updateCellDiffInfo([], undefined);
 		this.initializeModelsFromDiff();
 	}
 
 	override resetToInitialContent(): void {
+		this.updateCellDiffInfo([], undefined);
 		this.restoreSnapshotInModifiedModel(this.initialContent);
 		this.initializeModelsFromDiff();
 	}
