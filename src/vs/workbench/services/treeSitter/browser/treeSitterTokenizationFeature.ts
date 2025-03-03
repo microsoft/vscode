@@ -259,12 +259,11 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					newRange: range,
 					newRangeStartOffset,
 					newRangeEndOffset,
-					oldRangeLength: newRangeEndOffset - newRangeStartOffset
 				};
 			}
 		} else {
 			const valueLength = textModel.getValueLength();
-			rangeChanges = [{ newRange: new Range(1, 1, maxLine, textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength, oldRangeLength: valueLength }];
+			rangeChanges = [{ newRange: new Range(1, 1, maxLine, textModel.getLineMaxColumn(maxLine)), newRangeStartOffset: 0, newRangeEndOffset: valueLength }];
 		}
 		return this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
 	}
@@ -377,8 +376,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			rangeChanges[i] = {
 				newRange: range.range,
 				newRangeStartOffset: range.startOffset,
-				newRangeEndOffset: range.endOffset,
-				oldRangeLength: range.endOffset - range.startOffset
+				newRangeEndOffset: range.endOffset
 			};
 		}
 		this._handleTreeUpdate({ ranges: rangeChanges, textModel, versionId });
@@ -447,8 +445,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 						ranges: [{
 							newRange: modelRange,
 							newRangeStartOffset: 0,
-							newRangeEndOffset: model.getValueLength(),
-							oldRangeLength: model.getValueLength()
+							newRangeEndOffset: model.getValueLength()
 						}],
 						textModel: model,
 						versionId: model.getVersionId()
