@@ -260,7 +260,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			return;
 		}
 
-		if (e.rawEvents.length) {
+		if (!e.rawEvents.length) {
 			return;
 		}
 
@@ -318,7 +318,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 						});
 					});
 					this.disposeDeletedCellEntries();
-					this.computeDiffAndInitializeModelsFromDiff();
 					break;
 				}
 				case NotebookCellsChangeType.ChangeCellLanguage: {
