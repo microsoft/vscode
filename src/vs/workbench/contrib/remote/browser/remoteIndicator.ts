@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MenuId, IMenuService, MenuItemAction, MenuRegistry, registerAction2, Action2, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -474,6 +474,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private updateRemoteStatusIndicator(): void {
+		const remoteKind = this.networkState === 'offline' ? 'offline' : 'remote';
 
 		// Remote Indicator: show if provided via options, e.g. by the web embedder API
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
@@ -483,7 +484,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				remoteIndicatorLabel = `$(remote) ${remoteIndicatorLabel}`; // ensure the indicator has a codicon
 			}
 
-			this.renderRemoteStatusIndicator(truncate(remoteIndicatorLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
+			this.renderRemoteStatusIndicator(truncate(remoteIndicatorLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteKind, remoteIndicator.tooltip, remoteIndicator.command);
 			return;
 		}
 
@@ -492,13 +493,13 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
-					this.renderRemoteStatusIndicator(nls.localize('host.open', "Opening Remote..."), nls.localize('host.open', "Opening Remote..."), undefined, true /* progress */);
+					this.renderRemoteStatusIndicator(nls.localize('host.open', "Opening Remote..."), remoteKind, nls.localize('host.open', "Opening Remote..."), undefined, true /* progress */);
 					break;
 				case 'reconnecting':
-					this.renderRemoteStatusIndicator(`${nls.localize('host.reconnecting', "Reconnecting to {0}...", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, undefined, undefined, true /* progress */);
+					this.renderRemoteStatusIndicator(`${nls.localize('host.reconnecting', "Reconnecting to {0}...", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, remoteKind, undefined, undefined, true /* progress */);
 					break;
 				case 'disconnected':
-					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`);
+					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, remoteKind);
 					break;
 				default: {
 					const tooltip = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
@@ -508,7 +509,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					} else {
 						tooltip.appendText(nls.localize({ key: 'host.tooltip', comment: ['{0} is a remote host name, e.g. Dev Container'] }, "Editing on {0}", hostLabel));
 					}
-					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
+					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, remoteKind, tooltip);
 				}
 			}
 			return;
@@ -534,21 +535,21 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`
 					));
 				}
-				this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
+				this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, remoteKind, tooltip);
 				return;
 			}
 		}
 
-		this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
+		this.renderRemoteStatusIndicator(`$(remote)`, undefined /* explicitly do not render remote-kind unless hitting one of the above cases */, nls.localize('noHost.tooltip', "Open a Remote Window"));
 		return;
 	}
 
-	private renderRemoteStatusIndicator(initialText: string, initialTooltip?: string | MarkdownString, command?: string, showProgress?: boolean): void {
+	private renderRemoteStatusIndicator(initialText: string, kind: StatusbarEntryKind | undefined, initialTooltip?: string | MarkdownString, command?: string, showProgress?: boolean): void {
 		const { text, tooltip, ariaLabel } = this.withNetworkStatus(initialText, initialTooltip, showProgress);
 
 		const properties: IStatusbarEntry = {
 			name: nls.localize('remoteHost', "Remote Host"),
-			kind: this.networkState === 'offline' ? 'offline' : 'remote',
+			kind,
 			ariaLabel,
 			text,
 			showProgress,
