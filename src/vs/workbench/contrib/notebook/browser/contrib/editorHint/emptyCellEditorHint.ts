@@ -75,7 +75,7 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 		}
 
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-		if (!activeEditor || !activeEditor.isDisposed) {
+		if (!activeEditor || activeEditor.isDisposed) {
 			return false;
 		}
 
