@@ -592,7 +592,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			undo: async (changes: DetailedLineRangeMapping) => {
 				const [modifiedCellModel, originalCellModel] = await Promise.all([modifiedCellModelPromise, originalCellModelPromise]);
 				const entry = this.getOrCreateModifiedTextFileEntryForCell(modifiedCell, modifiedCellModel, originalCellModel);
-				return entry ? entry.keep(changes) : false;
+				return entry ? entry.undo(changes) : false;
 			},
 			modifiedModel: new ObservablePromise(modifiedCellModelPromise),
 			originalModel: new ObservablePromise(originalCellModelPromise),
@@ -912,13 +912,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				// Not possible.
 				return;
 			}
+			entry.diff.set(cellEntry.diffInfo.read(r), undefined);
 			diffs.splice(diffs.indexOf(entry), 1, { ...entry });
 			const maxModifiedLineNumber = cellEntry.maxModifiedLineNumber.read(r);
 			const maxModifiedLineNumbers = this._maxModifiedLineNumbers.get().slice();
 			maxModifiedLineNumbers[index] = maxModifiedLineNumber;
 
 			transaction(tx => {
-				entry.diff.set(cellEntry.diffInfo.read(r), tx);
 				this.updateCellDiffInfo(diffs, tx);
 				this._maxModifiedLineNumbers.set(maxModifiedLineNumbers, tx);
 			});

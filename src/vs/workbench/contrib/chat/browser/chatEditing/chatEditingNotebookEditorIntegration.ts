@@ -127,7 +127,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		this._register(autorun(r => {
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
-			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.read(r).identical);
+			const changes = sortedCellChanges.filter(c => c.type !== 'modified' && c.type !== 'delete' && !c.diff.read(r).identical);
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
@@ -143,8 +143,8 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 				}
 				const cell = notebookModel.cells[change.modifiedCellIndex];
 				const editor = notebookEditor.codeEditors.find(([vm,]) => vm.handle === notebookModel.cells[change.modifiedCellIndex].handle)?.[1];
-				const originalModel = change.modifiedModel.promiseResult.read(r)?.data;
-				const modifiedModel = change.originalModel.promiseResult.read(r)?.data;
+				const modifiedModel = change.modifiedModel.promiseResult.read(r)?.data;
+				const originalModel = change.originalModel.promiseResult.read(r)?.data;
 				if (!editor || !cell || !originalModel || !modifiedModel) {
 					return;
 				}
