@@ -69,6 +69,41 @@ function isResourceSchemeSupported(uri: Uri): boolean {
 	return uri.scheme === 'file' || isGitUri(uri);
 }
 
+function isResourceBlameInformationEqual(a: ResourceBlameInformation | undefined, b: ResourceBlameInformation | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (!a || !b ||
+		a.resource.toString() !== b.resource.toString() ||
+		a.blameInformation.length !== b.blameInformation.length) {
+		return false;
+	}
+
+	for (let index = 0; index < a.blameInformation.length; index++) {
+		if (a.blameInformation[index].lineNumber !== b.blameInformation[index].lineNumber) {
+			return false;
+		}
+
+		const aBlameInformation = a.blameInformation[index].blameInformation;
+		const bBlameInformation = b.blameInformation[index].blameInformation;
+
+		if (typeof aBlameInformation === 'string' && typeof bBlameInformation === 'string') {
+			if (aBlameInformation !== bBlameInformation) {
+				return false;
+			}
+		} else if (typeof aBlameInformation !== 'string' && typeof bBlameInformation !== 'string') {
+			if (aBlameInformation.hash !== bBlameInformation.hash) {
+				return false;
+			}
+		} else {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 type BlameInformationTemplateTokens = {
 	readonly hash: string;
 	readonly hashShort: string;
@@ -78,6 +113,11 @@ type BlameInformationTemplateTokens = {
 	readonly authorDate: string;
 	readonly authorDateAgo: string;
 };
+
+interface ResourceBlameInformation {
+	readonly resource: Uri;
+	readonly blameInformation: readonly LineBlameInformation[];
+}
 
 interface LineBlameInformation {
 	readonly lineNumber: number;
@@ -116,11 +156,15 @@ export class GitBlameController {
 	private readonly _onDidChangeBlameInformation = new EventEmitter<void>();
 	public readonly onDidChangeBlameInformation = this._onDidChangeBlameInformation.event;
 
-	private _textEditorBlameInformation: LineBlameInformation[] | undefined;
-	get textEditorBlameInformation(): readonly LineBlameInformation[] | undefined {
+	private _textEditorBlameInformation: ResourceBlameInformation | undefined;
+	get textEditorBlameInformation(): ResourceBlameInformation | undefined {
 		return this._textEditorBlameInformation;
 	}
-	private set textEditorBlameInformation(blameInformation: LineBlameInformation[] | undefined) {
+	private set textEditorBlameInformation(blameInformation: ResourceBlameInformation | undefined) {
+		if (isResourceBlameInformationEqual(this._textEditorBlameInformation, blameInformation)) {
+			return;
+		}
+
 		this._textEditorBlameInformation = blameInformation;
 		this._onDidChangeBlameInformation.fire();
 	}
@@ -505,7 +549,10 @@ export class GitBlameController {
 			}
 		}
 
-		this.textEditorBlameInformation = lineBlameInformation;
+		this.textEditorBlameInformation = {
+			resource: textEditor.document.uri,
+			blameInformation: lineBlameInformation
+		};
 	}
 
 	dispose() {
@@ -555,7 +602,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 		}
 
 		// Get blame information
-		const blameInformation = this._controller.textEditorBlameInformation;
+		const blameInformation = this._controller.textEditorBlameInformation?.blameInformation;
 		const lineBlameInformation = blameInformation?.find(blame => blame.lineNumber === position.line);
 
 		if (!lineBlameInformation || typeof lineBlameInformation.blameInformation === 'string') {
@@ -601,8 +648,8 @@ class GitBlameEditorDecoration implements HoverProvider {
 		}
 
 		// Get blame information
-		const blameInformation = this._controller.textEditorBlameInformation;
-		if (!blameInformation) {
+		const blameInformation = this._controller.textEditorBlameInformation?.blameInformation;
+		if (!blameInformation || blameInformation.length === 0) {
 			textEditor.setDecorations(this._decoration, []);
 			return;
 		}
@@ -680,7 +727,7 @@ class GitBlameStatusBarItem {
 			return;
 		}
 
-		const blameInformation = this._controller.textEditorBlameInformation;
+		const blameInformation = this._controller.textEditorBlameInformation?.blameInformation;
 		if (!blameInformation || blameInformation.length === 0) {
 			this._statusBarItem.hide();
 			return;
