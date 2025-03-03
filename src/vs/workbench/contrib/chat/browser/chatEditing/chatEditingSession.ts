@@ -1051,7 +1051,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		try {
 			// If a notebook isn't open, then use the old synchronization approach.
 			if (this._notebookService.hasSupportedNotebooks(notebookUri) && (this._notebookService.getNotebookTextModel(notebookUri) || ChatEditingModifiedNotebookEntry.canHandleSnapshotContent(initialContent))) {
-				return ChatEditingModifiedNotebookEntry.create(notebookUri, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
+				return await ChatEditingModifiedNotebookEntry.create(notebookUri, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
 			} else {
 				const ref = await this._textModelService.createModelReference(resource);
 				return this._instantiationService.createInstance(ChatEditingModifiedDocumentEntry, ref, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent);
@@ -1064,7 +1064,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
 			this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
 			if (this._notebookService.hasSupportedNotebooks(notebookUri)) {
-				return ChatEditingModifiedNotebookEntry.create(resource, multiDiffEntryDelegate, telemetryInfo, chatKind, initialContent, this._instantiationService);
+				return await ChatEditingModifiedNotebookEntry.create(resource, multiDiffEntryDelegate, telemetryInfo, ChatEditKind.Created, initialContent, this._instantiationService);
 			} else {
 				return this._createModifiedFileEntry(resource, telemetryInfo, true, initialContent);
 			}
