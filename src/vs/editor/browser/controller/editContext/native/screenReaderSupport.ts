@@ -27,7 +27,6 @@ export class ScreenReaderSupport {
 	private _contentLeft: number = 1;
 	private _contentWidth: number = 1;
 	private _contentHeight: number = 1;
-	private _lineHeight: number = 1;
 	private _fontInfo!: FontInfo;
 	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
@@ -73,7 +72,6 @@ export class ScreenReaderSupport {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 	}
 
@@ -119,15 +117,17 @@ export class ScreenReaderSupport {
 		}
 
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber) - editorScrollTop;
+		const lineNumber = this._primarySelection.positionLineNumber;
+		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber) - editorScrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
 			return;
 		}
 
-		this._doRender(top, this._contentLeft, this._contentWidth, this._lineHeight);
-		this._setScrollTop();
+		const height = this._context.viewLayout.getLineHeightForLineNumber(lineNumber);
+		this._doRender(top, this._contentLeft, this._contentWidth, height);
+		this._setScrollTop(height);
 	}
 
 	private _renderAtTopLeft(): void {
@@ -137,21 +137,21 @@ export class ScreenReaderSupport {
 	private _doRender(top: number, left: number, width: number, height: number): void {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
-
+		this._domNode.setLineHeight(height);
 		this._domNode.setTop(top);
 		this._domNode.setLeft(left);
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
 	}
 
-	private _setScrollTop(): void {
+	private _setScrollTop(lineHeight: number): void {
 		if (!this._screenReaderContentState) {
 			return;
 		}
 		// Setting position within the screen reader content by modifying scroll position
 		const textContentBeforeSelection = this._screenReaderContentState.value.substring(0, this._screenReaderContentState.selectionStart);
 		const numberOfLinesOfContentBeforeSelection = newlinecount(textContentBeforeSelection);
-		this._domNode.domNode.scrollTop = numberOfLinesOfContentBeforeSelection * this._lineHeight;
+		this._domNode.domNode.scrollTop = numberOfLinesOfContentBeforeSelection * lineHeight;
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
