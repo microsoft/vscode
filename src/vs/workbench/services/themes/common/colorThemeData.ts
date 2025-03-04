@@ -821,13 +821,13 @@ function nameMatcher(identifiers: string[], scopes: ProbeScope): number {
 		return -1;
 	}
 
-	let lastIndex = 0;
+	let lastIndex = scopes.length - 1;
 	let score: number | undefined = undefined;
 	const every = identifiers.every((identifier) => {
-		for (let i = lastIndex; i < scopes.length; i++) {
+		for (let i = lastIndex; i >= 0; i--) {
 			if (scopesAreMatching(scopes[i], identifier)) {
 				score = (i + 1) * 0x10000 + identifier.length;
-				lastIndex = i + 1;
+				lastIndex = i - 1;
 				return true;
 			}
 		}
