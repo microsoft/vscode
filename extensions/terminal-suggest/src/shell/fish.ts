@@ -9,7 +9,7 @@ import { type ExecOptionsWithStringEncoding } from 'node:child_process';
 
 export async function getFishGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
-		...await getAliases(options, existingCommands),
+		...await getAliases(options),
 		...await getBuiltins(options, existingCommands),
 	];
 }
@@ -20,6 +20,6 @@ async function getBuiltins(options: ExecOptionsWithStringEncoding, existingComma
 	return compgenOutput.split(', ').filter(filter);
 }
 
-async function getAliases(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<ICompletionResource[]> {
+async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
 	return getAliasesHelper('fish', ['-ic', 'alias'], /^alias (?<alias>[a-zA-Z0-9\.:-]+) (?<resolved>.+)$/, options);
 }
