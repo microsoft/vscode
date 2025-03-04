@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
@@ -54,6 +54,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private readonly _stickyScrollWidget: StickyScrollWidget;
 	private readonly _stickyLineCandidateProvider: IStickyLineCandidateProvider;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	private readonly _specialLineHeightListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _widgetState: StickyScrollWidgetState;
 	private _foldingModel: FoldingModel | undefined;
@@ -96,6 +97,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 		this._widgetState = StickyScrollWidgetState.Empty;
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
+		this._register(this._editor.onDidChangeModel(() => this._updateSpecialLineHeightListener()));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			this._readConfigurationChange(e);
 		}));
@@ -193,6 +195,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	public selectEditor(): void {
 		this._editor.focus();
+	}
+
+	private _updateSpecialLineHeightListener(): void {
+		this._specialLineHeightListener.value = this._editor.onDidChangeSpecialLineHeight((e) => {
+			e.changes.forEach((change) => {
+				const lineNumber = change.lineNumber;
+				const indexOfLineNumber = this._widgetState.startLineNumbers.indexOf(lineNumber);
+				if (indexOfLineNumber !== -1) {
+					this._renderStickyScroll(lineNumber);
+				}
+			});
+		});
 	}
 
 	// True is next, false is previous
@@ -584,7 +598,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
-		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
@@ -597,19 +610,21 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			for (const range of candidateRanges) {
 				const start = range.startLineNumber;
 				const end = range.endLineNumber;
-				const depth = range.nestingDepth;
 				if (end - start > 0) {
-					const topOfElementAtDepth = (depth - 1) * lineHeight;
-					const bottomOfElementAtDepth = depth * lineHeight;
+					const topOfElementAtDepth = range.topOfElement;
+					const bottomOfElementAtDepth = topOfElementAtDepth + range.height;
 
 					const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
 					const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
 					const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+					const heightOfEndLine = this._editor.getLineHeightForLineNumber(end);
+					const heightOfStartLine = this._editor.getLineHeightForLineNumber(start);
+					const delta = heightOfEndLine - heightOfStartLine;
 
-					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
+					if (topOfElementAtDepth > topOfEndLine + delta && topOfElementAtDepth <= bottomOfEndLine - delta) {
 						startLineNumbers.push(start);
 						endLineNumbers.push(end + 1);
-						if (topOfElementAtDepth > bottomOfEndLine - lineHeight) {
+						if (bottomOfElementAtDepth > bottomOfEndLine) {
 							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
 						}
 						break;
