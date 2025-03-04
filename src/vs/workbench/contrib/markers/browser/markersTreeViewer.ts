@@ -648,7 +648,6 @@ export class MarkerViewModel extends Disposable {
 		return codeActions.validActions.map(item => toAction({
 			id: item.action.command ? item.action.command.id : item.action.title,
 			label: item.action.title,
-			enabled: true,
 			run: async () => {
 				await this.openFileAtMarker(this.marker);
 				return await this.instantiationService.invokeFunction(applyCodeAction, item, ApplyCodeActionReason.FromProblemsView);
