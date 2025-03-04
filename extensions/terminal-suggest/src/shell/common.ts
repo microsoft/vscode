@@ -67,7 +67,7 @@ export async function execHelper(commandLine: string, options: ExecOptionsWithSt
 	});
 }
 
-export async function getAliasesHelper(command: string, args: string[], regex: RegExp, options: ExecOptionsWithStringEncoding, existingCommands: Set<string> | undefined): Promise<ICompletionResource[]> {
+export async function getAliasesHelper(command: string, args: string[], regex: RegExp, options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
 	// This must be run with interactive, otherwise there's a good chance aliases won't
 	// be set up. Note that this could differ from the actual aliases as it's a new bash
 	// session, for the same reason this would not include aliases that are created
@@ -85,10 +85,6 @@ export async function getAliasesHelper(command: string, args: string[], regex: R
 			definitionIndex = match.groups.resolved.length;
 		}
 		definitionCommand = match.groups.resolved.substring(0, definitionIndex);
-		if (!existingCommands?.has(definitionCommand)) {
-			// Invalid command, don't show it
-			continue;
-		}
 		result.push({
 			label: { label: match.groups.alias, description: match.groups.resolved },
 			detail: match.groups.resolved,

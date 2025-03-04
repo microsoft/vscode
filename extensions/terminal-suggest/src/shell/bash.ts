@@ -10,13 +10,14 @@ import { execHelper, getAliasesHelper } from './common';
 
 export async function getBashGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
-		...await getAliases(options, existingCommands),
+		...await getAliases(options),
 		...await getBuiltins(options, 'compgen -b', existingCommands)
 	];
 }
 
-async function getAliases(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<ICompletionResource[]> {
-	return getAliasesHelper('bash', ['-ic', 'alias'], /^alias (?<alias>[a-zA-Z0-9\.:-]+)='(?<resolved>.+)'$/, options, existingCommands);
+async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
+	const args = process.platform === 'darwin' ? ['-icl', 'alias'] : ['-ic', 'alias'];
+	return getAliasesHelper('bash', args, /^alias (?<alias>[a-zA-Z0-9\.:-]+)='(?<resolved>.+)'$/, options);
 }
 
 export async function getBuiltins(
