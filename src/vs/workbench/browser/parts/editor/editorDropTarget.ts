@@ -5,7 +5,7 @@
 
 import './media/editordroptarget.css';
 import { DataTransfers } from '../../../../base/browser/dnd.js';
-import { addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
@@ -84,8 +84,7 @@ class DropOverlay extends Themable {
 		const overlayOffsetHeight = this.getOverlayOffsetHeight();
 
 		// Container
-		const container = this.container = document.createElement('div');
-		container.id = DropOverlay.OVERLAY_ID;
+		const container = this.container = $('div', { id: DropOverlay.OVERLAY_ID });
 		container.style.top = `${overlayOffsetHeight}px`;
 
 		// Parent
@@ -97,8 +96,7 @@ class DropOverlay extends Themable {
 		}));
 
 		// Overlay
-		this.overlay = document.createElement('div');
-		this.overlay.classList.add('editor-group-overlay-indicator');
+		this.overlay = $('.editor-group-overlay-indicator');
 		container.appendChild(this.overlay);
 
 		if (this.enableDropIntoEditor) {
