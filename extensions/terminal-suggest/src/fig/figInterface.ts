@@ -54,8 +54,8 @@ export async function getFigSuggestions(
 		}
 		for (const specLabel of specLabels) {
 			const availableCommand = (osIsWindows()
-				? availableCommands.find(command => ((typeof command.label === 'string' ? command.label : command.label.label)).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
-				: availableCommands.find(command => ((typeof command.label === 'string' ? command.label : command.label.label) === (specLabel))));
+				? availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
+				: availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label) === (specLabel)));
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
