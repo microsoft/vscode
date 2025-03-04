@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equals.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, derivedObservableWithCache, IObservable, IReader, ISettableObservable, mapObservableArrayCached } from '../../../../../../base/common/observable.js';
+import { autorunWithStore, derived, derivedObservableWithCache, derivedOpts, derivedWithStore, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
@@ -46,6 +49,7 @@ export class InlineEditsView extends Disposable {
 		view: ReturnType<typeof InlineEditsView.prototype.determineView>;
 		userJumpedToIt: boolean;
 		editorWidth: number;
+		timestamp: number;
 	} | undefined;
 
 	constructor(
@@ -56,6 +60,29 @@ export class InlineEditsView extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._register(autorunWithStore((reader, store) => {
+			store.add(
+				Event.any(
+					this._sideBySide.onDidClick,
+					this._deletion.onDidClick,
+					this._lineReplacementView.onDidClick,
+					this._insertion.onDidClick,
+					...this._wordReplacementViews.read(reader).map(w => w.onDidClick),
+					this._inlineDiffView.onDidClick,
+				)(e => {
+					if (this._viewHasBeenShownLongThan(350)) {
+						e.preventDefault();
+						this._host.accept();
+					}
+				})
+			);
+		}));
+
+		this._indicator.recomputeInitiallyAndOnChange(this._store);
+		this._wordReplacementViews.recomputeInitiallyAndOnChange(this._store);
+
+		this._indicatorCyclicDependencyCircuitBreaker.set(true, undefined);
 	}
 
 	private readonly _uiState = derived<{
@@ -71,7 +98,7 @@ export class InlineEditsView extends Disposable {
 			return undefined;
 		}
 
-		this._model.get()?.handleInlineCompletionShown(edit.inlineCompletion);
+		this._model.get()?.handleInlineEditShown(edit.inlineCompletion);
 
 		let mappings = RangeMapping.fromEdit(edit.edit);
 		let newText = edit.edit.apply(edit.originalText);
@@ -105,7 +132,7 @@ export class InlineEditsView extends Disposable {
 			this._previewTextModel.setValue(newText);
 		}
 
-		if (this._showCollapsed.read(reader) && this._host.tabAction.read(reader) !== InlineEditTabAction.Accept) {
+		if (this._showCollapsed.read(reader) && this._host.tabAction.read(reader) !== InlineEditTabAction.Accept && !this._indicator.read(reader)?.isHoverVisible.read(reader) && !this._model.get()!.inAcceptFlow.read(reader)) {
 			state = { kind: 'hidden' };
 		}
 
@@ -127,20 +154,22 @@ export class InlineEditsView extends Disposable {
 		null
 	));
 
-	// TODO: This has become messy, should it be passed in to the InlineEditsView?
+	// TODO: This has become messy, should it be passed in to the InlineEditsView? Maybe include in accept flow?
 	private readonly _host: IInlineEditsViewHost = {
 		displayName: derivedObservableWithCache<string>(this, (reader, previousDisplayName) => {
 			const state = this._model.read(reader)?.inlineEditState;
 			const item = state?.read(reader);
 			const completionSource = item?.inlineCompletion?.source;
 			// TODO: expose the provider (typed) and expose the provider the edit belongs to typing and get correct edit
-			return (completionSource?.inlineCompletions as any)?.edits?.[0]?.provider?.displayName ?? previousDisplayName ?? localize('inlineEdit', "Inline Edit");
+			return (completionSource?.inlineCompletions as any)?.edits?.[0]?.provider?.displayName ?? previousDisplayName
+				?? completionSource?.provider.displayName ?? localize('inlineEdit', "Inline Edit");
 		}),
 		tabAction: derived<InlineEditTabAction>(this, reader => {
 			const m = this._model.read(reader);
 			if (this._editorObs.isFocused.read(reader)) {
 				if (m && m.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
 				if (m && m.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
+				if (m && m.inlineCompletionState.read(reader)?.inlineCompletion?.sourceInlineCompletion.showInlineEditMenu) { return InlineEditTabAction.Accept; }
 			}
 			return InlineEditTabAction.Inactive;
 		}),
@@ -148,8 +177,75 @@ export class InlineEditsView extends Disposable {
 		extensionCommands: this._model.map((m, r) => m?.state.read(r)?.inlineCompletion?.source.inlineCompletions.commands ?? []),
 		accept: () => {
 			this._model.get()?.accept();
+		},
+		jump: () => {
+			this._model.get()?.jump();
 		}
 	};
+
+	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useGutterIndicator);
+
+	private readonly _indicatorCyclicDependencyCircuitBreaker = observableValue(this, false);
+
+	protected readonly _indicator = derivedWithStore<InlineEditsGutterIndicator | InlineEditsIndicator | undefined>(this, (reader, store) => {
+		if (!this._indicatorCyclicDependencyCircuitBreaker.read(reader)) {
+			return undefined;
+		}
+
+		const indicatorDisplayRange = derivedOpts({ owner: this, equalsFn: equalsIfDefined(itemEquals()) }, reader => {
+			const s = this._model.read(reader)?.inlineCompletionState.read(reader);
+			if (s && s.inlineCompletion?.sourceInlineCompletion.showInlineEditMenu) {
+				return LineRange.ofLength(s.primaryGhostText.lineNumber, 1);
+			}
+
+			const state = this._uiState.read(reader);
+			if (state?.state?.kind === 'insertionMultiLine') {
+				return this._insertion.originalLines.read(reader);
+			}
+			return state?.originalDisplayRange;
+		});
+
+		if (this._useGutterIndicator.read(reader)) {
+			return store.add(this._instantiationService.createInstance(
+				InlineEditsGutterIndicator,
+				this._editorObs,
+				indicatorDisplayRange,
+				this._gutterIndicatorOffset,
+				this._host,
+				this._inlineEditsIsHovered,
+				this._focusIsInMenu,
+			));
+		} else {
+			return store.add(new InlineEditsIndicator(
+				this._editorObs,
+				derived<IInlineEditsIndicatorState | undefined>(reader => {
+					const state = this._uiState.read(reader);
+					const range = indicatorDisplayRange.read(reader);
+					if (!state || !state.state || !range) { return undefined; }
+					const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader) + this._gutterIndicatorOffset.read(reader);
+					return { editTop: top, showAlways: state.state.kind !== 'sideBySide' };
+				}),
+				this._model,
+			));
+		}
+	});
+
+	private readonly _inlineEditsIsHovered = derived(this, reader => {
+		return this._sideBySide.isHovered.read(reader)
+			|| this._wordReplacementViews.read(reader).some(v => v.isHovered.read(reader))
+			|| this._deletion.isHovered.read(reader)
+			|| this._inlineDiffView.isHovered.read(reader)
+			|| this._lineReplacementView.isHovered.read(reader)
+			|| this._insertion.isHovered.read(reader);
+	});
+
+	private readonly _gutterIndicatorOffset = derived<number>(this, reader => {
+		// TODO: have a better way to tell the gutter indicator view where the edit is inside a viewzone
+		if (this._uiState.read(reader)?.state?.kind === 'insertionMultiLine') {
+			return this._insertion.startLineOffset.read(reader);
+		}
+		return 0;
+	});
 
 	private readonly _sideBySide = this._register(this._instantiationService.createInstance(InlineEditsSideBySideView,
 		this._editor,
@@ -201,7 +297,7 @@ export class InlineEditsView extends Disposable {
 
 	protected readonly _wordReplacementViews = mapObservableArrayCached(this, this._uiState.map(s => s?.state?.kind === 'wordReplacements' ? s.state.replacements : []), (e, store) => {
 		return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, [e], this._host));
-	}).recomputeInitiallyAndOnChange(this._store);
+	});
 
 	protected readonly _lineReplacementView = this._register(this._instantiationService.createInstance(InlineEditsLineReplacementView,
 		this._editorObs,
@@ -214,63 +310,17 @@ export class InlineEditsView extends Disposable {
 		this._host
 	));
 
-	private readonly _useGutterIndicator = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.useGutterIndicator);
-
-	private readonly _inlineEditsIsHovered = derived(this, reader => {
-		return this._sideBySide.isHovered.read(reader)
-			|| this._wordReplacementViews.read(reader).some(v => v.isHovered.read(reader))
-			|| this._deletion.isHovered.read(reader)
-			|| this._inlineDiffView.isHovered.read(reader)
-			|| this._lineReplacementView.isHovered.read(reader);
-	});
-
-	private readonly _gutterIndicatorOffset = derived<number>(this, reader => {
-		// TODO: have a better way to tell the gutter indicator view where the edit is inside a viewzone
-		if (this._uiState.read(reader)?.state?.kind === 'insertionMultiLine') {
-			return this._insertion.startLineOffset.read(reader);
+	private getCacheId(edit: InlineEditWithChanges) {
+		if (this._model.get()?.inAcceptPartialFlow.get()) {
+			return `${edit.inlineCompletion.id}_${edit.edit.edits.map(edit => edit.range.toString() + edit.text).join(',')}`;
 		}
-		return 0;
-	});
 
-	protected readonly _indicator = this._register(autorunWithStore((reader, store) => {
-
-		const indicatorDisplayRange = derived(this, reader => {
-			const state = this._uiState.read(reader);
-			if (state?.state?.kind === 'insertionMultiLine') {
-				return this._insertion.originalLines.read(reader);
-			}
-			return state?.originalDisplayRange;
-		});
-
-		if (this._useGutterIndicator.read(reader)) {
-			store.add(this._instantiationService.createInstance(
-				InlineEditsGutterIndicator,
-				this._editorObs,
-				indicatorDisplayRange,
-				this._gutterIndicatorOffset,
-				this._model,
-				this._host,
-				this._inlineEditsIsHovered,
-				this._focusIsInMenu,
-			));
-		} else {
-			store.add(new InlineEditsIndicator(
-				this._editorObs,
-				derived<IInlineEditsIndicatorState | undefined>(reader => {
-					const state = this._uiState.read(reader);
-					const range = indicatorDisplayRange.read(reader);
-					if (!state || !state.state || !range) { return undefined; }
-					const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader) + this._gutterIndicatorOffset.read(reader);
-					return { editTop: top, showAlways: state.state.kind !== 'sideBySide' };
-				}),
-				this._model,
-			));
-		}
-	}));
+		return edit.inlineCompletion.id;
+	}
 
 	private determineView(edit: InlineEditWithChanges, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText, originalDisplayRange: LineRange): string {
 		// Check if we can use the previous view if it is the same InlineCompletion as previously shown
-		const canUseCache = this._previousView?.id === edit.inlineCompletion.id;
+		const canUseCache = this._previousView?.id === this.getCacheId(edit);
 		const reconsiderViewAfterJump = edit.userJumpedToIt !== this._previousView?.userJumpedToIt &&
 			(
 				(this._useMixedLinesDiff.read(reader) === 'afterJumpWhenPossible' && this._previousView?.view !== 'mixedLines') ||
@@ -347,7 +397,7 @@ export class InlineEditsView extends Disposable {
 
 		const view = this.determineView(edit, reader, diff, newText, originalDisplayRange);
 
-		this._previousView = { id: edit.inlineCompletion.id, view, userJumpedToIt: edit.userJumpedToIt, editorWidth: this._editor.getLayoutInfo().width };
+		this._previousView = { id: this.getCacheId(edit), view, userJumpedToIt: edit.userJumpedToIt, editorWidth: this._editor.getLayoutInfo().width, timestamp: Date.now() };
 
 		switch (view) {
 			case 'insertionInline': return { kind: 'insertionInline' as const };
@@ -406,6 +456,16 @@ export class InlineEditsView extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	private _viewHasBeenShownLongThan(durationMs: number): boolean {
+		const viewCreationTime = this._previousView?.timestamp;
+		if (!viewCreationTime) {
+			throw new BugIndicatingError('viewHasBeenShownLongThan called before a view has been shown');
+		}
+
+		const currentTime = Date.now();
+		return (currentTime - viewCreationTime) >= durationMs;
 	}
 }
 

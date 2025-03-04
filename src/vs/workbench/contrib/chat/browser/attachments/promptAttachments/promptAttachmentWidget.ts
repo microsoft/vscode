@@ -17,21 +17,21 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/constants.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { getCleanPromptName } from '../../../../../../platform/prompts/common/constants.js';
+import { ChatPromptAttachmentModel } from '../../chatAttachmentModel/chatPromptAttachmentModel.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { ChatInstructionsAttachmentModel } from '../../chatAttachmentModel/chatInstructionsAttachment.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 /**
  * Widget for a single prompt instructions attachment.
  */
-export class InstructionsAttachmentWidget extends Disposable {
+export class PromptAttachmentWidget extends Disposable {
 	/**
 	 * The root DOM node of the widget.
 	 */
@@ -66,7 +66,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
-		private readonly model: ChatInstructionsAttachmentModel,
+		private readonly model: ChatPromptAttachmentModel,
 		private readonly resourceLabels: ResourceLabels,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -79,7 +79,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 	) {
 		super();
 
-		this.domNode = dom.$('.chat-prompt-instructions-attachment.chat-attached-context-attachment.show-file-icons.implicit');
+		this.domNode = dom.$('.chat-prompt-attachment.chat-attached-context-attachment.show-file-icons.implicit');
 
 		this.render = this.render.bind(this);
 		this.dispose = this.dispose.bind(this);
@@ -132,7 +132,7 @@ export class InstructionsAttachmentWidget extends Disposable {
 			title += `\n-\n[${errorCaption}]: ${details}`;
 		}
 
-		const fileWithoutExtension = fileBasename.replace(PROMPT_FILE_EXTENSION, '');
+		const fileWithoutExtension = getCleanPromptName(file);
 		label.setFile(URI.file(fileWithoutExtension), {
 			fileKind: FileKind.FILE,
 			hidePath: true,
@@ -157,7 +157,8 @@ export class InstructionsAttachmentWidget extends Disposable {
 				},
 			),
 		);
-		removeButton.icon = Codicon.x;
+
+		removeButton.icon = Codicon.close;
 		this.renderDisposables.add(removeButton.onDidClick((e) => {
 			e.stopPropagation();
 			this.model.dispose();

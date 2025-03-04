@@ -71,7 +71,8 @@ export const viewsContainersContribution: IJSONSchema = {
 			type: 'array',
 			items: viewsContainerSchema
 		}
-	}
+	},
+	additionalProperties: false
 };
 
 enum ViewType {

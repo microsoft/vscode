@@ -1,0 +1,139 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Overall */
+
+.chat-status-bar-entry-tooltip {
+	margin-top: 4px;
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip hr {
+	margin-top: 8px;
+	margin-bottom: 8px;
+}
+
+.chat-status-bar-entry-tooltip div.header {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+	font-weight: 600;
+}
+
+.chat-status-bar-entry-tooltip div.description {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Settings */
+
+.chat-status-bar-entry-tooltip .settings {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting {
+	display: flex;
+	align-items: center;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .monaco-checkbox {
+	height: 14px;
+	width: 14px;
+	margin-right: 5px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .codicon {
+	font-size: 12px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .setting-label {
+	cursor: pointer;
+}
+
+/* Shortcuts */
+
+.chat-status-bar-entry-tooltip .shortcuts {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut {
+	display: flex;
+	gap: 15px;
+
+	/** Make room for the hover feedback */
+	margin-left: -3px;
+	margin-right: -3px;
+	padding-left: 3px;
+	padding-right: 3px;
+	margin-top: -1px;
+	margin-bottom: -1px;
+	padding-top: 1px;
+	padding-bottom: 1px;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut:hover {
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: 3px;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut .shortcut-label {
+	flex: 1;
+	cursor: pointer;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut .monaco-keybinding {
+	cursor: pointer;
+}
+
+.chat-status-bar-entry-tooltip .shortcuts .shortcut .monaco-keybinding > .monaco-keybinding-key {
+	padding: 2px 4px;
+	font-size: 10px;
+}
+
+/* Quota Indicator */
+
+.chat-status-bar-entry-tooltip .quota-indicator {
+	margin-bottom: 6px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-label {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 3px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
+	width: 100%;
+	height: 4px;
+	background-color: var(--vscode-gauge-foreground);
+	border-radius: 4px;
+	border: 1px solid var(--vscode-gauge-border);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {
+	height: 100%;
+	background-color: var(--vscode-gauge-background);
+	border-radius: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar {
+	background-color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-warningBackground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar {
+	background-color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-errorBackground);
+}

@@ -102,9 +102,9 @@ export interface IHoverDelegate2 {
 
 	/**
 	 * Hides the hover if it was visible. This call will be ignored if the hover is currently
-	 * "locked" via the alt/option key.
+	 * "locked" via the alt/option key unless `force` is set.
 	 */
-	hideHover(): void;
+	hideHover(force?: boolean): void;
 
 	/**
 	 * This should only be used until we have the ability to show multiple context views
@@ -382,7 +382,21 @@ export interface IManagedHoverTooltipMarkdownString {
 	markdownNotSupportedFallback: string | undefined;
 }
 
-export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | HTMLElement | undefined;
+export function isManagedHoverTooltipMarkdownString(obj: unknown): obj is IManagedHoverTooltipMarkdownString {
+	const candidate = obj as IManagedHoverTooltipMarkdownString;
+	return typeof candidate === 'object' && 'markdown' in candidate && 'markdownNotSupportedFallback' in candidate;
+}
+
+export interface IManagedHoverTooltipHTMLElement {
+	element: (token: CancellationToken) => HTMLElement | Promise<HTMLElement>;
+}
+
+export function isManagedHoverTooltipHTMLElement(obj: unknown): obj is IManagedHoverTooltipHTMLElement {
+	const candidate = obj as IManagedHoverTooltipHTMLElement;
+	return typeof candidate === 'object' && 'element' in candidate;
+}
+
+export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | IManagedHoverTooltipHTMLElement | HTMLElement | undefined;
 export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManagedHoverContent);
 
 export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'linkHandler' | 'trapFocus'> {

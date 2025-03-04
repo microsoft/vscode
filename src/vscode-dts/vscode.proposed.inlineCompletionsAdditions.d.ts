@@ -32,8 +32,16 @@ declare module 'vscode' {
 
 		warning?: InlineCompletionWarning;
 
-		/** If set to `true`, this item is rendered as inline edit. */
+		/** If set to `true`, this item is treated as inline edit. */
 		isInlineEdit?: boolean;
+
+		/**
+		 * A range specifying when the edit can be shown based on the cursor position.
+		 * If the cursor is within this range, the inline edit can be displayed.
+		 */
+		showRange?: Range;
+
+		showInlineEditMenu?: boolean;
 
 		action?: Command;
 	}
@@ -51,6 +59,8 @@ declare module 'vscode' {
 		yieldTo?: string[];
 
 		debounceDelayMs?: number;
+
+		displayName?: string;
 	}
 
 	export interface InlineCompletionItemProvider {
@@ -60,6 +70,12 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidShowCompletionItem?(completionItem: InlineCompletionItem, updatedInsertText: string): void;
+
+		/**
+		 * @param completionItem The completion item that was rejected.
+		*/
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
 
 		/**
 		 * Is called when an inline completion item was accepted partially.

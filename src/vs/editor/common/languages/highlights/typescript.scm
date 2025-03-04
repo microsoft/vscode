@@ -72,6 +72,19 @@
   left: (identifier) @entity.name.function
   right: [(function_expression) (arrow_function)])
 
+(required_parameter
+  (identifier) @variable.parameter)
+
+(required_parameter
+  (rest_pattern
+    (identifier) @variable.parameter))
+
+(optional_parameter
+  (identifier) @variable.parameter)
+
+(catch_clause
+  parameter: (identifier) @variable.parameter)
+
 ; Function and method calls
 
 (call_expression
@@ -86,6 +99,8 @@
   function: (member_expression
     property: (property_identifier) @entity.name.function))
 
+(new_expression) @new.expr
+
 (new_expression
   constructor: (identifier) @entity.name.function)
 
@@ -93,8 +108,10 @@
 ; Special identifiers
 
 (predefined_type) @support.type
-(predefined_type (["string" "boolean" "number" "any"])) @support.type.primitive
+(predefined_type (["string" "boolean" "number" "any" "unknown"])) @support.type.primitive
 (type_identifier) @entity.name.type
+(internal_module
+  name: (identifier) @entity.name.type.ts)
 
 ([
   (identifier)
@@ -104,6 +121,9 @@
 
 (extends_clause
   value: (identifier) @entity.other.inherited-class)
+
+(implements_clause
+  (type_identifier) @entity.other.inherited-class)
 
 ; Tokens
 
@@ -184,6 +204,15 @@
   "|"
 ] @keyword.operator
 
+(union_type
+  ("|") @keyword.operator.type)
+
+(intersection_type
+  ("&") @keyword.operator.type)
+
+(type_annotation
+  (":") @keyword.operator.type.annotation)
+
 [
   "{"
   "}"
@@ -202,8 +231,8 @@
   "}" @punctuation.definition.template-expression.end)
 
 (type_arguments
-  "<" @punctuation.bracket
-  ">" @punctuation.bracket)
+  "<" @punctuation.definition.typeparameters
+  ">" @punctuation.definition.typeparameters)
 
 ; Keywords
 
@@ -278,6 +307,10 @@
 ] @storage.type
 
 [
+  "module"
+] @storage.type.namespace.ts
+
+[
   "debugger"
   "target"
   "with"
@@ -296,11 +329,14 @@
 (public_field_definition
   ("?") @keyword.operator.optional)
 
-(optional_parameter)
+(property_signature
+  ("?") @keyword.operator.optional)
+
+(optional_parameter
   ([
     "?"
     ":"
-  ]) @keyword.operator.optional
+  ]) @keyword.operator.optional)
 
 (ternary_expression
   ([
@@ -320,8 +356,17 @@
 
 [
   (null)
+] @constant.language.null
+
+[
   (undefined)
-] @constant.language
+] @constant.language.undefined
+
+ ((identifier) @constant.language.nan
+   (#eq? @constant.language.nan "NaN"))
+
+ ((identifier) @constant.language.infinity
+   (#eq? @constant.language.infinity "Infinity"))
 
 [
   (true)
@@ -330,6 +375,14 @@
 [
   (false)
 ] @constant.language.boolean.false
+
+(literal_type
+  [
+    (null)
+    (undefined)
+    (true)
+    (false)
+  ] @support.type.builtin)
 
 (namespace_import
   "*" @constant.language)

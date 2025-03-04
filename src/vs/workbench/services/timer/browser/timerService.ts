@@ -508,7 +508,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
-	private readonly _rndValueShouldSendTelemetry = Math.random() < .05; // 5% of users
+	private readonly _rndValueShouldSendTelemetry = Math.random() < .03; // 3% of users
 
 	private _startupMetrics?: IStartupMetrics;
 

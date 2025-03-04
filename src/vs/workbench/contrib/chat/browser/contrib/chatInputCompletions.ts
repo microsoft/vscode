@@ -27,6 +27,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
@@ -44,7 +45,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, getTopLevelFolders, searchFolders, SelectAndInsertFolderAction, SelectAndInsertFileAction, SelectAndInsertSymAction } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, SelectAndInsertFileAction, SelectAndInsertFolderAction, SelectAndInsertProblemAction, SelectAndInsertSymAction, getTopLevelFolders, searchFolders } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -467,6 +468,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
+		@IMarkerService markerService: IMarkerService,
 	) {
 		super();
 
@@ -560,7 +562,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				sortText: 'z',
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-						id: 'vscode.file',
+						id: 'vscode.selection',
 						prefix: 'file',
 						isFile: true,
 						range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
@@ -594,6 +596,30 @@ class BuiltinDynamicCompletions extends Disposable {
 			if (range2) {
 				this.addSymbolEntries(widget, result, range2, token);
 			}
+
+			return result;
+		});
+
+		// Problems completions, we just attach all problems in this case
+		this.registerVariableCompletions(SelectAndInsertProblemAction.Name, ({ widget, range, position, model }, token) => {
+			const stats = markerService.getStatistics();
+			if (!stats.errors && !stats.warnings) {
+				return null;
+			}
+
+			const result: CompletionList = { suggestions: [] };
+
+			const completedText = `${chatVariableLeader}${SelectAndInsertProblemAction.Name}:`;
+			const afterTextRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + completedText.length);
+			result.suggestions.push({
+				label: `${chatVariableLeader}${SelectAndInsertProblemAction.Name}`,
+				insertText: completedText,
+				documentation: localize('pickProblemsLabel', "Problems in your workspace"),
+				range,
+				kind: CompletionItemKind.Text,
+				command: { id: SelectAndInsertProblemAction.ID, title: SelectAndInsertProblemAction.ID, arguments: [{ widget, range: afterTextRange }] },
+				sortText: 'z'
+			});
 
 			return result;
 		});
@@ -666,7 +692,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		// RELATED FILES
 		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.getEditingSession(widget.viewModel.sessionId)) {
-			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), token), 200)) ?? [];
+			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
 			for (const relatedFileGroup of relatedFiles) {
 				for (const relatedFile of relatedFileGroup.files) {
 					if (seen.has(relatedFile.uri)) {
@@ -755,6 +781,7 @@ class BuiltinDynamicCompletions extends Disposable {
 						id: 'vscode.folder',
 						prefix: 'folder',
 						isFile: false,
+						isDirectory: true,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: resource
 					})]
@@ -781,7 +808,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 			const cacheKey = this.updateCacheKey();
 
-			const folders = await Promise.all(workspaces.map(workspace => searchFolders(workspace, pattern, token, cacheKey.key, this.configurationService, this.searchService)));
+			const folders = await Promise.all(workspaces.map(workspace => searchFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService)));
 			for (const resource of folders.flat()) {
 				if (seen.has(resource)) {
 					// already included via history
@@ -802,12 +829,11 @@ class BuiltinDynamicCompletions extends Disposable {
 		const makeSymbolCompletionItem = (symbolItem: { name: string; location: Location; kind: SymbolKind }, pattern: string): CompletionItem => {
 			const text = `${chatVariableLeader}sym:${symbolItem.name}`;
 			const resource = symbolItem.location.uri;
-			const symbolLabelWithIcon = `$(${SymbolKinds.toIcon(symbolItem.kind).id}) ${symbolItem.name}`;
 			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
 			const sortText = pattern ? '{' /* after z */ : '|' /* after { */;
 
 			return {
-				label: { label: symbolLabelWithIcon, description: uriLabel },
+				label: { label: symbolItem.name, description: uriLabel },
 				filterText: `${chatVariableLeader}${symbolItem.name}`,
 				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
 				range: info,
@@ -817,7 +843,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.symbol',
 						prefix: 'sym',
-						fullName: symbolLabelWithIcon,
+						fullName: symbolItem.name,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: symbolItem.location
 					})]

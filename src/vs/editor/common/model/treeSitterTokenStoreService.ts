@@ -19,6 +19,7 @@ export interface ITreeSitterTokenizationStoreService {
 	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[];
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
 	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean;
+	delete(model: ITextModel): void;
 }
 
 export const ITreeSitterTokenizationStoreService = createDecorator<ITreeSitterTokenizationStoreService>('treeSitterTokenizationStoreService');
@@ -156,6 +157,14 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 			startOffset: range.startOffset,
 			endOffset: range.endOffset
 		}));
+	}
+
+	delete(model: ITextModel): void {
+		const storeInfo = this.tokens.get(model);
+		if (storeInfo) {
+			storeInfo.disposables.dispose();
+			this.tokens.delete(model);
+		}
 	}
 
 	dispose(): void {

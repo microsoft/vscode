@@ -1614,6 +1614,28 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
+		store.add(cell.onCellDecorationsChanged(e => {
+			e.added.forEach(options => {
+				if (options.className) {
+					this.deltaCellContainerClassNames(cell.id, [options.className], []);
+				}
+
+				if (options.outputClassName) {
+					this.deltaCellContainerClassNames(cell.id, [options.outputClassName], []);
+				}
+			});
+
+			e.removed.forEach(options => {
+				if (options.className) {
+					this.deltaCellContainerClassNames(cell.id, [], [options.className]);
+				}
+
+				if (options.outputClassName) {
+					this.deltaCellContainerClassNames(cell.id, [], [options.outputClassName]);
+				}
+			});
+		}));
+
 		return store;
 	}
 
@@ -2353,6 +2375,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
+			const pendingLayout = this._pendingLayouts?.get(cell);
 			this._pendingLayouts?.delete(cell);
 
 			if (!this.hasEditorFocus()) {
@@ -2371,6 +2394,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			this._list.updateElementHeight2(cell, height);
 			deferred.complete(undefined);
+			pendingLayout?.dispose();
 		};
 
 		if (this._list.inRenderingTransaction) {

@@ -3322,10 +3322,10 @@
           "markdownDescription": "%config.diagnosticsCommitHook.Sources%",
           "scope": "resource"
         },
-        "git.untrackedChangesSoftDelete": {
+        "git.discardUntrackedChangesToTrash": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "%config.untrackedChangesSoftDelete%"
+          "markdownDescription": "%config.discardUntrackedChangesToTrash%"
         }
       }
     },

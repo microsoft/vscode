@@ -74,7 +74,6 @@ export interface IChatRequestViewModel {
 	readonly variables: IChatRequestVariableEntry[];
 	currentRenderedHeight: number | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
-	readonly workingSet?: ReadonlyArray<URI>;
 	readonly confirmation?: string;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isComplete: boolean;
@@ -135,6 +134,11 @@ export interface IChatReferences {
 	kind: 'references';
 }
 
+export interface IChatWorkingProgress {
+	kind: 'working';
+	isPaused: boolean;
+}
+
 /**
  * Content type for citations used during rendering, not in the model
  */
@@ -146,7 +150,7 @@ export interface IChatCodeCitations {
 /**
  * Type for content parts rendered by IChatListRenderer
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress;
 
 export interface IChatLiveUpdateData {
 	totalTime: number;
@@ -374,10 +378,6 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.response?.contentReferences;
 	}
 
-	get workingSet() {
-		return this._model.workingSet;
-	}
-
 	get confirmation() {
 		return this._model.confirmation;
 	}
@@ -588,9 +588,13 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 				const now = Date.now();
 				const wordCount = countWords(_model.entireResponse.getMarkdown());
 
-				if (wordCount > 0 && wordCount === this._contentUpdateTimings.lastWordCount) {
+				if (wordCount === this._contentUpdateTimings.lastWordCount) {
 					this.trace('onDidChange', `Update- no new words`);
 				} else {
+					if (this._contentUpdateTimings.lastWordCount === 0) {
+						this._contentUpdateTimings.lastUpdateTime = now;
+					}
+
 					const timeDiff = Math.min(now - this._contentUpdateTimings.lastUpdateTime, 1000);
 					const newTotalTime = Math.max(this._contentUpdateTimings.totalTime + timeDiff, 250);
 					const impliedWordLoadRate = wordCount / (newTotalTime / 1000);

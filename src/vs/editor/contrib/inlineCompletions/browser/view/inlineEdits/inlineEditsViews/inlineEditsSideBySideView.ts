@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, getWindow, n } from '../../../../../../../base/browser/dom.js';
+import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Color } from '../../../../../../../base/common/color.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, autorun, constObservable, derived, derivedObservableWithCache, observableFromEvent } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -49,6 +51,9 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	}
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
+
+	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -120,8 +125,11 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 	private readonly _editorContainer = n.div({
 		class: ['editorContainer', this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !v.edits.useGutterIndicator && 'showHover')],
 		style: { position: 'absolute', overflow: 'hidden', cursor: 'pointer' },
-		onclick: () => {
-			this._host.accept();
+		onmousedown: e => {
+			e.preventDefault(); // This prevents that the editor loses focus
+		},
+		onclick: (e) => {
+			this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
 		}
 	}, [
 		n.div({ class: 'preview', style: { pointerEvents: 'none' }, ref: this.previewRef }),

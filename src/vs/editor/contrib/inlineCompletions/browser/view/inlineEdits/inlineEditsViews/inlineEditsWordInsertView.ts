@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { n } from '../../../../../../../base/browser/dom.js';
+import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../../../base/common/observable.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -17,6 +19,10 @@ import { getModifiedBorderColor } from '../theme.js';
 import { InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsWordInsertView extends Disposable implements IInlineEditsView {
+
+	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
+	readonly onDidClick = this._onDidClick.event;
+
 	private readonly _start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
 
 	private readonly _layout = derived(this, reader => {
