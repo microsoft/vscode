@@ -35,7 +35,7 @@
 		"editor.findMatchBorder": "#4e1",
 		"editor.findMatchHighlightBackground": "#add6ff99",
 		"editor.findMatchHighlightBorder": "#add6ff99",
-		"editor.lineHighlightBorder": "#ddd",
+		"editor.lineHighlightBackground": "#ddd",
 		"editorCodeLens.foreground": "#3c3c3c",
 		"editorGroup.border": "#bbb",
 		"editorGroupHeader.tabsBackground": "#efefef",
@@ -45,7 +45,8 @@
 		"editorGutter.modifiedBackground": "#43f",
 		"editorIndentGuide.background1": "#bbb",
 		"editorIndentGuide.activeBackground1": "#bbb",
-		"editorLineNumber.foreground": "#bbb",
+		"editorLineNumber.foreground": "#aaa",
+		"editorLineNumber.activeForeground": "#222",
 		"editorOverviewRuler.border": "#efefef",
 		"editorSuggestWidget.background": "#efefef",
 		"editorWidget.background": "#efefef",
@@ -139,6 +140,7 @@
 	// Copied from light_vs.json and light_plus.json
 	// Made all colors #000 except comments and functions
 	"tokenColors": [
+		// BEGIN STYLE RESET: makes everything black (actual colors are below)
 		{
 			"scope": "comment",
 			"settings": {
@@ -155,7 +157,7 @@
 				"entity.name.operator.custom-literal"
 			],
 			"settings": {
-				"foreground": "#63f"
+				"foreground": "#000"
 			}
 		},
 		{
@@ -193,6 +195,7 @@
 				"foreground": "#000"
 			}
 		},
+		// BEGIN STYLE
 		{
 			"scope": [
 				"constant.numeric",
@@ -324,7 +327,10 @@
 			}
 		},
 		{
-			"scope": ["meta.preprocessor", "entity.name.function.preprocessor"],
+			"scope": [
+				"meta.preprocessor",
+				"entity.name.function.preprocessor"
+			],
 			"settings": {
 				"foreground": "#000"
 			}
@@ -360,13 +366,19 @@
 			}
 		},
 		{
-			"scope": ["storage.modifier", "keyword.operator.noexcept"],
+			"scope": [
+				"storage.modifier",
+				"keyword.operator.noexcept"
+			],
 			"settings": {
 				"foreground": "#000"
 			}
 		},
 		{
-			"scope": ["string", "meta.embedded.assembly"],
+			"scope": [
+				"string",
+				"meta.embedded.assembly"
+			],
 			"settings": {
 				"foreground": "#000"
 			}
@@ -412,7 +424,9 @@
 		},
 		{
 			"name": "Reset JavaScript string interpolation expression",
-			"scope": ["meta.template.expression"],
+			"scope": [
+				"meta.template.expression"
+			],
 			"settings": {
 				"foreground": "#000"
 			}
@@ -443,7 +457,9 @@
 			}
 		},
 		{
-			"scope": ["support.type.property-name.json"],
+			"scope": [
+				"support.type.property-name.json"
+			],
 			"settings": {
 				"foreground": "#000"
 			}
@@ -612,14 +628,19 @@
 		},
 		{
 			"name": "Constants and enums",
-			"scope": ["variable.other.constant", "variable.other.enummember"],
+			"scope": [
+				"variable.other.constant",
+				"variable.other.enummember"
+			],
 			"settings": {
 				"foreground": "#000"
 			}
 		},
 		{
 			"name": "Object keys, TS grammar specific",
-			"scope": ["meta.object-literal.key"],
+			"scope": [
+				"meta.object-literal.key"
+			],
 			"settings": {
 				"foreground": "#000"
 			}
@@ -672,13 +693,19 @@
 			}
 		},
 		{
-			"scope": ["keyword.operator.or.regexp", "keyword.control.anchor.regexp"],
+			"scope": [
+				"keyword.operator.or.regexp",
+				"keyword.control.anchor.regexp"
+			],
 			"settings": {
 				"foreground": "#000"
 			}
 		},
 		{
-			"scope": ["constant.character", "constant.other.option"],
+			"scope": [
+				"constant.character",
+				"constant.other.option"
+			],
 			"settings": {
 				"foreground": "#000"
 			}
@@ -694,7 +721,121 @@
 			"settings": {
 				"foreground": "#000"
 			}
-		}
+		},
+		{
+			"scope": "constant.numeric",
+			"settings": {
+				"foreground": "#6e9e1b",
+			}
+		},
+		{
+			"scope": "string.quoted.single, string.quoted.double, string.template, punctuation.definition.string.begin.ts, punctuation.definition.string.end.ts, string.regexp.ts",
+			"settings": {
+				"foreground": "#e58714",
+			}
+		},
+		{
+			"scope": "constant.character.escape, punctuation.definition.group.regexp, punctuation.definition.character-class.regexp",
+			"settings": {
+				"foreground": "#b86c10",
+			}
+		},
+		{
+			"scope": "constant.language.boolean, constant.language.null, constant.language.undefined",
+			"settings": {
+				"foreground": "#6e9e1b"
+			}
+		},
+		{
+			"scope": "comment, punctuation.definition.comment",
+			"settings": {
+				"foreground": "#5a5a5a"
+			}
+		},
+		{
+			"scope": "variable, variable.other, variable.other.readwrite, variable.other.object.ts, support.constant",
+			"settings": {
+				"foreground": "#333",
+			}
+		},
+		{
+			"scope": "keyword.control.export.ts, keyword.control.import.ts, keyword.control.switch.ts, storage.type.interface.ts",
+			"settings": {
+				"foreground": "#68778f",
+			}
+		},
+		{
+			"scope": "keyword.control.conditional.ts, keyword.control.loop.ts",
+			"settings": {
+				"foreground": "#68778f",
+			}
+		},
+		{
+			"scope": "keyword.operator",
+			"settings": {
+				"foreground": "#68778f",
+			}
+		},
+		{
+			"scope": "keyword.operator.new, keyword.control.flow, keyword.control.from, storage.type.function.ts, keyword.control.as, keyword.operator.expression.typeof.ts, keyword.operator.expression.in.ts",
+			"settings": {
+				"foreground": "#68778f",
+			}
+		},
+		{
+			"scope": "storage.modifier.async.ts",
+			"settings": {
+				"foreground": "#68778f",
+			}
+		},
+		{
+			"scope": "keyword.control.trycatch.ts",
+			"settings": {
+				"foreground": "#b62828",
+			}
+		},
+		{
+			"scope": "entity.name.type.interface.ts, entity.name.type.ts",
+			"settings": {
+				"foreground": "#8fa1b3",
+			}
+		},
+		{
+			"scope": "entity.name.function",
+			"settings": {
+				"foreground": "#333",
+			}
+		},
+		{
+			"scope": "meta.object-literal.member.ts",
+			"settings": {
+				"foreground": "#68778f",
+			}
+		},
+		{
+			"scope": "storage.type.ts",
+			"settings": {
+				"foreground": "#68778f",
+			}
+		},
+		{
+			"scope": "storage.type.function.arrow.ts",
+			"settings": {
+				"foreground": "#68778f",
+			}
+		},
+		{
+			"scope": "punctuation.separator.key-value.ts, punctuation.accessor.ts, keyword.operator.type.annotation.ts, punctuation.terminator.statement",
+			"settings": {
+				"foreground": "#808080",
+			}
+		},
+		{
+			"scope": "punctuation.definition.binding-pattern.array.ts",
+			"settings": {
+				"foreground": "#808080",
+			}
+		},
 	],
 	"semanticHighlighting": true,
 	"semanticTokenColors": {
