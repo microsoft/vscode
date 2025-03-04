@@ -726,7 +726,13 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 					primaryActionIcon = Codicon.copilotNotConnected;
 				} else if (chatQuotaExceeded || completionsQuotaExceeded) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					primaryActionTitle = quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded });
+					if (chatQuotaExceeded && !completionsQuotaExceeded) {
+						primaryActionTitle = localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
+					} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+						primaryActionTitle = localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
+					} else {
+						primaryActionTitle = localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
+					}
 					primaryActionIcon = Codicon.copilotWarning;
 				} else {
 					primaryActionId = TOGGLE_CHAT_ACTION_ID;
@@ -747,15 +753,5 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 
 		// Reduces flicker a bit on reload/restart
 		markAsSingleton(disposable);
-	}
-}
-
-export function quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
-	if (chatQuotaExceeded && !completionsQuotaExceeded) {
-		return localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
-	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-		return localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
-	} else {
-		return localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 	}
 }
