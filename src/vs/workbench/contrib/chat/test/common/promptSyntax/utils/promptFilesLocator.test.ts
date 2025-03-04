@@ -141,7 +141,7 @@ suite('PromptFilesLocator', () => {
 						[URI.file('/Users/legomushroom/repos/prompts').path]: true,
 						[URI.file('/tmp/prompts/').path]: true,
 						[URI.file('/absolute/path/prompts').path]: false,
-						['.copilot/prompts']: true,
+						'.copilot/prompts': true,
 					},
 					EMPTY_WORKSPACE,
 					[
@@ -197,17 +197,17 @@ suite('PromptFilesLocator', () => {
 				test('• core logic', async () => {
 					const locator = await createPromptsLocator(
 						{
-							'/Users/legomushroom/repos/prompts': true,
-							'/tmp/prompts/': true,
-							'/absolute/path/prompts': false,
+							[URI.file('/Users/legomushroom/repos/prompts').path]: true,
+							[URI.file('/tmp/prompts/').path]: true,
+							[URI.file('/absolute/path/prompts').path]: false,
 							'.copilot/prompts': true,
 						},
 						[
-							'/Users/legomushroom/repos/vscode',
+							URI.file('/Users/legomushroom/repos/vscode').path,
 						],
 						[
 							{
-								name: '/Users/legomushroom/repos/prompts',
+								name: URI.file('/Users/legomushroom/repos/prompts').path,
 								children: [
 									{
 										name: 'test.prompt.md',
@@ -220,7 +220,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/tmp/prompts',
+								name: URI.file('/tmp/prompts').path,
 								children: [
 									{
 										name: 'translate.to-rust.prompt.md',
@@ -229,7 +229,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/absolute/path/prompts',
+								name: URI.file('/absolute/path/prompts').path,
 								children: [
 									{
 										name: 'some-prompt-file.prompt.md',
@@ -238,23 +238,33 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/Users/legomushroom/repos/vscode',
+								name: URI.file('/Users/legomushroom/repos/vscode').path,
 								children: [
 									{
-										name: '.copilot/prompts',
+										name: '.copilot',
 										children: [
 											{
-												name: 'default.prompt.md',
-												contents: 'oh hi, robot!',
+												name: 'prompts',
+												children: [
+													{
+														name: 'default.prompt.md',
+														contents: 'oh hi, robot!',
+													},
+												],
 											},
 										],
 									},
 									{
-										name: '.github/prompts',
+										name: '.github',
 										children: [
 											{
-												name: 'my.prompt.md',
-												contents: 'oh hi, bot!',
+												name: 'prompts',
+												children: [
+													{
+														name: 'my.prompt.md',
+														contents: 'oh hi, bot!',
+													},
+												],
 											},
 										],
 									},
@@ -278,18 +288,18 @@ suite('PromptFilesLocator', () => {
 				test('• with disabled `.github/prompts` location', async () => {
 					const locator = await createPromptsLocator(
 						{
-							'/Users/legomushroom/repos/prompts': true,
-							'/tmp/prompts/': true,
-							'/absolute/path/prompts': false,
+							[URI.file('/Users/legomushroom/repos/prompts').path]: true,
+							[URI.file('/tmp/prompts/').path]: true,
+							[URI.file('/absolute/path/prompts').path]: false,
 							'.copilot/prompts': true,
 							'.github/prompts': false,
 						},
 						[
-							'/Users/legomushroom/repos/vscode',
+							URI.file('/Users/legomushroom/repos/vscode').path,
 						],
 						[
 							{
-								name: '/Users/legomushroom/repos/prompts',
+								name: URI.file('/Users/legomushroom/repos/prompts').path,
 								children: [
 									{
 										name: 'test.prompt.md',
@@ -302,7 +312,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/tmp/prompts',
+								name: URI.file('/tmp/prompts').path,
 								children: [
 									{
 										name: 'translate.to-rust.prompt.md',
@@ -311,7 +321,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/absolute/path/prompts',
+								name: URI.file('/absolute/path/prompts').path,
 								children: [
 									{
 										name: 'some-prompt-file.prompt.md',
@@ -320,7 +330,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/Users/legomushroom/repos/vscode',
+								name: URI.file('/Users/legomushroom/repos/vscode').path,
 								children: [
 									{
 										name: '.copilot/prompts',
@@ -369,18 +379,18 @@ suite('PromptFilesLocator', () => {
 				test('• without top-level `.github` folder', async () => {
 					const locator = await createPromptsLocator(
 						{
-							'/Users/legomushroom/repos/prompts': true,
-							'/tmp/prompts/': true,
-							'/absolute/path/prompts': false,
+							[URI.file('/Users/legomushroom/repos/prompts').path]: true,
+							[URI.file('/tmp/prompts/').path]: true,
+							[URI.file('/absolute/path/prompts').path]: false,
 							'.copilot/prompts': false,
 						},
 						[
-							'/Users/legomushroom/repos/vscode',
-							'/Users/legomushroom/repos/node',
+							URI.file('/Users/legomushroom/repos/vscode').path,
+							URI.file('/Users/legomushroom/repos/node').path,
 						],
 						[
 							{
-								name: '/Users/legomushroom/repos/prompts',
+								name: URI.file('/Users/legomushroom/repos/prompts').path,
 								children: [
 									{
 										name: 'test.prompt.md',
@@ -393,7 +403,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/tmp/prompts',
+								name: URI.file('/tmp/prompts').path,
 								children: [
 									{
 										name: 'translate.to-rust.prompt.md',
@@ -402,7 +412,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/absolute/path/prompts',
+								name: URI.file('/absolute/path/prompts').path,
 								children: [
 									{
 										name: 'some-prompt-file.prompt.md',
@@ -411,7 +421,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/Users/legomushroom/repos/vscode',
+								name: URI.file('/Users/legomushroom/repos/vscode').path,
 								children: [
 									{
 										name: '.copilot/prompts',
@@ -434,7 +444,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/Users/legomushroom/repos/node',
+								name: URI.file('/Users/legomushroom/repos/node').path,
 								children: [
 									{
 										name: '.copilot/prompts',
@@ -458,7 +468,7 @@ suite('PromptFilesLocator', () => {
 							},
 							// note! this folder is not part of the workspace, so prompt files are `ignored`
 							{
-								name: '/Users/legomushroom/repos/.github/prompts',
+								name: URI.file('/Users/legomushroom/repos/.github/prompts').path,
 								children: [
 									{
 										name: 'prompt-name.prompt.md',
@@ -488,19 +498,19 @@ suite('PromptFilesLocator', () => {
 				test('• with top-level `.github` folder', async () => {
 					const locator = await createPromptsLocator(
 						{
-							'/Users/legomushroom/repos/prompts': true,
-							'/tmp/prompts/': true,
-							'/absolute/path/prompts': false,
+							[URI.file('/Users/legomushroom/repos/prompts').path]: true,
+							[URI.file('/tmp/prompts/').path]: true,
+							[URI.file('/absolute/path/prompts').path]: false,
 							'.copilot/prompts': false,
 						},
 						[
-							'/Users/legomushroom/repos/vscode',
-							'/Users/legomushroom/repos/node',
-							'/var/shared/prompts/.github',
+							URI.file('/Users/legomushroom/repos/vscode').path,
+							URI.file('/Users/legomushroom/repos/node').path,
+							URI.file('/var/shared/prompts/.github').path,
 						],
 						[
 							{
-								name: '/Users/legomushroom/repos/prompts',
+								name: URI.file('/Users/legomushroom/repos/prompts').path,
 								children: [
 									{
 										name: 'test.prompt.md',
@@ -513,7 +523,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/tmp/prompts',
+								name: URI.file('/tmp/prompts').path,
 								children: [
 									{
 										name: 'translate.to-rust.prompt.md',
@@ -522,7 +532,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/absolute/path/prompts',
+								name: URI.file('/absolute/path/prompts').path,
 								children: [
 									{
 										name: 'some-prompt-file.prompt.md',
@@ -531,7 +541,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/Users/legomushroom/repos/vscode',
+								name: URI.file('/Users/legomushroom/repos/vscode').path,
 								children: [
 									{
 										name: '.copilot/prompts',
@@ -554,7 +564,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/Users/legomushroom/repos/node',
+								name: URI.file('/Users/legomushroom/repos/node').path,
 								children: [
 									{
 										name: '.copilot/prompts',
@@ -578,7 +588,7 @@ suite('PromptFilesLocator', () => {
 							},
 							// note! this folder is part of the workspace, so prompt files are `included`
 							{
-								name: '/var/shared/prompts/.github/prompts',
+								name: URI.file('/var/shared/prompts/.github/prompts').path,
 								children: [
 									{
 										name: 'prompt-name.prompt.md',
@@ -610,20 +620,20 @@ suite('PromptFilesLocator', () => {
 				test('• with disabled `.github/prompts` location', async () => {
 					const locator = await createPromptsLocator(
 						{
-							'/Users/legomushroom/repos/prompts': true,
-							'/tmp/prompts/': true,
-							'/absolute/path/prompts': false,
+							[URI.file('/Users/legomushroom/repos/prompts').path]: true,
+							[URI.file('/tmp/prompts/').path]: true,
+							[URI.file('/absolute/path/prompts').path]: false,
 							'.copilot/prompts': false,
 							'.github/prompts': false,
 						},
 						[
-							'/Users/legomushroom/repos/vscode',
-							'/Users/legomushroom/repos/node',
-							'/var/shared/prompts/.github',
+							URI.file('/Users/legomushroom/repos/vscode').path,
+							URI.file('/Users/legomushroom/repos/node').path,
+							URI.file('/var/shared/prompts/.github').path,
 						],
 						[
 							{
-								name: '/Users/legomushroom/repos/prompts',
+								name: URI.file('/Users/legomushroom/repos/prompts').path,
 								children: [
 									{
 										name: 'test.prompt.md',
@@ -636,7 +646,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/tmp/prompts',
+								name: URI.file('/tmp/prompts').path,
 								children: [
 									{
 										name: 'translate.to-rust.prompt.md',
@@ -645,7 +655,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/absolute/path/prompts',
+								name: URI.file('/absolute/path/prompts').path,
 								children: [
 									{
 										name: 'some-prompt-file.prompt.md',
@@ -654,7 +664,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/Users/legomushroom/repos/vscode',
+								name: URI.file('/Users/legomushroom/repos/vscode').path,
 								children: [
 									{
 										name: '.copilot/prompts',
@@ -677,7 +687,7 @@ suite('PromptFilesLocator', () => {
 								],
 							},
 							{
-								name: '/Users/legomushroom/repos/node',
+								name: URI.file('/Users/legomushroom/repos/node').path,
 								children: [
 									{
 										name: '.copilot/prompts',
@@ -701,7 +711,7 @@ suite('PromptFilesLocator', () => {
 							},
 							// note! this folder is part of the workspace, so prompt files are `included`
 							{
-								name: '/var/shared/prompts/.github/prompts',
+								name: URI.file('/var/shared/prompts/.github/prompts').path,
 								children: [
 									{
 										name: 'prompt-name.prompt.md',
