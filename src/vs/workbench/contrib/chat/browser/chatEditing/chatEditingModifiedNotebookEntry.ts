@@ -513,11 +513,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			if (cellsUris.has(uri)) {
 				return;
 			}
-			try {
-				this.cellEntryMap.get(uri)?.dispose();
-			} catch (ex) {
-				console.error(ex);
-			}
+			this.cellEntryMap.get(uri)?.dispose();
 			this.cellEntryMap.delete(uri);
 		});
 	}
