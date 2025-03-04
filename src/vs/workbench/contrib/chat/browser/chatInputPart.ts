@@ -126,7 +126,6 @@ interface IChatInputPartOptions {
 
 export interface IWorkingSetEntry {
 	uri: URI;
-	isMarkedReadonly?: boolean;
 }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -1314,7 +1313,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					state: metadata.state,
 					description: metadata.description,
 					kind: 'reference',
-					isMarkedReadonly: metadata.isMarkedReadonly,
 				});
 				seenEntries.add(file);
 			}
