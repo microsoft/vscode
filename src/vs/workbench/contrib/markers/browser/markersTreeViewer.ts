@@ -26,7 +26,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { isUndefinedOrNull } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Action, IAction } from '../../../../base/common/actions.js';
+import { Action, IAction, toAction } from '../../../../base/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { CancelablePromise, createCancelablePromise, Delayer } from '../../../../base/common/async.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -645,15 +645,15 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private toActions(codeActions: CodeActionSet): IAction[] {
-		return codeActions.validActions.map(item => new Action(
-			item.action.command ? item.action.command.id : item.action.title,
-			item.action.title,
-			undefined,
-			true,
-			() => {
-				return this.openFileAtMarker(this.marker)
-					.then(() => this.instantiationService.invokeFunction(applyCodeAction, item, ApplyCodeActionReason.FromProblemsView));
-			}));
+		return codeActions.validActions.map(item => toAction({
+			id: item.action.command ? item.action.command.id : item.action.title,
+			label: item.action.title,
+			enabled: true,
+			run: async () => {
+				await this.openFileAtMarker(this.marker);
+				return await this.instantiationService.invokeFunction(applyCodeAction, item, ApplyCodeActionReason.FromProblemsView);
+			}
+		}));
 	}
 
 	private openFileAtMarker(element: Marker): Promise<void> {
