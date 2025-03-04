@@ -529,20 +529,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter((item) => {
-				// the `prompts` resource is the special case and is unlike other resources
-				// is `disabled` by default due to PII concerns; however, when user enables
-				// the sync feature, we want the resource to be pre-selected in the UI hence
-				// be consistent with other resource types in that regard; to achieve that
-				// we use the `true` fallback value here if the resource enablement state wasn't
-				// modified before
-				if (item.id === SyncResource.Prompts) {
-					const currentValue = this.userDataSyncEnablementService.getResourceEnablement(item.id);
-					return currentValue ?? true;
-				}
-
-				return this.userDataSyncEnablementService.isResourceEnabled(item.id);
-			});
+			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id, true));
 			let accepted: boolean = false;
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
 				accepted = true;
