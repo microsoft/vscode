@@ -367,6 +367,10 @@
 	}
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label.italic {
+	padding-right: 3px; /* https://github.com/microsoft/vscode/issues/207409 */
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed > .monaco-icon-label > .monaco-icon-label-container {
 	text-overflow: clip;
