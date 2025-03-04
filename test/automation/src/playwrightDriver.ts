@@ -234,7 +234,7 @@ export class PlaywrightDriver {
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];
 			if (i > 0) {
-				await this.wait(100);
+				await wait(100);
 			}
 
 			if (keybinding.startsWith('Alt') || keybinding.startsWith('Control') || keybinding.startsWith('Backspace')) {
@@ -318,10 +318,6 @@ export class PlaywrightDriver {
 		return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
 	}
 
-	wait(ms: number): Promise<void> {
-		return new Promise<void>(resolve => setTimeout(resolve, ms));
-	}
-
 	whenWorkbenchRestored(): Promise<void> {
 		return this.evaluateWithDriver(([driver]) => driver.whenWorkbenchRestored());
 	}
@@ -329,4 +325,8 @@ export class PlaywrightDriver {
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
 		return this.page.evaluateHandle('window.driver');
 	}
+}
+
+export function wait(ms: number): Promise<void> {
+	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
