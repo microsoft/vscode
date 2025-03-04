@@ -82,8 +82,7 @@ export class Terminal {
 		const keepOpen = commandId === TerminalCommandId.Join;
 		await this.quickaccess.runCommand(commandId, { keepOpen });
 		if (keepOpen) {
-			await this.code.dispatchKeybinding('enter');
-			await this.quickinput.waitForQuickInputClosed();
+			await this.code.dispatchKeybinding('enter', () => this.quickinput.waitForQuickInputClosed());
 		}
 		switch (commandId) {
 			case TerminalCommandId.Show:
@@ -120,8 +119,7 @@ export class Terminal {
 			await this.code.dispatchKeybinding('Backspace');
 		}
 		await this.code.wait(100);
-		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
-		await this.quickinput.waitForQuickInputClosed();
+		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter', () => this.quickinput.waitForQuickInputClosed());
 		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
 			await this._waitForTerminal();
 		}
