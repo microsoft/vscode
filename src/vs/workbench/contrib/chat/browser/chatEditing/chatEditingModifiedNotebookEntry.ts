@@ -48,7 +48,7 @@ import { CellEditState, getNotebookEditorFromEditorPane } from '../../../noteboo
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICell, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookCellsModelMoveEvent, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 import { computeDiff } from '../../../notebook/common/notebookDiff.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
@@ -243,14 +243,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	mirrorNotebookEdits(e: NotebookTextModelChangedEvent) {
-		/**
-		 * TODO@DonJayamanne
-		 * If user deletes cells, invoke this.disposeDeletedCellEntries();
-		 * If user makes any changes, invoke this.computeStateAfterAcceptingRejectingChanges(true);
-		 * If user deletes/inserts cells manually, do we need to apply those to the original snapshot? Unlikely, double check.
-		 */
 		if (this._isEditFromUs || Array.from(this.cellEntryMap.values()).some(entry => entry.isEditFromUs)) {
-			// TODO@DonJayamanne Apply this same edit to the original notebook.
 			return;
 		}
 
@@ -379,15 +372,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					break;
 				}
 				case NotebookCellsChangeType.Move: {
-					const edit: ICellEditOperation = {
-						editType: CellEditType.Move,
-						index: event.index,
-						length: event.length,
-						newIdx: event.newIdx
-					};
-					this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
-					// TODO@DonJayamanne
-					// We need to update the entries in _cellDiffInfo.
+					const result = adjustCellDiffAndOriginalModelBasedOnCellMovements(event, this._cellsDiffInfo.get().slice());
+					if (result) {
+						this.originalModel.applyEdits(result[1], true, undefined, () => undefined, undefined, true);
+						this._cellsDiffInfo.set(result[0], undefined);
+					}
 					break;
 				}
 				default: {
@@ -1279,4 +1268,98 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 			this._edit = OffsetEdits.fromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
 		}
 	}
+}
+
+/**
+ * Given the movements of cells in modified notebook, adjust the ICellDiffInfo[] array
+ * and generate edits for the old notebook (if required).
+ * TODO@DonJayamanne Handle bulk moves (movements of more than 1 cell).
+ */
+export function adjustCellDiffAndOriginalModelBasedOnCellMovements(event: NotebookCellsModelMoveEvent<ICell>, cellDiffInfo: ICellDiffInfo[]): [ICellDiffInfo[], ICellEditOperation[]] | undefined {
+	const minimumIndex = Math.min(event.index, event.newIdx);
+	const maximumIndex = Math.max(event.index, event.newIdx);
+	const cellDiffs = cellDiffInfo.slice();
+	const indexOfEntry = cellDiffs.findIndex(d => d.modifiedCellIndex === event.index);
+	const indexOfEntryToPlaceBelow = cellDiffs.findIndex(d => d.modifiedCellIndex === event.newIdx);
+	if (indexOfEntry === -1 || indexOfEntryToPlaceBelow === -1) {
+		return undefined;
+	}
+	// Create a new object so that the observable value is triggered.
+	// Besides we'll be updating the values of this object in place.
+	const entryToBeMoved = { ...cellDiffs[indexOfEntry] };
+	const moveDirection = event.newIdx > event.index ? 'down' : 'up';
+
+
+	const startIndex = cellDiffs.findIndex(d => d.modifiedCellIndex === minimumIndex);
+	const endIndex = cellDiffs.findIndex(d => d.modifiedCellIndex === maximumIndex);
+	const movingExistingCell = typeof entryToBeMoved.originalCellIndex === 'number';
+	let originalCellsWereEffected = false;
+	for (let i = 0; i < cellDiffs.length; i++) {
+		const diff = cellDiffs[i];
+		let changed = false;
+		if (moveDirection === 'down') {
+			if (i > startIndex && i <= endIndex) {
+				if (typeof diff.modifiedCellIndex === 'number') {
+					changed = true;
+					diff.modifiedCellIndex = diff.modifiedCellIndex - 1;
+				}
+				if (typeof diff.originalCellIndex === 'number' && movingExistingCell) {
+					diff.originalCellIndex = diff.originalCellIndex - 1;
+					originalCellsWereEffected = true;
+					changed = true;
+				}
+			}
+		} else {
+			if (i >= startIndex && i < endIndex) {
+				if (typeof diff.modifiedCellIndex === 'number') {
+					changed = true;
+					diff.modifiedCellIndex = diff.modifiedCellIndex + 1;
+				}
+				if (typeof diff.originalCellIndex === 'number' && movingExistingCell) {
+					diff.originalCellIndex = diff.originalCellIndex + 1;
+					originalCellsWereEffected = true;
+					changed = true;
+				}
+			}
+		}
+		// Create a new object so that the observable value is triggered.
+		// Do only if there's a change.
+		if (changed) {
+			cellDiffs[i] = { ...diff };
+		}
+	}
+	entryToBeMoved.modifiedCellIndex = event.newIdx;
+	const originalCellIndex = entryToBeMoved.originalCellIndex;
+	if (moveDirection === 'down') {
+		cellDiffs.splice(endIndex + 1, 0, entryToBeMoved);
+		cellDiffs.splice(startIndex, 1);
+		// If we're moving a new cell up/down, then we need just adjust just the modified indexes of the cells in between.
+		// If we're moving an existing up/down, then we need to adjust the original indexes as well.
+		if (typeof entryToBeMoved.originalCellIndex === 'number') {
+			entryToBeMoved.originalCellIndex = cellDiffs.slice(0, endIndex).reduce((lastOriginalIndex, diff) => typeof diff.originalCellIndex === 'number' ? Math.max(lastOriginalIndex, diff.originalCellIndex) : lastOriginalIndex, -1) + 1;
+		}
+	} else {
+		cellDiffs.splice(endIndex, 1);
+		cellDiffs.splice(startIndex, 0, entryToBeMoved);
+		// If we're moving a new cell up/down, then we need just adjust just the modified indexes of the cells in between.
+		// If we're moving an existing up/down, then we need to adjust the original indexes as well.
+		if (typeof entryToBeMoved.originalCellIndex === 'number') {
+			entryToBeMoved.originalCellIndex = cellDiffs.slice(0, startIndex).reduce((lastOriginalIndex, diff) => typeof diff.originalCellIndex === 'number' ? Math.min(lastOriginalIndex, diff.originalCellIndex) : lastOriginalIndex, -1) + 1;
+		}
+	}
+
+	// If this is a new cell that we're moving, and there are no existing cells in between, then we can just move the new cell.
+	// I.e. no need to update the original notebook model.
+	if (typeof entryToBeMoved.originalCellIndex === 'number' && originalCellsWereEffected && typeof originalCellIndex === 'number' && entryToBeMoved.originalCellIndex !== originalCellIndex) {
+		const edit: ICellEditOperation = {
+			editType: CellEditType.Move,
+			index: originalCellIndex,
+			length: event.length,
+			newIdx: entryToBeMoved.originalCellIndex
+		};
+
+		return [cellDiffs, [edit]];
+	}
+
+	return [cellDiffs, []];
 }
