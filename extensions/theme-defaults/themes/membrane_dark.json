@@ -687,6 +687,5 @@
 		"stringLiteral": "#ececec",
 		"customLiteral": "#ececec",
 		"numberLiteral": "#ececec",
-		"*.async": "#ff0000"
 	}
 }
