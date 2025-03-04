@@ -507,4 +507,80 @@ suite('ChatEditingModifiedNotebookEntry Cell Movements', function () {
 			},
 		]);
 	});
+	test('Move last cell to the second position of notebook that had 3 cells deleted from middle and 1 inserted in the middle', async function () {
+		const cellsDiffInfo: ICellDiffInfo[] = [
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+				modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+			},
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+				modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('2'), originalCellIndex: 2,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('3'), originalCellIndex: 3,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('4'), originalCellIndex: 4,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+				modifiedCellIndex: 2, modifiedModel: createModifiedModel('New1'),
+			},
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('5'), originalCellIndex: 5,
+				modifiedCellIndex: 3, modifiedModel: createModifiedModel('5'),
+			},
+		];
+		const result = adjustCellDiffAndOriginalModelBasedOnCellMovements({
+			cells: [], kind: NotebookCellsChangeType.Move,
+			index: 3, length: 1, newIdx: 1
+		}, cellsDiffInfo);
+
+		assert.ok(result);
+		assert.deepStrictEqual(result[1], [
+			{
+				editType: CellEditType.Move,
+				index: 5,
+				length: 1,
+				newIdx: 1
+			}
+		]);
+		assert.deepStrictEqual(result[0], [
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+				modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+			},
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('5'), originalCellIndex: 1,
+				modifiedCellIndex: 1, modifiedModel: createModifiedModel('5'),
+			},
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 2,
+				modifiedCellIndex: 2, modifiedModel: createModifiedModel('1'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('2'), originalCellIndex: 3,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('3'), originalCellIndex: 4,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('4'), originalCellIndex: 5,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+				modifiedCellIndex: 3, modifiedModel: createModifiedModel('New1'),
+			},
+		]);
+	});
 });

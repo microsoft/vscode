@@ -1344,7 +1344,7 @@ export function adjustCellDiffAndOriginalModelBasedOnCellMovements(event: Notebo
 		// If we're moving a new cell up/down, then we need just adjust just the modified indexes of the cells in between.
 		// If we're moving an existing up/down, then we need to adjust the original indexes as well.
 		if (typeof entryToBeMoved.originalCellIndex === 'number') {
-			entryToBeMoved.originalCellIndex = cellDiffs.slice(0, startIndex).reduce((lastOriginalIndex, diff) => typeof diff.originalCellIndex === 'number' ? Math.min(lastOriginalIndex, diff.originalCellIndex) : lastOriginalIndex, -1) + 1;
+			entryToBeMoved.originalCellIndex = cellDiffs.slice(0, startIndex).reduce((lastOriginalIndex, diff) => typeof diff.originalCellIndex === 'number' ? Math.max(lastOriginalIndex, diff.originalCellIndex) : lastOriginalIndex, -1) + 1;
 		}
 	}
 
