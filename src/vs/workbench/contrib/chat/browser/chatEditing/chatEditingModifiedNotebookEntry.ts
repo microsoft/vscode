@@ -48,7 +48,7 @@ import { CellEditState, getNotebookEditorFromEditorPane } from '../../../noteboo
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICell, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookCellsModelMoveEvent, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICell, ICellDto2, ICellEditOperation, ICellReplaceEdit, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookCellsModelMoveEvent, NotebookCellTextModelSplice, NotebookTextModelChangedEvent, TransientOptions } from '../../../notebook/common/notebookCommon.js';
 import { computeDiff } from '../../../notebook/common/notebookDiff.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
@@ -281,44 +281,16 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					break;
 				}
 				case NotebookCellsChangeType.ModelChange: {
+					let cellDiffs = sortCellChanges(this._cellsDiffInfo.get()).slice();
 					event.changes.forEach(change => {
-						const cells = change[2].map(cell => {
-							return {
-								cellKind: cell.cellKind,
-								language: cell.language,
-								metadata: cell.metadata,
-								outputs: cell.outputs,
-								source: cell.getValue(),
-								mime: undefined,
-								internalMetadata: cell.internalMetadata
-							} satisfies ICellDto2;
-						});
-						const cellDiffs = sortCellChanges(this._cellsDiffInfo.get()).slice();
-						const wasInsertedAsFirstCell = change[0] === 0;
-						const wasInsertedAsLastCell = change[0] === this.modifiedModel.cells.length - 1;
-						const diffEntryIndex = wasInsertedAsFirstCell ? 0 : (wasInsertedAsLastCell ? this.originalModel.cells.length : (cellDiffs.findIndex(d => d.modifiedCellIndex === change[0])));
-						const indexToInsertInOriginalModel = (wasInsertedAsFirstCell || diffEntryIndex === -1) ? 0 : (wasInsertedAsLastCell ? this.originalModel.cells.length : (((cellDiffs.slice(0, diffEntryIndex).reverse().find(c => typeof c.originalCellIndex === 'number')?.originalCellIndex ?? -1) + 1)));
-						const edit: ICellEditOperation = {
-							editType: CellEditType.Replace,
-							cells,
-							index: indexToInsertInOriginalModel,
-							count: change[1]
-						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, true);
-						// If cells were deleted we handled that with this.disposeDeletedCellEntries();
-						if (diffEntryIndex >= 0) {
-							cellDiffs.splice(diffEntryIndex, change[1]);
-						}
-						// For inserted cells, we need to ensure that we create a corresponding CellEntry.
-						// So that any edits to the inserted cell is handled and mirrored over to the corresponding cell in original model.
-						cells.forEach((_, i) => {
-							const originalCellIndex = i + indexToInsertInOriginalModel;
-							const modifiedCellIndex = change[0] + i;
-							const unchangedCell = this.createModifiedCellDiffInfo(modifiedCellIndex, originalCellIndex);
-							cellDiffs.splice(diffEntryIndex === -1 ? 0 : diffEntryIndex, 0, unchangedCell);
-							this.updateCellDiffInfo(cellDiffs, undefined);
-						});
+						cellDiffs = adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change,
+							cellDiffs,
+							this.modifiedModel.cells.length,
+							this.originalModel.cells.length,
+							this.originalModel.applyEdits.bind(this.originalModel),
+							this.createModifiedCellDiffInfo.bind(this));
 					});
+					this.updateCellDiffInfo(cellDiffs, undefined);
 					this.disposeDeletedCellEntries();
 					break;
 				}
@@ -1270,6 +1242,101 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 	}
 }
 
+export function adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change: NotebookCellTextModelSplice<ICell>,
+	cellDiffInfo: ICellDiffInfo[],
+	modifiedModelCellCount: number,
+	originalModelCellCount: number,
+	applyEdits: typeof NotebookTextModel.prototype.applyEdits,
+	createModifiedCellDiffInfo: (modifiedCellIndex: number, originalCellIndex: number) => ICellDiffInfo,
+): ICellDiffInfo[] {
+	cellDiffInfo = sortCellChanges(cellDiffInfo).slice();
+	const numberOfCellsInserted = change[2].length;
+	const numberOfCellsDeleted = change[1];
+	const cells = change[2].map(cell => {
+		return {
+			cellKind: cell.cellKind,
+			language: cell.language,
+			metadata: cell.metadata,
+			outputs: cell.outputs,
+			source: cell.getValue(),
+			mime: undefined,
+			internalMetadata: cell.internalMetadata
+		} satisfies ICellDto2;
+	});
+	const wasInsertedAsFirstCell = change[0] === 0;
+	const wasInsertedAsLastCell = change[0] === modifiedModelCellCount - 1;
+	const diffEntryIndex = wasInsertedAsFirstCell ? 0 : (wasInsertedAsLastCell ? cellDiffInfo.length - 1 : (cellDiffInfo.findIndex(d => d.modifiedCellIndex === change[0])));
+	const lastModifiedIndexToRemove = change[0] + numberOfCellsDeleted - 1;
+	const lastDiffEntryIndex = numberOfCellsDeleted === 1 ? diffEntryIndex : cellDiffInfo.findIndex(d => d.modifiedCellIndex === lastModifiedIndexToRemove);
+	const numberOfOriginalCellsRemoved = cellDiffInfo.slice(diffEntryIndex, lastDiffEntryIndex + 1).filter(d => typeof d.originalCellIndex === 'number').length;
+	const indexToInsertInOriginalModel = (wasInsertedAsFirstCell || diffEntryIndex === -1) ? 0 : (wasInsertedAsLastCell ? originalModelCellCount : (((cellDiffInfo.slice(0, diffEntryIndex).reverse().find(c => typeof c.originalCellIndex === 'number')?.originalCellIndex ?? -1) + 1)));
+	if (cells.length) {
+		const edit: ICellEditOperation = {
+			editType: CellEditType.Replace,
+			cells,
+			index: indexToInsertInOriginalModel,
+			count: change[1]
+		};
+		applyEdits([edit], true, undefined, () => undefined, undefined, true);
+	}
+	// If cells were deleted we handled that with this.disposeDeletedCellEntries();
+	if (diffEntryIndex >= 0) {
+		for (let i = 0; i < numberOfCellsDeleted; i++) {
+			cellDiffInfo = cellDiffInfo.filter(d => d.modifiedCellIndex !== change[0] + i);
+		}
+	}
+	if (numberOfCellsDeleted) {
+		for (let i = 0; i < cellDiffInfo.length; i++) {
+			const diff = cellDiffInfo[i];
+			if (i < diffEntryIndex) {
+				continue;
+			}
+			let changed = false;
+			if (typeof diff.modifiedCellIndex === 'number') {
+				diff.modifiedCellIndex -= numberOfCellsDeleted;
+				changed = true;
+			}
+			if (typeof diff.originalCellIndex === 'number' && numberOfOriginalCellsRemoved) {
+				diff.originalCellIndex -= numberOfOriginalCellsRemoved;
+				changed = true;
+			}
+			if (changed) {
+				cellDiffInfo[i] = { ...diff };
+			}
+		}
+	}
+
+	if (numberOfCellsInserted) {
+		for (let i = 0; i < cellDiffInfo.length; i++) {
+			const diff = cellDiffInfo[i];
+			if (i < diffEntryIndex) {
+				continue;
+			}
+			let changed = false;
+			if (typeof diff.modifiedCellIndex === 'number') {
+				diff.modifiedCellIndex += numberOfCellsInserted;
+				changed = true;
+			}
+			if (typeof diff.originalCellIndex === 'number') {
+				diff.originalCellIndex += numberOfCellsInserted;
+				changed = true;
+			}
+			if (changed) {
+				cellDiffInfo[i] = { ...diff };
+			}
+		}
+	}
+
+	// For inserted cells, we need to ensure that we create a corresponding CellEntry.
+	// So that any edits to the inserted cell is handled and mirrored over to the corresponding cell in original model.
+	cells.forEach((_, i) => {
+		const originalCellIndex = i + indexToInsertInOriginalModel;
+		const modifiedCellIndex = change[0] + i;
+		const unchangedCell = createModifiedCellDiffInfo(modifiedCellIndex, originalCellIndex);
+		cellDiffInfo.splice((diffEntryIndex === -1 ? 0 : diffEntryIndex) + i, 0, unchangedCell);
+	});
+	return cellDiffInfo;
+}
 /**
  * Given the movements of cells in modified notebook, adjust the ICellDiffInfo[] array
  * and generate edits for the old notebook (if required).
