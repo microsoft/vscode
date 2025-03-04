@@ -77,6 +77,7 @@ import { revealInSideBarCommand } from '../../files/browser/fileActions.contribu
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry, isLinkVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
@@ -961,7 +962,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				hoverDelegate,
 				getKeyBinding: () => undefined,
 				actionViewItemProvider: (action, options) => {
-					if (action.id === 'workbench.action.chat.editing.attachFiles') {
+					if (action.id === 'workbench.action.chat.editing.attachContext') {
 						const viewItem = this.instantiationService.createInstance(AddFilesButton, undefined, action, options);
 						return viewItem;
 					}
@@ -990,6 +991,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const attachments = [...this.attachmentModel.attachments.entries()];
 		dom.setVisibility(Boolean(attachments.length) || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty()) || Boolean(this.implicitContext?.value) || !this.instructionAttachmentsPart.empty, this.attachmentsContainer);
+		dom.setVisibility(Boolean(attachments.length), this.attachedContextContainer);
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
@@ -1408,6 +1410,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	async renderChatRelatedFiles(chatEditingSession: IChatEditingSession, anchor: HTMLElement) {
 		dom.clearNode(anchor);
+		dom.setVisibility(Boolean(chatEditingSession.workingSet.size), anchor);
+
 		const hoverDelegate = getDefaultHoverDelegate('element');
 		for (const [uri, metadata] of chatEditingSession.workingSet) {
 			if (metadata.state !== WorkingSetEntryState.Suggested) {
@@ -1618,6 +1622,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ICommandService commandService: ICommandService,
 	) {
 		const modelActionsProvider: IActionProvider = {
@@ -1640,7 +1645,7 @@ class ModelPickerActionViewItem extends DropdownMenuActionViewItemWithKeybinding
 
 				const models: ILanguageModelChatMetadataAndIdentifier[] = this.delegate.getModels();
 				const actions = models.map(entry => setLanguageModelAction(entry));
-				if (contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.limited.key) === true) {
+				if (chatEntitlementService.entitlement === ChatEntitlement.Limited) {
 					actions.push(new Separator());
 					actions.push(toAction({ id: 'moreModels', label: localize('chat.moreModels', "Add More Models..."), run: () => commandService.executeCommand('workbench.action.chat.upgradePlan') }));
 				}

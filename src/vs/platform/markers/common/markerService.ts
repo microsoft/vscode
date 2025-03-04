@@ -310,11 +310,9 @@ export class MarkerService implements IMarkerService {
 	 * Creates an information marker for filtered resources
 	 */
 	private _createFilteredMarker(resource: URI, reasons: string[]): IMarker {
-		// Join all reasons with a comma or use the first reason if there's only one
-
-		const message = reasons.length > 1
-			? localize('filter.n', "{0} filters active", reasons.length)
-			: localize('filter.1', "Filtered: {0}", reasons[0]);
+		const message = reasons.length === 1
+			? localize('filtered', "Problems are paused because: \"{0}\"", reasons[0])
+			: localize('filtered.network', "Problems are paused because: \"{0}\" and {1} more", reasons[0], reasons.length - 1);
 
 		return {
 			owner: 'markersFilter',

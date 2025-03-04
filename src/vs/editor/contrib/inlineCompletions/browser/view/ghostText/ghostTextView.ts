@@ -81,7 +81,7 @@ export class GhostTextView extends Disposable {
 					return;
 				}
 				const a = e.target.detail.injectedText?.options.attachedData;
-				if (a instanceof GhostTextAttachedData) {
+				if (a instanceof GhostTextAttachedData && a.owner === this) {
 					this._onDidClick.fire(e.event);
 				}
 			}));
@@ -229,7 +229,7 @@ export class GhostTextView extends Disposable {
 							+ extraClassNames
 							+ p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
 						cursorStops: InjectedTextCursorStops.Left,
-						attachedData: new GhostTextAttachedData(),
+						attachedData: new GhostTextAttachedData(this),
 					},
 					showIfCollapsed: true,
 				}
@@ -258,7 +258,9 @@ export class GhostTextView extends Disposable {
 	);
 
 	private readonly _isInlineTextHovered = this._editorObs.isTargetHovered(
-		p => p.target.type === MouseTargetType.CONTENT_TEXT && p.target.detail.injectedText?.options.attachedData instanceof GhostTextAttachedData,
+		p => p.target.type === MouseTargetType.CONTENT_TEXT &&
+			p.target.detail.injectedText?.options.attachedData instanceof GhostTextAttachedData &&
+			p.target.detail.injectedText.options.attachedData.owner === this,
 		this._store
 	);
 
@@ -277,7 +279,9 @@ export class GhostTextView extends Disposable {
 	}
 }
 
-class GhostTextAttachedData { }
+class GhostTextAttachedData {
+	constructor(public readonly owner: GhostTextView) { }
+}
 
 interface WidgetDomElement {
 	ghostTextViewWarningWidgetData?: {

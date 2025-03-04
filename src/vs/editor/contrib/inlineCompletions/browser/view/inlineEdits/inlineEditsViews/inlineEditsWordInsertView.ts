@@ -14,9 +14,9 @@ import { Rect } from '../../../../../../browser/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
 import { SingleTextEdit } from '../../../../../../common/core/textEdit.js';
-import { IInlineEditsView } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor } from '../theme.js';
-import { InlineEditTabAction, mapOutFalsy, rectToProps } from '../utils/utils.js';
+import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsWordInsertView extends Disposable implements IInlineEditsView {
 
