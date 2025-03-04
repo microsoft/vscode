@@ -257,6 +257,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const completions = providedCompletions?.flat() || [];
 		if (!explicitlyInvoked && !completions.length) {
+			this.hideSuggestWidget(true);
 			return;
 		}
 
@@ -426,7 +427,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 
 			// If the cursor moved to the left
-			if (this._mostRecentPromptInputState && promptInputState.cursorIndex < this._mostRecentPromptInputState.cursorIndex) {
+			if (this._mostRecentPromptInputState && promptInputState.cursorIndex < this._mostRecentPromptInputState.cursorIndex && promptInputState.cursorIndex > 0) {
 				// Backspace or left past a trigger character
 				if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
 					const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
@@ -592,6 +593,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		return fontInfo;
 	}
 
+	private _getAdvancedExplainModeDetails(): string | undefined {
+		return `promptInputModel: ${this._promptInputModel?.getCombinedString()}`;
+	}
+
 	private _showCompletions(model: TerminalCompletionModel, explicitlyInvoked?: boolean): void {
 		if (!this._terminal?.element) {
 			return;
@@ -628,7 +633,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					showStatusBarSettingId: TerminalSuggestSettingId.ShowStatusBar
 				},
 				this._getFontInfo.bind(this),
-				this._onDidFontConfigurationChange.event.bind(this)
+				this._onDidFontConfigurationChange.event.bind(this),
+				this._getAdvancedExplainModeDetails.bind(this)
 			)) as any as SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
 			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,

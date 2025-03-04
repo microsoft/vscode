@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -262,11 +262,12 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 					checkbox: undefined,
 					resourceType: r,
 					openAction: children.length
-						? new Action('_open',
-							localize('open', "Open to the Side"),
-							ThemeIcon.asClassName(Codicon.goToFile),
-							true,
-							() => children[0]?.openAction?.run())
+						? toAction({
+							id: '_open',
+							label: localize('open', "Open to the Side"),
+							class: ThemeIcon.asClassName(Codicon.goToFile),
+							run: () => children[0]?.openAction?.run()
+						})
 						: undefined
 				};
 			}));
@@ -309,11 +310,16 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			description: isString(child.description) ? child.description : undefined,
 			resource: URI.revive(child.resourceUri),
 			icon: child.themeIcon,
-			openAction: new Action('_openChild', localize('open', "Open to the Side"), ThemeIcon.asClassName(Codicon.goToFile), true, async () => {
-				if (child.parent.type === ProfileResourceType.Extensions) {
-					await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
-				} else if (child.resourceUri) {
-					await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, child.resourceUri, [SIDE_GROUP], undefined);
+			openAction: toAction({
+				id: '_openChild',
+				label: localize('open', "Open to the Side"),
+				class: ThemeIcon.asClassName(Codicon.goToFile),
+				run: async () => {
+					if (child.parent.type === ProfileResourceType.Extensions) {
+						await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
+					} else if (child.resourceUri) {
+						await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, child.resourceUri, [SIDE_GROUP], undefined);
+					}
 				}
 			}),
 			actions: {
@@ -1036,13 +1042,13 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			));
 			primaryActions.push(createAction);
 			if (isWeb && copyFrom instanceof URI && isProfileURL(copyFrom)) {
-				primaryActions.push(new Action(
+				primaryActions.push(disposables.add(new Action(
 					'userDataProfile.createInDesktop',
 					localize('import in desktop', "Create in {0}", this.productService.nameLong),
 					undefined,
 					true,
 					() => this.openerService.open(copyFrom, { openExternal: true })
-				));
+				)));
 			}
 			const cancelAction = disposables.add(new Action(
 				'userDataProfile.cancel',

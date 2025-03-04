@@ -568,6 +568,7 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 	let children: ITOCEntry<ISetting>[] | undefined;
 	if (tocData.children) {
 		children = tocData.children
+			.filter(child => child.hide !== true)
 			.map(child => _resolveSettingsTree(child, allSettings, logService))
 			.filter(child => child.children?.length || child.settings?.length);
 	}

@@ -87,5 +87,10 @@ export class ChatVariablesService implements IChatVariablesService {
 			widget.attachmentModel.addFile(uri, range);
 			return;
 		}
+
+		if (key === 'folder' && URI.isUri(value)) {
+			widget.attachmentModel.addFolder(value);
+			return;
+		}
 	}
 }

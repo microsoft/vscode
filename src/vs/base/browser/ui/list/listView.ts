@@ -1243,7 +1243,11 @@ export class ListView<T> implements IListView<T> {
 			}));
 			selectionStore.add(addDisposableListener(doc, 'selectionchange', () => {
 				const selection = doc.getSelection();
-				if (!selection) {
+				// if the selection changed _after_ mouseup, it's from clearing the list or similar, so teardown
+				if (!selection || selection.isCollapsed) {
+					if (movementStore.isDisposed) {
+						selectionStore.dispose();
+					}
 					return;
 				}
 
@@ -1527,8 +1531,9 @@ export class ListView<T> implements IListView<T> {
 	protected getRenderRange(renderTop: number, renderHeight: number): IRange {
 		const range = this.getVisibleRange(renderTop, renderHeight);
 		if (this.currentSelectionBounds) {
-			range.start = Math.min(range.start, this.currentSelectionBounds.start);
-			range.end = Math.max(range.end, this.currentSelectionBounds.end + 1);
+			const max = this.rangeMap.count;
+			range.start = Math.min(range.start, this.currentSelectionBounds.start, max);
+			range.end = Math.min(Math.max(range.end, this.currentSelectionBounds.end + 1), max);
 		}
 
 		return range;

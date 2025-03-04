@@ -84,7 +84,7 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 	}
 }
 
-abstract class AbstractCellRenderer {
+abstract class AbstractCellRenderer extends Disposable {
 	protected readonly editorOptions: CellEditorOptions;
 
 	constructor(
@@ -99,11 +99,12 @@ abstract class AbstractCellRenderer {
 		language: string,
 		protected dndController: CellDragAndDropController | undefined
 	) {
-		this.editorOptions = new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(language), this.notebookEditor.notebookOptions, configurationService);
+		super();
+		this.editorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(language), this.notebookEditor.notebookOptions, configurationService));
 	}
 
-	dispose() {
-		this.editorOptions.dispose();
+	override dispose() {
+		super.dispose();
 		this.dndController = undefined;
 	}
 }
@@ -366,7 +367,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			outputShowMoreContainer,
 			editor,
 			templateDisposables,
-			elementDisposables: new DisposableStore(),
+			elementDisposables: this._register(new DisposableStore()),
 			cellParts,
 			toJSON: () => { return {}; }
 		};
