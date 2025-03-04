@@ -137,8 +137,8 @@ export class QuickAccess {
 		// Other parts of code might steal focus away from quickinput :(
 		while (retries < 5) {
 
-			// Await for quick input widget opened
 			try {
+				// Await for quick input widget opened
 				const accept = () => this.quickInput.waitForQuickInputOpened(10);
 				// Open via keybinding
 				switch (kind) {
