@@ -14,7 +14,7 @@ import { Point } from '../../../../../../browser/point.js';
 import { LineRange } from '../../../../../../common/core/lineRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { IInlineEditsView, IInlineEditsViewHost } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
 import { getOriginalBorderColor, originalBackgroundColor } from '../theme.js';
 import { createRectangle, getPrefixTrim, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
@@ -32,7 +32,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			originalRange: LineRange;
 			deletions: Range[];
 		} | undefined>,
-		private readonly _host: IInlineEditsViewHost,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 	) {
 		super();
 
@@ -151,7 +151,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			{ hideLeft: layoutInfo.horizontalScrollOffset !== 0 }
 		);
 
-		const originalBorderColor = getOriginalBorderColor(this._host.tabAction).read(reader);
+		const originalBorderColor = getOriginalBorderColor(this._tabAction).read(reader);
 
 		return [
 			n.svgElem('path', {
