@@ -33,8 +33,7 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	CODE_SOURCE_PART=${APT_SOURCE_PARTS}vscode.list
 	CODE_SOURCE_PART_DEB822=${APT_SOURCE_PARTS}vscode.sources
 
-	eval $(apt-config shell APT_TRUSTED_PARTS Dir::Etc::trustedparts/d)
-	CODE_TRUSTED_PART=${APT_TRUSTED_PARTS}microsoft.gpg
+	CODE_TRUSTED_PART=/usr/share/keyrings/microsoft.gpg
 
 	# RET seems to be true by default even after db_get is called on a first install.
 	RET='true'
