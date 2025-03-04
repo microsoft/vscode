@@ -15,14 +15,14 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowToolti
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { quotaToButtonMessage, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, CHAT_SETUP_ACTION_LABEL, TOGGLE_CHAT_ACTION_ID, CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventLike, EventType } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Command } from '../../../../editor/common/languages.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -98,13 +98,15 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private static readonly SETTING = 'chat.experimental.statusIndicator.enabled';
 
+	private static readonly SIGN_IN_COMMAND_ID = 'workbench.action.chat.signIn';
+
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
 	private dashboard = new Lazy<ChatStatusDashboard>(() => this.instantiationService.createInstance(ChatStatusDashboard));
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
@@ -114,6 +116,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		this.create();
 		this.registerListeners();
+		this.registerCommands();
 	}
 
 	private async create(): Promise<void> {
@@ -146,6 +149,12 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.entry?.update(this.getEntryProps())));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.entry?.update(this.getEntryProps())));
+	}
+
+	private registerCommands(): void {
+		CommandsRegistry.registerCommand(ChatStatusBarEntry.SIGN_IN_COMMAND_ID, () => {
+			this.chatEntitlementService.requests?.value.signIn();
+		});
 	}
 
 	private getEntryProps(): IStatusbarEntry {
@@ -185,10 +194,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		// Signed out
 		else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-			text = '$(copilot-not-connected)';
+			text = '$(copilot-not-connected) Sign In to Use Copilot';
 			ariaLabel = localize('signInToUseCopilot', "Sign in to Use Copilot...");
-			tooltip = localize('signInToUseCopilot', "Sign in to Use Copilot...");
-			command = TOGGLE_CHAT_ACTION_ID;
+			tooltip = {
+				element: token => this.dashboard.value.show(token)
+			};
+			command = ChatStatusBarEntry.SIGN_IN_COMMAND_ID;
+			kind = 'prominent';
 		}
 
 		// Any other User
