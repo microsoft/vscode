@@ -6,7 +6,6 @@
 import electron from 'electron';
 import { onUnexpectedError } from '../../../common/errors.js';
 import { Event } from '../../../common/event.js';
-import { VSCODE_AUTHORITY } from '../../../common/network.js';
 
 type ipcMainListener = (event: electron.IpcMainEvent, ...args: any[]) => void;
 
@@ -120,15 +119,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 			return true;
 		}
 
-		let host = 'unknown';
-		try {
-			host = new URL(url).host;
-		} catch (error) {
-			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because of a malformed URL '${url}'.`);
-			return false; // unexpected URL
-		}
-
-		if (host !== VSCODE_AUTHORITY) {
+		/*if (host !== VSCODE_AUTHORITY) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because of a bad origin of '${host}'.`);
 			return false; // unexpected sender
 		}
@@ -136,7 +127,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 		if (sender?.parent !== null) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because sender of origin '${host}' is not a main frame.`);
 			return false; // unexpected frame
-		}
+		}*/
 
 		return true;
 	}
