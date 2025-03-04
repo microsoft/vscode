@@ -662,7 +662,13 @@ export class AttachContextAction extends Action2 {
 					}, []));
 				const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
 				for (const file of selectedFiles ?? []) {
-					chatEditingService.getEditingSession(chatSessionId)?.addFileToWorkingSet(file.value);
+					toAttach.push({
+						id: this._getFileContextId({ resource: file.value }),
+						value: file.value,
+						name: file.label,
+						isFile: true,
+						isOmitted: false
+					});
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
 				const blob = await hostService.getScreenshot();
