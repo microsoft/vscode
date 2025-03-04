@@ -13,13 +13,13 @@ const commandDescriptionsCache: Map<string, { shortDescription?: string; descrip
 
 export async function getZshGlobals(options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>): Promise<(string | ICompletionResource)[]> {
 	return [
-		...await getAliases(options),
+		...await getAliases(options, existingCommands),
 		...await getBuiltins(options, existingCommands),
 	];
 }
 
-async function getAliases(options: ExecOptionsWithStringEncoding): Promise<ICompletionResource[]> {
-	return getAliasesHelper('zsh', ['-ic', 'alias'], /^(?<alias>[a-zA-Z0-9\._:-]+)=(?<quote>['"]?)(?<resolved>.+?)\k<quote>$/, options);
+async function getAliases(options: ExecOptionsWithStringEncoding, existingCommands: Set<string> | undefined): Promise<ICompletionResource[]> {
+	return getAliasesHelper('zsh', ['-ic', 'alias'], /^(?<alias>[a-zA-Z0-9\._:-]+)=(?<quote>['"]?)(?<resolved>.+?)\k<quote>$/, options, existingCommands);
 }
 
 async function getBuiltins(
