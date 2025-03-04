@@ -612,7 +612,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._pendingLayout.clear();
 		this._pendingShowDetails.clear();
 		// this._loadingTimeout?.dispose();
-
+		this._ctxSuggestWidgetHasBeenNavigated.reset();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		dom.hide(this.element.domNode);
