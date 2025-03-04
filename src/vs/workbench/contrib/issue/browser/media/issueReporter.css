@@ -456,3 +456,11 @@
 .issue-reporter a {
 	color: var(--vscode-textLink-foreground);
 }
+
+.issue-reporter-update-banner {
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	padding: 10px;
+	text-align: center;
+	border-radius: 4px;
+}

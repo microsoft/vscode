@@ -20,10 +20,15 @@ const reviewGuidanceLabel = localize( // intentionally not escaped because of it
 			'{Locked="</a>"}'
 		]
 	},
-	'Before you report an issue here please <a href="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions" target="_blank">review the guidance we provide</a>.'
+	'Before you report an issue here please <a href="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions" target="_blank">review the guidance we provide</a>. Please complete the form in English.'
 );
 
 export default (): string => `
+<div id="update-banner" class="issue-reporter-update-banner hidden">
+	<span class="update-banner-text" id="update-banner-text">
+		<!-- To be dynamically filled -->
+	</span>
+</div>
 <div class="issue-reporter" id="issue-reporter">
 	<div id="english" class="input-group hidden">${escape(localize('completeInEnglish', "Please complete the form in English."))}</div>
 
