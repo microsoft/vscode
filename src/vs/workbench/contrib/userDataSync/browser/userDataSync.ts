@@ -571,7 +571,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
+			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id, true));
 			let accepted: boolean = false;
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
 				accepted = true;
