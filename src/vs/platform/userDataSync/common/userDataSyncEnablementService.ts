@@ -52,18 +52,10 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 		this.storageService.store(enablementKey, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	isResourceEnabled(resource: SyncResource): boolean {
-		// the `prompts` resource is a special case and is `disabled`
-		// by default due to PII concerns user prompt files may contain
-		const fallbackValue = (resource === SyncResource.Prompts)
-			? false
-			: true;
-
-		return this.getResourceEnablement(resource) ?? fallbackValue;
-	}
-
-	getResourceEnablement(resource: SyncResource): boolean | undefined {
-		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.APPLICATION);
+	isResourceEnabled(resource: SyncResource, defaultValue?: boolean): boolean {
+		const storedValue = this.storageService.getBoolean(getEnablementKey(resource), StorageScope.APPLICATION);
+		defaultValue = defaultValue ?? resource !== SyncResource.Prompts;
+		return storedValue ?? defaultValue;
 	}
 
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void {
