@@ -229,7 +229,7 @@ export class PlaywrightDriver {
 		}
 	}
 
-	async dispatchKeybinding(keybinding: string, accept?: () => Promise<void> | void) {
+	async sendKeybinding(keybinding: string, accept?: () => Promise<void> | void) {
 		const chords = keybinding.split(' ');
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];

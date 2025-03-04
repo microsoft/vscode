@@ -62,9 +62,9 @@ export class Debug extends Viewlet {
 			await this.code.waitForElement(DEBUG_VIEW);
 		};
 		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+d', accept);
+			await this.code.sendKeybinding('cmd+shift+d', accept);
 		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+d', accept);
+			await this.code.sendKeybinding('ctrl+shift+d', accept);
 		}
 
 		await this.code.waitForElement(DEBUG_VIEW);
@@ -82,7 +82,7 @@ export class Debug extends Viewlet {
 	}
 
 	async startDebugging(): Promise<number> {
-		await this.code.dispatchKeybinding('f5', async () => {
+		await this.code.sendKeybinding('f5', async () => {
 			await this.code.waitForElement(PAUSE);
 			await this.code.waitForElement(DEBUG_STATUS_BAR);
 		});
@@ -139,7 +139,7 @@ export class Debug extends Viewlet {
 
 		// Wait for the keys to be picked up by the editor model such that repl evaluates what just got typed
 		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
-		await this.code.dispatchKeybinding('enter', async () => {
+		await this.code.sendKeybinding('enter', async () => {
 			await this.code.waitForElements(CONSOLE_EVALUATION_RESULT, false,
 				elements => !!elements.length && accept(elements[elements.length - 1].textContent));
 		});
