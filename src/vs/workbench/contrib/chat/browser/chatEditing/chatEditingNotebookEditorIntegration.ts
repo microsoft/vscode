@@ -595,9 +595,17 @@ export function sortCellChanges(changes: ICellDiffInfo[]): ICellDiffInfo[] {
 			return a.modifiedCellIndex - b.modifiedCellIndex;
 		}
 
+		if (a.type === 'delete' && b.type === 'insert') {
+			return -1;
+		}
+		if (a.type === 'insert' && b.type === 'delete') {
+			return 1;
+		}
+
 		if ((a.type === 'delete' && b.type !== 'insert') || (a.type !== 'insert' && b.type === 'delete')) {
 			return a.originalCellIndex - b.originalCellIndex;
 		}
+
 		// Mixed types: compare based on available indices
 		const aIndex = a.type === 'delete' ? a.originalCellIndex :
 			(a.type === 'insert' ? a.modifiedCellIndex : a.modifiedCellIndex);
