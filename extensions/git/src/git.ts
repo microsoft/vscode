@@ -2222,7 +2222,7 @@ export class Repository {
 
 	async blame(path: string): Promise<string> {
 		try {
-			const args = ['blame', sanitizePath(path)];
+			const args = ['blame', '--', sanitizePath(path)];
 			const result = await this.exec(args);
 			return result.stdout.trim();
 		} catch (err) {
