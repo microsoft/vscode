@@ -97,7 +97,6 @@
 	line-height: 1.5;
 	color: #495057;
 	background-color: #fff;
-	border: none;
 }
 
 .issue-reporter * {
@@ -320,7 +319,6 @@
 .issue-reporter select,
 .issue-reporter textarea {
 	background-color: #3c3c3c;
-	border: none;
 	color: #cccccc;
 }
 
