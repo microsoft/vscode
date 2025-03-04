@@ -1266,9 +1266,6 @@ export function adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change: Noteb
 	const wasInsertedAsFirstCell = change[0] === 0;
 	const wasInsertedAsLastCell = change[0] === modifiedModelCellCount - 1;
 	const diffEntryIndex = wasInsertedAsFirstCell ? 0 : (wasInsertedAsLastCell ? cellDiffInfo.length - 1 : (cellDiffInfo.findIndex(d => d.modifiedCellIndex === change[0])));
-	const lastModifiedIndexToRemove = change[0] + numberOfCellsDeleted - 1;
-	const lastDiffEntryIndex = numberOfCellsDeleted === 1 ? diffEntryIndex : cellDiffInfo.findIndex(d => d.modifiedCellIndex === lastModifiedIndexToRemove);
-	const numberOfOriginalCellsRemoved = cellDiffInfo.slice(diffEntryIndex, lastDiffEntryIndex + 1).filter(d => typeof d.originalCellIndex === 'number').length;
 	const indexToInsertInOriginalModel = (wasInsertedAsFirstCell || diffEntryIndex === -1) ? 0 : (wasInsertedAsLastCell ? originalModelCellCount : (((cellDiffInfo.slice(0, diffEntryIndex).reverse().find(c => typeof c.originalCellIndex === 'number')?.originalCellIndex ?? -1) + 1)));
 	if (cells.length) {
 		const edit: ICellEditOperation = {
@@ -1280,30 +1277,44 @@ export function adjustCellDiffAndOriginalModelBasedOnCellAddDelete(change: Noteb
 		applyEdits([edit], true, undefined, () => undefined, undefined, true);
 	}
 	// If cells were deleted we handled that with this.disposeDeletedCellEntries();
-	if (diffEntryIndex >= 0) {
-		for (let i = 0; i < numberOfCellsDeleted; i++) {
-			cellDiffInfo = cellDiffInfo.filter(d => d.modifiedCellIndex !== change[0] + i);
-		}
-	}
 	if (numberOfCellsDeleted) {
+		// Adjust the indexes.
+		let numberOfOriginalCellsRemovedSoFar = 0;
+		let numberOfModifiedCellsRemovedSoFar = 0;
+		const modifiedIndexesToRemove = new Set<number>();
+		for (let i = 0; i < numberOfCellsDeleted; i++) {
+			modifiedIndexesToRemove.add(change[0] + i);
+		}
+		const itemsToRemove = new Set<ICellDiffInfo>();
 		for (let i = 0; i < cellDiffInfo.length; i++) {
 			const diff = cellDiffInfo[i];
 			if (i < diffEntryIndex) {
 				continue;
 			}
+
 			let changed = false;
-			if (typeof diff.modifiedCellIndex === 'number') {
-				diff.modifiedCellIndex -= numberOfCellsDeleted;
+			if (typeof diff.modifiedCellIndex === 'number' && modifiedIndexesToRemove.has(diff.modifiedCellIndex)) {
+				// This will be removed.
+				numberOfModifiedCellsRemovedSoFar++;
+				if (typeof diff.originalCellIndex === 'number') {
+					numberOfOriginalCellsRemovedSoFar++;
+				}
+				itemsToRemove.add(diff);
+				continue;
+			}
+			if (typeof diff.modifiedCellIndex === 'number' && numberOfModifiedCellsRemovedSoFar) {
+				diff.modifiedCellIndex -= numberOfModifiedCellsRemovedSoFar;
 				changed = true;
 			}
-			if (typeof diff.originalCellIndex === 'number' && numberOfOriginalCellsRemoved) {
-				diff.originalCellIndex -= numberOfOriginalCellsRemoved;
+			if (typeof diff.originalCellIndex === 'number' && numberOfOriginalCellsRemovedSoFar) {
+				diff.originalCellIndex -= numberOfOriginalCellsRemovedSoFar;
 				changed = true;
 			}
 			if (changed) {
 				cellDiffInfo[i] = { ...diff };
 			}
 		}
+		cellDiffInfo = cellDiffInfo.filter(d => !itemsToRemove.has(d));
 	}
 
 	if (numberOfCellsInserted) {

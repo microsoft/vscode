@@ -125,7 +125,7 @@ suite('ChatEditingModifiedNotebookEntry Cell Addition', function () {
 		];
 
 		const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([2, 0, [createICell(CellKind.Code, 'print("Hello World")')]],
-			cellsDiffInfo, 2, 2, applyEdits, createModifiedCellDiffInfo);
+			cellsDiffInfo, 4, 6, applyEdits, createModifiedCellDiffInfo);
 
 		assert.deepStrictEqual(result, [
 			{
@@ -195,7 +195,7 @@ suite('ChatEditingModifiedNotebookEntry Cell Addition', function () {
 		];
 
 		const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([2, 0, [createICell(CellKind.Code, 'print("Hello World")'), createICell(CellKind.Code, 'print("Foo Bar")')]],
-			cellsDiffInfo, 2, 2, applyEdits, createModifiedCellDiffInfo);
+			cellsDiffInfo, 4, 6, applyEdits, createModifiedCellDiffInfo);
 
 		assert.deepStrictEqual(result, [
 			{
@@ -236,7 +236,6 @@ suite('ChatEditingModifiedNotebookEntry Cell Addition', function () {
 			},
 		]);
 	});
-
 	test('Delete a cell from an unchanged notebook', async function () {
 		const cellsDiffInfo: ICellDiffInfo[] = [
 			{
@@ -316,7 +315,7 @@ suite('ChatEditingModifiedNotebookEntry Cell Addition', function () {
 		const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([1, 1, [
 			// createICell(CellKind.Code, 'print("Hello World")')
 		]],
-			cellsDiffInfo, 3, 5, applyEdits, createModifiedCellDiffInfo);
+			cellsDiffInfo, 4, 6, applyEdits, createModifiedCellDiffInfo);
 
 		assert.deepStrictEqual(result, [
 			{
@@ -379,7 +378,7 @@ suite('ChatEditingModifiedNotebookEntry Cell Addition', function () {
 
 		const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([1, 2, [
 		]],
-			cellsDiffInfo, 3, 5, applyEdits, createModifiedCellDiffInfo);
+			cellsDiffInfo, 4, 6, applyEdits, createModifiedCellDiffInfo);
 
 		assert.deepStrictEqual(result, [
 			{
@@ -401,6 +400,69 @@ suite('ChatEditingModifiedNotebookEntry Cell Addition', function () {
 			{
 				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 4,
 				modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+			},
+		]);
+	});
+	test('Delete 3 cells from a notebook with 3 cells deleted', async function () {
+		const cellsDiffInfo: ICellDiffInfo[] = [
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+				modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+			},
+			{
+				diff, keep, undo, type: 'modified', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+				modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('2'), originalCellIndex: 2,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('3'), originalCellIndex: 3,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('4'), originalCellIndex: 4,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+				modifiedCellIndex: 2, modifiedModel: createModifiedModel('New1'),
+			},
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('5'), originalCellIndex: 5,
+				modifiedCellIndex: 3, modifiedModel: createModifiedModel('5'),
+			},
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('6'), originalCellIndex: 6,
+				modifiedCellIndex: 4, modifiedModel: createModifiedModel('6'),
+			},
+		];
+
+		const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([1, 3, [
+		]],
+			cellsDiffInfo, 5, 7, applyEdits, createModifiedCellDiffInfo);
+
+		assert.deepStrictEqual(result, [
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+				modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('2'), originalCellIndex: 1,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('3'), originalCellIndex: 2,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'delete', originalModel: createOriginalModel('4'), originalCellIndex: 3,
+				modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+			},
+			{
+				diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('6'), originalCellIndex: 4,
+				modifiedCellIndex: 1, modifiedModel: createModifiedModel('6'),
 			},
 		]);
 	});
