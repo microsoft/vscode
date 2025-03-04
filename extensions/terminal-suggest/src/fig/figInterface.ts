@@ -52,11 +52,10 @@ export async function getFigSuggestions(
 		if (!specLabels) {
 			continue;
 		}
-
 		for (const specLabel of specLabels) {
 			const availableCommand = (osIsWindows()
-				? availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
-				: availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).startsWith(specLabel)));
+				? availableCommands.find(command => (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label)).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
+				: availableCommands.find(command => (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label) === (specLabel))));
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -81,13 +80,12 @@ export async function getFigSuggestions(
 
 			const commandAndAliases = (osIsWindows()
 				? availableCommands.filter(command => specLabel === removeAnyFileExtension(command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label)))
-				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? command.label)));
+				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
 					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
-					: commandAndAliases.some(e => precedingText.startsWith(`${e.label} `)))
+					: commandAndAliases.some(e => precedingText.startsWith(`${typeof e.label === 'string' ? e.label : e.label.label} `)))
 			) {
-				// the spec label is not the first word in the command line, so do not provide options or args
 				continue;
 			}
 

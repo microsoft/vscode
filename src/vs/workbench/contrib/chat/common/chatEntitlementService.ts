@@ -22,7 +22,7 @@ import { asText, IRequestService } from '../../../../platform/request/common/req
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from './chatContextKeys.js';
@@ -81,6 +81,7 @@ export interface IChatEntitlementService {
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
@@ -325,7 +326,8 @@ export class ChatSetupRequests extends Disposable {
 		@IRequestService private readonly requestService: IRequestService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
 	) {
 		super();
 
@@ -665,6 +667,18 @@ export class ChatSetupRequests extends Disposable {
 				}
 			]
 		});
+	}
+
+	async signIn() {
+		const providerId = ChatSetupRequests.providerId(this.configurationService);
+		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0]);
+
+		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
+		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);
+
+		const entitlements = await this.forceResolveEntitlement(session);
+
+		return { session, entitlements };
 	}
 
 	override dispose(): void {

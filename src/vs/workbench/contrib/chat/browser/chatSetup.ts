@@ -35,7 +35,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
-import { AuthenticationSession, IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
@@ -325,7 +325,6 @@ class ChatSetupController extends Disposable {
 		private readonly requests: ChatSetupRequests,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService private readonly productService: IProductService,
@@ -431,12 +430,7 @@ class ChatSetupController extends Disposable {
 		try {
 			showCopilotView(this.viewsService, this.layoutService);
 
-			session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0]);
-
-			this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
-			this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);
-
-			entitlements = await this.requests.forceResolveEntitlement(session);
+			({ session, entitlements } = await this.requests.signIn());
 		} catch (e) {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
 		}

@@ -7,18 +7,31 @@ import { IMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { Command } from '../../../../../common/languages.js';
-import { InlineEditTabAction } from './utils/utils.js';
+import { InlineEditWithChanges } from './inlineEditWithChanges.js';
+
+export enum InlineEditTabAction {
+	Jump = 'jump',
+	Accept = 'accept',
+	Inactive = 'inactive'
+}
 
 export interface IInlineEditsView {
 	isHovered: IObservable<boolean>;
 	onDidClick: Event<IMouseEvent>;
 }
 
-export interface IInlineEditsViewHost {
-	displayName: IObservable<string>;
-	action: IObservable<Command | undefined>;
+export interface IInlineEditModel {
+	displayName: string;
+	action: Command | undefined;
+	extensionCommands: Command[];
+	inlineEdit: InlineEditWithChanges;
+
 	tabAction: IObservable<InlineEditTabAction>;
-	extensionCommands: IObservable<readonly Command[] | undefined>;
+	inAcceptFlow: IObservable<boolean>;
+	inPartialAcceptFlow: IObservable<boolean>;
+
+	handleInlineEditShown(): void;
 	accept(): void;
 	jump(): void;
+	abort(reason: string): void;
 }

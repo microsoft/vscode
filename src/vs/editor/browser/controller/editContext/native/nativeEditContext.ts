@@ -208,6 +208,7 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.modelSelections[0] ?? new Selection(1, 1, 1, 1);
 		this._screenReaderSupport.onCursorStateChanged(e);
+		this._updateEditContext();
 		return true;
 	}
 
@@ -257,7 +258,8 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public isFocused(): boolean {
-		return this._focusTracker.isFocused || (getActiveWindow().document.activeElement === this.textArea.domNode);
+		this.refreshFocusState();
+		return this._focusTracker.isFocused;
 	}
 
 	public focus(): void {
