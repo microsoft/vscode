@@ -11,7 +11,6 @@
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
-		"../../src/vscode-dts/vscode.proposed.diffCommand.d.ts",
 		"../../src/vscode-dts/vscode.proposed.editSessionIdentityProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickDiffProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickInputButtonLocation.d.ts",
