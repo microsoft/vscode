@@ -3434,10 +3434,10 @@
         "id": "git.blame.editorDecorationForeground",
         "description": "%colors.blameEditorDecoration%",
         "defaults": {
-          "dark": "editorCodeLens.foreground",
-          "light": "editorCodeLens.foreground",
-          "highContrast": "editorCodeLens.foreground",
-          "highContrastLight": "editorCodeLens.foreground"
+          "dark": "editorInlayHint.foreground",
+          "light": "editorInlayHint.foreground",
+          "highContrast": "editorInlayHint.foreground",
+          "highContrastLight": "editorInlayHint.foreground"
         }
       }
     ],
