@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getInstalledExtensions } from '../helpers/getInstalledExtensions';
+
 const commonOptions: Fig.Option[] = [
 	{
 		name: '-',
@@ -203,6 +205,9 @@ const extensionManagementOptions: Fig.Option[] = [
 		args: {
 			// TODO: Create extension ID generator
 			name: 'extension-id',
+			generators: {
+				custom: getInstalledExtensions
+			}
 		},
 	},
 	{
