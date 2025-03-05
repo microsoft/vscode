@@ -300,6 +300,7 @@ export class DevToolsLogger implements IObservableLogger {
 			if (!shallow) {
 				console.error('Could not find location for declaration', new Error().stack);
 				loc = { fileName: 'unknown', line: 0, column: 0, id: 'unknown' };
+				break;
 			}
 			shallow = false;
 		}
