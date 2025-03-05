@@ -6,10 +6,11 @@
 import { Disposable, Event, EventEmitter, LogOutputChannel, SecretStorage } from 'vscode';
 import { AccountInfo } from '@azure/msal-node';
 
-interface IAccountAccess {
+export interface IAccountAccess {
+	initialize(): Promise<void>;
 	onDidAccountAccessChange: Event<void>;
 	isAllowedAccess(account: AccountInfo): boolean;
-	setAllowedAccess(account: AccountInfo, allowed: boolean): void;
+	setAllowedAccess(account: AccountInfo, allowed: boolean): Promise<void>;
 }
 
 export class ScopedAccountAccess implements IAccountAccess {
@@ -23,11 +24,10 @@ export class ScopedAccountAccess implements IAccountAccess {
 	constructor(
 		secretStorage: SecretStorage,
 		cloudName: string,
-		clientId: string,
 		logger: LogOutputChannel,
-		authoritiesToMigrate?: string[],
+		migrations?: { clientId: string; authority: string }[],
 	) {
-		this._accountAccessSecretStorage = new AccountAccessSecretStorage(secretStorage, cloudName, clientId, logger, authoritiesToMigrate);
+		this._accountAccessSecretStorage = new AccountAccessSecretStorage(secretStorage, cloudName, logger, migrations);
 		this._accountAccessSecretStorage.onDidChange(() => this.update());
 	}
 
@@ -73,9 +73,8 @@ export class AccountAccessSecretStorage {
 	constructor(
 		private readonly _secretStorage: SecretStorage,
 		private readonly _cloudName: string,
-		private readonly _clientId: string,
 		private readonly _logger: LogOutputChannel,
-		private readonly _authoritiesToMigrate?: string[]
+		private readonly _migrations?: { clientId: string; authority: string }[],
 	) {
 		this._disposable = Disposable.from(
 			this._onDidChangeEmitter,
@@ -91,7 +90,7 @@ export class AccountAccessSecretStorage {
 	 * TODO: Remove this method after a release with the migration
 	 */
 	async initialize(): Promise<void> {
-		if (!this._authoritiesToMigrate) {
+		if (!this._migrations) {
 			return;
 		}
 		const current = await this.get();
@@ -101,8 +100,8 @@ export class AccountAccessSecretStorage {
 		}
 		try {
 			const allValues = new Set<string>();
-			for (const authority of this._authoritiesToMigrate) {
-				const oldKey = `accounts-${this._cloudName}-${this._clientId}-${authority}`;
+			for (const { clientId, authority } of this._migrations) {
+				const oldKey = `accounts-${this._cloudName}-${clientId}-${authority}`;
 				const value = await this._secretStorage.get(oldKey);
 				if (value) {
 					const parsed = JSON.parse(value) as string[];
