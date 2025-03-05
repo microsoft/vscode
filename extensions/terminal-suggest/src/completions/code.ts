@@ -193,7 +193,7 @@ const extensionManagementOptions: Fig.Option[] = [
 			generators: [
 				{
 					script: ['code', '--list-extensions', '--show-versions'],
-					postProcess: getInstalledExtensions,
+					postProcess: parseInstalledExtensions,
 				},
 				filepaths({
 					extensions: ['vsix'],
@@ -213,7 +213,7 @@ const extensionManagementOptions: Fig.Option[] = [
 			name: 'extension-id',
 			generators: {
 				script: ['code', '--list-extensions', '--show-versions'],
-				postProcess: getInstalledExtensions,
+				postProcess: parseInstalledExtensions,
 			}
 		},
 	},
@@ -269,7 +269,7 @@ const troubleshootingOptions: Fig.Option[] = [
 			name: 'extension-id',
 			generators: {
 				script: ['code', '--list-extensions', '--show-versions'],
-				postProcess: getInstalledExtensions,
+				postProcess: parseInstalledExtensions,
 			}
 		},
 	},
@@ -333,7 +333,7 @@ const codeCompletionSpec: Fig.Spec = {
 export default codeCompletionSpec;
 
 
-export function getInstalledExtensions(out: string): Fig.Suggestion[] | undefined {
+export function parseInstalledExtensions(out: string): Fig.Suggestion[] | undefined {
 	const extensions = out.split('\n').filter(Boolean).map((line) => {
 		const [id, version] = line.split('@');
 		return {

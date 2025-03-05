@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { filepaths } from '../helpers/filepaths';
-import code, { getInstalledExtensions } from './code';
+import code, { parseInstalledExtensions } from './code';
 
 const codeInsidersCompletionSpec: Fig.Spec = {
 	...code,
@@ -18,7 +18,7 @@ const codeInsidersCompletionSpec: Fig.Spec = {
 				name: 'extension-id',
 				generators: {
 					script: ['code-insiders', '--list-extensions', '--show-versions'],
-					postProcess: getInstalledExtensions,
+					postProcess: parseInstalledExtensions,
 				}
 			},
 		},
@@ -29,7 +29,7 @@ const codeInsidersCompletionSpec: Fig.Spec = {
 				name: 'extension-id',
 				generators: {
 					script: ['code-insiders', '--list-extensions', '--show-versions'],
-					postProcess: getInstalledExtensions,
+					postProcess: parseInstalledExtensions,
 				}
 			},
 		},
@@ -42,7 +42,7 @@ const codeInsidersCompletionSpec: Fig.Spec = {
 				generators: [
 					{
 						script: ['code-insiders', '--list-extensions', '--show-versions'],
-						postProcess: getInstalledExtensions,
+						postProcess: parseInstalledExtensions,
 					},
 					filepaths({
 						extensions: ['vsix'],

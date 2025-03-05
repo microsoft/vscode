@@ -324,6 +324,13 @@ function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined
 				env[key] = value;
 			}
 		}
+	} else {
+		const paths = osIsWindows() ? process.env.PATH?.split(';') : process.env.PATH?.split(':');
+		if (paths) {
+			for (const path of paths) {
+				env[path] = path;
+			}
+		}
 	}
 	return env;
 }
