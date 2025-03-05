@@ -122,6 +122,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				initialContent = createSnapshot(notebook, options.serializer.options, configurationServie);
 				// Both models are the same, ensure the cell ids are the same, this way we get a perfect diffing.
 				// No need to generate edits for this.
+				// We want to ensure they are identitcal, possible original notebook was open and got modified.
+				// Or something gets changed between serialization & deserialization of the snapshot into the original.
+				// E.g. in jupyter notebooks the metadata contains transient data that gets updated after deserialization.
+				restoreSnapshot(originalRef.object.notebook, initialContent);
 				const edits: ICellEditOperation[] = [];
 				notebook.cells.forEach((cell, index) => {
 					const cellId = cell.internalMetadata?.cellId;
