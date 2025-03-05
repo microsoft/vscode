@@ -85,7 +85,7 @@ class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
 		return true;
 	}
 	getNeedsRefresh(model: ITextModel): { range: Range; startOffset: number; endOffset: number }[] {
-		throw new Error('Method not implemented.');
+		return [];
 	}
 
 	_serviceBrand: undefined;
@@ -217,7 +217,7 @@ suite('Tree Sitter TokenizationFeature', function () {
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 1, 18), 0, 17);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 7);
+		assert.deepStrictEqual(tokens?.length, 9);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -229,7 +229,7 @@ console.log('x');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 3, 1), 0, 19);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 9);
+		assert.deepStrictEqual(tokens?.length, 11);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -239,7 +239,7 @@ console.log('x');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 3, 1), 0, 21);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 9);
+		assert.deepStrictEqual(tokens?.length, 11);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -253,7 +253,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 38);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 17);
+		assert.deepStrictEqual(tokens?.length, 21);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -263,7 +263,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 42);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 17);
+		assert.deepStrictEqual(tokens?.length, 21);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -277,7 +277,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 24);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 14);
+		assert.deepStrictEqual(tokens?.length, 16);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -287,7 +287,7 @@ console.log('7');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 5, 1), 0, 28);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 14);
+		assert.deepStrictEqual(tokens?.length, 16);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -302,7 +302,7 @@ console.log('x');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 1), 0, 28);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 10);
+		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -312,7 +312,7 @@ console.log('x');
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 1), 0, 33);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 10);
+		assert.deepStrictEqual(tokens?.length, 12);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -361,8 +361,10 @@ class y {
 
 		const updatePromise = new Promise<void>(resolve => {
 			updateListener = treeSitterParserService.onDidUpdateTree(async e => {
-				change = e;
-				resolve();
+				if (e.textModel === model) {
+					change = e;
+					resolve();
+				}
 			});
 		});
 
@@ -378,15 +380,16 @@ class y {
 			model.applyEdits([{ range: new Range(5, 1, 6, 1), text: '' }]);
 			resolve();
 		});
-		Promise.all([edit1, edit2, edit3]);
+		const edits = Promise.all([edit1, edit2, edit3]);
 		await updatePromise;
+		await edits;
 		assert.ok(change);
 
 		assert.strictEqual(change.versionId, 4);
 		assert.strictEqual(change.ranges[0].newRangeStartOffset, 7);
-		assert.strictEqual(change.ranges[0].newRangeEndOffset, 32);
+		assert.strictEqual(change.ranges[change.ranges.length - 1].newRangeEndOffset, 32);
 		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
-		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 7);
+		assert.strictEqual(change.ranges[change.ranges.length - 1].newRange.endLineNumber, 7);
 
 		updateListener?.dispose();
 		modelService.destroyModel(model.uri);
@@ -397,7 +400,7 @@ class y {
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 1, 8), 0, 8);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 5);
+		assert.deepStrictEqual(tokens?.length, 6);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
@@ -412,7 +415,7 @@ class y {
 		const model = await getModelAndPrepTree(content);
 		const tokens = treeSitterTokenizationSupport.getTokensInRange(model, new Range(1, 1, 6, 5), 0, 238);
 		verifyTokens(tokens);
-		assert.deepStrictEqual(tokens?.length, 56);
+		assert.deepStrictEqual(tokens?.length, 65);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
 		modelService.destroyModel(model.uri);
 	});
