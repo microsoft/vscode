@@ -30,6 +30,57 @@
 	margin-bottom: 4px;
 }
 
+/* Setup for New User */
+
+.chat-feature-container {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px;
+}
+
+/* Quota Indicator */
+
+.chat-status-bar-entry-tooltip .quota-indicator {
+	margin-bottom: 6px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-label {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 3px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
+	width: 100%;
+	height: 4px;
+	background-color: var(--vscode-gauge-foreground);
+	border-radius: 4px;
+	border: 1px solid var(--vscode-gauge-border);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {
+	height: 100%;
+	background-color: var(--vscode-gauge-background);
+	border-radius: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar {
+	background-color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-warningBackground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar {
+	background-color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-errorBackground);
+}
+
 /* Settings */
 
 .chat-status-bar-entry-tooltip .settings {
@@ -94,46 +145,4 @@
 
 .chat-status-bar-entry-tooltip .shortcuts .shortcut .shortcut-value {
 	color: var(--vscode-descriptionForeground);
-}
-
-/* Quota Indicator */
-
-.chat-status-bar-entry-tooltip .quota-indicator {
-	margin-bottom: 6px;
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator .quota-label {
-	display: flex;
-	justify-content: space-between;
-	margin-bottom: 3px;
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
-	width: 100%;
-	height: 4px;
-	background-color: var(--vscode-gauge-foreground);
-	border-radius: 4px;
-	border: 1px solid var(--vscode-gauge-border);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {
-	height: 100%;
-	background-color: var(--vscode-gauge-background);
-	border-radius: 4px;
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar {
-	background-color: var(--vscode-gauge-warningForeground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar .quota-bit {
-	background-color: var(--vscode-gauge-warningBackground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar {
-	background-color: var(--vscode-gauge-errorForeground);
-}
-
-.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
-	background-color: var(--vscode-gauge-errorBackground);
 }
