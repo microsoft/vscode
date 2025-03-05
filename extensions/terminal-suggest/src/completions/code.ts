@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import path from 'path';
+import * as fs from 'fs';
 import { filepaths } from '../helpers/filepaths';
-import * as vscode from 'vscode';
+import { spawnHelper } from '../shell/common';
 
 const commonOptions: Fig.Option[] = [
 	{
@@ -193,7 +195,7 @@ const extensionManagementOptions: Fig.Option[] = [
 			name: 'extension-id[@version] | path-to-vsix',
 			generators: [
 				{
-					custom: getExtensionsToUpdateOrInstall,
+					custom: getInstalledExtensions,
 				},
 				filepaths({
 					extensions: ['vsix'],
@@ -330,29 +332,37 @@ const codeCompletionSpec: Fig.Spec = {
 
 export default codeCompletionSpec;
 
-
-
-export async function getInstalledExtensions(): Promise<Fig.Suggestion[] | undefined> {
-	const installedExtensions = vscode.extensions.all;
-	return installedExtensions.map((extension) => {
-		return {
-			name: extension.id,
-			type: 'option',
-			description: extension.packageJSON.description
-		};
+async function commandExists(command: string): Promise<boolean> {
+	return new Promise(resolve => {
+		const paths = (process.env.PATH || '').split(path.delimiter);
+		for (const p of paths) {
+			const fullPath = path.join(p, command);
+			fs.access(fullPath, fs.constants.X_OK, err => {
+				if (!err) {
+					resolve(true);
+				}
+			});
+		}
+		resolve(false);
 	});
 }
 
-export async function getExtensionsToUpdateOrInstall(): Promise<Fig.Suggestion[] | undefined> {
-	const installedExtensions = vscode.extensions.all;
-	const extensionsToUpdateOrInstall = installedExtensions.filter((extension) => {
-		return extension.packageJSON.isBuiltin === false;
-	});
-	return extensionsToUpdateOrInstall.map((extension) => {
-		return {
-			name: extension.id,
-			type: 'option',
-			description: extension.packageJSON.description
-		};
+export async function getInstalledExtensions(): Promise<Fig.Suggestion[] | undefined> {
+	return new Promise((resolve, reject) => {
+		commandExists('code').then(() => {
+			spawnHelper('code', ['--list-extensions', '--show-versions'], { stdio: 'pipe', env: { ...process.env, PATH: process.env.PATH } }).then(stdout => {
+				const extensions = stdout.split('\n').filter(Boolean).map((line) => {
+					const [id, version] = line.split('@');
+					return {
+						name: id,
+						type: 'option' as Fig.SuggestionType,
+						description: `Version: ${version}`
+					};
+				});
+				resolve(extensions);
+			}).catch(error => {
+				reject(error);
+			});
+		}).catch(reject);
 	});
 }
