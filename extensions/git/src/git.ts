@@ -12,7 +12,7 @@ import which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePath } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
@@ -353,6 +353,10 @@ function getGitErrorCode(stderr: string): string | undefined {
 // https://github.com/git-for-windows/git/issues/2478
 function sanitizePath(path: string): string {
 	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
+}
+
+export function sanitizeRelativePath(from: string, to: string): string {
+	return relativePath(from, to).replace(/\\/g, '/');
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
@@ -1398,7 +1402,7 @@ export class Repository {
 	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {
 		const args = ['ls-tree', '-l', treeish];
 		if (path) {
-			args.push('--', sanitizePath(path));
+			args.push('--', sanitizeRelativePath(this.repositoryRoot, path));
 		}
 
 		const { stdout } = await this.exec(args);
@@ -1406,7 +1410,7 @@ export class Repository {
 	}
 
 	async lsfiles(path: string): Promise<LsFilesElement[]> {
-		const { stdout } = await this.exec(['ls-files', '--stage', '--', sanitizePath(path)]);
+		const { stdout } = await this.exec(['ls-files', '--stage', '--', sanitizeRelativePath(this.repositoryRoot, path)]);
 		return parseLsFiles(stdout);
 	}
 
@@ -1502,7 +1506,7 @@ export class Repository {
 			return await this.diffFiles(false);
 		}
 
-		const args = ['diff', '--', sanitizePath(path)];
+		const args = ['diff', '--', sanitizeRelativePath(this.repositoryRoot, path)];
 		const result = await this.exec(args);
 		return result.stdout;
 	}
@@ -1515,7 +1519,7 @@ export class Repository {
 			return await this.diffFiles(false, ref);
 		}
 
-		const args = ['diff', ref, '--', sanitizePath(path)];
+		const args = ['diff', ref, '--', sanitizeRelativePath(this.repositoryRoot, path)];
 		const result = await this.exec(args);
 		return result.stdout;
 	}
@@ -1528,7 +1532,7 @@ export class Repository {
 			return await this.diffFiles(true);
 		}
 
-		const args = ['diff', '--cached', '--', sanitizePath(path)];
+		const args = ['diff', '--cached', '--', sanitizeRelativePath(this.repositoryRoot, path)];
 		const result = await this.exec(args);
 		return result.stdout;
 	}
@@ -1541,7 +1545,7 @@ export class Repository {
 			return await this.diffFiles(true, ref);
 		}
 
-		const args = ['diff', '--cached', ref, '--', sanitizePath(path)];
+		const args = ['diff', '--cached', ref, '--', sanitizeRelativePath(this.repositoryRoot, path)];
 		const result = await this.exec(args);
 		return result.stdout;
 	}
@@ -1561,7 +1565,7 @@ export class Repository {
 			return await this.diffFiles(false, range);
 		}
 
-		const args = ['diff', range, '--', sanitizePath(path)];
+		const args = ['diff', range, '--', sanitizeRelativePath(this.repositoryRoot, path)];
 		const result = await this.exec(args);
 
 		return result.stdout.trim();
@@ -1653,7 +1657,7 @@ export class Repository {
 		}
 
 		if (paths && paths.length) {
-			for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
+			for (const chunk of splitInChunks(paths.map(p => sanitizeRelativePath(this.repositoryRoot, p)), MAX_CLI_LENGTH)) {
 				await this.exec([...args, '--', ...chunk]);
 			}
 		} else {
@@ -1668,13 +1672,14 @@ export class Repository {
 			return;
 		}
 
-		args.push(...paths.map(sanitizePath));
+		args.push(...paths.map(p => sanitizeRelativePath(this.repositoryRoot, p)));
 
 		await this.exec(args);
 	}
 
 	async stage(path: string, data: string, encoding: string): Promise<void> {
-		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
+		const relativePath = sanitizeRelativePath(this.repositoryRoot, path);
+		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
 		child.stdin!.end(iconv.encode(data, encoding));
 
 		const { exitCode, stdout } = await exec(child);
@@ -1703,7 +1708,7 @@ export class Repository {
 			add = '--add';
 		}
 
-		await this.exec(['update-index', add, '--cacheinfo', mode, hash, path]);
+		await this.exec(['update-index', add, '--cacheinfo', mode, hash, relativePath]);
 	}
 
 	async checkout(treeish: string, paths: string[], opts: { track?: boolean; detached?: boolean } = Object.create(null)): Promise<void> {
@@ -1723,7 +1728,7 @@ export class Repository {
 
 		try {
 			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
+				for (const chunk of splitInChunks(paths.map(p => sanitizeRelativePath(this.repositoryRoot, p)), MAX_CLI_LENGTH)) {
 					await this.exec([...args, '--', ...chunk]);
 				}
 			} else {
@@ -1937,7 +1942,7 @@ export class Repository {
 		const args = ['clean', '-f', '-q'];
 
 		for (const paths of groups) {
-			for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
+			for (const chunk of splitInChunks(paths.map(p => sanitizeRelativePath(this.repositoryRoot, p)), MAX_CLI_LENGTH)) {
 				promises.push(limiter.queue(() => this.exec([...args, '--', ...chunk])));
 			}
 		}
@@ -1977,7 +1982,7 @@ export class Repository {
 
 		try {
 			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
+				for (const chunk of splitInChunks(paths.map(p => sanitizeRelativePath(this.repositoryRoot, p)), MAX_CLI_LENGTH)) {
 					await this.exec([...args, '--', ...chunk]);
 				}
 			} else {
@@ -2222,7 +2227,7 @@ export class Repository {
 
 	async blame(path: string): Promise<string> {
 		try {
-			const args = ['blame', '--', sanitizePath(path)];
+			const args = ['blame', '--', sanitizeRelativePath(this.repositoryRoot, path)];
 			const result = await this.exec(args);
 			return result.stdout.trim();
 		} catch (err) {
@@ -2242,7 +2247,7 @@ export class Repository {
 				args.push(ref);
 			}
 
-			args.push('--', sanitizePath(path));
+			args.push('--', sanitizeRelativePath(this.repositoryRoot, path));
 
 			const result = await this.exec(args);
 
@@ -2892,7 +2897,7 @@ export class Repository {
 	async updateSubmodules(paths: string[]): Promise<void> {
 		const args = ['submodule', 'update'];
 
-		for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
+		for (const chunk of splitInChunks(paths.map(p => sanitizeRelativePath(this.repositoryRoot, p)), MAX_CLI_LENGTH)) {
 			await this.exec([...args, '--', ...chunk]);
 		}
 	}

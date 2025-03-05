@@ -15,7 +15,7 @@ import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, Stash, Submodule } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, sanitizeRelativePath, Stash, Submodule } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -1223,7 +1223,6 @@ export class Repository implements Disposable {
 	}
 
 	async stage(resource: Uri, contents: string): Promise<void> {
-		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, async () => {
 			const configFiles = workspace.getConfiguration('files', Uri.file(resource.fsPath));
 			let encoding = configFiles.get<string>('encoding') ?? 'utf8';
@@ -1235,7 +1234,7 @@ export class Repository implements Disposable {
 			}
 
 			encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-			await this.repository.stage(path, contents, encoding);
+			await this.repository.stage(resource.fsPath, contents, encoding);
 
 			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
@@ -1856,18 +1855,12 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this._push(remote, undefined, false, false, forcePushMode, true));
 	}
 
-	async blame(filePath: string): Promise<string> {
-		return await this.run(Operation.Blame(true), () => {
-			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
-			return this.repository.blame(path);
-		});
+	async blame(path: string): Promise<string> {
+		return await this.run(Operation.Blame(true), () => this.repository.blame(path));
 	}
 
-	async blame2(filePath: string, ref?: string): Promise<BlameInformation[] | undefined> {
-		return await this.run(Operation.Blame(false), () => {
-			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
-			return this.repository.blame2(path, ref);
-		});
+	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
+		return await this.run(Operation.Blame(false), () => this.repository.blame2(path, ref));
 	}
 
 	@throttle
@@ -1983,7 +1976,8 @@ export class Repository implements Disposable {
 
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
-			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			const path = sanitizeRelativePath(this.repository.root, filePath);
+
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
@@ -1993,7 +1987,7 @@ export class Repository implements Disposable {
 				return await this.repository.bufferString(`${ref}:${path}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
-					const gitRelativePath = await this.repository.getGitRelativePath(ref, path);
+					const gitRelativePath = await this.repository.getGitRelativePath(ref, filePath);
 					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
 				}
 
@@ -2004,7 +1998,7 @@ export class Repository implements Disposable {
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
 		return this.run(Operation.Show, () => {
-			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
+			const path = sanitizeRelativePath(this.repository.root, filePath);
 			return this.repository.buffer(`${ref}:${path}`);
 		});
 	}
@@ -2013,11 +2007,8 @@ export class Repository implements Disposable {
 		return this.run(Operation.GetObjectFiles, () => this.repository.lstree(ref));
 	}
 
-	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
-		return this.run(Operation.GetObjectDetails, () => {
-			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
-			return this.repository.getObjectDetails(ref, path);
-		});
+	getObjectDetails(ref: string, path: string): Promise<{ mode: string; object: string; size: number }> {
+		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, path));
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
