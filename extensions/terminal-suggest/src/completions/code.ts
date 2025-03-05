@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getInstalledExtensions } from '../helpers/extensionGenerators';
+import { getExtensionsToUpdateOrInstall, getInstalledExtensions } from '../helpers/extensionGenerators';
 import { filepaths } from '../helpers/filepaths';
 
 const commonOptions: Fig.Option[] = [
@@ -193,7 +193,7 @@ const extensionManagementOptions: Fig.Option[] = [
 			name: 'extension-id[@version] | path-to-vsix',
 			generators: [
 				{
-					custom: getInstalledExtensions,
+					custom: getExtensionsToUpdateOrInstall,
 				},
 				filepaths({
 					extensions: ['vsix'],
