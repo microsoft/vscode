@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getInstalledExtensions } from '../helpers/getInstalledExtensions';
+import { getInstalledExtensions } from '../helpers/extensionGenerators';
+import { filepaths } from '../helpers/filepaths';
 
 const commonOptions: Fig.Option[] = [
 	{
@@ -190,8 +191,15 @@ const extensionManagementOptions: Fig.Option[] = [
 		description:
 			`Installs or updates an extension. The argument is either an extension id or a path to a VSIX. The identifier of an extension is '\${ publisher }.\${ name }'. Use '--force' argument to update to latest version. To install a specific version provide '@\${version}'. For example: 'vscode.csharp@1.2.3'`,
 		args: {
-			// TODO: Create extension ID generator
 			name: 'extension-id[@version] | path-to-vsix',
+			generators: [
+				{
+					custom: getInstalledExtensions,
+				},
+				filepaths({
+					extensions: ['vsix'],
+				}),
+			],
 		},
 	},
 	{
@@ -203,7 +211,6 @@ const extensionManagementOptions: Fig.Option[] = [
 		name: '--uninstall-extension',
 		description: 'Uninstalls an extension',
 		args: {
-			// TODO: Create extension ID generator
 			name: 'extension-id',
 			generators: {
 				custom: getInstalledExtensions
@@ -259,8 +266,10 @@ const troubleshootingOptions: Fig.Option[] = [
 		name: '--disable-extension',
 		description: 'Disable an extension',
 		args: {
-			// TODO: Create extension ID generator
 			name: 'extension-id',
+			generators: {
+				custom: getInstalledExtensions,
+			}
 		},
 	},
 	{

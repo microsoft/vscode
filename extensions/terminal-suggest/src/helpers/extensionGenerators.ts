@@ -11,7 +11,22 @@ export async function getInstalledExtensions(): Promise<Fig.Suggestion[] | undef
 		return {
 			name: extension.id,
 			type: 'option',
-			version: extension.packageJSON.version
+			version: extension.packageJSON.version,
+			description: extension.packageJSON.description
+		};
+	});
+}
+
+export async function getExtensionsToUpdateOrInstall(): Promise<Fig.Suggestion[] | undefined> {
+	const installedExtensions = vscode.extensions.all;
+	const extensionsToUpdateOrInstall = installedExtensions.filter((extension) => {
+		return extension.packageJSON.isBuiltin === false;
+	});
+	return extensionsToUpdateOrInstall.map((extension) => {
+		return {
+			name: extension.id,
+			type: 'option',
+			description: extension.packageJSON.description
 		};
 	});
 }
