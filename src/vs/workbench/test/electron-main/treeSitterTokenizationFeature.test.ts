@@ -49,6 +49,7 @@ import { TokenQuality, TokenUpdate } from '../../../editor/common/model/tokenSto
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { TestCodeEditorService } from '../../../editor/test/browser/editorTestServices.js';
+import { IModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 
 class MockTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -74,6 +75,8 @@ class MockTelemetryService implements ITelemetryService {
 class MockTokenStoreService implements ITreeSitterTokenizationStoreService {
 	delete(model: ITextModel): void {
 		throw new Error('Method not implemented.');
+	}
+	handleContentChanged(model: ITextModel, e: IModelContentChangedEvent): void {
 	}
 	rangeHasTokens(model: ITextModel, range: Range, minimumTokenQuality: TokenQuality): boolean {
 		return true;
