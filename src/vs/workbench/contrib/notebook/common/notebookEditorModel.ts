@@ -141,7 +141,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				} else {
 					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, isScratchpad: this.scratchPad });
 				}
-				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
+				this._register(this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire()));
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, {
 					limits: options?.limits,
