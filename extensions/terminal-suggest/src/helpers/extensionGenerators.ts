@@ -11,7 +11,6 @@ export async function getInstalledExtensions(): Promise<Fig.Suggestion[] | undef
 		return {
 			name: extension.id,
 			type: 'option',
-			version: extension.packageJSON.version,
 			description: extension.packageJSON.description
 		};
 	});

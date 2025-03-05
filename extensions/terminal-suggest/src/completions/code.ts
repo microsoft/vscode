@@ -63,7 +63,6 @@ const commonOptions: Fig.Option[] = [
 			'Open a file at the path on the specified line and character position',
 		args: {
 			name: 'file:line[:character]',
-			// TODO: Support :line[:character] completion?
 			template: 'filepaths',
 		},
 	},
@@ -268,7 +267,7 @@ const troubleshootingOptions: Fig.Option[] = [
 		args: {
 			name: 'extension-id',
 			generators: {
-				custom: getInstalledExtensions,
+				custom: getInstalledExtensions
 			}
 		},
 	},
