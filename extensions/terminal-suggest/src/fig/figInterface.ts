@@ -16,7 +16,7 @@ import type { ICompletionResource } from '../types';
 import { osIsWindows } from '../helpers/os';
 import { removeAnyFileExtension } from '../helpers/file';
 import type { EnvironmentVariable } from './api-bindings/types';
-import { asArray } from '../terminalSuggestMain';
+import { asArray, availableSpecs } from '../terminalSuggestMain';
 import { IFigExecuteExternals } from './execute';
 
 export interface IFigSpecSuggestionsResult {
@@ -54,8 +54,8 @@ export async function getFigSuggestions(
 		}
 		for (const specLabel of specLabels) {
 			const availableCommand = (osIsWindows()
-				? availableCommands.find(command => (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label)).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
-				: availableCommands.find(command => (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label) === (specLabel))));
+				? availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
+				: availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label) === (specLabel)));
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -89,7 +89,11 @@ export async function getFigSuggestions(
 				continue;
 			}
 
-			const completionItemResult = await getFigSpecSuggestions(spec, terminalContext, prefix, shellIntegrationCwd, env, name, executeExternals, token);
+			const actualSpec = availableCommand.definitionCommand ? availableSpecs.find(s => s.name === availableCommand.definitionCommand) : spec;
+			if (!actualSpec) {
+				continue;
+			}
+			const completionItemResult = await getFigSpecSuggestions(actualSpec, terminalContext, prefix, shellIntegrationCwd, env, name, executeExternals, token);
 			result.hasCurrentArg ||= !!completionItemResult?.hasCurrentArg;
 			if (completionItemResult) {
 				result.filesRequested ||= completionItemResult.filesRequested;
