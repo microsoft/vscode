@@ -484,7 +484,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		});
 
 		// If the last edit for a cell was sent, then handle it
-		if (isCellUri && isLastEdits) {
+		if (isLastEdits) {
 			finishPreviousCells();
 		}
 
@@ -769,8 +769,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	calculateRewriteRadio() {
-		const cellChanges = this._cellsDiffInfo.get();
-		const totalNumberOfUpdatedLines = cellChanges.reduce((totalUpdatedLines, value) => {
+		const totalNumberOfUpdatedLines = this._cellsDiffInfo.get().reduce((totalUpdatedLines, value) => {
 			const getUpadtedLineCount = () => {
 				if (value.type === 'unchanged') {
 					return 0;
@@ -868,13 +867,26 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			}
 			const diffs = this.cellsDiffInfo.get().slice();
 			const index = this.modifiedModel.cells.indexOf(cell);
-			const entry = diffs.find(entry => entry.modifiedCellIndex === index);
+			let entry = diffs.find(entry => entry.modifiedCellIndex === index);
 			if (!entry) {
 				// Not possible.
 				return;
 			}
+			const entryIndex = diffs.indexOf(entry);
 			entry.diff.set(cellEntry.diffInfo.read(r), undefined);
-			diffs.splice(diffs.indexOf(entry), 1, { ...entry });
+			if (cellEntry.diffInfo.get().identical && entry.type === 'modified') {
+				entry = {
+					...entry,
+					type: 'unchanged',
+				};
+			}
+			if (!cellEntry.diffInfo.get().identical && entry.type === 'unchanged') {
+				entry = {
+					...entry,
+					type: 'modified',
+				};
+			}
+			diffs.splice(entryIndex, 1, { ...entry });
 			const maxModifiedLineNumber = cellEntry.maxModifiedLineNumber.read(r);
 			const maxModifiedLineNumbers = this._maxModifiedLineNumbers.get().slice();
 			maxModifiedLineNumbers[index] = maxModifiedLineNumber;
@@ -970,7 +982,6 @@ class ChatEditingNotebookCellEntry extends ObservableDisposable {
 		this._register(disposables);
 		this._register(this.modifiedModel.onDidChangeContent(e => {
 			this._mirrorEdits(e);
-
 		}));
 		this._register(toDisposable(() => {
 			this.clearCurrentEditLineDecoration();
@@ -1277,18 +1288,20 @@ export function adjustCellDiffForRevertingAnInsertedCell(modifiedCellIndex: numb
 		// Not possible.
 		return cellDiffInfo;
 	}
-	cellDiffInfo = sortCellChanges(cellDiffInfo).map(d => {
-		if (d.type === 'insert' && d.modifiedCellIndex === modifiedCellIndex) {
+	cellDiffInfo = sortCellChanges(cellDiffInfo)
+		.filter(d => !(d.type === 'insert' && d.modifiedCellIndex === modifiedCellIndex))
+		.map(d => {
+			if (d.type === 'insert' && d.modifiedCellIndex === modifiedCellIndex) {
+				return d;
+			}
+			if (d.type !== 'delete' && d.modifiedCellIndex > modifiedCellIndex) {
+				return {
+					...d,
+					modifiedCellIndex: d.modifiedCellIndex - 1,
+				};
+			}
 			return d;
-		}
-		if (d.type !== 'delete' && d.modifiedCellIndex > modifiedCellIndex) {
-			return {
-				...d,
-				modifiedCellIndex: d.modifiedCellIndex - 1,
-			};
-		}
-		return d;
-	}).filter(d => !(d.type === 'insert' && d.modifiedCellIndex === modifiedCellIndex));
+		});
 	const edit: ICellReplaceEdit = { cells: [], count: 1, editType: CellEditType.Replace, index: modifiedCellIndex, };
 	applyEdits([edit], true, undefined, () => undefined, undefined, true);
 	return cellDiffInfo;

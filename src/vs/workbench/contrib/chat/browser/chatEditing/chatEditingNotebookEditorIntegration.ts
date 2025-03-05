@@ -127,7 +127,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		this._register(autorun(r => {
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
-			const changes = sortedCellChanges.filter(c => c.type !== 'modified' && c.type !== 'delete' && !c.diff.read(r).identical);
+			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.read(r).identical);
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
