@@ -1089,10 +1089,16 @@ async function darwinMain(policies: Policy[], translations: Translations) {
 
 async function main() {
 	const [policies, translations] = await Promise.all([parsePolicies(), getTranslations()]);
-	await Promise.all([
-		windowsMain(policies, translations),
-		darwinMain(policies, translations)
-	]);
+	const platform = process.argv[2];
+
+	if (platform === 'darwin') {
+		await darwinMain(policies, translations);
+	} else if (platform === 'win32') {
+		await windowsMain(policies, translations);
+	} else {
+		console.error(`Usage: node build/lib/policies <darwin|win32>`);
+		process.exit(1);
+	}
 }
 
 if (require.main === module) {
