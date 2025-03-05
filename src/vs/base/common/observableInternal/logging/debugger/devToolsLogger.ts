@@ -282,7 +282,7 @@ export class DevToolsLogger implements IObservableLogger {
 		let shallow = true;
 		let loc!: ILocation;
 
-		const Err = Error as { stackTraceLimit: number }; // For the monaco editor checks, which don't have the nodejs types.
+		const Err = Error as any as { stackTraceLimit: number }; // For the monaco editor checks, which don't have the nodejs types.
 
 		while (true) {
 			const l = Err.stackTraceLimit;
