@@ -547,6 +547,53 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 			endOffsetsAndScopes.push({ endOffset: 0, scopes: [] });
 		};
 
+		const brackets = (capture: QueryCapture, startOffset: number): number[] | undefined => {
+			return (capture.name.includes('punctuation') && capture.text) ? Array.from(capture.text.matchAll(BRACKETS)).map(match => startOffset + match.index) : undefined;
+		};
+
+		const addCurrentTokenToArray = (capture: QueryCapture, startOffset: number, endOffset: number, position?: number) => {
+			if (position !== undefined) {
+				const oldScopes = endOffsetsAndScopes[position].scopes;
+				let oldBracket = endOffsetsAndScopes[position].bracket;
+				// Check that the previous token ends at the same point that the current token starts
+				const prevEndOffset = position > 0 ? endOffsetsAndScopes[position - 1].endOffset : 0;
+				if (prevEndOffset !== startOffset) {
+					let preInsertBracket: number[] | undefined = undefined;
+					if (oldBracket && oldBracket.length > 0) {
+						preInsertBracket = [];
+						const postInsertBracket: number[] = [];
+						for (let i = 0; i < oldBracket.length; i++) {
+							const bracket = oldBracket[i];
+							if (bracket < startOffset) {
+								preInsertBracket.push(bracket);
+							} else if (bracket > endOffset) {
+								postInsertBracket.push(bracket);
+							}
+						}
+						if (preInsertBracket.length === 0) {
+							preInsertBracket = undefined;
+						}
+						if (postInsertBracket.length === 0) {
+							oldBracket = undefined;
+						} else {
+							oldBracket = postInsertBracket;
+						}
+					}
+					// We need to add some of the position token to cover the space
+					endOffsetsAndScopes.splice(position, 0, { endOffset: startOffset, scopes: [...oldScopes], bracket: preInsertBracket });
+					position++;
+					increaseSizeOfTokensByOneToken();
+					tokenIndex++;
+				}
+
+				endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [...oldScopes, capture.name], bracket: brackets(capture, startOffset) });
+				endOffsetsAndScopes[tokenIndex].bracket = oldBracket;
+			} else {
+				endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: brackets(capture, startOffset) };
+			}
+			tokenIndex++;
+		};
+
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
 			const tokenEndIndex = capture.node.endIndex < rangeEndOffset ? ((capture.node.endIndex < rangeStartOffset) ? rangeStartOffset : capture.node.endIndex) : rangeEndOffset;
@@ -577,52 +624,6 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				continue;
 			}
 
-			const brackets = (): number[] | undefined => {
-				return (capture.name.includes('punctuation') && capture.text) ? Array.from(capture.text.matchAll(BRACKETS)).map(match => startOffset + match.index) : undefined;
-			};
-
-			const addCurrentTokenToArray = (position?: number) => {
-				if (position !== undefined) {
-					let oldBracket = endOffsetsAndScopes[position].bracket;
-					// Check that the previous token ends at the same point that the current token starts
-					const prevEndOffset = position > 0 ? endOffsetsAndScopes[position - 1].endOffset : 0;
-					if (prevEndOffset !== startOffset) {
-						let preInsertBracket: number[] | undefined = undefined;
-						if (oldBracket && oldBracket.length > 0) {
-							preInsertBracket = [];
-							const postInsertBracket: number[] = [];
-							for (let i = 0; i < oldBracket.length; i++) {
-								const bracket = oldBracket[i];
-								if (bracket < startOffset) {
-									preInsertBracket.push(bracket);
-								} else if (bracket > endOffset) {
-									postInsertBracket.push(bracket);
-								}
-							}
-							if (preInsertBracket.length === 0) {
-								preInsertBracket = undefined;
-							}
-							if (postInsertBracket.length === 0) {
-								oldBracket = undefined;
-							} else {
-								oldBracket = postInsertBracket;
-							}
-						}
-						// We need to add some of the position token to cover the space
-						endOffsetsAndScopes.splice(position, 0, { endOffset: startOffset, scopes: [...endOffsetsAndScopes[position].scopes], bracket: preInsertBracket });
-						position++;
-						increaseSizeOfTokensByOneToken();
-						tokenIndex++;
-					}
-
-					endOffsetsAndScopes.splice(position, 0, { endOffset: endOffset, scopes: [capture.name], bracket: brackets() });
-					endOffsetsAndScopes[tokenIndex].bracket = oldBracket;
-				} else {
-					endOffsetsAndScopes[tokenIndex] = { endOffset: endOffset, scopes: [capture.name], bracket: brackets() };
-				}
-				tokenIndex++;
-			};
-
 			if (previousEndOffset >= endOffset) {
 				// walk back through the tokens until we find the one that contains the current token
 				let withinTokenIndex = tokenIndex - 1;
@@ -634,13 +635,13 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 					// Check that the current token doesn't just replace the last token
 					if ((previousTokenStartOffset + currentTokenLength) === previousTokenEndOffset) {
 						if (previousTokenStartOffset === startOffset) {
-							// Current token and previous token span the exact same characters, replace the last scope
-							endOffsetsAndScopes[withinTokenIndex].scopes[endOffsetsAndScopes[withinTokenIndex].scopes.length - 1] = capture.name;
-							endOffsetsAndScopes[withinTokenIndex].bracket = brackets();
+							// Current token and previous token span the exact same characters, add the scopes to the previous token
+							endOffsetsAndScopes[withinTokenIndex].scopes.push(capture.name);
+							const oldBracket = endOffsetsAndScopes[withinTokenIndex].bracket;
+							endOffsetsAndScopes[withinTokenIndex].bracket = ((oldBracket && (oldBracket.length > 0)) ? oldBracket : brackets(capture, startOffset));
 						}
 					} else if (previousTokenStartOffset <= startOffset) {
-						// The current token is within the previous token. Adjust the end of the previous token
-						addCurrentTokenToArray(withinTokenIndex);
+						addCurrentTokenToArray(capture, startOffset, endOffset, withinTokenIndex);
 						break;
 					}
 					withinTokenIndex--;
@@ -649,7 +650,7 @@ export class TreeSitterTokenizationSupport extends Disposable implements ITreeSi
 				} while (previousTokenEndOffset > startOffset);
 			} else {
 				// Just add the token to the array
-				addCurrentTokenToArray();
+				addCurrentTokenToArray(capture, startOffset, endOffset);
 			}
 		}
 
