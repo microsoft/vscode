@@ -551,7 +551,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	}
 
 	private adjustHoverMaxHeight(target: TargetRect): void {
-		let maxHeight = this._targetWindow.innerHeight / 2;
+		let maxHeight = this._targetWindow.innerHeight * 0.9;
 
 		// When force position is enabled, restrict max height
 		if (this._forcePosition) {
