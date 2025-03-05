@@ -258,8 +258,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public isFocused(): boolean {
-		this.refreshFocusState();
-		return this._focusTracker.isFocused;
+		return this._focusTracker.isFocused || (getActiveWindow().document.activeElement === this.textArea.domNode);
 	}
 
 	public focus(): void {
