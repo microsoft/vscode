@@ -433,7 +433,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const snapshot = this._createSnapshot(requestId, undoStop);
 		for (const [uri, data] of this._workingSet) {
 			if (data.state !== WorkingSetEntryState.Suggested) {
-				this._workingSet.set(uri, { state: WorkingSetEntryState.Sent, isMarkedReadonly: data.isMarkedReadonly });
+				this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
 			}
 		}
 
@@ -581,11 +581,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			if (entry.state === WorkingSetEntryState.Suggested) {
 				entry.state = WorkingSetEntryState.Attached;
 			}
-			entry.isMarkedReadonly = isReadonly ?? !entry.isMarkedReadonly;
 		} else {
 			this._workingSet.set(resource, {
 				state: WorkingSetEntryState.Attached,
-				isMarkedReadonly: isReadonly ?? true
 			});
 		}
 		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);

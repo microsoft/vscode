@@ -404,7 +404,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
-		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, isProposedApiEnabled(detector.extension, 'chatReadonlyPromptReference'), this.getDiagnosticsWhenEnabled(detector.extension));
+		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, this.getDiagnosticsWhenEnabled(detector.extension));
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -488,7 +488,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
 			const model = await this.getModelForRequest(request, agent.extension);
-			const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, isProposedApiEnabled(agent.extension, 'chatReadonlyPromptReference'), this.getDiagnosticsWhenEnabled(agent.extension));
+			const extRequest = typeConvert.ChatAgentRequest.to(request, location, model, this.getDiagnosticsWhenEnabled(agent.extension));
 			inFlightRequest = { requestId: requestDto.requestId, extRequest };
 			this._inFlightRequests.add(inFlightRequest);
 
@@ -557,10 +557,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				{ ...ehResult, metadata: undefined };
 
 			// REQUEST turn
-			const hasReadonlyProposal = isProposedApiEnabled(extension, 'chatReadonlyPromptReference');
 			const varsWithoutTools = h.request.variables.variables
 				.filter(v => !v.isTool)
-				.map(v => typeConvert.ChatPromptReference.to(v, hasReadonlyProposal, this.getDiagnosticsWhenEnabled(extension)));
+				.map(v => typeConvert.ChatPromptReference.to(v, this.getDiagnosticsWhenEnabled(extension)));
 			const toolReferences = h.request.variables.variables
 				.filter(v => v.isTool)
 				.map(typeConvert.ChatLanguageModelToolReference.to);

@@ -1115,7 +1115,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						unconfirmedSuggestions.add(uri);
 					} else {
 						uniqueWorkingSetEntries.add(uri);
-						editingSessionAttachedContext.unshift(this.attachmentModel.asVariableEntry(uri, undefined, state.isMarkedReadonly));
+						editingSessionAttachedContext.unshift(this.attachmentModel.asVariableEntry(uri, undefined));
 					}
 				}
 
