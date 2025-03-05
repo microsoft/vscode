@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import path from 'path';
-import * as fs from 'fs';
 import { filepaths } from '../helpers/filepaths';
-import { spawnHelper } from '../shell/common';
 
 const commonOptions: Fig.Option[] = [
 	{
@@ -195,7 +192,8 @@ const extensionManagementOptions: Fig.Option[] = [
 			name: 'extension-id[@version] | path-to-vsix',
 			generators: [
 				{
-					custom: getInstalledExtensions,
+					script: ['code', '--list-extensions', '--show-versions'],
+					postProcess: getInstalledExtensions,
 				},
 				filepaths({
 					extensions: ['vsix'],
@@ -214,7 +212,8 @@ const extensionManagementOptions: Fig.Option[] = [
 		args: {
 			name: 'extension-id',
 			generators: {
-				custom: getInstalledExtensions
+				script: ['code', '--list-extensions', '--show-versions'],
+				postProcess: getInstalledExtensions,
 			}
 		},
 	},
@@ -269,7 +268,8 @@ const troubleshootingOptions: Fig.Option[] = [
 		args: {
 			name: 'extension-id',
 			generators: {
-				custom: getInstalledExtensions
+				script: ['code', '--list-extensions', '--show-versions'],
+				postProcess: getInstalledExtensions,
 			}
 		},
 	},
@@ -332,37 +332,15 @@ const codeCompletionSpec: Fig.Spec = {
 
 export default codeCompletionSpec;
 
-async function commandExists(command: string): Promise<boolean> {
-	return new Promise(resolve => {
-		const paths = (process.env.PATH || '').split(path.delimiter);
-		for (const p of paths) {
-			const fullPath = path.join(p, command);
-			fs.access(fullPath, fs.constants.X_OK, err => {
-				if (!err) {
-					resolve(true);
-				}
-			});
-		}
-		resolve(false);
-	});
-}
 
-export async function getInstalledExtensions(): Promise<Fig.Suggestion[] | undefined> {
-	return new Promise((resolve, reject) => {
-		commandExists('code').then(() => {
-			spawnHelper('code', ['--list-extensions', '--show-versions'], { stdio: 'pipe', env: { ...process.env, PATH: process.env.PATH } }).then(stdout => {
-				const extensions = stdout.split('\n').filter(Boolean).map((line) => {
-					const [id, version] = line.split('@');
-					return {
-						name: id,
-						type: 'option' as Fig.SuggestionType,
-						description: `Version: ${version}`
-					};
-				});
-				resolve(extensions);
-			}).catch(error => {
-				reject(error);
-			});
-		}).catch(reject);
+export function getInstalledExtensions(out: string): Fig.Suggestion[] | undefined {
+	const extensions = out.split('\n').filter(Boolean).map((line) => {
+		const [id, version] = line.split('@');
+		return {
+			name: id,
+			type: 'option' as Fig.SuggestionType,
+			description: `Version: ${version}`
+		};
 	});
+	return extensions;
 }
