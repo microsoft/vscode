@@ -136,6 +136,22 @@ const commonOptions: Fig.Option[] = [
 		name: ['-h', '--help'],
 		description: 'Print usage',
 	},
+	{
+		name: '--locate-shell-integration-path',
+		description:
+			'Print the path to the shell integration script for the provided shell',
+		args: {
+			isOptional: false,
+			name: 'shell',
+			description: 'The shell to locate the integration script for',
+			suggestions: [
+				'bash',
+				'fish',
+				'pwsh',
+				'zsh',
+			]
+		}
+	}
 ];
 
 const extensionManagementOptions: Fig.Option[] = [
