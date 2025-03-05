@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getExtensionsToUpdateOrInstall, getInstalledExtensions } from '../helpers/extensionGenerators';
 import { filepaths } from '../helpers/filepaths';
+import * as vscode from 'vscode';
 
 const commonOptions: Fig.Option[] = [
 	{
@@ -329,3 +329,30 @@ const codeCompletionSpec: Fig.Spec = {
 };
 
 export default codeCompletionSpec;
+
+
+
+export async function getInstalledExtensions(): Promise<Fig.Suggestion[] | undefined> {
+	const installedExtensions = vscode.extensions.all;
+	return installedExtensions.map((extension) => {
+		return {
+			name: extension.id,
+			type: 'option',
+			description: extension.packageJSON.description
+		};
+	});
+}
+
+export async function getExtensionsToUpdateOrInstall(): Promise<Fig.Suggestion[] | undefined> {
+	const installedExtensions = vscode.extensions.all;
+	const extensionsToUpdateOrInstall = installedExtensions.filter((extension) => {
+		return extension.packageJSON.isBuiltin === false;
+	});
+	return extensionsToUpdateOrInstall.map((extension) => {
+		return {
+			name: extension.id,
+			type: 'option',
+			description: extension.packageJSON.description
+		};
+	});
+}
