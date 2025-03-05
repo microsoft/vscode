@@ -8,10 +8,8 @@ import * as vscode from 'vscode';
 export async function getInstalledExtensions(): Promise<Fig.Suggestion[] | undefined> {
 	const installedExtensions = vscode.extensions.all;
 	return installedExtensions.map((extension) => {
-		const [publisher, name] = extension.id.split('.');
 		return {
-			name,
-			description: 'Publisher: ' + publisher,
+			name: extension.id,
 			type: 'option',
 			version: extension.packageJSON.version
 		};
