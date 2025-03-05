@@ -77,6 +77,10 @@ export class NativeEditContext extends AbstractEditContext {
 		this.textArea = new FastDomNode(document.createElement('textarea'));
 		this.textArea.setClassName('native-edit-context-textarea');
 		this.textArea.setAttribute('tabindex', '-1');
+		this.domNode.setAttribute('autocorrect', 'off');
+		this.domNode.setAttribute('autocapitalize', 'off');
+		this.domNode.setAttribute('autocomplete', 'off');
+		this.domNode.setAttribute('spellcheck', 'false');
 
 		this._updateDomAttributes();
 
