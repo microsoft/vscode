@@ -61,8 +61,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly _decorations: ViewModelDecorations;
 	public readonly glyphLanes: IGlyphMarginLanesModel;
 
-	private _setHasFocusPromise: Promise<void> = Promise.resolve();
-
 	constructor(
 		editorId: number,
 		configuration: IEditorConfiguration,
@@ -211,15 +209,11 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._attachedView.setVisibleLines(modelVisibleRanges, false);
 	}
 
-	public async setHasFocus(hasFocus: boolean): Promise<void> {
-		await this._setHasFocusPromise;
-		this._setHasFocusPromise = new Promise((resolve) => {
-			this._hasFocus = hasFocus;
-			this._cursor.setHasFocus(hasFocus);
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
-			this._eventDispatcher.emitOutgoingEvent(new FocusChangedEvent(!hasFocus, hasFocus));
-			resolve();
-		});
+	public setHasFocus(hasFocus: boolean): void {
+		this._hasFocus = hasFocus;
+		this._cursor.setHasFocus(hasFocus);
+		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
+		this._eventDispatcher.emitOutgoingEvent(new FocusChangedEvent(!hasFocus, hasFocus));
 	}
 
 	public onCompositionStart(): void {
