@@ -138,7 +138,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 	renderTemplate(rootContainer: HTMLElement): MarkdownCellRenderTemplate {
 		rootContainer.classList.add('markdown-cell-row');
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
-		const templateDisposables = this._register(new DisposableStore());
+		const templateDisposables = new DisposableStore();
 		const contextKeyService = templateDisposables.add(this.contextKeyServiceProvider(container));
 		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
