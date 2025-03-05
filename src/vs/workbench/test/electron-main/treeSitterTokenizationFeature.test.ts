@@ -212,6 +212,58 @@ suite('Tree Sitter TokenizationFeature', function () {
 		}
 	}
 
+	test('Three changes come back to back ', async () => {
+		const content = `/**
+**/
+class x {
+}
+
+
+
+
+class y {
+}`;
+		const model = await getModelAndPrepTree(content);
+
+		let updateListener: IDisposable | undefined;
+		let change: TreeUpdateEvent | undefined;
+
+		const updatePromise = new Promise<void>(resolve => {
+			updateListener = treeSitterParserService.onDidUpdateTree(async e => {
+				if (e.textModel === model) {
+					change = e;
+					resolve();
+				}
+			});
+		});
+
+		const edit1 = new Promise<void>(resolve => {
+			model.applyEdits([{ range: new Range(7, 1, 8, 1), text: '' }]);
+			resolve();
+		});
+		const edit2 = new Promise<void>(resolve => {
+			model.applyEdits([{ range: new Range(6, 1, 7, 1), text: '' }]);
+			resolve();
+		});
+		const edit3 = new Promise<void>(resolve => {
+			model.applyEdits([{ range: new Range(5, 1, 6, 1), text: '' }]);
+			resolve();
+		});
+		const edits = Promise.all([edit1, edit2, edit3]);
+		await updatePromise;
+		await edits;
+		assert.ok(change);
+
+		assert.strictEqual(change.versionId, 4);
+		assert.strictEqual(change.ranges[0].newRangeStartOffset, 7);
+		assert.strictEqual(change.ranges[0].newRangeEndOffset, 32);
+		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
+		assert.strictEqual(change.ranges[0].newRange.endLineNumber, 7);
+
+		updateListener?.dispose();
+		modelService.destroyModel(model.uri);
+	});
+
 	test('File single line file', async () => {
 		const content = `console.log('x');`;
 		const model = await getModelAndPrepTree(content);
@@ -340,58 +392,6 @@ class Y {
 		verifyTokens(tokens);
 		assert.deepStrictEqual(tokens?.length, 30);
 		assert.deepStrictEqual(tokensContentSize(tokens), content.length);
-		modelService.destroyModel(model.uri);
-	});
-
-	test('Three changes come back to back ', async () => {
-		const content = `/**
-**/
-class x {
-}
-
-
-
-
-class y {
-}`;
-		const model = await getModelAndPrepTree(content);
-
-		let updateListener: IDisposable | undefined;
-		let change: TreeUpdateEvent | undefined;
-
-		const updatePromise = new Promise<void>(resolve => {
-			updateListener = treeSitterParserService.onDidUpdateTree(async e => {
-				if (e.textModel === model) {
-					change = e;
-					resolve();
-				}
-			});
-		});
-
-		const edit1 = new Promise<void>(resolve => {
-			model.applyEdits([{ range: new Range(7, 1, 8, 1), text: '' }]);
-			resolve();
-		});
-		const edit2 = new Promise<void>(resolve => {
-			model.applyEdits([{ range: new Range(6, 1, 7, 1), text: '' }]);
-			resolve();
-		});
-		const edit3 = new Promise<void>(resolve => {
-			model.applyEdits([{ range: new Range(5, 1, 6, 1), text: '' }]);
-			resolve();
-		});
-		const edits = Promise.all([edit1, edit2, edit3]);
-		await updatePromise;
-		await edits;
-		assert.ok(change);
-
-		assert.strictEqual(change.versionId, 4);
-		assert.strictEqual(change.ranges[0].newRangeStartOffset, 7);
-		assert.strictEqual(change.ranges[change.ranges.length - 1].newRangeEndOffset, 32);
-		assert.strictEqual(change.ranges[0].newRange.startLineNumber, 2);
-		assert.strictEqual(change.ranges[change.ranges.length - 1].newRange.endLineNumber, 7);
-
-		updateListener?.dispose();
 		modelService.destroyModel(model.uri);
 	});
 
