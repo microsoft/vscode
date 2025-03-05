@@ -197,9 +197,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			switch (cellDiff.type) {
 				case 'delete':
 					return this.createDeleteCellDiffInfo(cellDiff.originalCellIndex);
-				case 'insert': {
+				case 'insert':
 					return this.createInsertedCellDiffInfo(cellDiff.modifiedCellIndex);
-				}
 				default:
 					return this.createModifiedCellDiffInfo(cellDiff.modifiedCellIndex, cellDiff.originalCellIndex);
 			}
@@ -210,6 +209,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	private computeRequestId: number = 0;
 	async initializeModelsFromDiff() {
+		const id = ++this.computeRequestId;
 		if (this._areOriginalAndModifiedIdenticalImpl()) {
 			const cellsDiffInfo: CellDiffInfo[] = this.modifiedModel.cells.map((_, index) => {
 				return { type: 'unchanged', originalCellIndex: index, modifiedCellIndex: index } satisfies CellDiffInfo;
@@ -217,7 +217,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			this.initializeModelsFromDiffImpl(cellsDiffInfo);
 			return;
 		}
-		const id = ++this.computeRequestId;
 		const cellsDiffInfo: CellDiffInfo[] = [];
 		try {
 			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.originalURI, this.modifiedURI);
