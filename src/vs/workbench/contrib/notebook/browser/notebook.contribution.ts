@@ -105,9 +105,6 @@ import './contrib/notebookVariables/notebookInlineVariables.js';
 // Diff Editor Contribution
 import './diff/notebookDiffActions.js';
 
-// Chat Edit Contributions
-import './contrib/chatEdit/contribution.js';
-
 // Services
 import { editorOptionsRegistry } from '../../../../editor/common/config/editorOptions.js';
 import { NotebookExecutionStateService } from './services/notebookExecutionStateServiceImpl.js';
