@@ -262,7 +262,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public isFocused(): boolean {
-		this.refreshFocusState();
 		return this._focusTracker.isFocused;
 	}
 
