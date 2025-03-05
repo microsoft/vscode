@@ -265,6 +265,14 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (!e.rawEvents.length) {
 			return;
 		}
+		// This isn't great, but necessary.
+		// ipynb extension updates metadata when new cells are inserted (to ensure the metadata is correct)
+		// Details of why thats required is in ipynb extension, but its necessary.
+		// However as a result of this, those edits appear here and are assumed to be user edits.
+		// As a result `_allEditsAreFromUs` is set to false.
+		if (isTransientIPyNbExtensionEvent(this.modifiedModel.notebookType, e)) {
+			return;
+		}
 
 		this._allEditsAreFromUs = false;
 
@@ -1566,4 +1574,24 @@ export function adjustCellDiffAndOriginalModelBasedOnCellMovements(event: Notebo
 function getCorrespondingOriginalCellIndex(modifiedCellIndex: number, cellDiffInfo: ICellDiffInfo[]): number | undefined {
 	const entry = cellDiffInfo.find(d => d.modifiedCellIndex === modifiedCellIndex);
 	return entry?.originalCellIndex;
+}
+
+function isTransientIPyNbExtensionEvent(notebookKind: string, e: NotebookTextModelChangedEvent) {
+	if (notebookKind !== 'jupyter-notebook') {
+		return false;
+	}
+	if (e.rawEvents.every(event => {
+		if (event.kind !== NotebookCellsChangeType.ChangeCellMetadata) {
+			return false;
+		}
+		if (JSON.stringify(event.metadata || {}) === JSON.stringify({ execution_count: null, metadata: {} })) {
+			return true;
+		}
+		return true;
+
+	})) {
+		return true;
+	}
+
+	return false;
 }
