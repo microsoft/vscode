@@ -868,6 +868,8 @@ export interface IConfig extends IEnvConfig {
 	__restart?: any;
 	__autoAttach?: boolean;
 	port?: number; // TODO
+
+	extends?: string;
 }
 
 export interface ICompound {

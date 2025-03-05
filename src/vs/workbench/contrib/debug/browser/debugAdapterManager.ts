@@ -202,12 +202,15 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 						type: 'boolean',
 						description: nls.localize('suppressMultipleSessionWarning', "Disable the warning when trying to start the same debug configuration more than once."),
 						default: true
+					},
+					'extends': {
+						type: 'string'
 					}
 				}
 			}
 		};
 		launchSchema.definitions = definitions;
-		items.oneOf = [];
+		items.oneOf = [{ type: 'object', properties: { extends: { type: 'string' } }, required: ['extends'] }];
 		items.defaultSnippets = [];
 		this.debuggers.forEach(adapter => {
 			const schemaAttributes = adapter.getSchemaAttributes(definitions);
