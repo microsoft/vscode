@@ -124,6 +124,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			}
 		}));
 
+		// Build cell integrations (responsible for navigating changes within a cell and decorating cell text changes)
 		this._register(autorun(r => {
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
@@ -156,8 +157,10 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 					undo: change.undo
 				} satisfies IDocumentDiff2;
 				validCells.add(cell);
-				if (this.cellEditorIntegrations.has(cell)) {
-					this.cellEditorIntegrations.get(cell)!.diff.set(diff, undefined);
+				const currentDiff = this.cellEditorIntegrations.get(cell);
+				if (currentDiff) {
+					// Do not unnecessarily trigger a change event
+					currentDiff.diff.set(diff, undefined);
 				} else {
 					const diff2 = observableValue(`diff${cell.handle}`, diff);
 					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2);
@@ -183,6 +186,18 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 					this.cellEditorIntegrations.delete(cell);
 				}
 			});
+		}));
+
+		const cellsAreVisible = onDidChangeVisibleRanges.map(v => v.length > 0);
+
+		// Focus
+		this._register(autorun(r => {
+			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
+
+			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.read(r).identical);
+			if (!changes.length || !cellsAreVisible.read(r)) {
+				return;
+			}
 
 			// set initial index
 			this._currentIndex.set(0, undefined);
@@ -243,9 +258,12 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		});
 
 		this._register(autorun(r => {
+			if (!cellsAreVisible.read(r)) {
+				return;
+			}
 			// We can have inserted cells that have been accepted, in those cases we do not wany any decorators on them.
-			const changes = cellChanges.read(r).filter(c => c.type === 'insert' ? !c.diff.read(r).identical : true);
-			const decorators = this.insertDeleteDecorators.read(r);
+			const changes = debouncedObservable(cellChanges, 10).read(r).filter(c => c.type === 'insert' ? !c.diff.read(r).identical : true);
+			const decorators = debouncedObservable(this.insertDeleteDecorators, 10).read(r);
 			if (decorators) {
 				decorators.insertedCellDecorator.apply(changes);
 				decorators.modifiedCellDecorator.apply(changes);
