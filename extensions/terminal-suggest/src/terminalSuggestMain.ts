@@ -318,14 +318,10 @@ function getShell(shellType: TerminalShellType): string | undefined {
 
 function getEnvAsRecord(shellIntegrationEnv: { [key: string]: string | undefined } | undefined): Record<string, string> {
 	const env: Record<string, string> = {};
-	if (shellIntegrationEnv) {
-		for (const [key, value] of Object.entries(shellIntegrationEnv)) {
-			if (typeof value === 'string') {
-				env[key] = value;
-			}
+	for (const [key, value] of Object.entries(shellIntegrationEnv ?? process.env)) {
+		if (typeof value === 'string') {
+			env[key] = value;
 		}
-	} else {
-		return process.env as Record<string, string>;
 	}
 	return env;
 }
