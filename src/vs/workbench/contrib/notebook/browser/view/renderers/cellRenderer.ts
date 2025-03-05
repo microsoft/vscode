@@ -200,7 +200,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			editorContainer,
 			foldingIndicator,
 			templateDisposables,
-			elementDisposables: this._register(new DisposableStore()),
+			elementDisposables: templateDisposables.add(new DisposableStore()),
 			cellParts,
 			toJSON: () => { return {}; }
 		};
@@ -226,7 +226,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 
@@ -261,7 +260,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	renderTemplate(rootContainer: HTMLElement): CodeCellRenderTemplate {
 		rootContainer.classList.add('code-cell-row');
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
-		const templateDisposables = this._register(new DisposableStore());
+		const templateDisposables = new DisposableStore();
 		const contextKeyService = templateDisposables.add(this.contextKeyServiceProvider(container));
 		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		const focusIndicatorTop = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top')));
@@ -367,7 +366,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			outputShowMoreContainer,
 			editor,
 			templateDisposables,
-			elementDisposables: this._register(new DisposableStore()),
+			elementDisposables: templateDisposables.add(new DisposableStore()),
 			cellParts,
 			toJSON: () => { return {}; }
 		};
@@ -398,7 +397,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	disposeTemplate(templateData: CodeCellRenderTemplate): void {
-		templateData.templateDisposables.clear();
+		templateData.templateDisposables.dispose();
 	}
 
 	disposeElement(element: ICellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
