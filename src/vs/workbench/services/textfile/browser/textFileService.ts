@@ -33,7 +33,7 @@ import { IPathService } from '../../path/common/pathService.js';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from '../../workingCopy/common/workingCopyFileService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, WORKSPACE_EXTENSION } from '../../../../platform/workspace/common/workspace.js';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind } from '../common/encoding.js';
+import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind, IDecodeStreamOptions } from '../common/encoding.js';
 import { consumeStream, ReadableStream } from '../../../../base/common/stream.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -273,6 +273,27 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	getEncoding(resource: URI): string {
 		const model = resource.scheme === Schemas.untitled ? this.untitled.get(resource) : this.files.get(resource);
 		return model?.getEncoding() ?? this.encoding.getUnvalidatedEncodingForResource(resource);
+	}
+
+	async resolveDecoding(resource: URI | undefined, options?: IReadTextFileEncodingOptions): Promise<IDecodeStreamOptions> {
+		return {
+			acceptTextOnly: options?.acceptTextOnly ?? false,
+			guessEncoding:
+				options?.autoGuessEncoding ||
+				this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			candidateGuessEncodings:
+				options?.candidateGuessEncodings ||
+				this.textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings'),
+			overwriteEncoding: async detectedEncoding => {
+				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding ?? undefined);
+
+				return encoding;
+			}
+		} satisfies IDecodeStreamOptions;
+	}
+
+	resolveEncoding(resource: URI | undefined, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }> {
+		return this.encoding.getWriteEncoding(resource, options);
 	}
 
 	async getEncodedReadable(resource: URI | undefined, value: ITextSnapshot): Promise<VSBufferReadable>;
