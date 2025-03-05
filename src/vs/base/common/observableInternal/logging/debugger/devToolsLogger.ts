@@ -282,11 +282,13 @@ export class DevToolsLogger implements IObservableLogger {
 		let shallow = true;
 		let loc!: ILocation;
 
+		const Err = Error as { stackTraceLimit: number }; // For the monaco editor checks, which don't have the nodejs types.
+
 		while (true) {
-			const l = Error.stackTraceLimit;
-			Error.stackTraceLimit = shallow ? 6 : 20;
+			const l = Err.stackTraceLimit;
+			Err.stackTraceLimit = shallow ? 6 : 20;
 			const stack = new Error().stack!;
-			Error.stackTraceLimit = l;
+			Err.stackTraceLimit = l;
 
 			let result = getFirstStackFrameOutsideOf(stack, /[/\\]observableInternal[/\\]|\.observe|[/\\]util(s)?\./);
 
