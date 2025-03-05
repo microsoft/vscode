@@ -50,7 +50,7 @@ export class DiffEditorGutter extends Disposable {
 		private readonly _editors: DiffEditorEditors,
 		private readonly _options: DiffEditorOptions,
 		private readonly _sashLayout: SashLayout,
-		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined, void>,
+		private readonly _boundarySashes: IObservable<IBoundarySashes | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService,
@@ -218,7 +218,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		const hoverDelegate = this._register(instantiationService.createInstance(
 			WorkbenchHoverDelegate,
 			'element',
-			true,
+			{ instantHover: true },
 			{ position: { hoverPosition: HoverPosition.RIGHT } }
 		));
 
@@ -245,7 +245,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 				},
 				overflowBehavior: { maxItems: this._isSmall.read(reader) ? 1 : 3 },
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				actionRunner: new ActionRunnerWithContext(() => {
+				actionRunner: store.add(new ActionRunnerWithContext(() => {
 					const item = this._item.get();
 					const mapping = item.mapping;
 					return {
@@ -254,7 +254,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 						originalUri: item.originalUri,
 						modifiedUri: item.modifiedUri,
 					} satisfies DiffEditorSelectionHunkToolbarContext;
-				}),
+				})),
 				menuOptions: {
 					shouldForwardArgs: true,
 				},

@@ -32,7 +32,27 @@ export class PositionOffsetTransformer {
 	}
 
 	getOffset(position: Position): number {
-		return this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1;
+		const valPos = this._validatePosition(position);
+		return this.lineStartOffsetByLineIdx[valPos.lineNumber - 1] + valPos.column - 1;
+	}
+
+	private _validatePosition(position: Position): Position {
+		if (position.lineNumber < 1) {
+			return new Position(1, 1);
+		}
+		const lineCount = this.textLength.lineCount + 1;
+		if (position.lineNumber > lineCount) {
+			const lineLength = this.getLineLength(lineCount);
+			return new Position(lineCount, lineLength + 1);
+		}
+		if (position.column < 1) {
+			return new Position(position.lineNumber, 1);
+		}
+		const lineLength = this.getLineLength(position.lineNumber);
+		if (position.column - 1 > lineLength) {
+			return new Position(position.lineNumber, lineLength + 1);
+		}
+		return position;
 	}
 
 	getOffsetRange(range: Range): OffsetRange {

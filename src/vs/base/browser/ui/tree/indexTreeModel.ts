@@ -5,7 +5,7 @@
 
 import { IIdentityProvider } from '../list/list.js';
 import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from './tree.js';
-import { splice, tail2 } from '../../../common/arrays.js';
+import { splice, tail } from '../../../common/arrays.js';
 import { Delayer } from '../../../common/async.js';
 import { MicrotaskDelay } from '../../../common/symbols.js';
 import { LcsDiff } from '../../../common/diff/diff.js';
@@ -762,7 +762,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		} else if (location.length === 1) {
 			return [];
 		} else {
-			return tail2(location)[0];
+			return tail(location)[0];
 		}
 	}
 

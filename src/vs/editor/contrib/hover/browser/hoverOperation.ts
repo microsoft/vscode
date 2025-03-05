@@ -108,6 +108,7 @@ export class HoverOperation<TArgs, TResult> extends Disposable {
 	}
 
 	private _setState(state: HoverOperationState, options: TArgs): void {
+		this._options = options;
 		this._state = state;
 		this._fireResult(options);
 	}

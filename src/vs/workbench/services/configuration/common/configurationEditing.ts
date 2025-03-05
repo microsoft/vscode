@@ -13,7 +13,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';
 import { IConfigurationUpdateOptions, IConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
-import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES, IWorkbenchConfigurationService } from './configuration.js';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from './configuration.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -22,13 +22,14 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IOpenSettingsOptions, IPreferencesService } from '../../preferences/common/preferences.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { IReference } from '../../../../base/common/lifecycle.js';
+import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -154,6 +155,7 @@ export class ConfigurationEditing {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		this.queue = new Queue<void>();
 	}
@@ -198,8 +200,20 @@ export class ConfigurationEditing {
 		}
 
 		const edit = this.getEdits(operation, model.getValue(), formattingOptions)[0];
-		if (edit && this.applyEditsToBuffer(edit, model)) {
-			await this.save(model, operation);
+		if (edit) {
+			let disposable: IDisposable | undefined;
+			try {
+				// Optimization: we apply edits to a text model and save it
+				// right after. Use the files config service to signal this
+				// to the workbench to optimise the UI during this operation.
+				// For example, avoids to briefly show dirty indicators.
+				disposable = this.filesConfigurationService.enableAutoSaveAfterShortDelay(model.uri);
+				if (this.applyEditsToBuffer(edit, model)) {
+					await this.save(model, operation);
+				}
+			} finally {
+				disposable?.dispose();
+			}
 		}
 	}
 
@@ -519,7 +533,7 @@ export class ConfigurationEditing {
 
 		if (target === EditableConfigurationTarget.WORKSPACE) {
 			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_REGEX.test(operation.key)) {
-				if (configurationScope === ConfigurationScope.APPLICATION) {
+				if (configurationScope && APPLICATION_SCOPES.includes(configurationScope)) {
 					throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
 				}
 				if (configurationScope === ConfigurationScope.MACHINE) {

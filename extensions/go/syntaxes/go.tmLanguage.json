@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/32bbaebcf218fa552e8f0397401e12f6e94fa3c5",
+	"version": "https://github.com/worlpaker/go-syntax/commit/fbdaec061157e98dda185c0ce771ce6a2c793045",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -97,7 +97,10 @@
 			"comment": "all statements related to variables",
 			"patterns": [
 				{
-					"include": "#var_const_assignment"
+					"include": "#const_assignment"
+				},
+				{
+					"include": "#var_assignment"
 				},
 				{
 					"include": "#variable_assignment"
@@ -2645,12 +2648,12 @@
 				}
 			]
 		},
-		"var_const_assignment": {
-			"comment": "variable assignment with var and const keyword",
+		"var_assignment": {
+			"comment": "variable assignment with var keyword",
 			"patterns": [
 				{
-					"comment": "var and const with single type assignment",
-					"match": "(?:(?<=\\bvar\\b|\\bconst\\b)(?:\\s*)(\\b[\\w\\.]+(?:\\,\\s*[\\w\\.]+)*)(?:\\s*)((?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+(?:\\([^\\)]+\\))?)?(?!(?:[\\[\\]\\*]+)?\\b(?:struct|func|map)\\b)(?:[\\w\\.\\[\\]\\*]+(?:\\,\\s*[\\w\\.\\[\\]\\*]+)*)?(?:\\s*)(?:\\=)?)?)",
+					"comment": "single assignment",
+					"match": "(?:(?<=\\bvar\\b)(?:\\s*)(\\b[\\w\\.]+(?:\\,\\s*[\\w\\.]+)*)(?:\\s*)((?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+(?:\\([^\\)]+\\))?)?(?!(?:[\\[\\]\\*]+)?\\b(?:struct|func|map)\\b)(?:[\\w\\.\\[\\]\\*]+(?:\\,\\s*[\\w\\.\\[\\]\\*]+)*)?(?:\\s*)(?:\\=)?)?)",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -2696,8 +2699,8 @@
 					}
 				},
 				{
-					"comment": "var and const with multi type assignment",
-					"begin": "(?:(?<=\\bvar\\b|\\bconst\\b)(?:\\s*)(\\())",
+					"comment": "multi assignment",
+					"begin": "(?:(?<=\\bvar\\b)(?:\\s*)(\\())",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.begin.bracket.round.go"
@@ -2721,6 +2724,124 @@
 										{
 											"match": "\\w+",
 											"name": "variable.other.assignment.go"
+										}
+									]
+								},
+								"2": {
+									"patterns": [
+										{
+											"include": "#type-declarations-without-brackets"
+										},
+										{
+											"include": "#generic_types"
+										},
+										{
+											"match": "\\(",
+											"name": "punctuation.definition.begin.bracket.round.go"
+										},
+										{
+											"match": "\\)",
+											"name": "punctuation.definition.end.bracket.round.go"
+										},
+										{
+											"match": "\\[",
+											"name": "punctuation.definition.begin.bracket.square.go"
+										},
+										{
+											"match": "\\]",
+											"name": "punctuation.definition.end.bracket.square.go"
+										},
+										{
+											"match": "\\w+",
+											"name": "entity.name.type.go"
+										}
+									]
+								}
+							}
+						},
+						{
+							"include": "$self"
+						}
+					]
+				}
+			]
+		},
+		"const_assignment": {
+			"comment": "constant assignment with const keyword",
+			"patterns": [
+				{
+					"comment": "single assignment",
+					"match": "(?:(?<=\\bconst\\b)(?:\\s*)(\\b[\\w\\.]+(?:\\,\\s*[\\w\\.]+)*)(?:\\s*)((?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+(?:\\([^\\)]+\\))?)?(?!(?:[\\[\\]\\*]+)?\\b(?:struct|func|map)\\b)(?:[\\w\\.\\[\\]\\*]+(?:\\,\\s*[\\w\\.\\[\\]\\*]+)*)?(?:\\s*)(?:\\=)?)?)",
+					"captures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#delimiters"
+								},
+								{
+									"match": "\\w+",
+									"name": "variable.other.constant.go"
+								}
+							]
+						},
+						"2": {
+							"patterns": [
+								{
+									"include": "#type-declarations-without-brackets"
+								},
+								{
+									"include": "#generic_types"
+								},
+								{
+									"match": "\\(",
+									"name": "punctuation.definition.begin.bracket.round.go"
+								},
+								{
+									"match": "\\)",
+									"name": "punctuation.definition.end.bracket.round.go"
+								},
+								{
+									"match": "\\[",
+									"name": "punctuation.definition.begin.bracket.square.go"
+								},
+								{
+									"match": "\\]",
+									"name": "punctuation.definition.end.bracket.square.go"
+								},
+								{
+									"match": "\\w+",
+									"name": "entity.name.type.go"
+								}
+							]
+						}
+					}
+				},
+				{
+					"comment": "multi assignment",
+					"begin": "(?:(?<=\\bconst\\b)(?:\\s*)(\\())",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.begin.bracket.round.go"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.end.bracket.round.go"
+						}
+					},
+					"patterns": [
+						{
+							"match": "(?:(?:^\\s*)(\\b[\\w\\.]+(?:\\,\\s*[\\w\\.]+)*)(?:\\s*)((?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+(?:\\([^\\)]+\\))?)?(?!(?:[\\[\\]\\*]+)?\\b(?:struct|func|map)\\b)(?:[\\w\\.\\[\\]\\*]+(?:\\,\\s*[\\w\\.\\[\\]\\*]+)*)?(?:\\s*)(?:\\=)?)?)",
+							"captures": {
+								"1": {
+									"patterns": [
+										{
+											"include": "#delimiters"
+										},
+										{
+											"match": "\\w+",
+											"name": "variable.other.constant.go"
 										}
 									]
 								},

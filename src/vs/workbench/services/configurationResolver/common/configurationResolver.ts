@@ -95,6 +95,7 @@ export enum VariableKind {
 	WorkspaceFolderBasename = 'workspaceFolderBasename',
 	UserHome = 'userHome',
 	LineNumber = 'lineNumber',
+	ColumnNumber = 'columnNumber',
 	SelectedText = 'selectedText',
 	File = 'file',
 	FileWorkspaceFolder = 'fileWorkspaceFolder',

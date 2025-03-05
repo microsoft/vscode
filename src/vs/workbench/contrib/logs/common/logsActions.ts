@@ -12,15 +12,14 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { dirname, basename, isEqual } from '../../../../base/common/resources.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IOutputChannelDescriptor, IOutputService } from '../../../services/output/common/output.js';
-import { extensionTelemetryLogChannelId, telemetryLogId } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IOutputChannelDescriptor, IOutputService, isMultiSourceOutputChannelDescriptor, isSingleSourceOutputChannelDescriptor } from '../../../services/output/common/output.js';
 import { IDefaultLogLevelsService } from './defaultLogLevels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 type LogLevelQuickPickItem = IQuickPickItem & { level: LogLevel };
-type LogChannelQuickPickItem = IQuickPickItem & { id: string; resource: URI; extensionId?: string };
+type LogChannelQuickPickItem = IQuickPickItem & { id: string; channel: IOutputChannelDescriptor };
 
 export class SetLogLevelAction extends Action {
 
@@ -52,11 +51,20 @@ export class SetLogLevelAction extends Action {
 		const extensionLogs: LogChannelQuickPickItem[] = [], logs: LogChannelQuickPickItem[] = [];
 		const logLevel = this.loggerService.getLogLevel();
 		for (const channel of this.outputService.getChannelDescriptors()) {
-			if (!SetLogLevelAction.isLevelSettable(channel) || !channel.file) {
+			if (!this.outputService.canSetLogLevel(channel)) {
 				continue;
 			}
-			const channelLogLevel = this.loggerService.getLogLevel(channel.file) ?? logLevel;
-			const item: LogChannelQuickPickItem = { id: channel.id, resource: channel.file, label: channel.label, description: channelLogLevel !== logLevel ? this.getLabel(channelLogLevel) : undefined, extensionId: channel.extensionId };
+			const sources = isSingleSourceOutputChannelDescriptor(channel) ? [channel.source] : isMultiSourceOutputChannelDescriptor(channel) ? channel.source : [];
+			if (!sources.length) {
+				continue;
+			}
+			const channelLogLevel = sources.reduce((prev, curr) => Math.min(prev, this.loggerService.getLogLevel(curr.resource) ?? logLevel), logLevel);
+			const item: LogChannelQuickPickItem = {
+				id: channel.id,
+				label: channel.label,
+				description: channelLogLevel !== logLevel ? this.getLabel(channelLogLevel) : undefined,
+				channel
+			};
 			if (channel.extensionId) {
 				extensionLogs.push(item);
 			} else {
@@ -96,15 +104,10 @@ export class SetLogLevelAction extends Action {
 		});
 	}
 
-	static isLevelSettable(channel: IOutputChannelDescriptor): boolean {
-		return channel.log && channel.file !== undefined && channel.id !== telemetryLogId && channel.id !== extensionTelemetryLogChannelId;
-	}
-
 	private async setLogLevelForChannel(logChannel: LogChannelQuickPickItem): Promise<void> {
 		const defaultLogLevels = await this.defaultLogLevelsService.getDefaultLogLevels();
-		const defaultLogLevel = defaultLogLevels.extensions.find(e => e[0] === logChannel.extensionId?.toLowerCase())?.[1] ?? defaultLogLevels.default;
-		const currentLogLevel = this.loggerService.getLogLevel(logChannel.resource) ?? defaultLogLevel;
-		const entries = this.getLogLevelEntries(defaultLogLevel, currentLogLevel, !!logChannel.extensionId);
+		const defaultLogLevel = defaultLogLevels.extensions.find(e => e[0] === logChannel.channel.extensionId?.toLowerCase())?.[1] ?? defaultLogLevels.default;
+		const entries = this.getLogLevelEntries(defaultLogLevel, this.outputService.getLogLevel(logChannel.channel) ?? defaultLogLevel, !!logChannel.channel.extensionId);
 
 		return new Promise((resolve, reject) => {
 			const disposables = new DisposableStore();
@@ -115,7 +118,7 @@ export class SetLogLevelAction extends Action {
 			let selectedItem: LogLevelQuickPickItem | undefined;
 			disposables.add(quickPick.onDidTriggerItemButton(e => {
 				quickPick.hide();
-				this.defaultLogLevelsService.setDefaultLogLevel((<LogLevelQuickPickItem>e.item).level, logChannel.extensionId);
+				this.defaultLogLevelsService.setDefaultLogLevel((<LogLevelQuickPickItem>e.item).level, logChannel.channel.extensionId);
 			}));
 			disposables.add(quickPick.onDidAccept(e => {
 				selectedItem = quickPick.selectedItems[0] as LogLevelQuickPickItem;
@@ -123,7 +126,7 @@ export class SetLogLevelAction extends Action {
 			}));
 			disposables.add(quickPick.onDidHide(() => {
 				if (selectedItem) {
-					this.loggerService.setLogLevel(logChannel.resource, selectedItem.level);
+					this.outputService.setLogLevel(logChannel.channel, selectedItem.level);
 				}
 				disposables.dispose();
 				resolve();

@@ -84,7 +84,7 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 	}
 }
 
-abstract class AbstractCellRenderer {
+abstract class AbstractCellRenderer extends Disposable {
 	protected readonly editorOptions: CellEditorOptions;
 
 	constructor(
@@ -99,11 +99,12 @@ abstract class AbstractCellRenderer {
 		language: string,
 		protected dndController: CellDragAndDropController | undefined
 	) {
-		this.editorOptions = new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(language), this.notebookEditor.notebookOptions, configurationService);
+		super();
+		this.editorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(language), this.notebookEditor.notebookOptions, configurationService));
 	}
 
-	dispose() {
-		this.editorOptions.dispose();
+	override dispose() {
+		super.dispose();
 		this.dndController = undefined;
 	}
 }
@@ -137,7 +138,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 	renderTemplate(rootContainer: HTMLElement): MarkdownCellRenderTemplate {
 		rootContainer.classList.add('markdown-cell-row');
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
-		const templateDisposables = new DisposableStore();
+		const templateDisposables = this._register(new DisposableStore());
 		const contextKeyService = templateDisposables.add(this.contextKeyServiceProvider(container));
 		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
@@ -199,7 +200,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			editorContainer,
 			foldingIndicator,
 			templateDisposables,
-			elementDisposables: new DisposableStore(),
+			elementDisposables: this._register(new DisposableStore()),
 			cellParts,
 			toJSON: () => { return {}; }
 		};
@@ -260,7 +261,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	renderTemplate(rootContainer: HTMLElement): CodeCellRenderTemplate {
 		rootContainer.classList.add('code-cell-row');
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
-		const templateDisposables = new DisposableStore();
+		const templateDisposables = this._register(new DisposableStore());
 		const contextKeyService = templateDisposables.add(this.contextKeyServiceProvider(container));
 		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		const focusIndicatorTop = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top')));
@@ -366,7 +367,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			outputShowMoreContainer,
 			editor,
 			templateDisposables,
-			elementDisposables: new DisposableStore(),
+			elementDisposables: this._register(new DisposableStore()),
 			cellParts,
 			toJSON: () => { return {}; }
 		};

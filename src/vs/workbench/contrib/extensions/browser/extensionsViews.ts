@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { isCancellationError, getErrorMessage, CancellationError } from '../../../../base/common/errors.js';
 import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
@@ -18,7 +18,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { append, $ } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Delegate, Renderer } from './extensionsList.js';
-import { ExtensionState, IExtension, IExtensionsViewState, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from '../common/extensions.js';
+import { ExtensionResultsListFocused, ExtensionState, IExtension, IExtensionsViewState, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from '../common/extensions.js';
 import { Query } from '../common/extensionQuery.js';
 import { IExtensionService, toExtension } from '../../../services/extensions/common/extensions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -62,6 +62,11 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export const NONE_CATEGORY = 'none';
 
+type Message = {
+	readonly text: string;
+	readonly severity: Severity;
+};
+
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
 	private readonly _onFocus: Emitter<IExtension> = this._register(new Emitter<IExtension>());
@@ -92,6 +97,7 @@ export interface ExtensionsListViewOptions {
 
 interface IQueryResult {
 	model: IPagedModel<IExtension>;
+	description?: string;
 	readonly onDidChangeModel?: Event<IPagedModel<IExtension>>;
 	readonly disposables: DisposableStore;
 }
@@ -138,7 +144,7 @@ export class ExtensionsListView extends ViewPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionsWorkbenchService protected extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionRecommendationsService protected extensionRecommendationsService: IExtensionRecommendationsService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
@@ -163,7 +169,7 @@ export class ExtensionsListView extends ViewPane {
 			...(viewletViewOptions as IViewPaneOptions),
 			showActions: ViewPaneShowActions.Always,
 			maximumBodySize: options.flexibleHeight ? (storageService.getNumber(`${viewletViewOptions.id}.size`, StorageScope.PROFILE, 0) ? undefined : 0) : undefined
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		if (this.options.onDidChangeTitle) {
 			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
 		}
@@ -186,10 +192,10 @@ export class ExtensionsListView extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		const extensionsList = append(container, $('.extensions-list'));
 		const messageContainer = append(container, $('.message-container'));
 		const messageSeverityIcon = append(messageContainer, $(''));
 		const messageBox = append(messageContainer, $('.message'));
+		const extensionsList = append(container, $('.extensions-list'));
 		const delegate = new Delegate();
 		this.extensionsViewState = new ExtensionsViewState();
 		const renderer = this.instantiationService.createInstance(Renderer, this.extensionsViewState, {
@@ -221,6 +227,7 @@ export class ExtensionsListView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			openOnSingleClick: true
 		}) as WorkbenchPagedList<IExtension>;
+		ExtensionResultsListFocused.bindTo(this.list.contextKeyService);
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
 		this._register(this.list.onDidChangeFocus(e => this.extensionsViewState?.onFocusChange(coalesce(e.elements)), this));
 		this._register(this.list);
@@ -285,7 +292,7 @@ export class ExtensionsListView extends ViewPane {
 			try {
 				this.queryResult = await this.query(parsedQuery, options, token);
 				const model = this.queryResult.model;
-				this.setModel(model);
+				this.setModel(model, this.queryResult.description ? { text: this.queryResult.description, severity: Severity.Info } : undefined);
 				if (this.queryResult.onDidChangeModel) {
 					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => {
 						if (this.queryResult) {
@@ -299,7 +306,7 @@ export class ExtensionsListView extends ViewPane {
 				const model = new PagedModel([]);
 				if (!isCancellationError(e)) {
 					this.logService.error(e);
-					this.setModel(model, e);
+					this.setModel(model, this.getMessage(e));
 				}
 				return this.list ? this.list.model : model;
 			}
@@ -338,9 +345,15 @@ export class ExtensionsListView extends ViewPane {
 					}
 				}));
 			}
-			let actions: IAction[] = [];
+			const actions: IAction[] = [];
 			for (const menuActions of groups) {
-				actions = [...actions, ...menuActions, new Separator()];
+				for (const menuAction of menuActions) {
+					actions.push(menuAction);
+					if (isDisposable(menuAction)) {
+						disposables.add(menuAction);
+					}
+				}
+				actions.push(new Separator());
 			}
 			actions.pop();
 			this.contextMenuService.showContextMenu({
@@ -400,7 +413,7 @@ export class ExtensionsListView extends ViewPane {
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
 		const local = await this.extensionsWorkbenchService.queryLocal(this.options.server);
-		let { extensions, canIncludeInstalledExtensions } = await this.filterLocal(local, this.extensionService.extensions, query, options);
+		let { extensions, canIncludeInstalledExtensions, description } = await this.filterLocal(local, this.extensionService.extensions, query, options);
 		const disposables = new DisposableStore();
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IExtension>>());
 
@@ -425,15 +438,17 @@ export class ExtensionsListView extends ViewPane {
 
 		return {
 			model: new PagedModel(extensions),
+			description,
 			onDidChangeModel: onDidChangeModel.event,
 			disposables
 		};
 	}
 
-	private async filterLocal(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[]; canIncludeInstalledExtensions: boolean }> {
+	private async filterLocal(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[]; canIncludeInstalledExtensions: boolean; description?: string }> {
 		const value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
+		let description: string | undefined;
 
 		if (/@builtin/i.test(value)) {
 			extensions = this.filterBuiltinExtensions(local, query, options);
@@ -469,10 +484,14 @@ export class ExtensionsListView extends ViewPane {
 		}
 
 		else if (/@feature:/i.test(query.value)) {
-			extensions = this.filterExtensionsByFeature(local, query, options);
+			const result = this.filterExtensionsByFeature(local, query);
+			if (result) {
+				extensions = result.extensions;
+				description = result.description;
+			}
 		}
 
-		return { extensions, canIncludeInstalledExtensions };
+		return { extensions, canIncludeInstalledExtensions, description };
 	}
 
 	private filterBuiltinExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
@@ -722,25 +741,33 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterExtensionsByFeature(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterExtensionsByFeature(local: IExtension[], query: Query): { extensions: IExtension[]; description: string } | undefined {
 		const value = query.value.replace(/@feature:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
-			return [];
+			return undefined;
 		}
 		if (this.extensionsViewState) {
 			this.extensionsViewState.filters.featureId = featureId;
 		}
 		const renderer = feature.renderer ? this.instantiationService.createInstance<IExtensionFeatureRenderer>(feature.renderer) : undefined;
 		try {
-			const result = local.filter(e => {
+			const result: [IExtension, number][] = [];
+			for (const e of local) {
 				if (!e.local) {
-					return false;
+					continue;
 				}
-				return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
-			});
-			return this.sortExtensions(result, options);
+				const accessData = this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
+				const shouldRender = renderer?.shouldRender(e.local.manifest);
+				if (accessData || shouldRender) {
+					result.push([e, accessData?.accessTimes.length ?? 0]);
+				}
+			}
+			return {
+				extensions: result.sort(([, a], [, b]) => b - a).map(([e]) => e),
+				description: localize('showingExtensionsForFeature', "Extensions using {0} in the last 30 days", feature.label)
+			};
 		} finally {
 			renderer?.dispose();
 		}
@@ -1098,13 +1125,13 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel(this.sortExtensions(installableRecommendations, options));
 	}
 
-	private setModel(model: IPagedModel<IExtension>, error?: any, donotResetScrollTop?: boolean) {
+	private setModel(model: IPagedModel<IExtension>, message?: Message, donotResetScrollTop?: boolean) {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(model);
+			this.updateBody(message);
 			if (!donotResetScrollTop) {
 				this.list.scrollTop = 0;
 			}
-			this.updateBody(error);
 		}
 		if (this.badge) {
 			this.badge.setCount(this.count());
@@ -1121,31 +1148,36 @@ export class ExtensionsListView extends ViewPane {
 		}
 	}
 
-	private updateBody(error?: any): void {
+	private updateBody(message?: Message): void {
 		if (this.bodyTemplate) {
 
 			const count = this.count();
 			this.bodyTemplate.extensionsList.classList.toggle('hidden', count === 0);
-			this.bodyTemplate.messageContainer.classList.toggle('hidden', count > 0);
+			this.bodyTemplate.messageContainer.classList.toggle('hidden', !message && count > 0);
 
-			if (count === 0 && this.isBodyVisible()) {
-				if (error) {
-					if (this.isOfflineError(error)) {
-						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
-						this.bodyTemplate.messageBox.textContent = localize('offline error', "Unable to search the Marketplace when offline, please check your network connection.");
-					} else {
-						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
-						this.bodyTemplate.messageBox.textContent = localize('error', "Error while fetching extensions. {0}", getErrorMessage(error));
-					}
-				} else {
+			if (this.isBodyVisible()) {
+				if (message) {
+					this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(message.severity);
+					this.bodyTemplate.messageBox.textContent = message.text;
+				} else if (this.count() === 0) {
 					this.bodyTemplate.messageSeverityIcon.className = '';
 					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "No extensions found.");
 				}
-				alert(this.bodyTemplate.messageBox.textContent);
+				if (this.bodyTemplate.messageBox.textContent) {
+					alert(this.bodyTemplate.messageBox.textContent);
+				}
 			}
 		}
 
 		this.updateSize();
+	}
+
+	private getMessage(error: any): Message {
+		if (this.isOfflineError(error)) {
+			return { text: localize('offline error', "Unable to search the Marketplace when offline, please check your network connection."), severity: Severity.Warning };
+		} else {
+			return { text: localize('error', "Error while fetching extensions. {0}", getErrorMessage(error)), severity: Severity.Error };
+		}
 	}
 
 	private isOfflineError(error: Error): boolean {

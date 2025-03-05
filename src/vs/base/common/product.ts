@@ -95,8 +95,6 @@ export interface IProductConfiguration {
 
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
-		readonly servicePPEUrl?: string;
-		readonly searchUrl?: string;
 		readonly itemUrl: string;
 		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
@@ -106,6 +104,7 @@ export interface IProductConfiguration {
 	};
 
 	readonly extensionPublisherOrgs?: readonly string[];
+	readonly trustedExtensionPublishers?: readonly string[];
 
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
@@ -305,24 +304,25 @@ export interface IAiGeneratedWorkspaceTrust {
 
 export interface IDefaultChatAgent {
 	readonly extensionId: string;
-	readonly name: string;
-	readonly icon: string;
 	readonly chatExtensionId: string;
-	readonly chatName: string;
-	readonly chatWelcomeTitle: string;
+
 	readonly documentationUrl: string;
+	readonly termsStatementUrl: string;
 	readonly privacyStatementUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
+	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
+	readonly upgradePlanUrl: string;
+
 	readonly providerId: string;
 	readonly providerName: string;
+	readonly enterpriseProviderId: string;
+	readonly enterpriseProviderName: string;
+	readonly providerSetting: string;
+	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
+
 	readonly entitlementUrl: string;
-	readonly entitlementChatEnabled: string;
 	readonly entitlementSignupLimitedUrl: string;
-	readonly entitlementCanSignupLimited: string;
-	readonly entitlementSkuType: string;
-	readonly entitlementSkuTypeLimited: string;
-	readonly entitlementSkuTypeLimitedName: string;
 }

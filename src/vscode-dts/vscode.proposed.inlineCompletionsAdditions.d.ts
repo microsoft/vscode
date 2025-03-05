@@ -29,6 +29,26 @@ declare module 'vscode' {
 		 * Defaults to `false`.
 		*/
 		completeBracketPairs?: boolean;
+
+		warning?: InlineCompletionWarning;
+
+		/** If set to `true`, this item is treated as inline edit. */
+		isInlineEdit?: boolean;
+
+		/**
+		 * A range specifying when the edit can be shown based on the cursor position.
+		 * If the cursor is within this range, the inline edit can be displayed.
+		 */
+		showRange?: Range;
+
+		showInlineEditMenu?: boolean;
+
+		action?: Command;
+	}
+
+	export interface InlineCompletionWarning {
+		message: MarkdownString | string;
+		icon?: ThemeIcon;
 	}
 
 	export interface InlineCompletionItemProviderMetadata {
@@ -36,7 +56,11 @@ declare module 'vscode' {
 		 * Specifies a list of extension ids that this provider yields to if they return a result.
 		 * If some inline completion provider registered by such an extension returns a result, this provider is not asked.
 		 */
-		yieldTo: string[];
+		yieldTo?: string[];
+
+		debounceDelayMs?: number;
+
+		displayName?: string;
 	}
 
 	export interface InlineCompletionItemProvider {
@@ -48,8 +72,15 @@ declare module 'vscode' {
 		handleDidShowCompletionItem?(completionItem: InlineCompletionItem, updatedInsertText: string): void;
 
 		/**
+		 * @param completionItem The completion item that was rejected.
+		*/
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
+
+		/**
 		 * Is called when an inline completion item was accepted partially.
 		 * @param acceptedLength The length of the substring of the inline completion that was accepted already.
+		 * @deprecated Use `handleDidPartiallyAcceptCompletionItem` with `PartialAcceptInfo` instead.
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
@@ -62,14 +93,22 @@ declare module 'vscode' {
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
 
 		provideInlineEditsForRange?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
+
+		readonly debounceDelayMs?: number;
 	}
 
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
+
+		readonly requestUuid?: string;
 	}
 
 	export interface PartialAcceptInfo {
 		kind: PartialAcceptTriggerKind;
+		/**
+		 * The length of the substring of the provided inline completion text that was accepted already.
+		*/
+		acceptedLength: number;
 	}
 
 	export enum PartialAcceptTriggerKind {

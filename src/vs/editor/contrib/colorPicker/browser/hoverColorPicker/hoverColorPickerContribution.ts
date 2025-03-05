@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from '../../../../browser/editorBrowser.js';
+import { ICodeEditor, IEditorMouseEvent } from '../../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
 import { IEditorContribution } from '../../../../common/editorCommon.js';
-import { ColorDecorationInjectedTextMarker } from '../colorDetector.js';
 import { ContentHoverController } from '../../../hover/browser/contentHoverController.js';
 import { HoverStartMode, HoverStartSource } from '../../../hover/browser/hoverOperation.js';
+import { isOnColorDecorator } from './hoverColorPicker.js';
 
 export class HoverColorPickerContribution extends Disposable implements IEditorContribution {
 
@@ -51,11 +51,4 @@ export class HoverColorPickerContribution extends Disposable implements IEditorC
 		const range = new Range(targetRange.startLineNumber, targetRange.startColumn + 1, targetRange.endLineNumber, targetRange.endColumn + 1);
 		hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Click, false);
 	}
-}
-
-export function isOnColorDecorator(mouseEvent: IPartialEditorMouseEvent): boolean {
-	const target = mouseEvent.target;
-	return !!target
-		&& target.type === MouseTargetType.CONTENT_TEXT
-		&& target.detail.injectedText?.options.attachedData === ColorDecorationInjectedTextMarker;
 }

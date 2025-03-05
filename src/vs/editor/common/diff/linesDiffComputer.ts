@@ -13,6 +13,7 @@ export interface ILinesDiffComputerOptions {
 	readonly ignoreTrimWhitespace: boolean;
 	readonly maxComputationTimeMs: number;
 	readonly computeMoves: boolean;
+	readonly extendToSubwords?: boolean;
 }
 
 export class LinesDiff {

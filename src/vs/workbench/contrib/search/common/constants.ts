@@ -56,6 +56,7 @@ export const enum SearchCommandIds {
 export const SearchContext = {
 	SearchViewVisibleKey: new RawContextKey<boolean>('searchViewletVisible', true),
 	SearchViewFocusedKey: new RawContextKey<boolean>('searchViewletFocus', false),
+	SearchResultListFocusedKey: new RawContextKey<boolean>('searchResultListFocused', true),
 	InputBoxFocusedKey: new RawContextKey<boolean>('inputBoxFocus', false),
 	SearchInputBoxFocusedKey: new RawContextKey<boolean>('searchInputBoxFocus', false),
 	ReplaceInputBoxFocusedKey: new RawContextKey<boolean>('replaceInputBoxFocus', false),
@@ -78,4 +79,6 @@ export const SearchContext = {
 	ViewHasSomeCollapsibleKey: new RawContextKey<boolean>('viewHasSomeCollapsibleResult', false),
 	InTreeViewKey: new RawContextKey<boolean>('inTreeView', false),
 	hasAIResultProvider: new RawContextKey<boolean>('hasAIResultProviderKey', false),
+	AIResultsTitle: new RawContextKey<boolean>('aiResultsTitle', false),
+	AIResultsRequested: new RawContextKey<boolean>('aiResultsRequested', false),
 };

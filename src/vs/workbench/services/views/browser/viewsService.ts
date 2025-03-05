@@ -545,6 +545,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				super({
 					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
 					title,
+					category,
 					menu: [{
 						id: MenuId.CommandPalette,
 						when: viewDescriptor.when,

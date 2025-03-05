@@ -86,6 +86,11 @@ export interface ILanguageModelChatMetadata {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
 	};
+	readonly capabilities?: {
+		readonly vision?: boolean;
+		readonly toolCalling?: boolean;
+		readonly agentMode?: boolean;
+	};
 }
 
 export interface ILanguageModelChatResponse {
@@ -101,7 +106,7 @@ export interface ILanguageModelChat {
 
 export interface ILanguageModelChatSelector {
 	readonly name?: string;
-	readonly identifier?: string;
+	readonly id?: string;
 	readonly vendor?: string;
 	readonly version?: string;
 	readonly family?: string;
@@ -111,11 +116,13 @@ export interface ILanguageModelChatSelector {
 
 export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
 
+export interface ILanguageModelChatMetadataAndIdentifier {
+	metadata: ILanguageModelChatMetadata;
+	identifier: string;
+}
+
 export interface ILanguageModelsChangeEvent {
-	added?: {
-		identifier: string;
-		metadata: ILanguageModelChatMetadata;
-	}[];
+	added?: ILanguageModelChatMetadataAndIdentifier[];
 	removed?: string[];
 }
 
@@ -264,7 +271,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			if ((selector.vendor === undefined || model.metadata.vendor === selector.vendor)
 				&& (selector.family === undefined || model.metadata.family === selector.family)
 				&& (selector.version === undefined || model.metadata.version === selector.version)
-				&& (selector.identifier === undefined || model.metadata.id === selector.identifier)
+				&& (selector.id === undefined || model.metadata.id === selector.id)
 				&& (!model.metadata.targetExtensions || model.metadata.targetExtensions.some(candidate => ExtensionIdentifier.equals(candidate, selector.extension)))
 			) {
 				result.push(identifier);

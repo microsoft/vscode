@@ -45,11 +45,11 @@ jobs:
           path: ${{ steps.npmCacheDirPath.outputs.dir }}
           key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-npmCacheDir-
-      - name: Install libkrb5-dev
+      - name: Install system dependencies
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
           sudo apt update
-          sudo apt install -y libkrb5-dev
+          sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
       - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:

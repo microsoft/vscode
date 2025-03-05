@@ -22,7 +22,7 @@ import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatAcceptInputOptions, showChatView } from '../../../chat/browser/chat.js';
-import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
+import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../../chat/common/chatModel.js';
 import { IChatService, IChatProgress } from '../../../chat/common/chatService.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -127,6 +127,8 @@ export class TerminalChatWidget extends Disposable {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 					options: {
 						buttonConfigProvider: action => ({
+							showLabel: action.id !== TerminalChatCommandId.RerunRequest,
+							showIcon: action.id === TerminalChatCommandId.RerunRequest,
 							isSecondary: action.id !== TerminalChatCommandId.RunCommand && action.id !== TerminalChatCommandId.RunFirstCommand
 						})
 					}
@@ -326,6 +328,12 @@ export class TerminalChatWidget extends Disposable {
 				const model = this._model.value;
 				if (model) {
 					this._inlineChatWidget.setChatModel(model, this._loadViewState());
+					model.waitForInitialization().then(() => {
+						if (token.isCancellationRequested) {
+							return;
+						}
+						this._resetPlaceholder();
+					});
 				}
 				if (!this._model.value) {
 					throw new Error('Failed to start chat session');
@@ -374,7 +382,6 @@ export class TerminalChatWidget extends Disposable {
 		this._activeRequestCts = new CancellationTokenSource();
 		const store = new DisposableStore();
 		this._requestActiveContextKey.set(true);
-		let responseContent = '';
 		const response = await this._inlineChatWidget.chatWidget.acceptInput(lastInput, { isVoiceInput: options?.isVoiceInput });
 		this._currentRequestId = response?.requestId;
 		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
@@ -382,7 +389,6 @@ export class TerminalChatWidget extends Disposable {
 			this._requestActiveContextKey.set(true);
 			if (response) {
 				store.add(response.onDidChange(async () => {
-					responseContent += response.response.value;
 					if (response.isCanceled) {
 						this._requestActiveContextKey.set(false);
 						responsePromise.complete(undefined);
@@ -439,6 +445,22 @@ export class TerminalChatWidget extends Disposable {
 						edits: group,
 						uri: item.uri
 					});
+				}
+			} else if (item.kind === 'notebookEditGroup') {
+				for (const group of item.edits) {
+					if (isCellTextEditOperation(group)) {
+						message.push({
+							kind: 'textEdit',
+							edits: [group.edit],
+							uri: group.uri
+						});
+					} else {
+						message.push({
+							kind: 'notebookEdit',
+							edits: [group],
+							uri: item.uri
+						});
+					}
 				}
 			} else {
 				message.push(item);

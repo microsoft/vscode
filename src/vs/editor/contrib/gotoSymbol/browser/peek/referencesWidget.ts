@@ -32,8 +32,12 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IColorTheme, IThemeChangeEvent, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel.js';
+import { ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
+import { DataTransfers, IDragAndDropData } from '../../../../../base/browser/dnd.js';
+import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
+import { withSelection } from '../../../../../platform/opener/common/opener.js';
 
 class DecorationsManager implements IDisposable {
 
@@ -188,6 +192,51 @@ export interface SelectionEvent {
 
 class ReferencesTree extends WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore> { }
 
+class ReferencesDragAndDrop implements ITreeDragAndDrop<TreeElement> {
+
+	private readonly disposables = new DisposableStore();
+
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
+	getDragURI(element: TreeElement): string | null {
+		if (element instanceof FileReferences) {
+			return element.uri.toString();
+		} else if (element instanceof OneReference) {
+			return withSelection(element.uri, element.range).toString();
+		}
+		return null;
+	}
+
+	getDragLabel(elements: TreeElement[]): string | undefined {
+		if (elements.length === 0) {
+			return undefined;
+		}
+		const labels = elements.map(e => this.labelService.getUriBasenameLabel(e.uri));
+		return labels.join(', ');
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		if (!originalEvent.dataTransfer) {
+			return;
+		}
+
+		const elements = (data as ElementsDragAndDropData<TreeElement, TreeElement[]>).elements;
+		const resources = elements.map(e => this.getDragURI(e)).filter(Boolean);
+
+		if (resources.length) {
+			// Apply resources as resource-list
+			originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(resources));
+
+			// Also add as plain text for outside consumers
+			originalEvent.dataTransfer.setData(DataTransfers.TEXT, resources.join('\n'));
+		}
+	}
+
+	onDragOver(): boolean | ITreeDragOverReaction { return false; }
+	drop(): void { }
+	dispose(): void { this.disposables.dispose(); }
+}
+
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -227,7 +276,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, supportOnTitleClick: true }, _instantiationService);
 
 		this._applyTheme(themeService.getColorTheme());
-		this._callOnDispose.add(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
+		this._callOnDispose.add(themeService.onDidColorThemeChange(this._onDidColorThemeChange.bind(this)));
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this.create();
 	}
@@ -247,6 +296,10 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		dispose(this._previewModelReference);
 		this._splitView.dispose();
 		super.dispose();
+	}
+
+	private _onDidColorThemeChange(e: IThemeChangeEvent): void {
+		this._applyTheme(e.theme);
 	}
 
 	private _applyTheme(theme: IColorTheme) {
@@ -328,7 +381,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			selectionNavigation: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
-			}
+			},
+			dnd: this._instantiationService.createInstance(ReferencesDragAndDrop)
 		};
 		if (this._defaultTreeKeyboardSupport) {
 			// the tree will consume `Escape` and prevent the widget from closing

@@ -10,6 +10,20 @@ fi
 
 VSCODE_SHELL_INTEGRATION=1
 
+vsc_env_keys=()
+vsc_env_values=()
+use_associative_array=0
+bash_major_version=${BASH_VERSINFO[0]}
+
+__vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
+unset VSCODE_SHELL_ENV_REPORTING
+
+if (( BASH_VERSINFO[0] >= 4 )); then
+	use_associative_array=1
+	# Associative arrays are only available in bash 4.0+
+	declare -A vsc_aa_env
+fi
+
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
 	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
@@ -214,6 +228,120 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
+__updateEnvCacheAA() {
+	local key="$1"
+	local value="$2"
+	if [ "$use_associative_array" = 1 ]; then
+		if [[ "${vsc_aa_env[$key]}" != "$value" ]]; then
+			vsc_aa_env["$key"]="$value"
+			builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+		fi
+	fi
+}
+
+__trackMissingEnvVarsAA() {
+	if [ "$use_associative_array" = 1 ]; then
+		declare -A currentEnvMap
+		while IFS='=' read -r key value; do
+			currentEnvMap["$key"]="$value"
+		done < <(env)
+
+		for key in "${!vsc_aa_env[@]}"; do
+			if [ -z "${currentEnvMap[$key]}" ]; then
+				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${vsc_aa_env[$key]}")" "$__vsc_nonce"
+				builtin unset "vsc_aa_env[$key]"
+			fi
+		done
+	fi
+}
+
+__updateEnvCache() {
+	local key="$1"
+	local value="$2"
+
+	for i in "${!vsc_env_keys[@]}"; do
+		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
+			if [[ "${vsc_env_values[$i]}" != "$value" ]]; then
+				vsc_env_values[$i]="$value"
+				builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+			fi
+			return
+		fi
+	done
+
+	vsc_env_keys+=("$key")
+	vsc_env_values+=("$value")
+	builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+}
+
+__trackMissingEnvVars() {
+	local current_env_keys=()
+
+	while IFS='=' read -r key value; do
+		current_env_keys+=("$key")
+	done < <(env)
+
+	# Compare vsc_env_keys with user's current_env_keys
+	for key in "${vsc_env_keys[@]}"; do
+		local found=0
+		for env_key in "${current_env_keys[@]}"; do
+			if [[ "$key" == "$env_key" ]]; then
+				found=1
+				break
+			fi
+		done
+		if [ "$found" = 0 ]; then
+			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${vsc_env_keys[i]}" "$(__vsc_escape_value "${vsc_env_values[i]}")" "$__vsc_nonce"
+			builtin unset 'vsc_env_keys[i]'
+			builtin unset 'vsc_env_values[i]'
+		fi
+	done
+
+	# Remove gaps from unset
+	vsc_env_keys=("${vsc_env_keys[@]}")
+	vsc_env_values=("${vsc_env_values[@]}")
+}
+
+__vsc_update_env() {
+	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
+		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
+
+		if [ "$use_associative_array" = 1 ]; then
+			if [ ${#vsc_aa_env[@]} -eq 0 ]; then
+				# Associative array is empty, do not diff, just add
+				while IFS='=' read -r key value; do
+					vsc_aa_env["$key"]="$value"
+					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+				done < <(env)
+			else
+				# Diff approach for associative array
+				while IFS='=' read -r key value; do
+					__updateEnvCacheAA "$key" "$value"
+				done < <(env)
+				__trackMissingEnvVarsAA
+			fi
+
+		else
+			if [[ -z ${vsc_env_keys[@]} ]] && [[ -z ${vsc_env_values[@]} ]]; then
+			# Non associative arrays are both empty, do not diff, just add
+				while IFS='=' read -r key value; do
+					vsc_env_keys+=("$key")
+					vsc_env_values+=("$value")
+					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+				done < <(env)
+			else
+				# Diff approach for non-associative arrays
+				while IFS='=' read -r key value; do
+					__updateEnvCache "$key" "$value"
+				done < <(env)
+				__trackMissingEnvVars
+			fi
+
+		fi
+		builtin printf '\e]633;EnvSingleEnd;%s;\a' $__vsc_nonce
+	fi
+}
+
 __vsc_command_output_start() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
 		builtin return
@@ -232,6 +360,7 @@ __vsc_continuation_end() {
 
 __vsc_command_complete() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
+		__vsc_update_cwd
 		builtin return
 	fi
 	if [ "$__vsc_current_command" = "" ]; then
@@ -269,6 +398,7 @@ __vsc_precmd() {
 	fi
 	__vsc_first_prompt=1
 	__vsc_update_prompt
+	__vsc_update_env
 }
 
 __vsc_preexec() {

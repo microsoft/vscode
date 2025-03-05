@@ -6,7 +6,7 @@
 				"git": {
 					"name": "language-docker",
 					"repositoryUrl": "https://github.com/moby/moby",
-					"commitHash": "abd39744c6f3ed854500e423f5fabf952165161f"
+					"commitHash": "c2029cb2574647e4bc28ed58486b8e85883eedb9"
 				}
 			},
 			"license": "Apache-2.0",

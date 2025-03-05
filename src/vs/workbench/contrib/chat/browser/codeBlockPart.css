@@ -57,7 +57,7 @@
 }
 
 .interactive-item-container .value .rendered-markdown [data-code] {
-	margin: 16px 0;
+	margin: 0 0 16px 0;
 }
 
 .interactive-result-code-block {

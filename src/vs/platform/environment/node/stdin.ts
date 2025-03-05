@@ -38,12 +38,17 @@ export function getStdinFilePath(): string {
 	return randomPath(tmpdir(), 'code-stdin', 3);
 }
 
+async function createStdInFile(targetPath: string) {
+	await fs.promises.appendFile(targetPath, '');
+	await fs.promises.chmod(targetPath, 0o600); // Ensure the file is only read/writable by the user: https://github.com/microsoft/vscode-remote-release/issues/9048
+}
+
 export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?: Function): Promise<void> {
 
 	let [encoding, iconv] = await Promise.all([
 		resolveTerminalEncoding(verbose),		// respect terminal encoding when piping into file
 		import('@vscode/iconv-lite-umd'),		// lazy load encoding module for usage
-		fs.promises.appendFile(targetPath, '') 	// make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
+		createStdInFile(targetPath) 			// make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
 	]);
 
 	if (!iconv.default.encodingExists(encoding)) {

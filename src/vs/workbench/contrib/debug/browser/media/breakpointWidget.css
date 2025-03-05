@@ -6,6 +6,7 @@
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
 	display: flex;
 	border-color: #007ACC;
+	background: var(--vscode-editor-background);
 
 	.breakpoint-select-container {
 		display: flex;

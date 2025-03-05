@@ -277,7 +277,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		this._register(this.decorationsService.registerDecorationsProvider(provider));
 	}
 
-	//#endregin
+	//#endregion
 
 	//#region get / get all
 
@@ -451,6 +451,11 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			// we gracefully catch the error and just log it.
 
 			this.logService.error(error);
+		}
+
+		// Events
+		if (source.scheme === Schemas.untitled) {
+			this.untitled.notifyDidSave(source, target);
 		}
 
 		return targetStoredFileWorkingCopy;

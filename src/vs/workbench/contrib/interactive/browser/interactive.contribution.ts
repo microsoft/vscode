@@ -533,7 +533,7 @@ registerAction2(class extends Action2 {
 
 				const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
 				if (ctrl) {
-					ctrl.acceptHunk();
+					ctrl.acceptSession();
 				}
 
 				historyService.replaceLast(notebookDocument.uri, value);

@@ -9,7 +9,9 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { SetMap } from '../../../../../base/common/map.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
+import { SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
 import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -20,7 +22,6 @@ import { ILanguageConfigurationService } from '../../../../common/languages/lang
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
-import { LineEditWithAdditionalLines } from '../../../../common/tokenizationTextModelPart.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { getReadonlyEmptyArray } from '../utils.js';
 
@@ -32,8 +33,10 @@ export async function provideInlineCompletions(
 	baseToken: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
+	const requestUuid = generateUuid();
 	const tokenSource = new CancellationTokenSource(baseToken);
 	const token = tokenSource.token;
+	const contextWithUuid = { ...context, requestUuid: requestUuid };
 
 	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
 	const providers = registry.all(model);
@@ -116,9 +119,9 @@ export async function provideInlineCompletions(
 		let result: InlineCompletions | null | undefined;
 		try {
 			if (positionOrRange instanceof Position) {
-				result = await provider.provideInlineCompletions(model, positionOrRange, context, token);
+				result = await provider.provideInlineCompletions(model, positionOrRange, contextWithUuid, token);
 			} else {
-				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, context, token);
+				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, contextWithUuid, token);
 			}
 		} catch (e) {
 			onUnexpectedExternalError(e);
@@ -140,7 +143,7 @@ export async function provideInlineCompletions(
 		return new InlineCompletionProviderResult([], new Set(), []);
 	}
 
-	const result = await addRefAndCreateResult(context, inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
+	const result = await addRefAndCreateResult(contextWithUuid, inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
 	tokenSource.dispose(true); // This disposes results that are not referenced.
 	return result;
 }
@@ -177,10 +180,10 @@ async function addRefAndCreateResult(
 		completions.addRef();
 		lists.push(completions);
 		for (const item of completions.inlineCompletions.items) {
-			if (!context.includeInlineEdits && item.isInlineEdit) {
+			if (!context.includeInlineEdits && (item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
-			if (!context.includeInlineCompletions && !item.isInlineEdit) {
+			if (!context.includeInlineCompletions && !(item.isInlineEdit || item.showInlineEditMenu)) {
 				continue;
 			}
 			const inlineCompletionItem = InlineCompletionItem.from(
@@ -194,7 +197,7 @@ async function addRefAndCreateResult(
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
 
 			// Stop after first visible inline completion
-			if (!item.isInlineEdit && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			if (!(item.isInlineEdit || item.showInlineEditMenu) && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
 				if (!minifiedEdit.isEmpty) {
 					shouldStop = true;
@@ -324,24 +327,31 @@ export class InlineCompletionItem {
 			insertText,
 			inlineCompletion.command,
 			inlineCompletion.shownCommand,
+			inlineCompletion.action,
 			range,
 			insertText,
 			snippetInfo,
+			Range.lift(inlineCompletion.showRange) ?? undefined,
 			inlineCompletion.additionalTextEdits || getReadonlyEmptyArray(),
 			inlineCompletion,
 			source,
 		);
 	}
 
+	static ID = 1;
+
 	private _didCallShow = false;
 
 	constructor(
 		readonly filterText: string,
 		readonly command: Command | undefined,
+		/** @deprecated. Use handleItemDidShow */
 		readonly shownCommand: Command | undefined,
+		readonly action: Command | undefined,
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
+		readonly cursorShowRange: Range | undefined,
 
 		readonly additionalTextEdits: readonly ISingleEditOperation[],
 
@@ -357,7 +367,10 @@ export class InlineCompletionItem {
 		 * Used for event data to ensure referential equality.
 		*/
 		readonly source: InlineCompletionList,
+
+		readonly id = `InlineCompletion:${InlineCompletionItem.ID++}`,
 	) {
+		// TODO: these statements are no-ops
 		filterText = filterText.replace(/\r\n|\r/g, '\n');
 		insertText = filterText.replace(/\r\n|\r/g, '\n');
 	}
@@ -374,12 +387,32 @@ export class InlineCompletionItem {
 			this.filterText,
 			this.command,
 			this.shownCommand,
+			this.action,
 			updatedRange,
 			this.insertText,
 			this.snippetInfo,
+			this.cursorShowRange,
 			this.additionalTextEdits,
 			this.sourceInlineCompletion,
 			this.source,
+			this.id,
+		);
+	}
+
+	public withRangeInsertTextAndFilterText(updatedRange: Range, updatedInsertText: string, updatedFilterText: string): InlineCompletionItem {
+		return new InlineCompletionItem(
+			updatedFilterText,
+			this.command,
+			this.shownCommand,
+			this.action,
+			updatedRange,
+			updatedInsertText,
+			this.snippetInfo,
+			this.cursorShowRange,
+			this.additionalTextEdits,
+			this.sourceInlineCompletion,
+			this.source,
+			this.id,
 		);
 	}
 
@@ -409,17 +442,15 @@ function getDefaultRange(position: Position, model: ITextModel): Range {
 }
 
 function closeBrackets(text: string, position: Position, model: ITextModel, languageConfigurationService: ILanguageConfigurationService): string {
-	const lineStart = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
-	const newLine = lineStart + text;
+	const currentLine = model.getLineContent(position.lineNumber);
+	const edit = SingleOffsetEdit.replace(new OffsetRange(position.column - 1, currentLine.length), text);
 
-	const edit = LineEditWithAdditionalLines.replace(OffsetRange.ofStartAndLength(position.column - 1, newLine.length - (position.column - 1)), text);
-	const newTokens = model.tokenization.tokenizeLineWithEdit(position.lineNumber, edit);
-	const slicedTokens = newTokens?.mainLineTokens?.sliceAndInflate(position.column - 1, newLine.length, 0);
-	if (!slicedTokens) {
+	const proposedLineTokens = model.tokenization.tokenizeLinesAt(position.lineNumber, [edit.apply(currentLine)]);
+	const textTokens = proposedLineTokens?.[0].sliceZeroCopy(edit.getRangeAfterApply());
+	if (!textTokens) {
 		return text;
 	}
 
-	const newText = fixBracketsInLine(slicedTokens, languageConfigurationService);
-
-	return newText;
+	const fixedText = fixBracketsInLine(textTokens, languageConfigurationService);
+	return fixedText;
 }

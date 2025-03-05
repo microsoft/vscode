@@ -140,7 +140,10 @@
 		},
 		{
 			"name": "Inherited class",
-			"scope": "entity.other.inherited-class",
+			"scope": [
+				"entity.other.inherited-class",
+				"punctuation.separator.namespace.ruby",
+			],
 			"settings": {
 				"foreground": "#6C71C4"
 			}

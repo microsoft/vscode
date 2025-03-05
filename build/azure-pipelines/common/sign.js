@@ -3,25 +3,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Temp = void 0;
 exports.main = main;
-const cp = require("child_process");
-const fs = require("fs");
-const crypto = require("crypto");
-const path = require("path");
-const os = require("os");
+const child_process_1 = __importDefault(require("child_process"));
+const fs_1 = __importDefault(require("fs"));
+const crypto_1 = __importDefault(require("crypto"));
+const path_1 = __importDefault(require("path"));
+const os_1 = __importDefault(require("os"));
 class Temp {
     _files = [];
     tmpNameSync() {
-        const file = path.join(os.tmpdir(), crypto.randomBytes(20).toString('hex'));
+        const file = path_1.default.join(os_1.default.tmpdir(), crypto_1.default.randomBytes(20).toString('hex'));
         this._files.push(file);
         return file;
     }
     dispose() {
         for (const file of this._files) {
             try {
-                fs.unlinkSync(file);
+                fs_1.default.unlinkSync(file);
             }
             catch (err) {
                 // noop
@@ -126,20 +129,20 @@ function getParams(type) {
 function main([esrpCliPath, type, folderPath, pattern]) {
     const tmp = new Temp();
     process.on('exit', () => tmp.dispose());
-    const key = crypto.randomBytes(32);
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    const key = crypto_1.default.randomBytes(32);
+    const iv = crypto_1.default.randomBytes(16);
+    const cipher = crypto_1.default.createCipheriv('aes-256-cbc', key, iv);
     const encryptedToken = cipher.update(process.env['SYSTEM_ACCESSTOKEN'].trim(), 'utf8', 'hex') + cipher.final('hex');
     const encryptionDetailsPath = tmp.tmpNameSync();
-    fs.writeFileSync(encryptionDetailsPath, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
+    fs_1.default.writeFileSync(encryptionDetailsPath, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
     const encryptedTokenPath = tmp.tmpNameSync();
-    fs.writeFileSync(encryptedTokenPath, encryptedToken);
+    fs_1.default.writeFileSync(encryptedTokenPath, encryptedToken);
     const patternPath = tmp.tmpNameSync();
-    fs.writeFileSync(patternPath, pattern);
+    fs_1.default.writeFileSync(patternPath, pattern);
     const paramsPath = tmp.tmpNameSync();
-    fs.writeFileSync(paramsPath, JSON.stringify(getParams(type)));
-    const dotnetVersion = cp.execSync('dotnet --version', { encoding: 'utf8' }).trim();
-    const adoTaskVersion = path.basename(path.dirname(path.dirname(esrpCliPath)));
+    fs_1.default.writeFileSync(paramsPath, JSON.stringify(getParams(type)));
+    const dotnetVersion = child_process_1.default.execSync('dotnet --version', { encoding: 'utf8' }).trim();
+    const adoTaskVersion = path_1.default.basename(path_1.default.dirname(path_1.default.dirname(esrpCliPath)));
     const federatedTokenData = {
         jobId: process.env['SYSTEM_JOBID'],
         planId: process.env['SYSTEM_PLANID'],
@@ -149,7 +152,7 @@ function main([esrpCliPath, type, folderPath, pattern]) {
         managedIdentityId: process.env['VSCODE_ESRP_CLIENT_ID'],
         managedIdentityTenantId: process.env['VSCODE_ESRP_TENANT_ID'],
         serviceConnectionId: process.env['VSCODE_ESRP_SERVICE_CONNECTION_ID'],
-        tempDirectory: os.tmpdir(),
+        tempDirectory: os_1.default.tmpdir(),
         systemAccessToken: encryptedTokenPath,
         encryptionKey: encryptionDetailsPath
     };
@@ -188,7 +191,7 @@ function main([esrpCliPath, type, folderPath, pattern]) {
         '-federatedTokenData', JSON.stringify(federatedTokenData)
     ];
     try {
-        cp.execFileSync('dotnet', args, { stdio: 'inherit' });
+        child_process_1.default.execFileSync('dotnet', args, { stdio: 'inherit' });
     }
     catch (err) {
         console.error('ESRP failed');

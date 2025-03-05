@@ -137,14 +137,24 @@ export enum SettingMatchType {
 	None = 0,
 	LanguageTagSettingMatch = 1 << 0,
 	RemoteMatch = 1 << 1,
-	DescriptionOrValueMatch = 1 << 2,
-	KeyMatch = 1 << 3
+	NonContiguousQueryInSettingId = 1 << 2,
+	DescriptionOrValueMatch = 1 << 3,
+	NonContiguousWordsInSettingsLabel = 1 << 4,
+	ContiguousWordsInSettingsLabel = 1 << 5,
+	ContiguousQueryInSettingId = 1 << 6,
+	AllWordsInSettingsLabel = 1 << 7,
 }
+export const SettingKeyMatchTypes = (SettingMatchType.AllWordsInSettingsLabel
+	| SettingMatchType.ContiguousWordsInSettingsLabel
+	| SettingMatchType.NonContiguousWordsInSettingsLabel
+	| SettingMatchType.NonContiguousQueryInSettingId
+	| SettingMatchType.ContiguousQueryInSettingId);
 
 export interface ISettingMatch {
 	setting: ISetting;
 	matches: IRange[] | null;
 	matchType: SettingMatchType;
+	keyMatchScore: number;
 	score: number;
 }
 
@@ -184,7 +194,7 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean | null;
-export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[]; matchType: SettingMatchType; score: number } | null;
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[]; matchType: SettingMatchType; keyMatchScore: number; score: number } | null;
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
@@ -211,6 +221,7 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 export interface IOpenSettingsOptions extends ISettingsEditorOptions {
 	jsonEditor?: boolean;
 	openToSide?: boolean;
+	groupId?: number;
 }
 
 export function validateSettingsEditorOptions(options: ISettingsEditorOptions): ISettingsEditorOptions {
@@ -229,6 +240,10 @@ export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
 
 export interface IKeybindingsEditorOptions extends IEditorOptions {
 	query?: string;
+}
+
+export interface IOpenKeybindingsEditorOptions extends IKeybindingsEditorOptions {
+	groupId?: number;
 }
 
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
@@ -254,7 +269,7 @@ export interface IPreferencesService {
 	openRemoteSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	openFolderSettings(options: IOpenSettingsOptions & { folderUri: IOpenSettingsOptions['folderUri'] }): Promise<IEditorPane | undefined>;
-	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
+	openGlobalKeybindingSettings(textual: boolean, options?: IOpenKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	openLanguageSpecificSettings(languageId: string, options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;

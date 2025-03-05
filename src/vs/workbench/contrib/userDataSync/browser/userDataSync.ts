@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -53,6 +53,8 @@ import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
@@ -114,7 +116,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchIssueService private readonly workbenchIssueService: IWorkbenchIssueService
+		@IWorkbenchIssueService private readonly workbenchIssueService: IWorkbenchIssueService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
 
@@ -189,14 +192,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							{
 								label: localize('replace remote', "Replace Remote"),
 								run: () => {
-									this.telemetryService.publicLog2<{ source: string; action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflict.syncResource, action: 'acceptLocal' });
 									this.acceptLocal(conflict, conflict.conflicts[0]);
 								}
 							},
 							{
 								label: localize('replace local', "Replace Local"),
 								run: () => {
-									this.telemetryService.publicLog2<{ source: string; action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: conflict.syncResource, action: 'acceptRemote' });
 									this.acceptRemote(conflict, conflict.conflicts[0]);
 								}
 							},
@@ -248,7 +249,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					severity: Severity.Info,
 					message: localize('session expired', "Settings sync was turned off because current session is expired, please sign in again to turn on sync."),
 					actions: {
-						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
+						primary: [toAction({
+							id: 'turn on sync',
+							label: localize('turn on sync', "Turn on Settings Sync..."),
+							run: () => this.turnOn()
+						})]
 					}
 				});
 				break;
@@ -257,7 +262,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					severity: Severity.Info,
 					message: localize('turned off', "Settings sync was turned off from another device, please turn on sync again."),
 					actions: {
-						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
+						primary: [toAction({
+							id: 'turn on sync',
+							label: localize('turn on sync', "Turn on Settings Sync..."),
+							run: () => this.turnOn()
+						})]
 					}
 				});
 				break;
@@ -291,8 +300,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					message: operationId ? `${message} ${operationId}` : message,
 					actions: {
 						primary: [
-							new Action('Show Sync Logs', localize('show sync logs', "Show Log"), undefined, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
-							new Action('Report Issue', localize('report issue', "Report Issue"), undefined, true, () => this.workbenchIssueService.openReporter())
+							toAction({
+								id: 'Show Sync Logs',
+								label: localize('show sync logs', "Show Log"),
+								run: () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)
+							}),
+							toAction({
+								id: 'Report Issue',
+								label: localize('report issue', "Report Issue"),
+								run: () => this.workbenchIssueService.openReporter()
+							})
 						]
 					}
 				});
@@ -304,8 +321,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					message: localize('error reset required', "Settings sync is disabled because your data in the cloud is older than that of the client. Please clear your data in the cloud before turning on sync."),
 					actions: {
 						primary: [
-							new Action('reset', localize('reset', "Clear Data in Cloud..."), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
-							new Action('show synced data', localize('show synced data action', "Show Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.showSyncActivity())
+							toAction({
+								id: 'reset',
+								label: localize('reset', "Clear Data in Cloud..."),
+								run: () => this.userDataSyncWorkbenchService.resetSyncedData()
+							}),
+							toAction({
+								id: 'show synced data',
+								label: localize('show synced data action', "Show Synced Data"),
+								run: () => this.userDataSyncWorkbenchService.showSyncActivity()
+							})
 						]
 					}
 				});
@@ -336,7 +361,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						severity: Severity.Info,
 						message: localize('service changed and turned off', "Settings sync was turned off because {0} now uses a separate service. Please turn on sync again.", this.productService.nameLong),
 						actions: {
-							primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
+							primary: [toAction({
+								id: 'turn on sync',
+								label: localize('turn on sync', "Turn on Settings Sync..."),
+								run: () => this.turnOn()
+							})]
 						}
 					});
 				}
@@ -350,8 +379,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			severity: Severity.Error,
 			message: operationId ? `${message} ${operationId}` : message,
 			actions: {
-				primary: [new Action('open sync file', localize('open file', "Open {0} File", getSyncAreaLabel(resource)), undefined, true,
-					() => resource === SyncResource.Settings ? this.preferencesService.openUserSettings({ jsonEditor: true }) : this.preferencesService.openGlobalKeybindingSettings(true))]
+				primary: [toAction({
+					id: 'open sync file',
+					label: localize('open file', "Open {0} File", getSyncAreaLabel(resource)),
+					run: () => resource === SyncResource.Settings ? this.preferencesService.openUserSettings({ jsonEditor: true }) : this.preferencesService.openGlobalKeybindingSettings(true)
+				})]
 			}
 		});
 	}
@@ -407,8 +439,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			severity: Severity.Error,
 			message: localize('errorInvalidConfiguration', "Unable to sync {0} because the content in the file is not valid. Please open the file and correct it.", errorArea.toLowerCase()),
 			actions: {
-				primary: [new Action('open sync file', localize('open file', "Open {0} File", errorArea), undefined, true,
-					() => source === SyncResource.Settings ? this.preferencesService.openUserSettings({ jsonEditor: true }) : this.preferencesService.openGlobalKeybindingSettings(true))]
+				primary: [toAction({
+					id: 'open sync file',
+					label: localize('open file', "Open {0} File", errorArea),
+					run: () => source === SyncResource.Settings ? this.preferencesService.openUserSettings({ jsonEditor: true }) : this.preferencesService.openGlobalKeybindingSettings(true)
+				})]
 			}
 		});
 		this.invalidContentErrorDisposables.set(key, toDisposable(() => {
@@ -426,17 +461,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.globalActivityBadgeDisposable.clear();
 
 		let badge: IBadge | undefined = undefined;
-		let priority: number | undefined = undefined;
-
 		if (this.userDataSyncService.conflicts.length && this.userDataSyncEnablementService.isEnabled()) {
 			badge = new NumberBadge(this.getConflictsCount(), () => localize('has conflicts', "{0}: Conflicts Detected", SYNC_TITLE.value));
 		} else if (this.turningOnSync) {
 			badge = new ProgressBadge(() => localize('turning on syncing', "Turning on Settings Sync..."));
-			priority = 1;
 		}
 
 		if (badge) {
-			this.globalActivityBadgeDisposable.value = this.activityService.showGlobalActivity({ badge, priority });
+			this.globalActivityBadgeDisposable.value = this.activityService.showGlobalActivity({ badge });
 		}
 	}
 
@@ -450,7 +482,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		if (badge) {
-			this.accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, priority: undefined });
+			this.accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 		}
 	}
 
@@ -496,8 +528,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							message: localize('error reset required while starting sync', "Settings sync cannot be turned on because your data in the cloud is older than that of the client. Please clear your data in the cloud before turning on sync."),
 							actions: {
 								primary: [
-									new Action('reset', localize('reset', "Clear Data in Cloud..."), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
-									new Action('show synced data', localize('show synced data action', "Show Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.showSyncActivity())
+									toAction({
+										id: 'reset',
+										label: localize('reset', "Clear Data in Cloud..."),
+										run: () => this.userDataSyncWorkbenchService.resetSyncedData()
+									}),
+									toAction({
+										id: 'show synced data',
+										label: localize('show synced data action', "Show Synced Data"),
+										run: () => this.userDataSyncWorkbenchService.showSyncActivity()
+									})
 								]
 							}
 						});
@@ -531,7 +571,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
+			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id, true));
 			let accepted: boolean = false;
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
 				accepted = true;
@@ -554,7 +594,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
-		return [{
+		const result = [{
 			id: SyncResource.Settings,
 			label: getSyncAreaLabel(SyncResource.Settings)
 		}, {
@@ -576,6 +616,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.Profiles,
 			label: getSyncAreaLabel(SyncResource.Profiles),
 		}];
+
+		// if the `reusable prompt` feature is enabled and in vscode
+		// insiders, add the `Prompts` resource item to the list
+		const isInsiders = (this.productService.quality !== 'stable');
+		if (PromptsConfig.enabled(this.configService) && isInsiders) {
+			result.push({
+				id: SyncResource.Prompts,
+				label: getSyncAreaLabel(SyncResource.Prompts)
+			});
+		}
+
+		return result;
 	}
 
 	private updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): void {

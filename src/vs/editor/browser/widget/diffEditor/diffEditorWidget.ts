@@ -702,7 +702,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 }
 
-function toLineChanges(state: DiffState): ILineChange[] {
+export function toLineChanges(state: DiffState): ILineChange[] {
 	return state.mappings.map(x => {
 		const m = x.lineRangeMapping;
 		let originalStartLineNumber: number;
