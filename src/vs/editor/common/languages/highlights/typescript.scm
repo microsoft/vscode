@@ -18,19 +18,16 @@
 ; TODO: This doesn't seem to be working
 (escape_sequence) @constant.character.escape.ts
 
-([
-  (string)
-  (template_string)
-  (template_literal_type)
-] @string.quoted.single.ts
+((string) @string.quoted.single.ts
   (#match? @string.quoted.single.ts "^'[^']*'$"))
 
+((string) @string.quoted.double.ts
+  (#match? @string.quoted.double.ts "^\"[^\"]*\"$"))
+
 ([
-  (string)
   (template_string)
   (template_literal_type)
-] @string.quoted.double.ts
-  (#match? @string.quoted.double.ts "^\"[^\"]*\"$"))
+] @string.template.ts)
 
 (string .
   ([
@@ -43,6 +40,10 @@
     "\""
     "'"
   ]) @punctuation.definition.string.end.ts .)
+
+(template_string . ("`") @punctuation.definition.string.template.begin.ts)
+
+(template_string ("`") @punctuation.definition.string.template.end.ts .)
 
 ; NOTE: the typescript grammar doesn't break regex into nice parts so as to capture parts of it separately
 (regex) @string.regexp.ts
