@@ -7,6 +7,7 @@ import { AccountInfo } from '@azure/msal-node';
 import { SecretStorage, LogOutputChannel, Disposable, EventEmitter, Memento, Event } from 'vscode';
 import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
 import { CachedPublicClientApplication } from './cachedPublicClientApplication';
+import { IAccountAccess, ScopedAccountAccess } from '../common/accountAccess';
 
 export interface IPublicClientApplicationInfo {
 	clientId: string;
@@ -20,6 +21,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 
 	private _disposable: Disposable;
 	private _pcasSecretStorage: PublicClientApplicationsSecretStorage;
+	private _accountAccess: IAccountAccess | undefined;
 
 	private readonly _onDidAccountsChangeEmitter = new EventEmitter<{ added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }>();
 	readonly onDidAccountsChange = this._onDidAccountsChangeEmitter.event;
@@ -44,9 +46,11 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	async initialize() {
 		this._logger.debug('[initialize] Initializing PublicClientApplicationManager');
 		let clientIds: string[] | undefined;
-		let migrations: Map<string, string[]> | undefined;
 		try {
-			migrations = await this._getMigrationsPerClientId();
+			await this._pcasSecretStorage.initialize();
+			//TODO: Remove this in a version
+			const migrations = await this._pcasSecretStorage.getOldValue();
+			this._accountAccess = new ScopedAccountAccess(this._secretStorage, this._cloudName, this._logger, migrations);
 			clientIds = await this._pcasSecretStorage.get();
 		} catch (e) {
 			// data is corrupted
@@ -89,23 +93,6 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		this._logger.debug('[initialize] PublicClientApplicationManager initialized');
 	}
 
-	private async _getMigrationsPerClientId(): Promise<Map<string, string[]> | undefined> {
-		await this._pcasSecretStorage.initialize();
-		const oldValue = await this._pcasSecretStorage.getOldValue();
-		// returns a map of clientIds to the authorities found in the old value
-		if (!oldValue) {
-			return undefined;
-		}
-		const result = new Map<string, string[]>();
-		for (const { clientId, authority } of oldValue) {
-			if (!result.has(clientId)) {
-				result.set(clientId, []);
-			}
-			result.get(clientId)?.push(authority);
-		}
-		return result;
-	}
-
 	dispose() {
 		this._disposable.dispose();
 		Disposable.from(...this._pcaDisposables.values()).dispose();
@@ -117,7 +104,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 			this._logger.debug(`[getOrCreate] [${clientId}] PublicClientApplicationManager cache hit`);
 		} else {
 			this._logger.debug(`[getOrCreate] [${clientId}] PublicClientApplicationManager cache miss, creating new PCA...`);
-			pca = await this._doCreatePublicClientApplication(clientId, refreshTokensToMigrate);
+			pca = await this._doCreatePublicClientApplication(clientId);
 			await this._storePublicClientApplications();
 			this._logger.debug(`[getOrCreate] [${clientId}] PCA created.`);
 		}
@@ -143,8 +130,8 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		return pca;
 	}
 
-	private async _doCreatePublicClientApplication(clientId: string, authoritiesToMigrate?: string[]): Promise<ICachedPublicClientApplication> {
-		const pca = new CachedPublicClientApplication(clientId, this._cloudName, this._secretStorage, this._logger, authoritiesToMigrate);
+	private async _doCreatePublicClientApplication(clientId: string): Promise<ICachedPublicClientApplication> {
+		const pca = new CachedPublicClientApplication(clientId, this._secretStorage, this._accountAccess!, this._logger);
 		this._pcas.set(clientId, pca);
 		const disposable = Disposable.from(
 			pca,

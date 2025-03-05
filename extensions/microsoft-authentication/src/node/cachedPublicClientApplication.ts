@@ -10,7 +10,7 @@ import { raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
-import { ScopedAccountAccess } from '../common/accountAccess';
+import { IAccountAccess } from '../common/accountAccess';
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	// Core properties
@@ -27,7 +27,6 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	);
 
 	// Broker properties
-	private readonly _accountAccess = new ScopedAccountAccess(this._secretStorage, this._cloudName, this.clientId, this._logger, this._authoritiesToMigrate);
 	private readonly _isBrokerAvailable: boolean;
 
 	//#region Events
@@ -42,10 +41,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	constructor(
 		private readonly _clientId: string,
-		private readonly _cloudName: string,
 		private readonly _secretStorage: SecretStorage,
+		private readonly _accountAccess: IAccountAccess,
 		private readonly _logger: LogOutputChannel,
-		private readonly _authoritiesToMigrate?: string[],
 	) {
 		const loggerOptions = new MsalLoggerOptions(_logger);
 		const nativeBrokerPlugin = new NativeBrokerPlugin();
