@@ -15,7 +15,7 @@ import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, sanitizeRelativePath, Stash, Submodule } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, Stash, Submodule } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -1976,19 +1976,17 @@ export class Repository implements Disposable {
 
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
-			const path = sanitizeRelativePath(this.repository.root, filePath);
-
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
 			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings');
 
 			try {
-				return await this.repository.bufferString(`${ref}:${path}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
+				return await this.repository.bufferString(ref, filePath, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
-					const gitRelativePath = await this.repository.getGitRelativePath(ref, filePath);
-					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
+					const gitFilePath = await this.repository.getGitFilePath(ref, filePath);
+					return await this.repository.bufferString(ref, gitFilePath, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
 				}
 
 				throw err;
@@ -1997,10 +1995,7 @@ export class Repository implements Disposable {
 	}
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
-		return this.run(Operation.Show, () => {
-			const path = sanitizeRelativePath(this.repository.root, filePath);
-			return this.repository.buffer(`${ref}:${path}`);
-		});
+		return this.run(Operation.Show, () => this.repository.buffer(ref, filePath));
 	}
 
 	getObjectFiles(ref: string): Promise<LsTreeElement[]> {

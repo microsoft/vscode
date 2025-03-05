@@ -355,7 +355,7 @@ function sanitizePath(path: string): string {
 	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
 }
 
-export function sanitizeRelativePath(from: string, to: string): string {
+function sanitizeRelativePath(from: string, to: string): string {
 	return relativePath(from, to).replace(/\\/g, '/');
 }
 
@@ -1334,8 +1334,8 @@ export class Repository {
 			.filter(entry => !!entry);
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
-		const stdout = await this.buffer(object);
+	async bufferString(ref: string, filePath: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
+		const stdout = await this.buffer(ref, filePath);
 
 		if (autoGuessEncoding) {
 			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
@@ -1346,8 +1346,9 @@ export class Repository {
 		return iconv.decode(stdout, encoding);
 	}
 
-	async buffer(object: string): Promise<Buffer> {
-		const child = this.stream(['show', '--textconv', object]);
+	async buffer(ref: string, filePath: string): Promise<Buffer> {
+		const relativePath = sanitizeRelativePath(this.repositoryRoot, filePath);
+		const child = this.stream(['show', '--textconv', `${ref}:${relativePath}`]);
 
 		if (!child.stdout) {
 			return Promise.reject<Buffer>('Can\'t open file from git');
@@ -1399,8 +1400,15 @@ export class Repository {
 		return { mode, object, size: parseInt(size) || 0 };
 	}
 
-	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {
-		const args = ['ls-tree', '-l', treeish];
+	async lstree(treeish: string, path?: string, options?: { recursive?: boolean }): Promise<LsTreeElement[]> {
+		const args = ['ls-tree', '-l'];
+
+		if (options?.recursive) {
+			args.push('-r');
+		}
+
+		args.push(treeish);
+
 		if (path) {
 			args.push('--', sanitizeRelativePath(this.repositoryRoot, path));
 		}
@@ -1410,15 +1418,24 @@ export class Repository {
 	}
 
 	async lsfiles(path: string): Promise<LsFilesElement[]> {
-		const { stdout } = await this.exec(['ls-files', '--stage', '--', sanitizeRelativePath(this.repositoryRoot, path)]);
+		const args = ['ls-files', '--stage'];
+		const relativePath = sanitizeRelativePath(this.repositoryRoot, path);
+
+		if (relativePath) {
+			args.push('--', relativePath);
+		}
+
+		const { stdout } = await this.exec(args);
 		return parseLsFiles(stdout);
 	}
 
-	async getGitRelativePath(ref: string, relativePath: string): Promise<string> {
-		const relativePathLowercase = relativePath.toLowerCase();
-		const dirname = path.posix.dirname(relativePath) + '/';
-		const elements: { file: string }[] = ref ? await this.lstree(ref, dirname) : await this.lsfiles(dirname);
-		const element = elements.filter(file => file.file.toLowerCase() === relativePathLowercase)[0];
+	async getGitFilePath(ref: string, filePath: string): Promise<string> {
+		const elements: { file: string }[] = ref
+			? await this.lstree(ref, undefined, { recursive: true })
+			: await this.lsfiles(this.repositoryRoot);
+
+		const relativePathLowercase = sanitizeRelativePath(this.repositoryRoot, filePath).toLowerCase();
+		const element = elements.find(file => file.file.toLowerCase() === relativePathLowercase);
 
 		if (!element) {
 			throw new GitError({
@@ -1426,7 +1443,7 @@ export class Repository {
 			});
 		}
 
-		return element.file;
+		return path.join(this.repositoryRoot, element.file);
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
