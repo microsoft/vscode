@@ -46,6 +46,11 @@ export class ScopeData {
 	 */
 	readonly tenant: string;
 
+	/**
+	 * The tenant ID to use for the token request. This is the value of the `VSCODE_TENANT:...` scope if present, otherwise undefined.
+	 */
+	readonly tenantId: string | undefined;
+
 	constructor(readonly originalScopes: readonly string[] = []) {
 		if (workspace.getConfiguration('microsoft-authentication').get<'v1' | 'v2'>('clientIdVersion') === 'v2') {
 			this._defaultClientId = DEFAULT_CLIENT_ID_V2;
@@ -61,7 +66,8 @@ export class ScopeData {
 		this.scopeStr = modifiedScopes.join(' ');
 		this.scopesToSend = this.getScopesToSend(modifiedScopes);
 		this.clientId = this.getClientId(this.allScopes);
-		this.tenant = this.getTenantId(this.allScopes);
+		this.tenantId = this.getTenantId(this.allScopes);
+		this.tenant = this.tenantId ?? this._defaultTenant;
 	}
 
 	private getClientId(scopes: string[]) {
@@ -79,7 +85,7 @@ export class ScopeData {
 				return current.split('VSCODE_TENANT:')[1];
 			}
 			return prev;
-		}, undefined) ?? this._defaultTenant;
+		}, undefined);
 	}
 
 	private getScopesToSend(scopes: string[]) {
