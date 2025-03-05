@@ -250,7 +250,7 @@ class ChatStatusDashboard extends Disposable {
 
 		// New to Copilot
 		if (isNewUser(this.contextKeyService, this.chatEntitlementService)) {
-			this.element.appendChild($('div.header', undefined, localize('setupCopilotForFreeHeader', "Use AI Features with Copilot for Free")));
+			this.element.appendChild($('div.header', undefined, localize('setupCopilotForFreeHeader', "Use AI Features with Copilot")));
 
 			this.element.appendChild(
 				$('div', undefined,
