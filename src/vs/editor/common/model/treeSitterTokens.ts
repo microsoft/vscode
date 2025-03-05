@@ -88,6 +88,8 @@ export class TreeSitterTokens extends AbstractTokens {
 		if (e.isFlush) {
 			// Don't fire the event, as the view might not have got the text change event yet
 			this.resetTokenization(false);
+		} else {
+			this._tokenStore.handleContentChanged(this._textModel, e);
 		}
 	}
 
