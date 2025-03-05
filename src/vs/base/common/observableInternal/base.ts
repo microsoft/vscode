@@ -6,7 +6,7 @@
 import { DebugNameData, DebugOwner, getFunctionName } from './debugName.js';
 import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from './commonFacade/deps.js';
 import type { derivedOpts } from './derived.js';
-import { getLogger, logObservable } from './logging.js';
+import { getLogger, logObservable } from './logging/logging.js';
 import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';
 
 /**
@@ -14,6 +14,8 @@ import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';
  *
  * @template T The type of the values the observable can hold.
  */
+// This interface exists so that, for example for string observables,
+// typescript renders the type as `IObservable<string>` instead of `IObservable<string, unknown>`.
 export interface IObservable<T> extends IObservableWithChange<T, unknown> { }
 
 /**
@@ -56,6 +58,8 @@ export interface IObservableWithChange<T, TChange = unknown> {
 	 */
 	removeObserver(observer: IObserver): void;
 
+	// #region These members have a standard implementation and are only part of the interface for convenience.
+
 	/**
 	 * Reads the current value and subscribes the reader to this observable.
 	 *
@@ -63,6 +67,16 @@ export interface IObservableWithChange<T, TChange = unknown> {
 	 * (see {@link ConvenientObservable.read} for the implementation).
 	 */
 	read(reader: IReader | undefined): T;
+
+	/**
+	 * Makes sure this value is computed eagerly.
+	 */
+	recomputeInitiallyAndOnChange(store: DisposableStore, handleValue?: (value: T) => void): IObservable<T>;
+
+	/**
+	 * Makes sure this value is cached.
+	 */
+	keepObserved(store: DisposableStore): IObservable<T>;
 
 	/**
 	 * Creates a derived observable that depends on this observable.
@@ -81,16 +95,6 @@ export interface IObservableWithChange<T, TChange = unknown> {
 	log(): IObservableWithChange<T, TChange>;
 
 	/**
-	 * Makes sure this value is computed eagerly.
-	 */
-	recomputeInitiallyAndOnChange(store: DisposableStore, handleValue?: (value: T) => void): IObservable<T>;
-
-	/**
-	 * Makes sure this value is cached.
-	 */
-	keepObserved(store: DisposableStore): IObservable<T>;
-
-	/**
 	 * A human-readable name for debugging purposes.
 	 */
 	readonly debugName: string;
@@ -99,13 +103,8 @@ export interface IObservableWithChange<T, TChange = unknown> {
 	 * This property captures the type of the change object. Do not use it at runtime!
 	 */
 	readonly TChange: TChange;
-}
 
-export interface IReader {
-	/**
-	 * Reads the value of an observable and subscribes to it.
-	 */
-	readObservable<T>(observable: IObservableWithChange<T, any>): T;
+	// #endregion
 }
 
 /**
@@ -153,6 +152,13 @@ export interface IObserver {
 	handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void;
 }
 
+export interface IReader {
+	/**
+	 * Reads the value of an observable and subscribes to it.
+	 */
+	readObservable<T>(observable: IObservableWithChange<T, any>): T;
+}
+
 export interface ISettable<T, TChange = void> {
 	/**
 	 * Sets the value of the observable.
@@ -181,7 +187,6 @@ let _keepObserved: typeof keepObserved;
 export function _setKeepObserved(keepObserved: typeof _keepObserved) {
 	_keepObserved = keepObserved;
 }
-
 
 let _derived: typeof derivedOpts;
 /**
@@ -246,10 +251,7 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 		);
 	}
 
-	public log(): IObservableWithChange<T, TChange> {
-		logObservable(this);
-		return this;
-	}
+	public abstract log(): IObservableWithChange<T, TChange>;
 
 	/**
 	 * @sealed
@@ -288,25 +290,49 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 }
 
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
-	protected readonly observers = new Set<IObserver>();
+	protected readonly _observers = new Set<IObserver>();
+
+	constructor() {
+		super();
+		getLogger()?.handleObservableCreated(this);
+	}
 
 	public addObserver(observer: IObserver): void {
-		const len = this.observers.size;
-		this.observers.add(observer);
+		const len = this._observers.size;
+		this._observers.add(observer);
 		if (len === 0) {
 			this.onFirstObserverAdded();
+		}
+		if (len !== this._observers.size) {
+			getLogger()?.handleOnListenerCountChanged(this, this._observers.size);
 		}
 	}
 
 	public removeObserver(observer: IObserver): void {
-		const deleted = this.observers.delete(observer);
-		if (deleted && this.observers.size === 0) {
+		const deleted = this._observers.delete(observer);
+		if (deleted && this._observers.size === 0) {
 			this.onLastObserverRemoved();
+		}
+		if (deleted) {
+			getLogger()?.handleOnListenerCountChanged(this, this._observers.size);
 		}
 	}
 
 	protected onFirstObserverAdded(): void { }
 	protected onLastObserverRemoved(): void { }
+
+	public override log(): IObservableWithChange<T, TChange> {
+		const hadLogger = !!getLogger();
+		logObservable(this);
+		if (!hadLogger) {
+			getLogger()?.handleObservableCreated(this);
+		}
+		return this;
+	}
+
+	public debugGetObservers() {
+		return this._observers;
+	}
 }
 
 /**
@@ -363,7 +389,7 @@ export function subtransaction(tx: ITransaction | undefined, fn: (tx: ITransacti
 }
 
 export class TransactionImpl implements ITransaction {
-	private updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
+	private _updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
 
 	constructor(public readonly _fn: Function, private readonly _getDebugName?: () => string) {
 		getLogger()?.handleBeginTransaction(this);
@@ -378,19 +404,23 @@ export class TransactionImpl implements ITransaction {
 
 	public updateObserver(observer: IObserver, observable: IObservable<any>): void {
 		// When this gets called while finish is active, they will still get considered
-		this.updatingObservers!.push({ observer, observable });
+		this._updatingObservers!.push({ observer, observable });
 		observer.beginUpdate(observable);
 	}
 
 	public finish(): void {
-		const updatingObservers = this.updatingObservers!;
+		const updatingObservers = this._updatingObservers!;
 		for (let i = 0; i < updatingObservers.length; i++) {
 			const { observer, observable } = updatingObservers[i];
 			observer.endUpdate(observable);
 		}
 		// Prevent anyone from updating observers from now on.
-		this.updatingObservers = null;
-		getLogger()?.handleEndTransaction();
+		this._updatingObservers = null;
+		getLogger()?.handleEndTransaction(this);
+	}
+
+	public debugGetUpdatingObservers() {
+		return this._updatingObservers;
 	}
 }
 
@@ -434,6 +464,8 @@ export class ObservableValue<T, TChange = void>
 	) {
 		super();
 		this._value = initialValue;
+
+		getLogger()?.handleObservableUpdated(this, { hadValue: false, newValue: initialValue, change: undefined, didChange: true, oldValue: undefined });
 	}
 	public override get(): T {
 		return this._value;
@@ -451,9 +483,9 @@ export class ObservableValue<T, TChange = void>
 		try {
 			const oldValue = this._value;
 			this._setValue(value);
-			getLogger()?.handleObservableChanged(this, { oldValue, newValue: value, change, didChange: true, hadValue: true });
+			getLogger()?.handleObservableUpdated(this, { oldValue, newValue: value, change, didChange: true, hadValue: true });
 
-			for (const observer of this.observers) {
+			for (const observer of this._observers) {
 				tx.updateObserver(observer, this);
 				observer.handleChange(this, change);
 			}
@@ -470,6 +502,16 @@ export class ObservableValue<T, TChange = void>
 
 	protected _setValue(newValue: T): void {
 		this._value = newValue;
+	}
+
+	public debugGetState() {
+		return {
+			value: this._value,
+		};
+	}
+
+	public debugSetValue(value: unknown) {
+		this._value = value as T;
 	}
 }
 

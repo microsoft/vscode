@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -24,7 +24,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CommentThread, Comment } from '../../../../editor/common/languages.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 
-export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplentation {
+export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplementation {
 	readonly priority = 90;
 	readonly name = 'comment';
 	readonly when = CONTEXT_KEY_COMMENT_FOCUSED;
@@ -50,7 +50,7 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 }
 
 
-export class CommentThreadAccessibleView extends Disposable implements IAccessibleViewImplentation {
+export class CommentThreadAccessibleView extends Disposable implements IAccessibleViewImplementation {
 	readonly priority = 85;
 	readonly name = 'commentThread';
 	readonly when = CommentContextKeys.commentFocused;

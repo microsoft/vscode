@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/path.js';
@@ -57,36 +58,40 @@ export interface IChatReferenceListItem extends IChatContentReference {
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
 
 export class ChatCollapsibleListContentPart extends Disposable implements IChatContentPart {
-	public readonly domNode: HTMLElement;
+	public domNode!: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	private readonly hasFollowingContent: boolean;
+	private hasFollowingContent!: boolean;
 
 	constructor(
 		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
-		labelOverride: string | undefined,
-		context: IChatContentPartRenderContext,
-		contentReferencesListPool: CollapsibleListPool,
-		@IOpenerService openerService: IOpenerService,
-		@IMenuService menuService: IMenuService,
+		private readonly labelOverride: IMarkdownString | string | undefined,
+		protected readonly context: IChatContentPartRenderContext,
+		private readonly contentReferencesListPool: CollapsibleListPool,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
-		const element = context.element as IChatResponseViewModel;
-		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
-		const referencesLabel = labelOverride ?? (data.length > 1 ?
-			localize('usedReferencesPlural', "Used {0} references", data.length) :
+		this.init();
+	}
+
+	protected init() {
+		this.hasFollowingContent = this.context.contentIndex + 1 < this.context.content.length;
+		const referencesLabel = this.labelOverride ?? (this.data.length > 1 ?
+			localize('usedReferencesPlural', "Used {0} references", this.data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1));
-		const iconElement = $('.chat-used-context-icon');
-		const icon = (element: IChatResponseViewModel) => element.usedReferencesExpanded ? Codicon.chevronDown : Codicon.chevronRight;
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
+
+		const icon = () => {
+			return this.isExpanded() ? Codicon.chevronDown : Codicon.chevronRight;
+		};
 		const buttonElement = $('.chat-used-context-label', undefined);
 
-		const collapseButton = this._register(new Button(buttonElement, {
+		const collapseButton = this._register(new ButtonWithIcon(buttonElement, {
 			buttonBackground: undefined,
 			buttonBorder: undefined,
 			buttonForeground: undefined,
@@ -98,19 +103,18 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		}));
 		this.domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
-		collapseButton.element.prepend(iconElement);
-		this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
-		this.domNode.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+		collapseButton.icon = icon();
+		this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, this.isExpanded());
+		this.domNode.classList.toggle('chat-used-context-collapsed', !this.isExpanded());
 		this._register(collapseButton.onDidClick(() => {
-			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
-			element.usedReferencesExpanded = !element.usedReferencesExpanded;
-			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
-			this.domNode.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+			this.setExpanded(!this.isExpanded());
+			collapseButton.icon = icon();
+			this.domNode.classList.toggle('chat-used-context-collapsed', !this.isExpanded());
 			this._onDidChangeHeight.fire();
-			this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
+			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, this.isExpanded());
 		}));
 
-		const ref = this._register(contentReferencesListPool.get());
+		const ref = this._register(this.contentReferencesListPool.get());
 		const list = ref.object;
 		this.domNode.appendChild(list.getHTMLElement().parentElement!);
 
@@ -120,7 +124,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 				const uri = URI.isUri(uriOrLocation) ? uriOrLocation :
 					uriOrLocation?.uri;
 				if (uri) {
-					openerService.open(
+					this.openerService.open(
 						uri,
 						{
 							fromUserGesture: true,
@@ -146,7 +150,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => {
-					const menu = menuService.getMenuActions(MenuId.ChatAttachmentsContext, list.contextKeyService, { shouldForwardArgs: true, arg: uri });
+					const menu = this.menuService.getMenuActions(MenuId.ChatAttachmentsContext, list.contextKeyService, { shouldForwardArgs: true, arg: uri });
 					return getFlatContextMenuActions(menu);
 				}
 			});
@@ -161,11 +165,11 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		}));
 
 		const maxItemsShown = 6;
-		const itemsShown = Math.min(data.length, maxItemsShown);
+		const itemsShown = Math.min(this.data.length, maxItemsShown);
 		const height = itemsShown * 22;
 		list.layout(height);
 		list.getHTMLElement().style.height = `${height}px`;
-		list.splice(0, list.length, data);
+		list.splice(0, list.length, this.data);
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
@@ -178,6 +182,52 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
+	}
+
+	private _isExpanded = false;
+	protected isExpanded(): boolean {
+		return this._isExpanded;
+	}
+
+	protected setExpanded(value: boolean): void {
+		this._isExpanded = value;
+	}
+}
+
+export interface IChatUsedReferencesListOptions {
+	expandedWhenEmptyResponse?: boolean;
+}
+
+export class ChatUsedReferencesListContentPart extends ChatCollapsibleListContentPart {
+	constructor(
+		data: ReadonlyArray<IChatCollapsibleListItem>,
+		labelOverride: IMarkdownString | string | undefined,
+		context: IChatContentPartRenderContext,
+		contentReferencesListPool: CollapsibleListPool,
+		private readonly options: IChatUsedReferencesListOptions,
+		@IOpenerService openerService: IOpenerService,
+		@IMenuService menuService: IMenuService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+	) {
+		super(data, labelOverride, context, contentReferencesListPool, openerService, menuService, instantiationService, contextMenuService);
+		super.init();
+	}
+
+	protected override init(): void {
+		// prevent it from calling overridden methods until after the constructor runs and this.options is set
+	}
+
+	protected override isExpanded(): boolean {
+		const element = this.context.element as IChatResponseViewModel;
+		return element.usedReferencesExpanded ?? !!(
+			this.options.expandedWhenEmptyResponse && element.response.value.length === 0
+		);
+	}
+
+	protected override setExpanded(value: boolean): void {
+		const element = this.context.element as IChatResponseViewModel;
+		element.usedReferencesExpanded = !this.isExpanded();
 	}
 }
 
@@ -302,7 +352,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		private labels: ResourceLabels,
 		private menuId: MenuId | undefined,
 		@IThemeService private readonly themeService: IThemeService,
-		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -363,12 +412,8 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const label = `Kernel variable`;
 				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description });
 			} else {
-				const variable = this.chatVariablesService.getVariable(reference.variableName);
-				// This is a hack to get chat attachment ThemeIcons to render for resource labels
-				const asThemeIcon = variable?.icon ? `$(${variable.icon.id}) ` : '';
-				const asVariableName = `#${reference.variableName}`; // Fallback, shouldn't really happen
-				const label = `${asThemeIcon}${variable?.fullName ?? asVariableName}`;
-				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description ?? variable?.description });
+				// Nothing else is expected to fall into here
+				templateData.label.setLabel('Unknown variable type');
 			}
 		} else if (typeof reference === 'string') {
 			templateData.label.setLabel(reference, undefined, { iconPath: URI.isUri(icon) ? icon : undefined, title: data.options?.status?.description ?? data.title });
@@ -389,25 +434,15 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
 				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString(), strikethrough: data.excluded, extraClasses });
 			} else {
-				if (data.state === WorkingSetEntryState.Transient || data.state === WorkingSetEntryState.Suggested) {
-					templateData.label.setResource(
-						{
-							resource: uri,
-							name: basenameOrAuthority(uri),
-							description: data.description ?? localize('chat.openEditor', 'Open Editor'),
-							range: 'range' in reference ? reference.range : undefined,
-						}, { icon, title: data.options?.status?.description ?? data.title, italic: data.state === WorkingSetEntryState.Suggested, strikethrough: data.excluded, extraClasses });
-				} else {
-					templateData.label.setFile(uri, {
-						fileKind: FileKind.FILE,
-						// Should not have this live-updating data on a historical reference
-						fileDecorations: undefined,
-						range: 'range' in reference ? reference.range : undefined,
-						title: data.options?.status?.description ?? data.title,
-						strikethrough: data.excluded,
-						extraClasses
-					});
-				}
+				templateData.label.setFile(uri, {
+					fileKind: FileKind.FILE,
+					// Should not have this live-updating data on a historical reference
+					fileDecorations: undefined,
+					range: 'range' in reference ? reference.range : undefined,
+					title: data.options?.status?.description ?? data.title,
+					strikethrough: data.excluded,
+					extraClasses
+				});
 			}
 		}
 
@@ -435,8 +470,10 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			if (templateData.toolbar) {
 				templateData.toolbar.context = arg;
 			}
-			if (templateData.contextKeyService && data.state !== undefined) {
-				chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+			if (templateData.contextKeyService) {
+				if (data.state !== undefined) {
+					chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+				}
 			}
 		}
 	}

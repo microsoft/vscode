@@ -131,6 +131,10 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		this._activeShellIntegrations.get(instanceId)?.emitData(data);
 	}
 
+	public $shellEnvChange(instanceId: number, shellEnvKeys: string[], shellEnvValues: string[], isTrusted: boolean): void {
+		this._activeShellIntegrations.get(instanceId)?.setEnv(shellEnvKeys, shellEnvValues, isTrusted);
+	}
+
 	public $cwdChange(instanceId: number, cwd: UriComponents | undefined): void {
 		this._activeShellIntegrations.get(instanceId)?.setCwd(URI.revive(cwd));
 	}
@@ -147,6 +151,7 @@ class InternalTerminalShellIntegration extends Disposable {
 	get currentExecution(): InternalTerminalShellExecution | undefined { return this._currentExecution; }
 
 	private _ignoreNextExecution: boolean = false;
+	private _env: vscode.TerminalShellIntegrationEnvironment | undefined;
 	private _cwd: URI | undefined;
 
 	readonly store: DisposableStore = this._register(new DisposableStore());
@@ -170,6 +175,9 @@ class InternalTerminalShellIntegration extends Disposable {
 		this.value = {
 			get cwd(): URI | undefined {
 				return that._cwd;
+			},
+			get env(): vscode.TerminalShellIntegrationEnvironment | undefined {
+				return that._env;
 			},
 			// executeCommand(commandLine: string): vscode.TerminalShellExecution;
 			// executeCommand(executable: string, args: string[]): vscode.TerminalShellExecution;
@@ -227,9 +235,27 @@ class InternalTerminalShellIntegration extends Disposable {
 	endShellExecution(commandLine: vscode.TerminalShellExecutionCommandLine | undefined, exitCode: number | undefined): void {
 		if (this._currentExecution) {
 			this._currentExecution.endExecution(commandLine);
-			this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: this._currentExecution.value, exitCode });
-			this._currentExecution = undefined;
+			const currentExecution = this._currentExecution;
+			// IMPORTANT: Ensure the current execution's data events are flushed in order to
+			// prevent data events firing after the end event fires.
+			currentExecution.flush().then(() => {
+				// Only fire if it's still the same execution, if it's changed it would have already
+				// been fired.
+				if (this._currentExecution === currentExecution) {
+					this._onDidRequestEndExecution.fire({ terminal: this._terminal, shellIntegration: this.value, execution: currentExecution.value, exitCode });
+					this._currentExecution = undefined;
+				}
+			});
 		}
+	}
+
+	setEnv(keys: string[], values: string[], isTrusted: boolean): void {
+		const env: { [key: string]: string | undefined } = {};
+		for (let i = 0; i < keys.length; i++) {
+			env[keys[i]] = values[i];
+		}
+		this._env = { value: env, isTrusted };
+		this._fireChangeEvent();
 	}
 
 	setCwd(cwd: URI | undefined): void {
@@ -241,8 +267,12 @@ class InternalTerminalShellIntegration extends Disposable {
 		}
 		if (wasChanged) {
 			this._cwd = cwd;
-			this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
+			this._fireChangeEvent();
 		}
+	}
+
+	private _fireChangeEvent() {
+		this._onDidRequestChangeShellIntegration.fire({ terminal: this._terminal, shellIntegration: this.value });
 	}
 }
 
@@ -293,10 +323,15 @@ class InternalTerminalShellExecution {
 		this._dataStream = undefined;
 		this._ended = true;
 	}
+
+	async flush(): Promise<void> {
+		await this._dataStream?.flush();
+	}
 }
 
 class ShellExecutionDataStream extends Disposable {
 	private _barrier: Barrier | undefined;
+	private _iterables: AsyncIterableObject<string>[] = [];
 	private _emitters: AsyncIterableEmitter<string>[] = [];
 
 	createIterable(): AsyncIterable<string> {
@@ -308,6 +343,7 @@ class ShellExecutionDataStream extends Disposable {
 			this._emitters.push(emitter);
 			await barrier.wait();
 		});
+		this._iterables.push(iterable);
 		return iterable;
 	}
 
@@ -320,5 +356,9 @@ class ShellExecutionDataStream extends Disposable {
 	endExecution(): void {
 		this._barrier?.open();
 		this._barrier = undefined;
+	}
+
+	async flush(): Promise<void> {
+		await Promise.all(this._iterables.map(e => e.toPromise()));
 	}
 }

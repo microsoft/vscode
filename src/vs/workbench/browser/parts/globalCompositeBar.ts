@@ -67,7 +67,7 @@ export class GlobalCompositeBar extends Disposable {
 	) {
 		super();
 
-		this.element = document.createElement('div');
+		this.element = $('div');
 		const contextMenuAlignmentOptions = () => ({
 			anchorAlignment: configurationService.getValue('workbench.sideBar.location') === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
 			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL

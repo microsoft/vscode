@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../nls.js';
-import { IDisposable, combinedDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -19,14 +19,13 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { disposableWindowInterval } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -77,27 +76,31 @@ export interface IExtensionUrlHandler {
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
 }
 
-export interface ExtensionUrlHandlerEvent {
-	readonly extensionId: string;
+export interface IExtensionUrlHandlerOverride {
+	canHandleURL(uri: URI): boolean;
+	handleURL(uri: URI): Promise<boolean>;
 }
 
-type ExtensionUrlHandlerClassification = {
-	owner: 'joaomoreno';
-	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
-	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
-};
+export class ExtensionUrlHandlerOverrideRegistry {
 
-interface ExtensionUrlReloadHandlerEvent {
-	readonly extensionId: string;
-	readonly isRemote: boolean;
+	private static readonly handlers = new Set<IExtensionUrlHandlerOverride>();
+
+	static registerHandler(handler: IExtensionUrlHandlerOverride): IDisposable {
+		this.handlers.add(handler);
+
+		return toDisposable(() => this.handlers.delete(handler));
+	}
+
+	static getHandler(uri: URI): IExtensionUrlHandlerOverride | undefined {
+		for (const handler of this.handlers) {
+			if (handler.canHandleURL(uri)) {
+				return handler;
+			}
+		}
+
+		return undefined;
+	}
 }
-
-type ExtensionUrlReloadHandlerClassification = {
-	owner: 'sandy081';
-	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
-	readonly isRemote: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Whether the current window is a remote window' };
-	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
-};
 
 /**
  * This class handles URLs which are directed towards extensions.
@@ -125,10 +128,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
@@ -153,8 +154,15 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			return false;
 		}
 
+		const overrideHandler = ExtensionUrlHandlerOverrideRegistry.getHandler(uri);
+		if (overrideHandler) {
+			const handled = await overrideHandler.handleURL(uri);
+			if (handled) {
+				return handled;
+			}
+		}
+
 		const extensionId = uri.authority;
-		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/start', { extensionId });
 
 		const initialHandler = this.extensionHandlers.get(ExtensionIdentifier.toKey(extensionId));
 		let extensionDisplayName: string;
@@ -177,10 +185,11 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {
-			let uriString = uri.toString(false);
+			const uriString = uri.toString(false);
+			let uriLabel = uriString;
 
-			if (uriString.length > 40) {
-				uriString = `${uriString.substring(0, 30)}...${uriString.substring(uriString.length - 5)}`;
+			if (uriLabel.length > 40) {
+				uriLabel = `${uriLabel.substring(0, 30)}...${uriLabel.substring(uriLabel.length - 5)}`;
 			}
 
 			const result = await this.dialogService.confirm({
@@ -188,12 +197,15 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				checkbox: {
 					label: localize('rememberConfirmUrl', "Do not ask me again for this extension"),
 				},
-				detail: uriString,
-				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")
+				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+				custom: {
+					markdownDetails: [{
+						markdown: new MarkdownString(`<div title="${uriString}" aria-label='${uriString}'>${uriLabel}</div>`, { supportHtml: true }),
+					}]
+				}
 			});
 
 			if (!result.confirmed) {
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/cancel', { extensionId });
 				return true;
 			}
 
@@ -248,14 +260,10 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private async handleURLByExtension(extensionId: ExtensionIdentifier | string, handler: IURLHandler, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/end', { extensionId: ExtensionIdentifier.toKey(extensionId) });
 		return await handler.handleURL(uri, options);
 	}
 
 	private async handleUnhandledURL(uri: URI, extensionId: string, options?: IOpenURLOptions): Promise<void> {
-
-		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/start', { extensionId });
-
 		try {
 			await this.commandService.executeCommand('workbench.extensions.installExtension', extensionId, {
 				justification: {
@@ -264,12 +272,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				},
 				enable: true
 			});
-			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/accept', { extensionId });
 		} catch (error) {
-			if (isCancellationError(error)) {
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/cancel', { extensionId });
-			} else {
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/error', { extensionId });
+			if (!isCancellationError(error)) {
 				this.notificationService.error(error);
 			}
 			return;
@@ -283,7 +287,6 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		/* Extension cannot be added and require window reload */
 		else {
-			this.telemetryService.publicLog2<ExtensionUrlReloadHandlerEvent, ExtensionUrlReloadHandlerClassification>('uri_invoked/install_extension/reload', { extensionId, isRemote: !!this.workbenchEnvironmentService.remoteAuthority });
 			const result = await this.dialogService.confirm({
 				message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extensionId),
 				primaryButton: localize({ key: 'reloadAndOpen', comment: ['&& denotes a mnemonic'] }, "&&Reload Window and Open")

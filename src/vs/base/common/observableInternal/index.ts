@@ -11,13 +11,13 @@ export { asyncTransaction, disposableObservableValue, globalTransaction, observa
 export { derived, derivedDisposable, derivedHandleChanges, derivedOpts, derivedWithSetter, derivedWithStore } from './derived.js';
 export { ObservableLazy, ObservableLazyPromise, ObservablePromise, PromiseResult, } from './promise.js';
 export { derivedWithCancellationToken, waitForState } from './utilsCancellation.js';
-export { constObservable, debouncedObservable, derivedConstOnceDefined, derivedObservableWithCache, derivedObservableWithWritableCache, keepObserved, latestChangedValue, mapObservableArrayCached, observableFromEvent, observableFromEventOpts, observableFromPromise, observableFromValueWithChangeEvent, observableSignal, observableSignalFromEvent, recomputeInitiallyAndOnChange, runOnChange, runOnChangeWithStore, signalFromObservable, ValueWithChangeEventFromObservable, wasEventTriggeredRecently, type IObservableSignal, } from './utils.js';
+export { constObservable, debouncedObservableDeprecated, derivedConstOnceDefined, derivedObservableWithCache, derivedObservableWithWritableCache, keepObserved, latestChangedValue, mapObservableArrayCached, observableFromEvent, observableFromEventOpts, observableFromPromise, observableFromValueWithChangeEvent, observableSignal, observableSignalFromEvent, recomputeInitiallyAndOnChange, runOnChange, runOnChangeWithStore, signalFromObservable, ValueWithChangeEventFromObservable, wasEventTriggeredRecently, type IObservableSignal, } from './utils.js';
 export { type DebugOwner } from './debugName.js';
 
-import {
-	ConsoleObservableLogger,
-	setLogger
-} from './logging.js';
+import { addLogger, setLogObservableFn } from './logging/logging.js';
+import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
+
+setLogObservableFn(logObservableToConsole);
 
 // Remove "//" in the next line to enable logging
 const enableLogging = false
@@ -25,5 +25,5 @@ const enableLogging = false
 	;
 
 if (enableLogging) {
-	setLogger(new ConsoleObservableLogger());
+	addLogger(new ConsoleObservableLogger());
 }

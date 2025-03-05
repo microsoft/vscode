@@ -24,11 +24,11 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { TerminalCommandId } from '../../terminal/common/terminal.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -114,15 +114,13 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			&& !this.storageService.get(telemetryOptOutStorageKey, StorageScope.PROFILE)
 		) {
 			this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
-			await this.openGettingStarted(true);
-			return;
 		}
 
 		if (this.tryOpenWalkthroughForFolder()) {
 			return;
 		}
 
-		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService);
+		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService, this.logService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
@@ -131,19 +129,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
 				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
 
-
-				const isStartupEditorReadme = startupEditorSetting.value === 'readme';
-				const isStartupEditorUserReadme = startupEditorSetting.userValue === 'readme';
-				const isStartupEditorDefaultReadme = startupEditorSetting.defaultValue === 'readme';
-
-				// 'readme' should not be set in workspace settings to prevent tracking,
-				// but it can be set as a default (as in codespaces or from configurationDefaults) or a user setting
-				if (isStartupEditorReadme && (!isStartupEditorUserReadme || !isStartupEditorDefaultReadme)) {
-					this.logService.warn(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditorSetting.userValue}, default=${startupEditorSetting.defaultValue})`);
-				}
-
-				const openWithReadme = isStartupEditorReadme && (isStartupEditorUserReadme || isStartupEditorDefaultReadme);
-				if (openWithReadme) {
+				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
 					await this.openGettingStarted();
@@ -222,7 +208,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	}
 }
 
-function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
+function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService, logService: ILogService) {
 	if (environmentService.skipWelcome) {
 		return false;
 	}
@@ -235,8 +221,12 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 		}
 	}
 
+	if (startupEditor.value !== startupEditor.userRemoteValue) {
+		logService.trace(`Startup editor is configured to be "${startupEditor.value}". This setting will be overridden by "${startupEditor.userRemoteValue}".`);
+	}
+
 	return startupEditor.value === 'welcomePage'
-		|| startupEditor.value === 'readme' && (startupEditor.userValue === 'readme' || startupEditor.defaultValue === 'readme')
+		|| startupEditor.value === 'readme'
 		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && startupEditor.value === 'welcomePageInEmptyWorkbench')
 		|| startupEditor.value === 'terminal';
 }

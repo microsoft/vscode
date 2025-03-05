@@ -14,7 +14,7 @@ import * as nls from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalTabAction, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IEnvironmentVariableInfo } from './environmentVariable.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
@@ -179,6 +179,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
+	windowsUseConptyDll?: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];
@@ -207,9 +208,10 @@ export interface ITerminalConfiguration {
 	smoothScrolling: boolean;
 	ignoreBracketedPasteMode: boolean;
 	rescaleOverlappingGlyphs: boolean;
-	fontLigatures?: boolean;
-	experimental?: {
-		windowsUseConptyDll?: boolean;
+	fontLigatures?: {
+		enabled: boolean;
+		featureSettings: string;
+		fallbackLigatures: string[];
 	};
 	hideOnLastClosed: boolean;
 }
@@ -236,6 +238,7 @@ export interface IRemoteTerminalAttachTarget {
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	shellIntegrationNonce: string;
+	tabActions?: ITerminalTabAction[];
 }
 
 export interface IBeforeProcessDataEvent {
@@ -274,6 +277,8 @@ export interface ITerminalProcessInfo {
 export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProcessManager): t is ITerminalProcessManager => typeof (t as ITerminalProcessManager).write === 'function';
 
 export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
+	readonly processTraits: IProcessReadyEvent | undefined;
+
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
 
@@ -529,6 +534,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.Toggle,
 	TerminalCommandId.FocusHover,
 	AccessibilityCommandId.OpenAccessibilityHelp,
+	'workbench.action.tasks.rerunForActiveTerminal',
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',
@@ -567,6 +573,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.previousPanelView',
 	'workbench.action.nextSideBarView',
 	'workbench.action.previousSideBarView',
+	'workbench.action.debug.disconnect',
 	'workbench.action.debug.start',
 	'workbench.action.debug.stop',
 	'workbench.action.debug.run',

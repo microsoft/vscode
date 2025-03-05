@@ -167,13 +167,14 @@ export const enum SyncResource {
 	Settings = 'settings',
 	Keybindings = 'keybindings',
 	Snippets = 'snippets',
+	Prompts = 'prompts',
 	Tasks = 'tasks',
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
 	Profiles = 'profiles',
 	WorkspaceState = 'workspaceState',
 }
-export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState, SyncResource.Profiles];
+export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Prompts, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState, SyncResource.Profiles];
 
 export function getPathSegments(collection: string | undefined, ...paths: string[]): string[] {
 	return collection ? [collection, ...paths] : paths;
@@ -531,7 +532,7 @@ export interface IUserDataSyncEnablementService {
 	setEnablement(enabled: boolean): void;
 
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
-	isResourceEnabled(resource: SyncResource): boolean;
+	isResourceEnabled(resource: SyncResource, defaultValue?: boolean): boolean;
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
 
 	getResourceSyncStateVersion(resource: SyncResource): string | undefined;
@@ -601,13 +602,15 @@ export interface IUserDataSyncResourceProviderService {
 	resolveUserDataSyncResource(syncResourceHandle: ISyncResourceHandle): IUserDataSyncResource | undefined;
 }
 
+export type SyncOptions = { immediately?: boolean; skipIfSyncedRecently?: boolean; disableCache?: boolean };
+
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
 	turnOn(): Promise<void>;
 	turnOff(everywhere: boolean): Promise<void>;
-	triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void>;
+	triggerSync(sources: string[], options?: SyncOptions): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');

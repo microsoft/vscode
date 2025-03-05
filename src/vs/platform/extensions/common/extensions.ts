@@ -111,9 +111,10 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string | undefined;
 	readonly media:
-	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never }
-	| { markdown: string; image?: never; svg?: never }
-	| { svg: string; altText: string; markdown?: never; image?: never };
+	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never; video?: never }
+	| { markdown: string; image?: never; svg?: never; video?: never }
+	| { svg: string; altText: string; markdown?: never; image?: never; video?: never }
+	| { video: string | { dark: string; light: string; hc: string }; poster: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; image?: never; svg?: never };
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };

@@ -139,7 +139,7 @@ export class OpenScmGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: '_workbench.openScmMultiDiffEditor',
-			title: localize2('viewChanges', 'View Changes'),
+			title: localize2('openChanges', 'Open Changes'),
 			f1: false
 		});
 	}

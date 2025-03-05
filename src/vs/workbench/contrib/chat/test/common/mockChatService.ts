@@ -14,6 +14,7 @@ import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequest
 export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
+	onDidSubmitRequest: Event<{ chatSessionId: string }> = Event.None;
 
 	private sessions = new Map<string, IChatModel>();
 
@@ -26,7 +27,7 @@ export class MockChatService implements IChatService {
 	getProviderInfos(): IChatProviderInfo[] {
 		throw new Error('Method not implemented.');
 	}
-	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel | undefined {
+	startSession(location: ChatAgentLocation, token: CancellationToken): ChatModel {
 		throw new Error('Method not implemented.');
 	}
 	addSession(session: IChatModel): void {

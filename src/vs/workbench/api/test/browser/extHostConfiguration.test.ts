@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ExtHostWorkspace } from '../../common/extHostWorkspace.js';
-import { ExtHostConfigProvider } from '../../common/extHostConfiguration.js';
+import { ConfigurationInspect, ExtHostConfigProvider } from '../../common/extHostConfiguration.js';
 import { MainThreadConfigurationShape, IConfigurationInitData } from '../../common/extHost.protocol.js';
 import { ConfigurationModel, ConfigurationModelParser } from '../../../../platform/configuration/common/configurationModels.js';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
@@ -47,7 +47,8 @@ suite('ExtHostConfiguration', function () {
 			defaults: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
 			policy: ConfigurationModel.createEmptyModel(new NullLogService()),
 			application: ConfigurationModel.createEmptyModel(new NullLogService()),
-			user: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
+			userLocal: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
+			userRemote: ConfigurationModel.createEmptyModel(new NullLogService()),
 			workspace: ConfigurationModel.createEmptyModel(new NullLogService()),
 			folders: [],
 			configurationScopes: []
@@ -282,16 +283,29 @@ suite('ExtHostConfiguration', function () {
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
-						'wordWrap': 'off'
+						'wordWrap': 'off',
+						'lineNumbers': 'on',
+						'fontSize': '12px'
 					}
 				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
 				application: ConfigurationModel.createEmptyModel(new NullLogService()),
-				user: new ConfigurationModel({
+				userLocal: new ConfigurationModel({
 					'editor': {
-						'wordWrap': 'on'
+						'wordWrap': 'on',
+						'lineNumbers': 'off'
 					}
-				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				}, ['editor.wordWrap', 'editor.lineNumbers'], [], undefined, new NullLogService()),
+				userRemote: new ConfigurationModel({
+					'editor': {
+						'lineNumbers': 'relative'
+					}
+				}, ['editor.lineNumbers'], [], {
+					'editor': {
+						'lineNumbers': 'relative',
+						'fontSize': '14px'
+					}
+				}, new NullLogService()),
 				workspace: new ConfigurationModel({}, [], [], undefined, new NullLogService()),
 				folders: [],
 				configurationScopes: []
@@ -299,15 +313,37 @@ suite('ExtHostConfiguration', function () {
 			new NullLogService()
 		);
 
-		let actual = testObject.getConfiguration().inspect('editor.wordWrap')!;
+		let actual: ConfigurationInspect<string> = testObject.getConfiguration().inspect('editor.wordWrap')!;
 		assert.strictEqual(actual.defaultValue, 'off');
+		assert.strictEqual(actual.globalLocalValue, 'on');
+		assert.strictEqual(actual.globalRemoteValue, undefined);
 		assert.strictEqual(actual.globalValue, 'on');
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 
 		actual = testObject.getConfiguration('editor').inspect('wordWrap')!;
 		assert.strictEqual(actual.defaultValue, 'off');
+		assert.strictEqual(actual.globalLocalValue, 'on');
+		assert.strictEqual(actual.globalRemoteValue, undefined);
 		assert.strictEqual(actual.globalValue, 'on');
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+
+		actual = testObject.getConfiguration('editor').inspect('lineNumbers')!;
+		assert.strictEqual(actual.defaultValue, 'on');
+		assert.strictEqual(actual.globalLocalValue, 'off');
+		assert.strictEqual(actual.globalRemoteValue, 'relative');
+		assert.strictEqual(actual.globalValue, 'relative');
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+
+		assert.strictEqual(testObject.getConfiguration('editor').get('fontSize'), '12px');
+
+		actual = testObject.getConfiguration('editor').inspect('fontSize')!;
+		assert.strictEqual(actual.defaultValue, '12px');
+		assert.strictEqual(actual.globalLocalValue, undefined);
+		assert.strictEqual(actual.globalRemoteValue, '14px');
+		assert.strictEqual(actual.globalValue, undefined);
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 	});
@@ -338,11 +374,12 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
 				application: ConfigurationModel.createEmptyModel(new NullLogService()),
-				user: new ConfigurationModel({
+				userLocal: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
 				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				userRemote: ConfigurationModel.createEmptyModel(new NullLogService()),
 				workspace,
 				folders,
 				configurationScopes: []
@@ -350,26 +387,34 @@ suite('ExtHostConfiguration', function () {
 			new NullLogService()
 		);
 
-		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap')!;
+		let actual1: ConfigurationInspect<string> = testObject.getConfiguration().inspect('editor.wordWrap')!;
 		assert.strictEqual(actual1.defaultValue, 'off');
+		assert.strictEqual(actual1.globalLocalValue, 'on');
+		assert.strictEqual(actual1.globalRemoteValue, undefined);
 		assert.strictEqual(actual1.globalValue, 'on');
 		assert.strictEqual(actual1.workspaceValue, 'bounded');
 		assert.strictEqual(actual1.workspaceFolderValue, undefined);
 
 		actual1 = testObject.getConfiguration('editor').inspect('wordWrap')!;
 		assert.strictEqual(actual1.defaultValue, 'off');
+		assert.strictEqual(actual1.globalLocalValue, 'on');
+		assert.strictEqual(actual1.globalRemoteValue, undefined);
 		assert.strictEqual(actual1.globalValue, 'on');
 		assert.strictEqual(actual1.workspaceValue, 'bounded');
 		assert.strictEqual(actual1.workspaceFolderValue, undefined);
 
-		let actual2 = testObject.getConfiguration(undefined, workspaceUri).inspect('editor.wordWrap')!;
+		let actual2: ConfigurationInspect<string> = testObject.getConfiguration(undefined, workspaceUri).inspect('editor.wordWrap')!;
 		assert.strictEqual(actual2.defaultValue, 'off');
+		assert.strictEqual(actual2.globalLocalValue, 'on');
+		assert.strictEqual(actual2.globalRemoteValue, undefined);
 		assert.strictEqual(actual2.globalValue, 'on');
 		assert.strictEqual(actual2.workspaceValue, 'bounded');
 		assert.strictEqual(actual2.workspaceFolderValue, 'bounded');
 
 		actual2 = testObject.getConfiguration('editor', workspaceUri).inspect('wordWrap')!;
 		assert.strictEqual(actual2.defaultValue, 'off');
+		assert.strictEqual(actual2.globalLocalValue, 'on');
+		assert.strictEqual(actual2.globalRemoteValue, undefined);
 		assert.strictEqual(actual2.globalValue, 'on');
 		assert.strictEqual(actual2.workspaceValue, 'bounded');
 		assert.strictEqual(actual2.workspaceFolderValue, 'bounded');
@@ -417,11 +462,12 @@ suite('ExtHostConfiguration', function () {
 				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
 				application: ConfigurationModel.createEmptyModel(new NullLogService()),
-				user: new ConfigurationModel({
+				userLocal: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
 				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				userRemote: ConfigurationModel.createEmptyModel(new NullLogService()),
 				workspace,
 				folders,
 				configurationScopes: []
@@ -429,57 +475,75 @@ suite('ExtHostConfiguration', function () {
 			new NullLogService()
 		);
 
-		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap')!;
+		let actual1: ConfigurationInspect<string> = testObject.getConfiguration().inspect('editor.wordWrap')!;
 		assert.strictEqual(actual1.defaultValue, 'off');
 		assert.strictEqual(actual1.globalValue, 'on');
+		assert.strictEqual(actual1.globalLocalValue, 'on');
+		assert.strictEqual(actual1.globalRemoteValue, undefined);
 		assert.strictEqual(actual1.workspaceValue, 'bounded');
 		assert.strictEqual(actual1.workspaceFolderValue, undefined);
 
 		actual1 = testObject.getConfiguration('editor').inspect('wordWrap')!;
 		assert.strictEqual(actual1.defaultValue, 'off');
 		assert.strictEqual(actual1.globalValue, 'on');
+		assert.strictEqual(actual1.globalLocalValue, 'on');
+		assert.strictEqual(actual1.globalRemoteValue, undefined);
 		assert.strictEqual(actual1.workspaceValue, 'bounded');
 		assert.strictEqual(actual1.workspaceFolderValue, undefined);
 
 		actual1 = testObject.getConfiguration('editor').inspect('lineNumbers')!;
 		assert.strictEqual(actual1.defaultValue, 'on');
 		assert.strictEqual(actual1.globalValue, undefined);
+		assert.strictEqual(actual1.globalLocalValue, undefined);
+		assert.strictEqual(actual1.globalRemoteValue, undefined);
 		assert.strictEqual(actual1.workspaceValue, undefined);
 		assert.strictEqual(actual1.workspaceFolderValue, undefined);
 
-		let actual2 = testObject.getConfiguration(undefined, firstRoot).inspect('editor.wordWrap')!;
+		let actual2: ConfigurationInspect<string> = testObject.getConfiguration(undefined, firstRoot).inspect('editor.wordWrap')!;
 		assert.strictEqual(actual2.defaultValue, 'off');
 		assert.strictEqual(actual2.globalValue, 'on');
+		assert.strictEqual(actual2.globalLocalValue, 'on');
+		assert.strictEqual(actual2.globalRemoteValue, undefined);
 		assert.strictEqual(actual2.workspaceValue, 'bounded');
 		assert.strictEqual(actual2.workspaceFolderValue, 'off');
 
 		actual2 = testObject.getConfiguration('editor', firstRoot).inspect('wordWrap')!;
 		assert.strictEqual(actual2.defaultValue, 'off');
 		assert.strictEqual(actual2.globalValue, 'on');
+		assert.strictEqual(actual2.globalLocalValue, 'on');
+		assert.strictEqual(actual2.globalRemoteValue, undefined);
 		assert.strictEqual(actual2.workspaceValue, 'bounded');
 		assert.strictEqual(actual2.workspaceFolderValue, 'off');
 
 		actual2 = testObject.getConfiguration('editor', firstRoot).inspect('lineNumbers')!;
 		assert.strictEqual(actual2.defaultValue, 'on');
 		assert.strictEqual(actual2.globalValue, undefined);
+		assert.strictEqual(actual2.globalLocalValue, undefined);
+		assert.strictEqual(actual2.globalRemoteValue, undefined);
 		assert.strictEqual(actual2.workspaceValue, undefined);
 		assert.strictEqual(actual2.workspaceFolderValue, 'relative');
 
 		actual2 = testObject.getConfiguration(undefined, secondRoot).inspect('editor.wordWrap')!;
 		assert.strictEqual(actual2.defaultValue, 'off');
 		assert.strictEqual(actual2.globalValue, 'on');
+		assert.strictEqual(actual2.globalLocalValue, 'on');
+		assert.strictEqual(actual2.globalRemoteValue, undefined);
 		assert.strictEqual(actual2.workspaceValue, 'bounded');
 		assert.strictEqual(actual2.workspaceFolderValue, 'on');
 
 		actual2 = testObject.getConfiguration('editor', secondRoot).inspect('wordWrap')!;
 		assert.strictEqual(actual2.defaultValue, 'off');
 		assert.strictEqual(actual2.globalValue, 'on');
+		assert.strictEqual(actual2.globalLocalValue, 'on');
+		assert.strictEqual(actual2.globalRemoteValue, undefined);
 		assert.strictEqual(actual2.workspaceValue, 'bounded');
 		assert.strictEqual(actual2.workspaceFolderValue, 'on');
 
 		actual2 = testObject.getConfiguration(undefined, thirdRoot).inspect('editor.wordWrap')!;
 		assert.strictEqual(actual2.defaultValue, 'off');
 		assert.strictEqual(actual2.globalValue, 'on');
+		assert.strictEqual(actual2.globalLocalValue, 'on');
+		assert.strictEqual(actual2.globalRemoteValue, undefined);
 		assert.strictEqual(actual2.workspaceValue, 'bounded');
 		assert.ok(Object.keys(actual2).indexOf('workspaceFolderValue') !== -1);
 		assert.strictEqual(actual2.workspaceFolderValue, undefined);
@@ -487,6 +551,8 @@ suite('ExtHostConfiguration', function () {
 		actual2 = testObject.getConfiguration('editor', thirdRoot).inspect('wordWrap')!;
 		assert.strictEqual(actual2.defaultValue, 'off');
 		assert.strictEqual(actual2.globalValue, 'on');
+		assert.strictEqual(actual2.globalLocalValue, 'on');
+		assert.strictEqual(actual2.globalRemoteValue, undefined);
 		assert.strictEqual(actual2.workspaceValue, 'bounded');
 		assert.ok(Object.keys(actual2).indexOf('workspaceFolderValue') !== -1);
 		assert.strictEqual(actual2.workspaceFolderValue, undefined);
@@ -522,12 +588,13 @@ suite('ExtHostConfiguration', function () {
 				}),
 				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
 				application: ConfigurationModel.createEmptyModel(new NullLogService()),
-				user: toConfigurationModel({
+				userLocal: toConfigurationModel({
 					'editor.wordWrap': 'bounded',
 					'[typescript]': {
 						'editor.lineNumbers': 'off',
 					}
 				}),
+				userRemote: ConfigurationModel.createEmptyModel(new NullLogService()),
 				workspace: toConfigurationModel({
 					'[typescript]': {
 						'editor.wordWrap': 'unbounded',
@@ -540,9 +607,11 @@ suite('ExtHostConfiguration', function () {
 			new NullLogService()
 		);
 
-		let actual = testObject.getConfiguration(undefined, { uri: firstRoot, languageId: 'typescript' }).inspect('editor.wordWrap')!;
+		let actual: ConfigurationInspect<string> = testObject.getConfiguration(undefined, { uri: firstRoot, languageId: 'typescript' }).inspect('editor.wordWrap')!;
 		assert.strictEqual(actual.defaultValue, 'off');
 		assert.strictEqual(actual.globalValue, 'bounded');
+		assert.strictEqual(actual.globalLocalValue, 'bounded');
+		assert.strictEqual(actual.globalRemoteValue, undefined);
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, 'bounded');
 		assert.strictEqual(actual.defaultLanguageValue, undefined);
@@ -554,6 +623,8 @@ suite('ExtHostConfiguration', function () {
 		actual = testObject.getConfiguration(undefined, { uri: secondRoot, languageId: 'typescript' }).inspect('editor.wordWrap')!;
 		assert.strictEqual(actual.defaultValue, 'off');
 		assert.strictEqual(actual.globalValue, 'bounded');
+		assert.strictEqual(actual.globalLocalValue, 'bounded');
+		assert.strictEqual(actual.globalRemoteValue, undefined);
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.strictEqual(actual.defaultLanguageValue, undefined);
@@ -582,12 +653,13 @@ suite('ExtHostConfiguration', function () {
 						'wordWrap': 'on'
 					}
 				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
-				user: new ConfigurationModel({
+				userLocal: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'auto',
 						'lineNumbers': 'off'
 					}
 				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				userRemote: ConfigurationModel.createEmptyModel(new NullLogService()),
 				workspace: new ConfigurationModel({}, [], [], undefined, new NullLogService()),
 				folders: [],
 				configurationScopes: []
@@ -595,9 +667,11 @@ suite('ExtHostConfiguration', function () {
 			new NullLogService()
 		);
 
-		let actual = testObject.getConfiguration().inspect('editor.wordWrap')!;
+		let actual: ConfigurationInspect<string> = testObject.getConfiguration().inspect('editor.wordWrap')!;
 		assert.strictEqual(actual.defaultValue, 'off');
 		assert.strictEqual(actual.globalValue, 'auto');
+		assert.strictEqual(actual.globalLocalValue, 'auto');
+		assert.strictEqual(actual.globalRemoteValue, undefined);
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.strictEqual(testObject.getConfiguration().get('editor.wordWrap'), 'auto');
@@ -605,12 +679,16 @@ suite('ExtHostConfiguration', function () {
 		actual = testObject.getConfiguration().inspect('editor.lineNumbers')!;
 		assert.strictEqual(actual.defaultValue, 'on');
 		assert.strictEqual(actual.globalValue, 'off');
+		assert.strictEqual(actual.globalLocalValue, 'off');
+		assert.strictEqual(actual.globalRemoteValue, undefined);
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.strictEqual(testObject.getConfiguration().get('editor.lineNumbers'), 'off');
 
 		actual = testObject.getConfiguration().inspect('editor.fontSize')!;
 		assert.strictEqual(actual.defaultValue, '12px');
+		assert.strictEqual(actual.globalLocalValue, undefined);
+		assert.strictEqual(actual.globalRemoteValue, undefined);
 		assert.strictEqual(actual.globalValue, undefined);
 		assert.strictEqual(actual.workspaceValue, undefined);
 		assert.strictEqual(actual.workspaceFolderValue, undefined);

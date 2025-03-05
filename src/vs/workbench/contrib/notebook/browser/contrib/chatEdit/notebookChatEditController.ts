@@ -11,18 +11,18 @@ import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrow
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { NotebookDeletedCellDecorator, NotebookInsertedCellDecorator, NotebookCellDiffDecorator } from './notebookCellDecorators.js';
-import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer, NotebookModelSynchronizerFactory } from './notebookSynchronizer.js';
-import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
-import { debouncedObservable2 } from '../../../../../../base/common/observableInternal/utils.js';
+import { NotebookCellDiffDecorator } from './notebookCellDecorators.js';
+import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer } from './notebookSynchronizer.js';
+import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
+import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { NotebookChatActionsOverlayController } from './notebookChatActionsOverlay.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
-import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
-import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { ctxNotebookHasEditorModification } from './notebookChatEditContext.js';
+import { NotebookDeletedCellDecorator } from '../../diff/inlineDiff/notebookDeletedCellDecorator.js';
+import { NotebookInsertedCellDecorator } from '../../diff/inlineDiff/notebookInsertedCellDecorator.js';
+import { ChatEditingModifiedDocumentEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 
 export class NotebookChatEditorControllerContrib extends Disposable implements INotebookEditorContribution {
 
@@ -54,7 +54,7 @@ class NotebookChatEditorController extends Disposable {
 	) {
 		super();
 		this._ctxHasEditorModification = ctxNotebookHasEditorModification.bindTo(contextKeyService);
-		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor));
+		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor, undefined));
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
@@ -62,7 +62,7 @@ class NotebookChatEditorController extends Disposable {
 		// https://github.com/microsoft/vscode/issues/234718
 		const readyToRenderViewzones = observableValue<boolean>('viewModelAttached', false);
 		this._register(Event.once(this.notebookEditor.onDidAttachViewModel)(() => readyToRenderViewzones.set(true, undefined)));
-		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
+		const onDidChangeVisibleRanges = debouncedObservable(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
 		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
 
 		let updatedCellDecoratorsOnceBefore = false;
@@ -80,12 +80,13 @@ class NotebookChatEditorController extends Disposable {
 
 		let notebookSynchronizer: IReference<NotebookModelSynchronizer>;
 		const entryObs = derived((r) => {
-			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const model = notebookModel.read(r);
-			if (!model || !session) {
+			if (!model) {
 				return;
 			}
-			return session.readEntry(model.uri, r);
+			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+			const entry = sessions.map(s => s.readEntry(model.uri, r)).find(r => !!r);
+			return entry instanceof ChatEditingModifiedDocumentEntry ? entry : undefined;
 		}).recomputeInitiallyAndOnChange(this._store);
 
 
@@ -208,8 +209,3 @@ class NotebookChatEditorController extends Disposable {
 	}
 
 }
-
-registerNotebookContribution(NotebookChatEditorControllerContrib.ID, NotebookChatEditorControllerContrib);
-registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
-registerSingleton(INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory, InstantiationType.Delayed);
-registerSingleton(INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory, InstantiationType.Delayed);

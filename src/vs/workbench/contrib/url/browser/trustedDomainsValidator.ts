@@ -58,7 +58,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 			resourceUri = resource;
 		}
 
-		if (await this._trustedDomainService.isValid(resourceUri)) {
+		if (this._trustedDomainService.isValid(resourceUri)) {
 			return true;
 		} else {
 			const { scheme, authority, path, query, fragment } = resourceUri;

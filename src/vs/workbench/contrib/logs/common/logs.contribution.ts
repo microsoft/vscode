@@ -9,18 +9,13 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { SetLogLevelAction } from './logsActions.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
-import { IFileService, whenProviderRegistered } from '../../../../platform/files/common/files.js';
-import { IOutputChannelRegistry, IOutputService, Extensions } from '../../../services/output/common/output.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { CONTEXT_LOG_LEVEL, ILogService, ILoggerResource, ILoggerService, LogLevel, LogLevelToString, isLogLevel } from '../../../../platform/log/common/log.js';
+import { IOutputChannelRegistry, IOutputService, Extensions, isMultiSourceOutputChannelDescriptor, isSingleSourceOutputChannelDescriptor } from '../../../services/output/common/output.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CONTEXT_LOG_LEVEL, ILoggerResource, ILoggerService, LogLevel, LogLevelToString, isLogLevel } from '../../../../platform/log/common/log.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { windowLogId, showWindowLogActionId } from '../../../services/log/common/logConstants.js';
-import { createCancelablePromise, timeout } from '../../../../base/common/async.js';
-import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDefaultLogLevelsService } from './defaultLogLevels.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { CounterSet } from '../../../../base/common/map.js';
@@ -58,13 +53,10 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	private readonly contextKeys = new CounterSet<string>();
 	private readonly outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-	private readonly loggerDisposables = this._register(new DisposableMap());
 
 	constructor(
-		@ILogService private readonly logService: ILogService,
 		@ILoggerService private readonly loggerService: ILoggerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -142,56 +134,48 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerLogChannel(logger: ILoggerResource): void {
-		const channel = this.outputChannelRegistry.getChannel(logger.id);
-		if (channel && this.uriIdentityService.extUri.isEqual(channel.file, logger.resource)) {
+		if (logger.group) {
+			this.registerCompoundLogChannel(logger.group.id, logger.group.name, logger);
 			return;
 		}
-		const disposables = new DisposableStore();
-		const promise = createCancelablePromise(async token => {
-			await whenProviderRegistered(logger.resource, this.fileService);
-			try {
-				await this.whenFileExists(logger.resource, 1, token);
-				const existingChannel = this.outputChannelRegistry.getChannel(logger.id);
-				const remoteLogger = existingChannel?.file?.scheme === Schemas.vscodeRemote ? this.loggerService.getRegisteredLogger(existingChannel.file) : undefined;
-				if (remoteLogger) {
-					this.deregisterLogChannel(remoteLogger);
-				}
-				const hasToAppendRemote = existingChannel && logger.resource.scheme === Schemas.vscodeRemote;
-				const id = hasToAppendRemote ? `${logger.id}.remote` : logger.id;
-				const label = hasToAppendRemote ? nls.localize('remote name', "{0} (Remote)", logger.name ?? logger.id) : logger.name ?? logger.id;
-				this.outputChannelRegistry.registerChannel({ id, label, file: logger.resource, log: true, extensionId: logger.extensionId });
-				disposables.add(toDisposable(() => this.outputChannelRegistry.removeChannel(id)));
-				if (remoteLogger) {
-					this.registerLogChannel(remoteLogger);
-				}
-			} catch (error) {
-				if (!isCancellationError(error)) {
-					this.logService.error('Error while registering log channel', logger.resource.toString(), getErrorMessage(error));
-				}
+
+		const channel = this.outputChannelRegistry.getChannel(logger.id);
+		if (channel && isSingleSourceOutputChannelDescriptor(channel) && this.uriIdentityService.extUri.isEqual(channel.source.resource, logger.resource)) {
+			return;
+		}
+
+		const existingChannel = this.outputChannelRegistry.getChannel(logger.id);
+		const remoteLogger = existingChannel && isSingleSourceOutputChannelDescriptor(existingChannel) && existingChannel.source.resource.scheme === Schemas.vscodeRemote ? this.loggerService.getRegisteredLogger(existingChannel.source.resource) : undefined;
+		if (remoteLogger) {
+			this.deregisterLogChannel(remoteLogger);
+		}
+		const hasToAppendRemote = existingChannel && logger.resource.scheme === Schemas.vscodeRemote;
+		const id = hasToAppendRemote ? `${logger.id}.remote` : logger.id;
+		const label = hasToAppendRemote ? nls.localize('remote name', "{0} (Remote)", logger.name ?? logger.id) : logger.name ?? logger.id;
+		this.outputChannelRegistry.registerChannel({ id, label, source: { resource: logger.resource }, log: true, extensionId: logger.extensionId });
+	}
+
+	private registerCompoundLogChannel(id: string, name: string, logger: ILoggerResource): void {
+		const channel = this.outputChannelRegistry.getChannel(id);
+		const source = { resource: logger.resource, name: logger.name ?? logger.id };
+		if (channel) {
+			if (isMultiSourceOutputChannelDescriptor(channel) && !channel.source.some(({ resource }) => this.uriIdentityService.extUri.isEqual(resource, logger.resource))) {
+				this.outputChannelRegistry.updateChannelSources(id, [...channel.source, source]);
 			}
-		});
-		disposables.add(toDisposable(() => promise.cancel()));
-		this.loggerDisposables.set(logger.resource.toString(), disposables);
+		} else {
+			this.outputChannelRegistry.registerChannel({ id, label: name, log: true, source: [source] });
+		}
 	}
 
 	private deregisterLogChannel(logger: ILoggerResource): void {
-		this.loggerDisposables.deleteAndDispose(logger.resource.toString());
-	}
-
-	private async whenFileExists(file: URI, trial: number, token: CancellationToken): Promise<void> {
-		const exists = await this.fileService.exists(file);
-		if (exists) {
-			return;
+		if (logger.group) {
+			const channel = this.outputChannelRegistry.getChannel(logger.group.id);
+			if (channel && isMultiSourceOutputChannelDescriptor(channel)) {
+				this.outputChannelRegistry.updateChannelSources(logger.group.id, channel.source.filter(({ resource }) => !this.uriIdentityService.extUri.isEqual(resource, logger.resource)));
+			}
+		} else {
+			this.outputChannelRegistry.removeChannel(logger.id);
 		}
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		if (trial > 10) {
-			throw new Error(`Timed out while waiting for file to be created`);
-		}
-		this.logService.debug(`[Registering Log Channel] File does not exist. Waiting for 1s to retry.`, file.toString());
-		await timeout(1000, token);
-		await this.whenFileExists(file, trial + 1, token);
 	}
 
 	private registerShowWindowLogAction(): void {
@@ -212,13 +196,4 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-class LogLevelMigration implements IWorkbenchContribution {
-	constructor(
-		@IDefaultLogLevelsService defaultLogLevelsService: IDefaultLogLevelsService
-	) {
-		defaultLogLevelsService.migrateLogLevels();
-	}
-}
-
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Restored);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogLevelMigration, LifecyclePhase.Eventually);

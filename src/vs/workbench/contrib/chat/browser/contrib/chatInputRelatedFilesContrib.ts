@@ -6,18 +6,18 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ChatEditingSessionChangeType, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatRelatedFilesContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.relatedFilesWorkingSet';
 
-	private readonly chatEditingSessionDisposables = new DisposableStore();
+	private readonly chatEditingSessionDisposables = new Map<string, DisposableStore>();
 	private _currentRelatedFilesRetrievalOperation: Promise<void> | undefined;
 
 	constructor(
@@ -26,55 +26,56 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 	) {
 		super();
 
-		this._register(autorun(r => {
-			this.chatEditingSessionDisposables.clear();
-			const session = this.chatEditingService.currentEditingSessionObs.read(r);
-			if (session) {
-				this._handleNewEditingSession(session);
-			}
+		this._register(autorun((reader) => {
+			const sessions = this.chatEditingService.editingSessionsObs.read(reader);
+			sessions.forEach(session => {
+				const widget = this.chatWidgetService.getWidgetBySessionId(session.chatSessionId);
+				if (widget && !this.chatEditingSessionDisposables.has(session.chatSessionId)) {
+					this._handleNewEditingSession(session, widget);
+				}
+			});
 		}));
 	}
 
-	private _updateRelatedFileSuggestions() {
+	private _updateRelatedFileSuggestions(currentEditingSession: IChatEditingSession, widget: IChatWidget) {
 		if (this._currentRelatedFilesRetrievalOperation) {
 			return;
 		}
 
-		const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-		if (!currentEditingSession) {
-			return;
-		}
 		const workingSetEntries = currentEditingSession.entries.get();
-		if (workingSetEntries.length > 0) {
+		if (workingSetEntries.length > 0 || widget.attachmentModel.fileAttachments.length === 0) {
 			// Do this only for the initial working set state
 			return;
 		}
 
-		const widget = this.chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
-		if (!widget) {
-			return;
-		}
-
-		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), CancellationToken.None)
+		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
 			.then((files) => {
-				if (!files?.length) {
+				if (!files?.length || !widget.viewModel?.sessionId) {
 					return;
 				}
 
-				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-				if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get().length) {
+				const currentEditingSession = this.chatEditingService.getEditingSession(widget.viewModel.sessionId);
+				if (!currentEditingSession || currentEditingSession.entries.get().length) {
 					return; // Might have disposed while we were calculating
 				}
 
-				// Pick up to 2 related files, or however many we can still fit in the working set
-				const maximumRelatedFiles = Math.min(2, this.chatEditingService.editingSessionFileLimit - widget.input.chatEditWorkingSetFiles.length);
+				const existingFiles = new ResourceSet(widget.attachmentModel.fileAttachments);
+				if (!existingFiles.size) {
+					return;
+				}
+
+				// Pick up to 2 related files
 				const newSuggestions = new ResourceMap<{ description: string; group: string }>();
 				for (const group of files) {
 					for (const file of group.files) {
-						if (newSuggestions.size >= maximumRelatedFiles) {
+						if (newSuggestions.size >= 2) {
 							break;
 						}
+						if (existingFiles.has(file.uri)) {
+							continue;
+						}
 						newSuggestions.set(file.uri, { group: group.group, description: file.description });
+						existingFiles.add(file.uri);
 					}
 				}
 
@@ -98,29 +99,29 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 
 	}
 
-	private _handleNewEditingSession(currentEditingSession: IChatEditingSession) {
-
-		const widget = this.chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
-		if (!widget || widget.viewModel?.sessionId !== currentEditingSession.chatSessionId) {
-			return;
-		}
-		this.chatEditingSessionDisposables.add(currentEditingSession.onDidDispose(() => {
-			this.chatEditingSessionDisposables.clear();
+	private _handleNewEditingSession(currentEditingSession: IChatEditingSession, widget: IChatWidget) {
+		const disposableStore = new DisposableStore();
+		disposableStore.add(currentEditingSession.onDidDispose(() => {
+			disposableStore.clear();
 		}));
-		this._updateRelatedFileSuggestions();
+		this._updateRelatedFileSuggestions(currentEditingSession, widget);
 		const onDebouncedType = Event.debounce(widget.inputEditor.onDidChangeModelContent, () => null, 3000);
-		this.chatEditingSessionDisposables.add(onDebouncedType(() => {
-			this._updateRelatedFileSuggestions();
+		disposableStore.add(onDebouncedType(() => {
+			this._updateRelatedFileSuggestions(currentEditingSession, widget);
 		}));
-		this.chatEditingSessionDisposables.add(currentEditingSession.onDidChange((e) => {
-			if (e === ChatEditingSessionChangeType.WorkingSet) {
-				this._updateRelatedFileSuggestions();
-			}
+		disposableStore.add(widget.attachmentModel.onDidChangeContext(() => {
+			this._updateRelatedFileSuggestions(currentEditingSession, widget);
 		}));
+		disposableStore.add(currentEditingSession.onDidDispose(() => {
+			disposableStore.dispose();
+		}));
+		this.chatEditingSessionDisposables.set(currentEditingSession.chatSessionId, disposableStore);
 	}
 
 	override dispose() {
-		this.chatEditingSessionDisposables.dispose();
+		for (const store of this.chatEditingSessionDisposables.values()) {
+			store.dispose();
+		}
 		super.dispose();
 	}
 }

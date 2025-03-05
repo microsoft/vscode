@@ -24,7 +24,7 @@ import {
 	ExtensionSignatureVerificationCode,
 	IAllowedExtensionsService
 } from './extensionManagement.js';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from './extensionManagementUtil.js';
+import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, isMalicious } from './extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from '../../extensions/common/extensions.js';
 import { areApiProposalsCompatible } from '../../extensions/common/extensionValidator.js';
 import { ILogService } from '../../log/common/log.js';
@@ -321,7 +321,6 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				const isApplicationScoped = options.isApplicationScoped || options.isBuiltin || isApplicationScopedExtension(manifest);
 				const installExtensionTaskOptions: InstallExtensionTaskOptions = {
 					...options,
-					installOnlyNewlyAddedFromExtensionPack: options.installOnlyNewlyAddedFromExtensionPack ?? !URI.isUri(extension) /* always true for gallery extensions */,
 					isApplicationScoped,
 					profileLocation: isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation(),
 					productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date }
@@ -342,11 +341,13 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 					this.logService.info('Installing the extension without checking dependencies and pack', task.identifier.id);
 				} else {
 					try {
-						const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensions(task.identifier, task.manifest, !!task.options.installOnlyNewlyAddedFromExtensionPack, !!task.options.installPreReleaseVersion, task.options.profileLocation, task.options.productVersion);
+						const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensions(task.identifier, task.manifest, !!task.options.installPreReleaseVersion, task.options.productVersion);
 						const installed = await this.getInstalled(undefined, task.options.profileLocation, task.options.productVersion);
 						const options: InstallExtensionTaskOptions = { ...task.options, context: { ...task.options.context, [EXTENSION_INSTALL_DEP_PACK_CONTEXT]: true } };
 						for (const { gallery, manifest } of distinct(allDepsAndPackExtensionsToInstall, ({ gallery }) => gallery.identifier.id)) {
-							if (installed.some(({ identifier }) => areSameExtensions(identifier, gallery.identifier))) {
+							const existing = installed.find(e => areSameExtensions(e.identifier, gallery.identifier));
+							// Skip if the extension is already installed and has the same application scope
+							if (existing && existing.isApplicationScoped === !!options.isApplicationScoped) {
 								continue;
 							}
 							createInstallExtensionTask(manifest, gallery, options, task);
@@ -578,12 +579,11 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		throw error;
 	}
 
-	private async getAllDepsAndPackExtensions(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean, installPreRelease: boolean, profile: URI | undefined, productVersion: IProductVersion): Promise<{ gallery: IGalleryExtension; manifest: IExtensionManifest }[]> {
+	private async getAllDepsAndPackExtensions(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, installPreRelease: boolean, productVersion: IProductVersion): Promise<{ gallery: IGalleryExtension; manifest: IExtensionManifest }[]> {
 		if (!this.galleryService.isEnabled()) {
 			return [];
 		}
 
-		const installed = await this.getInstalled(undefined, profile, productVersion);
 		const knownIdentifiers: IExtensionIdentifier[] = [];
 
 		const allDependenciesAndPacks: { gallery: IGalleryExtension; manifest: IExtensionManifest }[] = [];
@@ -592,13 +592,9 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			const dependecies: string[] = manifest.extensionDependencies || [];
 			const dependenciesAndPackExtensions = [...dependecies];
 			if (manifest.extensionPack) {
-				const existing = getOnlyNewlyAddedFromExtensionPack ? installed.find(e => areSameExtensions(e.identifier, extensionIdentifier)) : undefined;
 				for (const extension of manifest.extensionPack) {
-					// add only those extensions which are new in currently installed extension
-					if (!(existing && existing.manifest.extensionPack && existing.manifest.extensionPack.some(old => areSameExtensions({ id: old }, { id: extension })))) {
-						if (dependenciesAndPackExtensions.every(e => !areSameExtensions({ id: e }, { id: extension }))) {
-							dependenciesAndPackExtensions.push(extension);
-						}
+					if (dependenciesAndPackExtensions.every(e => !areSameExtensions({ id: e }, { id: extension }))) {
+						dependenciesAndPackExtensions.push(extension);
 					}
 				}
 			}
@@ -639,7 +635,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		let compatibleExtension: IGalleryExtension | null;
 
 		const extensionsControlManifest = await this.getExtensionsControlManifest();
-		if (extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier))) {
+		if (isMalicious(extension.identifier, extensionsControlManifest)) {
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 

@@ -3,13 +3,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ShakeLevel = void 0;
 exports.toStringShakeLevel = toStringShakeLevel;
 exports.shake = shake;
-const fs = require("fs");
-const path = require("path");
-const TYPESCRIPT_LIB_FOLDER = path.dirname(require.resolve('typescript/lib/lib.d.ts'));
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const TYPESCRIPT_LIB_FOLDER = path_1.default.dirname(require.resolve('typescript/lib/lib.d.ts'));
 var ShakeLevel;
 (function (ShakeLevel) {
     ShakeLevel[ShakeLevel["Files"] = 0] = "Files";
@@ -30,7 +33,7 @@ function printDiagnostics(options, diagnostics) {
     for (const diag of diagnostics) {
         let result = '';
         if (diag.file) {
-            result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
+            result += `${path_1.default.join(options.sourcesRoot, diag.file.fileName)}`;
         }
         if (diag.file && diag.start) {
             const location = diag.file.getLineAndCharacterOfPosition(diag.start);
@@ -72,8 +75,8 @@ function createTypeScriptLanguageService(ts, options) {
     });
     // Add additional typings
     options.typings.forEach((typing) => {
-        const filePath = path.join(options.sourcesRoot, typing);
-        FILES[typing] = fs.readFileSync(filePath).toString();
+        const filePath = path_1.default.join(options.sourcesRoot, typing);
+        FILES[typing] = fs_1.default.readFileSync(filePath).toString();
     });
     // Resolve libs
     const RESOLVED_LIBS = processLibFiles(ts, options);
@@ -104,19 +107,19 @@ function discoverAndReadFiles(ts, options) {
         if (options.redirects[moduleId]) {
             redirectedModuleId = options.redirects[moduleId];
         }
-        const dts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
-        if (fs.existsSync(dts_filename)) {
-            const dts_filecontents = fs.readFileSync(dts_filename).toString();
+        const dts_filename = path_1.default.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
+        if (fs_1.default.existsSync(dts_filename)) {
+            const dts_filecontents = fs_1.default.readFileSync(dts_filename).toString();
             FILES[`${moduleId}.d.ts`] = dts_filecontents;
             continue;
         }
-        const js_filename = path.join(options.sourcesRoot, redirectedModuleId + '.js');
-        if (fs.existsSync(js_filename)) {
+        const js_filename = path_1.default.join(options.sourcesRoot, redirectedModuleId + '.js');
+        if (fs_1.default.existsSync(js_filename)) {
             // This is an import for a .js file, so ignore it...
             continue;
         }
-        const ts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.ts');
-        const ts_filecontents = fs.readFileSync(ts_filename).toString();
+        const ts_filename = path_1.default.join(options.sourcesRoot, redirectedModuleId + '.ts');
+        const ts_filecontents = fs_1.default.readFileSync(ts_filename).toString();
         const info = ts.preProcessFile(ts_filecontents);
         for (let i = info.importedFiles.length - 1; i >= 0; i--) {
             const importedFileName = info.importedFiles[i].fileName;
@@ -126,7 +129,7 @@ function discoverAndReadFiles(ts, options) {
             }
             let importedModuleId = importedFileName;
             if (/(^\.\/)|(^\.\.\/)/.test(importedModuleId)) {
-                importedModuleId = path.join(path.dirname(moduleId), importedModuleId);
+                importedModuleId = path_1.default.join(path_1.default.dirname(moduleId), importedModuleId);
                 if (importedModuleId.endsWith('.js')) { // ESM: code imports require to be relative and have a '.js' file extension
                     importedModuleId = importedModuleId.substr(0, importedModuleId.length - 3);
                 }
@@ -148,8 +151,8 @@ function processLibFiles(ts, options) {
         const key = `defaultLib:${filename}`;
         if (!result[key]) {
             // add this file
-            const filepath = path.join(TYPESCRIPT_LIB_FOLDER, filename);
-            const sourceText = fs.readFileSync(filepath).toString();
+            const filepath = path_1.default.join(TYPESCRIPT_LIB_FOLDER, filename);
+            const sourceText = fs_1.default.readFileSync(filepath).toString();
             result[key] = sourceText;
             // precess dependencies and "recurse"
             const info = ts.preProcessFile(sourceText);
@@ -459,7 +462,7 @@ function markNodes(ts, languageService, options) {
             if (importText.endsWith('.js')) { // ESM: code imports require to be relative and to have a '.js' file extension
                 importText = importText.substr(0, importText.length - 3);
             }
-            fullPath = path.join(path.dirname(nodeSourceFile.fileName), importText) + '.ts';
+            fullPath = path_1.default.join(path_1.default.dirname(nodeSourceFile.fileName), importText) + '.ts';
         }
         else {
             fullPath = importText + '.ts';
