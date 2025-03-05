@@ -779,7 +779,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		}
 	}
 
-	private async _applyEditsSync(operation: () => void) {
+	private _applyEditsSync(operation: () => void) {
 		// make the actual edit
 		this._isEditFromUs = true;
 		try {
