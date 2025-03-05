@@ -65,6 +65,8 @@ export class BaseIssueReporterService extends Disposable {
 	public delayedSubmit = new Delayer<void>(300);
 	public previewButton!: Button;
 	public nonGitHubIssueUrl = false;
+	public needsUpdate = false;
+	public acknowledged = false;
 
 	constructor(
 		public disableExtensions: boolean,
@@ -387,12 +389,25 @@ export class BaseIssueReporterService extends Disposable {
 		}
 	}
 
+	private updateAcknowledgementState() {
+		const acknowledgementCheckbox = this.getElementById<HTMLInputElement>('includeAcknowledgement');
+		if (acknowledgementCheckbox) {
+			this.acknowledged = acknowledgementCheckbox.checked;
+			this.updatePreviewButtonState();
+		}
+	}
+
 	public setEventHandlers(): void {
 		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeExperiments', 'includeExtensionData'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
 			});
+		});
+
+		this.addEventListener('includeAcknowledgement', 'click', (event: Event) => {
+			event.stopPropagation();
+			this.updateAcknowledgementState();
 		});
 
 		const showInfoElements = this.window.document.getElementsByClassName('showInfo');
@@ -561,7 +576,11 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public updatePreviewButtonState() {
-		if (this.isPreviewEnabled()) {
+
+		if (!this.acknowledged && this.needsUpdate) {
+			this.previewButton.label = localize('acknowledge', "Confirm Version Acknowledgement");
+			this.previewButton.enabled = false;
+		} else if (this.isPreviewEnabled()) {
 			if (this.data.githubAccessToken) {
 				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
 			} else {

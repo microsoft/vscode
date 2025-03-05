@@ -77,8 +77,11 @@ export class IssueReporter extends BaseIssueReporterService {
 	private async checkForUpdates(): Promise<void> {
 		const updateState = this.updateService.state;
 		if (updateState.type === StateType.Ready || updateState.type === StateType.Downloaded) {
+			this.needsUpdate = true;
+			const includeAcknowledgement = this.getElementById('version-acknowledgements');
 			const updateBanner = this.getElementById('update-banner');
-			if (updateBanner) {
+			if (updateBanner && includeAcknowledgement) {
+				includeAcknowledgement.classList.remove('hidden');
 				updateBanner.classList.remove('hidden');
 				updateBanner.textContent = localize('updateAvailable', "A new version of {0} is available.", this.product.nameLong);
 			}
