@@ -5,8 +5,7 @@
 import type { AccountInfo, AuthenticationResult, InteractiveRequest, RefreshTokenRequest, SilentFlowRequest } from '@azure/msal-node';
 import type { Disposable, Event } from 'vscode';
 
-export interface ICachedPublicClientApplication extends Disposable {
-	initialize(): Promise<void>;
+export interface ICachedPublicClientApplication {
 	onDidAccountsChange: Event<{ added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }>;
 	onDidRemoveLastAccount: Event<void>;
 	acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult>;
