@@ -98,8 +98,8 @@ import { DOCUMENTATION_URL } from '../common/promptSyntax/constants.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import product from '../../../../platform/product/common/product.js';
-import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/chatEditingNotebookFileSystemProvider.js';
 import { Event } from '../../../../base/common/event.js';
+import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/notebook/chatEditingNotebookFileSystemProvider.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
