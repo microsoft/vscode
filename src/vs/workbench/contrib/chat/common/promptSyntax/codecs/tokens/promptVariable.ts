@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptToken } from './promptToken.js';
-import { Range } from '../../../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 
 /**
  * All prompt variables start with `#` character.
  */
-const TOKEN_START: string = '#';
+const START_CHARACTER: string = '#';
 
 /**
  * TODO: @lego
  */
-const TOKEN_DATA_SEPARATOR: string = ':';
+const DATA_SEPARATOR: string = ':';
 
 /**
  * Represents a `#variable` token in a prompt text.
@@ -37,7 +37,7 @@ export class PromptVariable extends PromptToken {
 	 * Get full text of the token.
 	 */
 	public get text(): string {
-		return `${TOKEN_START}${this.name}`;
+		return `${START_CHARACTER}${this.name}`;
 	}
 
 	/**
@@ -63,7 +63,7 @@ export class PromptVariable extends PromptToken {
 	 * Return a string representation of the token.
 	 */
 	public override toString(): string {
-		return `${this.name}${this.range}`;
+		return `${this.text}${this.range}`;
 	}
 }
 
@@ -71,51 +71,55 @@ export class PromptVariable extends PromptToken {
  * Represents a {@link PromptVariable} with additional data token in a prompt text.
  * (e.g., `#variable:/path/to/file.md`)
  */
+// TODO: @legomushroom - all for empty `path`s?
 export class PromptVariableWithData extends PromptVariable {
 	constructor(
-		range: Range,
+		fullRange: Range,
 		/**
 		 * The name of the variable, excluding the starting `#` character.
 		 */
 		name: string,
+
 		/**
-		 * The data of the variable, excluding the starting {@link TOKEN_DATA_SEPARATOR} character.
+		 * The data of the variable, excluding the starting {@link DATA_SEPARATOR} character.
 		 */
 		public readonly data: string,
 	) {
-		super(range, name);
+		super(fullRange, name);
 	}
 
 	/**
 	 * Get full text of the token.
 	 */
 	public override get text(): string {
-		return `${TOKEN_START}${this.name}${TOKEN_DATA_SEPARATOR}${this.data}`;
+		return `${START_CHARACTER}${this.name}${DATA_SEPARATOR}${this.data}`;
 	}
 
 	/**
 	 * Check if this token is equal to another one.
 	 */
 	public override equals<T extends BaseToken>(other: T): boolean {
-		if (!super.sameRange(other.range)) {
-			return false;
-		}
-
 		if ((other instanceof PromptVariableWithData) === false) {
 			return false;
 		}
 
-		if (this.text.length !== other.text.length) {
-			return false;
-		}
-
-		return this.text === other.text;
+		return super.equals(other);
 	}
 
 	/**
-	 * Return a string representation of the token.
+	 * Range of the `data` part of the variable.
 	 */
-	public override toString(): string {
-		return `${this.text}${this.range}`;
+	public get dataRange(): IRange {
+		const { range } = this;
+		const dataStartColumn = range.startColumn +
+			START_CHARACTER.length + this.name.length +
+			DATA_SEPARATOR.length;
+
+		return new Range(
+			range.startLineNumber,
+			dataStartColumn,
+			range.endLineNumber,
+			range.endColumn,
+		);
 	}
 }

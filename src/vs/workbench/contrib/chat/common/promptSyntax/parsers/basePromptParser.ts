@@ -575,7 +575,7 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 	public get linkRange(): IRange | undefined {
 		// `#file:` references
 		if (this.token instanceof FileReference) {
-			return this.token.linkRange;
+			return this.token.dataRange;
 		}
 
 		// `markdown link` references
@@ -591,7 +591,7 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 	 */
 	public override toString() {
 		const prefix = (this.token instanceof FileReference)
-			? FileReference.TOKEN_START
+			? `${this.token.name}:`
 			: 'md-link:';
 
 		return `${prefix}${this.uri.path}`;
@@ -601,7 +601,7 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 	 * @inheritdoc
 	 */
 	protected override getErrorMessage(error: ParseError): string {
-		// if failed to open a file, return approprivate message and the file path
+		// if failed to open a file, return appropriate message and the file path
 		if (error instanceof OpenFailed) {
 			return `${errorMessages.fileOpenFailed} '${error.uri.path}'.`;
 		}
@@ -611,7 +611,7 @@ export class PromptFileReference extends BasePromptParser<FilePromptContentProvi
 }
 
 /**
- * A tiny utility object that helps us to track existance
+ * A tiny utility object that helps us to track existence
  * of at least one parse result from the content provider.
  */
 class FirstParseResult extends DeferredPromise<void> {
