@@ -15,9 +15,9 @@ import { IResourceDiffEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { NotebookDeletedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
 import { NotebookInsertedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookInsertedCellDecorator.js';
-import { NotebookModifiedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookModifiedCellDecorator.js';
 import { INotebookTextDiffEditor } from '../../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
 import { INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
+import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
 import { ChatAgentLocation, IChatAgentService } from '../../../common/chatAgents.js';
@@ -29,7 +29,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 	private readonly _currentIndex = observableValue(this, -1);
 	readonly currentIndex: IObservable<number> = this._currentIndex;
 
-	// TODO@DonJayamanne For now we're going to ignore being able to focus on a deleted cell.
+	// TODO@amunger For now we're going to ignore being able to focus on a deleted cell.
 	private readonly _currentCell = observableValue<NotebookCellTextModel | undefined>(this, undefined);
 	readonly currentCell: IObservable<NotebookCellTextModel | undefined> = this._currentCell;
 
@@ -38,7 +38,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 	private readonly cellEditorIntegrations = new Map<NotebookCellTextModel, { integration: ChatEditingCodeEditorIntegration; diff: ISettableObservable<IDocumentDiff2> }>();
 
-	private readonly insertDeleteDecorators: IObservable<{ insertedCellDecorator: NotebookInsertedCellDecorator; modifiedCellDecorator: NotebookModifiedCellDecorator; deletedCellDecorator: NotebookDeletedCellDecorator } | undefined>;
+	private readonly insertDeleteDecorators: IObservable<{ insertedCellDecorator: NotebookInsertedCellDecorator; deletedCellDecorator: NotebookDeletedCellDecorator } | undefined>;
 
 	constructor(
 		private readonly _entry: IModifiedFileEntry,
@@ -49,12 +49,32 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@INotebookEditorService notebookEditorService: INotebookEditorService,
 	) {
 		super();
 
 		const onDidChangeVisibleRanges = debouncedObservable(observableFromEvent(notebookEditor.onDidChangeVisibleRanges, () => notebookEditor.visibleRanges), 50);
 		const notebookEdotirViewModelAttached = observableFromEvent(notebookEditor.onDidAttachViewModel, () => notebookEditor.getViewModel());
 
+		let originalReadonly: boolean | undefined = undefined;
+		const shouldBeReadonly = _entry.isCurrentlyBeingModifiedBy.map(value => !!value);
+		this._register(autorun(r => {
+			const isReadOnly = shouldBeReadonly.read(r);
+			const notebookEditor = notebookEditorService.retrieveExistingWidgetFromURI(_entry.modifiedURI)?.value;
+			if (!notebookEditor) {
+				return;
+			}
+			originalReadonly ??= notebookEditor.isReadOnly;
+			if (isReadOnly) {
+				if (!notebookEditor.isReadOnly) {
+					notebookEditor.setOptions({ isReadOnly: true });
+				}
+			} else {
+				if (notebookEditor.isReadOnly && originalReadonly === false) {
+					notebookEditor.setOptions({ isReadOnly: false });
+				}
+			}
+		}));
 
 		// INIT current index when: enabled, not streaming anymore, once per request, and when having changes
 		let lastModifyingRequestId: string | undefined;
@@ -82,7 +102,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 		this._register(autorun(r => {
 			const sortedCellChanges = sortCellChanges(cellChanges.read(r));
 
-			const changes = sortedCellChanges.filter(c => c.type !== 'unchanged' && c.type !== 'delete' && !c.diff.read(r).identical);
+			const changes = sortedCellChanges.filter(c => c.type !== 'delete');
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
@@ -114,7 +134,9 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 				const currentDiff = this.cellEditorIntegrations.get(cell);
 				if (currentDiff) {
 					// Do not unnecessarily trigger a change event
-					currentDiff.diff.set(diff, undefined);
+					if (!areDocumentDiff2Equal(currentDiff.diff.get(), diff)) {
+						currentDiff.diff.set(diff, undefined);
+					}
 				} else {
 					const diff2 = observableValue(`diff${cell.handle}`, diff);
 					const integration = this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, _entry, editor, diff2);
@@ -179,7 +201,6 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			}
 
 			const insertedCellDecorator = store.add(this.instantiationService.createInstance(NotebookInsertedCellDecorator, this.notebookEditor));
-			const modifiedCellDecorator = store.add(this.instantiationService.createInstance(NotebookModifiedCellDecorator, this.notebookEditor));
 			const deletedCellDecorator = store.add(this.instantiationService.createInstance(NotebookDeletedCellDecorator, this.notebookEditor, {
 				className: 'chat-diff-change-content-widget',
 				telemetrySource: 'chatEditingNotebookHunk',
@@ -206,7 +227,6 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 			return {
 				insertedCellDecorator,
-				modifiedCellDecorator,
 				deletedCellDecorator
 			};
 		});
@@ -220,7 +240,6 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 			const decorators = debouncedObservable(this.insertDeleteDecorators, 10).read(r);
 			if (decorators) {
 				decorators.insertedCellDecorator.apply(changes);
-				decorators.modifiedCellDecorator.apply(changes);
 				decorators.deletedCellDecorator.apply(changes, originalModel);
 			}
 		}));
@@ -527,4 +546,32 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		//
 	}
+}
+
+function areDocumentDiff2Equal(diff1: IDocumentDiff2, diff2: IDocumentDiff2): boolean {
+	if (diff1.changes !== diff2.changes) {
+		return false;
+	}
+	if (diff1.identical !== diff2.identical) {
+		return false;
+	}
+	if (diff1.moves !== diff2.moves) {
+		return false;
+	}
+	if (diff1.originalModel !== diff2.originalModel) {
+		return false;
+	}
+	if (diff1.modifiedModel !== diff2.modifiedModel) {
+		return false;
+	}
+	if (diff1.keep !== diff2.keep) {
+		return false;
+	}
+	if (diff1.undo !== diff2.undo) {
+		return false;
+	}
+	if (diff1.quitEarly !== diff2.quitEarly) {
+		return false;
+	}
+	return true;
 }
