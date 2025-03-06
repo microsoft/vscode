@@ -214,6 +214,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return local;
 	}
 
+	protected removeExtension(extension: ILocalExtension): Promise<void> {
+		return this.extensionsScanner.deleteExtension(extension, 'remove');
+	}
+
 	protected copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		return this.extensionsScanner.copyExtension(extension, fromProfileLocation, toProfileLocation, metadata);
 	}
