@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PromptToken } from './promptToken.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
+
+/**
+ * TODO: @legomushroom - list
+ * - make {@link FileReference} to extend {@link PromptVariableWithData}.
+ */
 
 /**
  * Start sequence for a file reference token in a prompt.
@@ -16,7 +22,7 @@ const TOKEN_START: string = '#file:';
 /**
  * Object represents a file reference token inside a chatbot prompt.
  */
-export class FileReference extends BaseToken {
+export class FileReference extends PromptToken {
 	/**
 	 * Start sequence for a file reference token in a prompt.
 	 */
