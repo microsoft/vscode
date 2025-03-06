@@ -18,7 +18,6 @@ import { LANGUAGE_SELECTOR } from '../constants.js';
 import { IPromptsService } from '../service/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPromptFileReference } from '../parsers/types.js';
-import { FileReference } from '../codecs/tokens/fileReference.js';
 import { assertOneOf } from '../../../../../../base/common/types.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
@@ -68,10 +67,11 @@ const findFileReference = (
 			return undefined;
 		}
 
-		// this ensures that we handle only the `#file:` references for now
-		if (!reference.text.startsWith(FileReference.TOKEN_START)) {
-			return undefined;
-		}
+		// TODO: @lego - put this back?
+		// // this ensures that we handle only the `#file:` references for now
+		// if (!reference.text.startsWith(FileReference.TOKEN_START)) {
+		// 	return undefined;
+		// }
 
 		// reference must match the provided position
 		const { startLineNumber, endColumn } = range;

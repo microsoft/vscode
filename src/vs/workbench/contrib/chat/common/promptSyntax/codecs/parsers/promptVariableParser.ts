@@ -18,16 +18,16 @@ import { ExclamationMark } from '../../../../../../../editor/common/codecs/simpl
 import { LeftBracket, RightBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/brackets.js';
 import { LeftAngleBracket, RightAngleBracket } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/angleBrackets.js';
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
+import { assert } from '../../../../../../../base/common/assert.js';
 
 /**
  * TODO: @lego - list
- *  - use the parser in the the prompt codec.
  */
 
 /**
  * TODO: @lego
  */
-const STOP_CHARACTERS: readonly string[] = [CarriageReturn, NewLine, Tab, VerticalTab, FormFeed, Space]
+const STOP_CHARACTERS: readonly string[] = [Space, Tab, NewLine, CarriageReturn, VerticalTab, FormFeed]
 	.map((token) => { return token.symbol; });
 
 /**
@@ -49,40 +49,23 @@ export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialP
 	public accept(token: TSimpleToken): TAcceptTokenResult<PartialPromptVariableName | PartialPromptVariableWithData | PromptVariable> {
 		// if a `stop` character is encountered, finish the parsing process
 		if (STOP_CHARACTERS.includes(token.text)) {
-			// in any case, success of failure below, this is an end of the parsing process
-			this.isConsumed = true;
-
-			// if there is only one token before the stop character
-			// must be the starting `#` one), then fail
-			if (this.currentTokens.length <= 1) {
+			try {
+				// if it is possible to convert current parser to `PromptVariable`, return success result
+				return {
+					result: 'success',
+					nextParser: this.asPromptVariable(),
+					wasTokenConsumed: false,
+				};
+			} catch (error) {
+				// otherwise fail
 				return {
 					result: 'failure',
 					wasTokenConsumed: false,
 				};
+			} finally {
+				// in any case this is an end of the parsing process
+				this.isConsumed = true;
 			}
-
-			const firstToken = this.currentTokens[0];
-			const lastToken = this.currentTokens[this.currentTokens.length - 1];
-
-			// TODO: @lego - validate that first and last tokens are defined?
-
-			// render the characters above into strings, excluding the starting `#` character
-			const variableNameTokens = this.currentTokens.slice(1);
-			const variableName = variableNameTokens.map(pick('text')).join('');
-
-			return {
-				result: 'success',
-				nextParser: new PromptVariable(
-					new Range(
-						firstToken.range.startLineNumber,
-						firstToken.range.startColumn,
-						lastToken.range.endLineNumber,
-						lastToken.range.endColumn,
-					),
-					variableName,
-				),
-				wasTokenConsumed: false,
-			};
 		}
 
 		// if a `:` character is encountered, we might transition to {@link PartialPromptVariableWithData}
@@ -129,6 +112,40 @@ export class PartialPromptVariableName extends ParserBase<TSimpleToken, PartialP
 			nextParser: this,
 			wasTokenConsumed: true,
 		};
+	}
+
+	/**
+	 * Try to convert current parser instance into a fully-parsed {@link PromptVariable} token.
+	 *
+	 * @throws if sequence of tokens received so far do not constitute a valid prompt variable,
+	 *        for instance, if there is only `1` starting `#` token is available.
+	 */
+	public asPromptVariable(): PromptVariable {
+		// if there is only one token before the stop character
+		// must be the starting `#` one), then fail
+		assert(
+			this.currentTokens.length > 1,
+			'Cannot create a prompt variable out of incomplete token sequence.',
+		);
+
+		const firstToken = this.currentTokens[0];
+		const lastToken = this.currentTokens[this.currentTokens.length - 1];
+
+		// TODO: @lego - validate that first and last tokens are defined?
+
+		// render the characters above into strings, excluding the starting `#` character
+		const variableNameTokens = this.currentTokens.slice(1);
+		const variableName = variableNameTokens.map(pick('text')).join('');
+
+		return new PromptVariable(
+			new Range(
+				firstToken.range.startLineNumber,
+				firstToken.range.startColumn,
+				lastToken.range.endLineNumber,
+				lastToken.range.endColumn,
+			),
+			variableName,
+		);
 	}
 }
 
@@ -206,6 +223,46 @@ export class PartialPromptVariableWithData extends ParserBase<TSimpleToken, Part
 			nextParser: this,
 			wasTokenConsumed: true,
 		};
+	}
+
+	/**
+	 * Try to convert current parser instance into a fully-parsed {@link asPromptVariableWithData} token.
+	 *
+	 * @throws if sequence of tokens received so far do not constitute a valid prompt variable with data.
+	 */
+	public asPromptVariableWithData(): PromptVariableWithData {
+		// if no tokens received after initial set of tokens, fail
+		// TODO: @lego - allow this to allow for `#file:` tokens to be emitted? (without path)
+		assert(
+			this.currentTokens.length > this.startTokensCount,
+			`No 'data' part of the token found.`,
+		);
+
+		// tokens representing variable name without the `#` character at the start and
+		// the `:` data separator character at the end
+		const variableNameTokens = this.currentTokens.slice(1, this.startTokensCount - 1);
+		// tokens representing variable data without the `:` separator character at the start
+		const variableDataTokens = this.currentTokens.slice(this.startTokensCount);
+
+		// render the characters above into strings
+		const variableName = variableNameTokens.map(pick('text')).join('');
+		const variableData = variableDataTokens.map(pick('text')).join('');
+
+		const firstToken = this.currentTokens[0];
+		const lastToken = this.currentTokens[this.currentTokens.length - 1];
+
+		// TODO: @lego - validate that first and last tokens are defined?
+
+		return new PromptVariableWithData(
+			new Range(
+				firstToken.range.startLineNumber,
+				firstToken.range.startColumn,
+				lastToken.range.endLineNumber,
+				lastToken.range.endColumn,
+			),
+			variableName,
+			variableData,
+		);
 	}
 }
 

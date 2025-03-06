@@ -9,7 +9,6 @@ import { ChatPromptCodec } from '../codecs/chatPromptCodec.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { assert } from '../../../../../../base/common/assert.js';
 import { IPromptFileReference, IResolveError } from './types.js';
-import { FileReference } from '../codecs/tokens/fileReference.js';
 import { ChatPromptDecoder } from '../codecs/chatPromptDecoder.js';
 import { IRange } from '../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../base/common/types.js';
@@ -24,6 +23,8 @@ import { FilePromptContentProvider } from '../contentProviders/filePromptContent
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
 import { OpenFailed, NotPromptFile, RecursiveReference, FolderReference, ParseError, FailedToResolveContentsStream } from '../../promptFileReferenceErrors.js';
+import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
+import { FileReference } from '../codecs/tokens/fileReference.js';
 
 /**
  * Well-known localized error messages.
@@ -225,8 +226,12 @@ export abstract class BasePromptParser<T extends IPromptContentsProvider> extend
 
 		// when some tokens received, process and store the references
 		this.stream.on('data', (token) => {
-			if (token instanceof FileReference) {
-				this.onReference(token, [...seenReferences]);
+			if (token instanceof PromptVariableWithData) {
+				try {
+					this.onReference(FileReference.from(token), [...seenReferences]);
+				} catch (error) {
+					// no-op
+				}
 			}
 
 			// note! the `isURL` is a simple check and needs to be improved to truly

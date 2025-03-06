@@ -3,166 +3,159 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileReference } from './tokens/fileReference.js';
+import { PromptToken } from './tokens/promptToken.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Range } from '../../../../../../editor/common/core/range.js';
+import { assertNever } from '../../../../../../base/common/assert.js';
 import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
-import { Tab } from '../../../../../../editor/common/codecs/simpleCodec/tokens/tab.js';
-import { Word } from '../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
+import { PromptVariable, PromptVariableWithData } from './tokens/promptVariable.js';
 import { Hash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
-import { Space } from '../../../../../../editor/common/codecs/simpleCodec/tokens/space.js';
-import { Colon } from '../../../../../../editor/common/codecs/simpleCodec/tokens/colon.js';
-import { NewLine } from '../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
-import { FormFeed } from '../../../../../../editor/common/codecs/simpleCodec/tokens/formFeed.js';
-import { VerticalTab } from '../../../../../../editor/common/codecs/simpleCodec/tokens/verticalTab.js';
 import { MarkdownLink } from '../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { CarriageReturn } from '../../../../../../editor/common/codecs/linesCodec/tokens/carriageReturn.js';
-import { ParserBase, TAcceptTokenResult } from '../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
+import { PartialPromptVariableName, PartialPromptVariableWithData } from './parsers/promptVariableParser.js';
 import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
 
 /**
  * Tokens produced by this decoder.
  */
-export type TChatPromptToken = MarkdownLink | FileReference;
+export type TChatPromptToken = MarkdownLink | PromptVariable | PromptVariableWithData;
 
-/**
- * The Parser responsible for processing a `prompt variable name` syntax from
- * a sequence of tokens (e.g., `#variable:`).
- *
- * The parsing process starts with single `#` token, then can accept `file` word,
- * followed by the `:` token, resulting in the tokens sequence equivalent to
- * the `#file:` text sequence. In this successful case, the parser transitions into
- * the {@linkcode PartialPromptFileReference} parser to continue the parsing process.
- */
-class PartialPromptVariableName extends ParserBase<TMarkdownToken, PartialPromptVariableName | PartialPromptFileReference | FileReference> {
-	constructor(token: Hash) {
-		super([token]);
-	}
+// /**
+//  * The Parser responsible for processing a `prompt variable name` syntax from
+//  * a sequence of tokens (e.g., `#variable:`).
+//  *
+//  * The parsing process starts with single `#` token, then can accept `file` word,
+//  * followed by the `:` token, resulting in the tokens sequence equivalent to
+//  * the `#file:` text sequence. In this successful case, the parser transitions into
+//  * the {@linkcode PartialPromptFileReference} parser to continue the parsing process.
+//  */
+// class PartialPromptVariableName extends ParserBase<TMarkdownToken, PartialPromptVariableName | PartialPromptFileReference | FileReference> {
+// 	constructor(token: Hash) {
+// 		super([token]);
+// 	}
 
-	public accept(token: TMarkdownToken): TAcceptTokenResult<PartialPromptVariableName | PartialPromptFileReference | FileReference> {
-		// given we currently hold the `#` token, if we receive a `file` word,
-		// we can successfully proceed to the next token in the sequence
-		if (token instanceof Word) {
-			if (token.text === 'file') {
-				this.currentTokens.push(token);
+// 	public accept(token: TMarkdownToken): TAcceptTokenResult<PartialPromptVariableName | PartialPromptFileReference | FileReference> {
+// 		// given we currently hold the `#` token, if we receive a `file` word,
+// 		// we can successfully proceed to the next token in the sequence
+// 		if (token instanceof Word) {
+// 			if (token.text === 'file') {
+// 				this.currentTokens.push(token);
 
-				return {
-					result: 'success',
-					nextParser: this,
-					wasTokenConsumed: true,
-				};
-			}
+// 				return {
+// 					result: 'success',
+// 					nextParser: this,
+// 					wasTokenConsumed: true,
+// 				};
+// 			}
 
-			return {
-				result: 'failure',
-				wasTokenConsumed: false,
-			};
-		}
+// 			return {
+// 				result: 'failure',
+// 				wasTokenConsumed: false,
+// 			};
+// 		}
 
-		// if we receive the `:` token, we can successfully proceed to the next
-		// token in the sequence `only if` the previous token was a `file` word
-		// therefore for currently tokens sequence equivalent to the `#file` text
-		if (token instanceof Colon) {
-			const lastToken = this.currentTokens[this.currentTokens.length - 1];
+// 		// if we receive the `:` token, we can successfully proceed to the next
+// 		// token in the sequence `only if` the previous token was a `file` word
+// 		// therefore for currently tokens sequence equivalent to the `#file` text
+// 		if (token instanceof Colon) {
+// 			const lastToken = this.currentTokens[this.currentTokens.length - 1];
 
-			if (lastToken instanceof Word) {
-				this.currentTokens.push(token);
+// 			if (lastToken instanceof Word) {
+// 				this.currentTokens.push(token);
 
-				return {
-					result: 'success',
-					nextParser: new PartialPromptFileReference(this.currentTokens),
-					wasTokenConsumed: true,
-				};
-			}
-		}
+// 				return {
+// 					result: 'success',
+// 					nextParser: new PartialPromptFileReference(this.currentTokens),
+// 					wasTokenConsumed: true,
+// 				};
+// 			}
+// 		}
 
-		// all other cases are failures and we don't consume the offending token
-		return {
-			result: 'failure',
-			wasTokenConsumed: false,
-		};
-	}
-}
+// 		// all other cases are failures and we don't consume the offending token
+// 		return {
+// 			result: 'failure',
+// 			wasTokenConsumed: false,
+// 		};
+// 	}
+// }
 
-/**
- * List of characters that stop a prompt variable sequence.
- */
-const PROMPT_FILE_REFERENCE_STOP_CHARACTERS: readonly string[] = [Space, Tab, CarriageReturn, NewLine, VerticalTab, FormFeed]
-	.map((token) => { return token.symbol; });
+// /**
+//  * List of characters that stop a prompt variable sequence.
+//  */
+// const PROMPT_FILE_REFERENCE_STOP_CHARACTERS: readonly string[] = [Space, Tab, CarriageReturn, NewLine, VerticalTab, FormFeed]
+// 	.map((token) => { return token.symbol; });
 
-/**
- * Parser responsible for processing the `file reference` syntax part from
- * a sequence of tokens (e.g., #variable:`./some/file/path.md`).
- *
- * The parsing process starts with the sequence of `#`, `file`, and `:` tokens,
- * then can accept a sequence of tokens until one of the tokens defined in
- * the {@linkcode PROMPT_FILE_REFERENCE_STOP_CHARACTERS} list is encountered.
- * This sequence of tokens is treated as a `file path` part of the `#file:` variable,
- * and in the successful case, the parser transitions into the {@linkcode FileReference}
- * token which signifies the end of the file reference text parsing process.
- */
-class PartialPromptFileReference extends ParserBase<TMarkdownToken, PartialPromptFileReference | FileReference> {
-	/**
-	 * Set of tokens that were accumulated so far.
-	 */
-	private readonly fileReferenceTokens: (Hash | Word | Colon)[];
+// /**
+//  * Parser responsible for processing the `file reference` syntax part from
+//  * a sequence of tokens (e.g., #variable:`./some/file/path.md`).
+//  *
+//  * The parsing process starts with the sequence of `#`, `file`, and `:` tokens,
+//  * then can accept a sequence of tokens until one of the tokens defined in
+//  * the {@linkcode PROMPT_FILE_REFERENCE_STOP_CHARACTERS} list is encountered.
+//  * This sequence of tokens is treated as a `file path` part of the `#file:` variable,
+//  * and in the successful case, the parser transitions into the {@linkcode FileReference}
+//  * token which signifies the end of the file reference text parsing process.
+//  */
+// class PartialPromptFileReference extends ParserBase<TMarkdownToken, PartialPromptFileReference | FileReference> {
+// 	/**
+// 	 * Set of tokens that were accumulated so far.
+// 	 */
+// 	private readonly fileReferenceTokens: (Hash | Word | Colon)[];
 
-	constructor(tokens: (Hash | Word | Colon)[]) {
-		super([]);
+// 	constructor(tokens: (Hash | Word | Colon)[]) {
+// 		super([]);
 
-		this.fileReferenceTokens = tokens;
-	}
+// 		this.fileReferenceTokens = tokens;
+// 	}
 
-	/**
-	 * List of tokens that were accumulated so far.
-	 */
-	public override get tokens(): readonly (Hash | Word | Colon)[] {
-		return [...this.fileReferenceTokens, ...this.currentTokens];
-	}
+// 	/**
+// 	 * List of tokens that were accumulated so far.
+// 	 */
+// 	public override get tokens(): readonly (Hash | Word | Colon)[] {
+// 		return [...this.fileReferenceTokens, ...this.currentTokens];
+// 	}
 
-	/**
-	 * Return the `FileReference` instance created from the current object.
-	 */
-	public asFileReference(): FileReference {
-		// use only tokens in the `currentTokens` list to
-		// create the path component of the file reference
-		const path = this.currentTokens
-			.map((token) => { return token.text; })
-			.join('');
+// 	/**
+// 	 * Return the `FileReference` instance created from the current object.
+// 	 */
+// 	public asFileReference(): FileReference {
+// 		// use only tokens in the `currentTokens` list to
+// 		// create the path component of the file reference
+// 		const path = this.currentTokens
+// 			.map((token) => { return token.text; })
+// 			.join('');
 
-		const firstToken = this.tokens[0];
+// 		const firstToken = this.tokens[0];
 
-		const range = new Range(
-			firstToken.range.startLineNumber,
-			firstToken.range.startColumn,
-			firstToken.range.startLineNumber,
-			firstToken.range.startColumn + FileReference.TOKEN_START.length + path.length,
-		);
+// 		const range = new Range(
+// 			firstToken.range.startLineNumber,
+// 			firstToken.range.startColumn,
+// 			firstToken.range.startLineNumber,
+// 			firstToken.range.startColumn + FileReference.TOKEN_START.length + path.length,
+// 		);
 
-		return new FileReference(range, path);
-	}
+// 		return new FileReference(range, path);
+// 	}
 
-	public accept(token: TMarkdownToken): TAcceptTokenResult<PartialPromptFileReference | FileReference> {
-		// any of stop characters is are breaking a prompt variable sequence
-		if (PROMPT_FILE_REFERENCE_STOP_CHARACTERS.includes(token.text)) {
-			return {
-				result: 'success',
-				wasTokenConsumed: false,
-				nextParser: this.asFileReference(),
-			};
-		}
+// 	public accept(token: TMarkdownToken): TAcceptTokenResult<PartialPromptFileReference | FileReference> {
+// 		// any of stop characters is are breaking a prompt variable sequence
+// 		if (PROMPT_FILE_REFERENCE_STOP_CHARACTERS.includes(token.text)) {
+// 			return {
+// 				result: 'success',
+// 				wasTokenConsumed: false,
+// 				nextParser: this.asFileReference(),
+// 			};
+// 		}
 
-		// any other token can be included in the sequence so accumulate
-		// it and continue with using the current parser instance
-		this.currentTokens.push(token);
-		return {
-			result: 'success',
-			wasTokenConsumed: true,
-			nextParser: this,
-		};
-	}
-}
+// 		// any other token can be included in the sequence so accumulate
+// 		// it and continue with using the current parser instance
+// 		this.currentTokens.push(token);
+// 		return {
+// 			result: 'success',
+// 			wasTokenConsumed: true,
+// 			nextParser: this,
+// 		};
+// 	}
+// }
 
 /**
  * Decoder for the common chatbot prompt message syntax.
@@ -170,11 +163,12 @@ class PartialPromptFileReference extends ParserBase<TMarkdownToken, PartialPromp
  */
 export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownToken> {
 	/**
-	 * Currently active parser object that is used to parse a well-known equence of
+	 * Currently active parser object that is used to parse a well-known sequence of
 	 * tokens, for instance, a `file reference` that consists of `hash`, `word`, and
 	 * `colon` tokens sequence plus following file path part.
+	 * TODO: @lego - update the comment
 	 */
-	private current?: PartialPromptVariableName;
+	private current?: PartialPromptVariableName | PartialPromptVariableWithData;
 
 	constructor(
 		stream: ReadableStream<VSBuffer>,
@@ -193,7 +187,7 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 		}
 
 		// if current parser was not yet initiated, - we are in the general
-		// "text" mode, therefore re-emit the token immediately and return
+		// "text" parsing mode, therefore re-emit the token immediately and return
 		if (!this.current) {
 			// at the moment, the decoder outputs only specific markdown tokens, like
 			// the `markdown link` one, so re-emit only these tokens ignoring the rest
@@ -219,13 +213,16 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 			//   1) parsing fully completed and an parsed entity is returned back, in this case,
 			// 		emit the parsed token (e.g., a `link`) and reset current parser object
 			//   2) parsing is still in progress and the next parser object is returned, hence
-			//  	we need to update the current praser object with a new one and continue
+			//  	we need to update the current parser object with a new one and continue
+			// TODO: @lego - update the comment
 			case 'success': {
-				if (parseResult.nextParser instanceof FileReference) {
-					this._onData.fire(parseResult.nextParser);
+				const { nextParser } = parseResult;
+
+				if (nextParser instanceof PromptToken) {
+					this._onData.fire(nextParser);
 					delete this.current;
 				} else {
-					this.current = parseResult.nextParser;
+					this.current = nextParser;
 				}
 
 				break;
@@ -249,14 +246,35 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 		}
 	}
 
+	// TODO: @lego - add/emit `EOF` token instead of doing this everywhere?
 	protected override onStreamEnd(): void {
-		// if the stream has ended and there is a current `PartialPromptFileReference`
-		// parser object, then the file reference was terminated by the end of the stream
-		if (this.current && this.current instanceof PartialPromptFileReference) {
-			this._onData.fire(this.current.asFileReference());
-			delete this.current;
-		}
+		try {
+			// if there is no currently active parser object present, nothing to do
+			if (!this.current) {
+				return;
+			}
 
-		super.onStreamEnd();
+			// otherwise try to convert incomplete parser object to a token
+			if (this.current instanceof PartialPromptVariableName) {
+				return this._onData.fire(this.current.asPromptVariable());
+			}
+
+			if (this.current instanceof PartialPromptVariableWithData) {
+				return this._onData.fire(this.current.asPromptVariableWithData());
+			}
+
+			assertNever(
+				this.current,
+				`Unknown parser object '${this.current}'`,
+			);
+		} catch (error) {
+			// TODO: @lego - do this when this decoder returns all tokens, not just `links`
+			// for (const token of this.current.tokens) {
+			// 	this._onData.fire(token);
+			// }
+		} finally {
+			delete this.current;
+			super.onStreamEnd();
+		}
 	}
 }
