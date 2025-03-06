@@ -20,6 +20,11 @@ import { LeftAngleBracket, RightAngleBracket } from '../../../../../../../editor
 import { assertNotConsumed, ParserBase, TAcceptTokenResult } from '../../../../../../../editor/common/codecs/simpleCodec/parserBase.js';
 
 /**
+ * TODO: @lego - list
+ *  - use the parser in the the prompt codec.
+ */
+
+/**
  * TODO: @lego
  */
 const STOP_CHARACTERS: readonly string[] = [CarriageReturn, NewLine, Tab, VerticalTab, FormFeed, Space]
