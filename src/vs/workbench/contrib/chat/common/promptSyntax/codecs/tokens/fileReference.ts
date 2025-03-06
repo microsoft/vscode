@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
 import { PromptVariableWithData } from './promptVariable.js';
+import { assert } from '../../../../../../../base/common/assert.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 
@@ -21,6 +23,22 @@ export class FileReference extends PromptVariableWithData {
 		public readonly path: string,
 	) {
 		super(range, VARIABLE_NAME, path);
+	}
+
+	/**
+	 * Create a {@link FileReference} from a {@link PromptVariableWithData} instance.
+	 * @throws if variable name is not equal to {@link VARIABLE_NAME}.
+	 */
+	public static from(variable: PromptVariableWithData) {
+		assert(
+			variable.name === VARIABLE_NAME,
+			`Variable name must be '${VARIABLE_NAME}', got '${variable.name}'.`,
+		);
+
+		return new FileReference(
+			variable.range,
+			variable.data,
+		);
 	}
 
 	/**
