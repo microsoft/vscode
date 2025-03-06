@@ -33,6 +33,15 @@ const specSpecificReplaceStrings = new Map([
 		], [
 			'message: async ({ executeCommand }) =>',
 			'message: async ({ executeCommand }: any) =>'
+		], [
+			'if (parts.length > 1) {',
+			'if (parts && parts.length > 1) {'
+		], [
+			'if (seen.has(suggestion.name)) return false;',
+			'if (!suggestion) return false;\n\t\t\t\tif (seen.has(suggestion.name)) return false;'
+		], [
+			'return pp(',
+			'return pp?.('
 		]
 	]],
 	['kill', [[
@@ -63,10 +72,15 @@ const specSpecificReplaceStrings = new Map([
 		[
 			'if (parts.length > 1) {',
 			'if (parts && parts.length > 1) {'
-		],
-		[
+		], [
 			'const packages = postProcess(',
-			'const packages = postProcess?.('
+			'if (postProcess === undefined) return undefined;\n\t\tconst packages = postProcess('
+		], [
+			').map(({ name }) => name as string);',
+			')?.filter((e) => e !== null).map(({ name }) => name as string);'
+		], [
+			'.filter((name) => nodeClis.has(name))',
+			'?.filter((name) => nodeClis.has(name))'
 		]
 	]],
 	['ssh', [[

@@ -991,7 +991,8 @@ const completionSpec: Fig.Spec = {
 			script: string[];
 		};
 
-		const packages = postProcess?.(
+		if (postProcess === undefined) return undefined;
+		const packages = postProcess(
 			(
 				await executeShellCommand({
 					command: script[0],
@@ -999,10 +1000,10 @@ const completionSpec: Fig.Spec = {
 				})
 			).stdout,
 			tokens
-		).map(({ name }) => name as string);
+		)?.filter((e) => e !== null).map(({ name }) => name as string);
 
 		const subcommands = packages
-			.filter((name) => nodeClis.has(name))
+			?.filter((name) => nodeClis.has(name))
 			.map((name) => ({
 				name,
 				loadSpec: name,

@@ -10,9 +10,7 @@
 
 		// Needed to suppress warnings in upstream completions
 		"noImplicitReturns": false,
-		"noUnusedParameters": false,
-		"strictNullChecks": false,
-		"noUnusedLocals": false
+		"noUnusedParameters": false
 	},
 	"include": [
 		"src/**/*",

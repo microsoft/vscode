@@ -69,7 +69,7 @@ const postProcessBranches =
 			.map((branch) => {
 				let name = branch.trim();
 				const parts = branch.match(/\S+/g);
-				if (parts.length > 1) {
+				if (parts && parts.length > 1) {
 					if (parts[0] === "*") {
 						// We are in a detached HEAD state
 						if (branch.includes("HEAD detached")) {
@@ -108,6 +108,7 @@ const postProcessBranches =
 				};
 			})
 			.filter((suggestion) => {
+				if (!suggestion) return false;
 				if (seen.has(suggestion.name)) return false;
 				seen.add(suggestion.name);
 				return true;
@@ -259,7 +260,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 		custom: async (tokens, executeShellCommand) => {
 			const pp = postProcessBranches({ insertWithoutRemotes: true });
 			if (tokens.includes("-r")) {
-				return pp(
+				return pp?.(
 					(
 						await executeShellCommand({
 							command: "git",
@@ -274,7 +275,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 					tokens
 				);
 			} else {
-				return pp(
+				return pp?.(
 					(
 						await executeShellCommand({
 							command: "git",
