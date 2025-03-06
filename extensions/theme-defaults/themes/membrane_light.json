@@ -195,7 +195,6 @@
 				"foreground": "#000"
 			}
 		},
-		// BEGIN STYLE
 		{
 			"scope": [
 				"constant.numeric",
@@ -722,6 +721,7 @@
 				"foreground": "#000"
 			}
 		},
+		// BEGIN STYLE
 		{
 			"scope": "constant.numeric",
 			"settings": {
@@ -729,9 +729,9 @@
 			}
 		},
 		{
-			"scope": "string.quoted.single, string.quoted.double, string.template, punctuation.definition.string.begin.ts, punctuation.definition.string.end.ts, string.regexp.ts",
+			"scope": "string.quoted.single, string.quoted.double, string.template, punctuation.definition.string.begin, punctuation.definition.string.end, string.regexp",
 			"settings": {
-				"foreground": "#e58714",
+				"foreground": "#d17a11",
 			}
 		},
 		{
@@ -749,23 +749,23 @@
 		{
 			"scope": "comment, punctuation.definition.comment",
 			"settings": {
-				"foreground": "#5a5a5a"
+				"foreground": "#9a9a9a"
 			}
 		},
 		{
-			"scope": "variable, variable.other, variable.other.readwrite, variable.other.object.ts, support.constant",
+			"scope": "variable, variable.other, variable.other.readwrite, variable.other.object, support.constant",
 			"settings": {
 				"foreground": "#333",
 			}
 		},
 		{
-			"scope": "keyword.control.export.ts, keyword.control.import.ts, keyword.control.switch.ts, storage.type.interface.ts",
+			"scope": "keyword.control.export, keyword.control.import, keyword.control.switch, storage.type.interface",
 			"settings": {
 				"foreground": "#68778f",
 			}
 		},
 		{
-			"scope": "keyword.control.conditional.ts, keyword.control.loop.ts",
+			"scope": "keyword.control.conditional, keyword.control.loop",
 			"settings": {
 				"foreground": "#68778f",
 			}
@@ -777,27 +777,27 @@
 			}
 		},
 		{
-			"scope": "keyword.operator.new, keyword.control.flow, keyword.control.from, storage.type.function.ts, keyword.control.as, keyword.operator.expression.typeof.ts, keyword.operator.expression.in.ts",
+			"scope": "keyword.operator.new, keyword.control.flow, keyword.control.from, storage.type.function, keyword.control.as, keyword.operator.expression.typeof, keyword.operator.expression.in",
 			"settings": {
 				"foreground": "#68778f",
 			}
 		},
 		{
-			"scope": "storage.modifier.async.ts",
+			"scope": "storage.modifier.async",
 			"settings": {
 				"foreground": "#68778f",
 			}
 		},
 		{
-			"scope": "keyword.control.trycatch.ts",
+			"scope": "keyword.control.trycatch",
 			"settings": {
 				"foreground": "#b62828",
 			}
 		},
 		{
-			"scope": "entity.name.type.interface.ts, entity.name.type.ts",
+			"scope": "entity.name.type.interface, entity.name.type",
 			"settings": {
-				"foreground": "#8fa1b3",
+				"foreground": "#333",
 			}
 		},
 		{
@@ -807,35 +807,41 @@
 			}
 		},
 		{
-			"scope": "meta.object-literal.member.ts",
+			"scope": "meta.object-literal.member",
 			"settings": {
 				"foreground": "#68778f",
 			}
 		},
 		{
-			"scope": "storage.type.ts",
+			"scope": "storage.type",
 			"settings": {
 				"foreground": "#68778f",
 			}
 		},
 		{
-			"scope": "storage.type.function.arrow.ts",
+			"scope": "storage.type.function.arrow",
 			"settings": {
 				"foreground": "#68778f",
 			}
 		},
 		{
-			"scope": "punctuation.separator.key-value.ts, punctuation.accessor.ts, keyword.operator.type.annotation.ts, punctuation.terminator.statement",
+			"scope": "punctuation.separator.key-value, punctuation.accessor, keyword.operator.type.annotation, punctuation.terminator.statement",
 			"settings": {
 				"foreground": "#808080",
 			}
 		},
 		{
-			"scope": "punctuation.definition.binding-pattern.array.ts",
+			"scope": "punctuation.definition.binding-pattern.array",
 			"settings": {
 				"foreground": "#808080",
 			}
-		},
+		}, // JSX tags
+		{
+			"scope": "entity.name.tag, punctuation.definition.tag",
+			"settings": {
+				"foreground": "#68778F",
+			}
+		}
 	],
 	"semanticHighlighting": true,
 	"semanticTokenColors": {
