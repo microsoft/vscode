@@ -7,7 +7,7 @@ import { AuthenticationGetSessionOptions, AuthenticationProvider, Authentication
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriEventHandler } from '../UriEventHandler';
-import { ICachedPublicClientApplication } from '../common/publicClientCache';
+import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
 import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 import { ScopeData } from '../common/scopeData';
 import { EventBufferer } from '../common/event';
@@ -22,7 +22,6 @@ const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 export class MsalAuthProvider implements AuthenticationProvider {
 
 	private readonly _disposables: { dispose(): void }[];
-	private readonly _publicClientManager: CachedPublicClientApplicationManager;
 	private readonly _eventBufferer = new EventBufferer();
 
 	/**
@@ -43,15 +42,15 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	 */
 	onDidChangeSessions = this._onDidChangeSessionsEmitter.event;
 
-	constructor(
+	private constructor(
 		private readonly _context: ExtensionContext,
 		private readonly _telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
 		private readonly _logger: LogOutputChannel,
 		private readonly _uriHandler: UriEventHandler,
+		private readonly _publicClientManager: ICachedPublicClientApplicationManager,
 		private readonly _env: Environment = Environment.AzureCloud
 	) {
 		this._disposables = _context.subscriptions;
-		this._publicClientManager = new CachedPublicClientApplicationManager(_context.secrets, this._logger, this._env.name);
 		const accountChangeEvent = this._eventBufferer.wrapEvent(
 			this._publicClientManager.onDidAccountsChange,
 			(last, newEvent) => {
@@ -76,9 +75,22 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		)(e => this._handleAccountChange(e));
 		this._disposables.push(
 			this._onDidChangeSessionsEmitter,
-			this._publicClientManager,
 			accountChangeEvent
 		);
+	}
+
+	static async create(
+		context: ExtensionContext,
+		telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
+		logger: LogOutputChannel,
+		uriHandler: UriEventHandler,
+		env: Environment = Environment.AzureCloud
+	): Promise<MsalAuthProvider> {
+		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, env.name);
+		context.subscriptions.push(publicClientManager);
+		const authProvider = new MsalAuthProvider(context, telemetryReporter, logger, uriHandler, publicClientManager, env);
+		await authProvider.initialize();
+		return authProvider;
 	}
 
 	/**
@@ -109,9 +121,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		}
 	}
 
-	async initialize(): Promise<void> {
-		await this._eventBufferer.bufferEventsAsync(() => this._publicClientManager.initialize());
-
+	private async initialize(): Promise<void> {
 		if (!this._context.globalState.get('msalMigration', false)) {
 			await this._migrateSessions();
 		}

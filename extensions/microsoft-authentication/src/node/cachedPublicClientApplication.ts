@@ -39,7 +39,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	//#endregion
 
-	constructor(
+	private constructor(
 		private readonly _clientId: string,
 		private readonly _secretStorage: SecretStorage,
 		private readonly _accountAccess: IAccountAccess,
@@ -47,7 +47,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	) {
 		const loggerOptions = new MsalLoggerOptions(_logger);
 		const nativeBrokerPlugin = new NativeBrokerPlugin();
-		this._isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable ?? false;
+		this._isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
 		this._pca = new PublicClientApplication({
 			auth: { clientId: _clientId },
 			system: {
@@ -63,17 +63,26 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._disposable = Disposable.from(
 			this._registerOnSecretStorageChanged(),
 			this._onDidAccountsChangeEmitter,
-			this._onDidRemoveLastAccountEmitter
+			this._onDidRemoveLastAccountEmitter,
+			this._secretStorageCachePlugin
 		);
 	}
 
 	get accounts(): AccountInfo[] { return this._accounts; }
 	get clientId(): string { return this._clientId; }
 
-	async initialize(): Promise<void> {
-		if (this._isBrokerAvailable) {
-			await this._accountAccess.initialize();
-		}
+	static async create(
+		clientId: string,
+		secretStorage: SecretStorage,
+		accountAccess: IAccountAccess,
+		logger: LogOutputChannel
+	): Promise<CachedPublicClientApplication> {
+		const app = new CachedPublicClientApplication(clientId, secretStorage, accountAccess, logger);
+		await app.initialize();
+		return app;
+	}
+
+	private async initialize(): Promise<void> {
 		await this._sequencer.queue(() => this._update());
 	}
 
@@ -178,7 +187,15 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	 */
 	async acquireTokenByRefreshToken(request: RefreshTokenRequest): Promise<AuthenticationResult | null> {
 		this._logger.debug(`[acquireTokenByRefreshToken] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}]`);
-		const result = await this._sequencer.queue(() => this._pca.acquireTokenByRefreshToken(request));
+		const result = await this._sequencer.queue(async () => {
+			const result = await this._pca.acquireTokenByRefreshToken(request);
+			// Force an update so that the account cache is updated.
+			// TODO:@TylerLeonhardt The problem is, we use the sequencer for
+			// change events but we _don't_ use it for the accounts cache.
+			// We should probably use it for the accounts cache as well.
+			await this._update();
+			return result;
+		});
 		if (result) {
 			// this._setupRefresh(result);
 			if (this._isBrokerAvailable && result.account) {

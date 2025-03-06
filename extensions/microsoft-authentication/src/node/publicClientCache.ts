@@ -20,37 +20,46 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	private readonly _pcaDisposables = new Map<string, Disposable>();
 
 	private _disposable: Disposable;
-	private _pcasSecretStorage: PublicClientApplicationsSecretStorage;
-	private _accountAccess: IAccountAccess | undefined;
 
 	private readonly _onDidAccountsChangeEmitter = new EventEmitter<{ added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }>();
 	readonly onDidAccountsChange = this._onDidAccountsChangeEmitter.event;
 
-	constructor(
+	private constructor(
+		private readonly _pcasSecretStorage: IPublicClientApplicationSecretStorage,
+		private readonly _accountAccess: IAccountAccess,
 		private readonly _secretStorage: SecretStorage,
 		private readonly _logger: LogOutputChannel,
-		private readonly _cloudName: string
+		disposables: Disposable[]
 	) {
-		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage, _cloudName);
 		this._disposable = Disposable.from(
-			this._pcasSecretStorage,
+			...disposables,
 			this._registerSecretStorageHandler(),
 			this._onDidAccountsChangeEmitter
 		);
+	}
+
+	static async create(
+		secretStorage: SecretStorage,
+		logger: LogOutputChannel,
+		cloudName: string
+	): Promise<CachedPublicClientApplicationManager> {
+		const pcasSecretStorage = await PublicClientApplicationsSecretStorage.create(secretStorage, cloudName);
+		// TODO: Remove the migrations in a version
+		const migrations = await pcasSecretStorage.getOldValue();
+		const accountAccess = await ScopedAccountAccess.create(secretStorage, cloudName, logger, migrations);
+		const manager = new CachedPublicClientApplicationManager(pcasSecretStorage, accountAccess, secretStorage, logger, [pcasSecretStorage, accountAccess]);
+		await manager.initialize();
+		return manager;
 	}
 
 	private _registerSecretStorageHandler() {
 		return this._pcasSecretStorage.onDidChange(() => this._handleSecretStorageChange());
 	}
 
-	async initialize() {
+	private async initialize() {
 		this._logger.debug('[initialize] Initializing PublicClientApplicationManager');
 		let clientIds: string[] | undefined;
 		try {
-			await this._pcasSecretStorage.initialize();
-			//TODO: Remove this in a version
-			const migrations = await this._pcasSecretStorage.getOldValue();
-			this._accountAccess = new ScopedAccountAccess(this._secretStorage, this._cloudName, this._logger, migrations);
 			clientIds = await this._pcasSecretStorage.get();
 		} catch (e) {
 			// data is corrupted
@@ -124,14 +133,12 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 					this._logger.error(`[getOrCreate] [${clientId}] Error migrating refresh token:`, e);
 				}
 			}
-			// reinitialize the PCA so the account is properly cached
-			await pca.initialize();
 		}
 		return pca;
 	}
 
 	private async _doCreatePublicClientApplication(clientId: string): Promise<ICachedPublicClientApplication> {
-		const pca = new CachedPublicClientApplication(clientId, this._secretStorage, this._accountAccess!, this._logger);
+		const pca = await CachedPublicClientApplication.create(clientId, this._secretStorage, this._accountAccess, this._logger);
 		this._pcas.set(clientId, pca);
 		const disposable = Disposable.from(
 			pca,
@@ -147,8 +154,10 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 			})
 		);
 		this._pcaDisposables.set(clientId, disposable);
-		// Intialize the PCA after the `onDidAccountsChange` is set so we get initial state.
-		await pca.initialize();
+		// Fire for the initial state and only if accounts exist
+		if (pca.accounts.length > 0) {
+			this._onDidAccountsChangeEmitter.fire({ added: pca.accounts, changed: [], deleted: [] });
+		}
 		return pca;
 	}
 
@@ -205,7 +214,15 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	}
 }
 
-class PublicClientApplicationsSecretStorage {
+interface IPublicClientApplicationSecretStorage {
+	get(): Promise<string[] | undefined>;
+	getOldValue(): Promise<{ clientId: string; authority: string }[] | undefined>;
+	store(value: string[]): Thenable<void>;
+	delete(): Thenable<void>;
+	onDidChange: Event<void>;
+}
+
+class PublicClientApplicationsSecretStorage implements IPublicClientApplicationSecretStorage, Disposable {
 	private _disposable: Disposable;
 
 	private readonly _onDidChangeEmitter = new EventEmitter<void>;
@@ -214,7 +231,7 @@ class PublicClientApplicationsSecretStorage {
 	private readonly _oldKey = `publicClientApplications-${this._cloudName}`;
 	private readonly _key = `publicClients-${this._cloudName}`;
 
-	constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
+	private constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
 		this._disposable = Disposable.from(
 			this._onDidChangeEmitter,
 			this._secretStorage.onDidChange(e => {
@@ -225,11 +242,17 @@ class PublicClientApplicationsSecretStorage {
 		);
 	}
 
+	static async create(secretStorage: SecretStorage, cloudName: string): Promise<PublicClientApplicationsSecretStorage> {
+		const storage = new PublicClientApplicationsSecretStorage(secretStorage, cloudName);
+		await storage.initialize();
+		return storage;
+	}
+
 	/**
 	 * Runs the migration.
 	 * TODO: Remove this after a version.
 	 */
-	async initialize() {
+	private async initialize() {
 		const oldValue = await this.getOldValue();
 		if (!oldValue) {
 			return;
