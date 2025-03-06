@@ -51,7 +51,7 @@ import { ChatEditingTextModelContentProvider } from './chatEditingTextModelConte
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ChatEditingModifiedNotebookDiff } from './chatEditingModifiedNotebookDiff.js';
+import { ChatEditingModifiedNotebookDiff } from './notebook/chatEditingModifiedNotebookDiff.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';

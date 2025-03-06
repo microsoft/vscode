@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
-import { ReadableStreamEvents } from '../../../../../base/common/stream.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from '../../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ReadableStreamEvents } from '../../../../../../base/common/stream.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from '../../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { INotebookService } from '../../../../notebook/common/notebookService.js';
+import { IChatEditingService } from '../../../common/chatEditingService.js';
 import { ChatEditingNotebookSnapshotScheme, deserializeSnapshot } from './chatEditingModifiedNotebookSnapshot.js';
-import { ChatEditingSession } from './chatEditingSession.js';
+import { ChatEditingSession } from '../chatEditingSession.js';
 
 
 export class ChatEditingNotebookFileSystemProviderContrib extends Disposable implements IWorkbenchContribution {

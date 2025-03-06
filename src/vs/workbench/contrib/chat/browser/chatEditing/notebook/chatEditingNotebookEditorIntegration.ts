@@ -3,73 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, ObservablePromise, observableValue } from '../../../../../base/common/observable.js';
-import { debouncedObservable } from '../../../../../base/common/observableInternal/utils.js';
-import { basename } from '../../../../../base/common/resources.js';
-import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
-import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IResourceDiffEditorInput } from '../../../../common/editor.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { NotebookDeletedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
-import { NotebookInsertedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookInsertedCellDecorator.js';
-import { NotebookModifiedCellDecorator } from '../../../notebook/browser/diff/inlineDiff/notebookModifiedCellDecorator.js';
-import { INotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
-import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
-import { NotebookCellTextModel } from '../../../notebook/common/model/notebookCellTextModel.js';
-import { NotebookTextModel } from '../../../notebook/common/model/notebookTextModel.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../common/chatEditingService.js';
-import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
-
-interface IDocumentDiffWithModelsAndActions {
-	/**
-	 * The changes between the original and modified document.
-	 */
-	diff: ISettableObservable<IDocumentDiff>;
-	/**
-	 * The original model.
-	 * Cell text models load asynchronously, so this is an observable promise.
-	 */
-	originalModel: ObservablePromise<ITextModel>;
-	/**
-	 * The modified model.
-	 * Cell text models load asynchronously, so this is an observable promise.
-	 */
-	modifiedModel: ObservablePromise<ITextModel>;
-	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
-	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
-}
-
-/**
- * All entries will contain a IDocumentDiff
- * Even when there are no changes, diff will contain the number of lines in the document.
- * This way we can always calculate the total number of lines in the document.
- */
-export type ICellDiffInfo = {
-	originalCellIndex: number;
-	modifiedCellIndex: number;
-	type: 'unchanged';
-} & IDocumentDiffWithModelsAndActions | {
-	originalCellIndex: number;
-	modifiedCellIndex: number;
-	type: 'modified';
-} & IDocumentDiffWithModelsAndActions |
-	{
-		modifiedCellIndex: undefined;
-		originalCellIndex: number;
-		type: 'delete';
-	} & IDocumentDiffWithModelsAndActions |
-	{
-		modifiedCellIndex: number;
-		originalCellIndex: undefined;
-		type: 'insert';
-	} & IDocumentDiffWithModelsAndActions;
-
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, derivedWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { debouncedObservable } from '../../../../../../base/common/observableInternal/utils.js';
+import { basename } from '../../../../../../base/common/resources.js';
+import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
+import { localize } from '../../../../../../nls.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IResourceDiffEditorInput } from '../../../../../common/editor.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { NotebookDeletedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.js';
+import { NotebookInsertedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookInsertedCellDecorator.js';
+import { NotebookModifiedCellDecorator } from '../../../../notebook/browser/diff/inlineDiff/notebookModifiedCellDecorator.js';
+import { INotebookTextDiffEditor } from '../../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
+import { INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
+import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
+import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
+import { ChatAgentLocation, IChatAgentService } from '../../../common/chatAgents.js';
+import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../../common/chatEditingService.js';
+import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from '../chatEditingCodeEditorIntegration.js';
+import { countChanges, ICellDiffInfo, sortCellChanges } from './notebookCellChanges.js';
 
 export class ChatEditingNotebookEditorIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
 	private readonly _currentIndex = observableValue(this, -1);
@@ -503,6 +457,7 @@ export class ChatEditingNotebookEditorIntegration extends Disposable implements 
 
 	}
 }
+
 export class ChatEditingNotebookDiffEditorIntegration extends Disposable implements IModifiedFileEntryEditorIntegration {
 	private readonly _currentIndex = observableValue(this, -1);
 	readonly currentIndex: IObservable<number> = this._currentIndex;
@@ -572,64 +527,4 @@ export class ChatEditingNotebookDiffEditorIntegration extends Disposable impleme
 	async toggleDiff(_change: IModifiedFileEntryChangeHunk | undefined): Promise<void> {
 		//
 	}
-}
-
-export function countChanges(changes: ICellDiffInfo[]): number {
-	return changes.reduce((count, change) => {
-		const diff = change.diff.get();
-		// When we accept some of the cell insert/delete the items might still be in the list.
-		if (diff.identical) {
-			return count;
-		}
-		switch (change.type) {
-			case 'delete':
-				return count + 1; // We want to see 1 deleted entry in the pill for navigation
-			case 'insert':
-				return count + 1; // We want to see 1 new entry in the pill for navigation
-			case 'modified':
-				return count + diff.changes.length;
-			default:
-				return count;
-		}
-	}, 0);
-
-}
-
-export function sortCellChanges(changes: ICellDiffInfo[]): ICellDiffInfo[] {
-	return [...changes].sort((a, b) => {
-		// For unchanged and modified, use modifiedCellIndex
-		if ((a.type === 'unchanged' || a.type === 'modified') &&
-			(b.type === 'unchanged' || b.type === 'modified')) {
-			return a.modifiedCellIndex - b.modifiedCellIndex;
-		}
-
-		// For delete entries, use originalCellIndex
-		if (a.type === 'delete' && b.type === 'delete') {
-			return a.originalCellIndex - b.originalCellIndex;
-		}
-
-		// For insert entries, use modifiedCellIndex
-		if (a.type === 'insert' && b.type === 'insert') {
-			return a.modifiedCellIndex - b.modifiedCellIndex;
-		}
-
-		if (a.type === 'delete' && b.type === 'insert') {
-			return -1;
-		}
-		if (a.type === 'insert' && b.type === 'delete') {
-			return 1;
-		}
-
-		if ((a.type === 'delete' && b.type !== 'insert') || (a.type !== 'insert' && b.type === 'delete')) {
-			return a.originalCellIndex - b.originalCellIndex;
-		}
-
-		// Mixed types: compare based on available indices
-		const aIndex = a.type === 'delete' ? a.originalCellIndex :
-			(a.type === 'insert' ? a.modifiedCellIndex : a.modifiedCellIndex);
-		const bIndex = b.type === 'delete' ? b.originalCellIndex :
-			(b.type === 'insert' ? b.modifiedCellIndex : b.modifiedCellIndex);
-
-		return aIndex - bIndex;
-	});
 }
