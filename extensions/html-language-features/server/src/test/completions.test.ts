@@ -64,7 +64,7 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 
 	const list = await mode.doComplete!(document, position, context);
 
-	if (expected.count) {
+	if (expected.count !== undefined) {
 		assert.strictEqual(list.items.length, expected.count);
 	}
 	if (expected.items) {
@@ -91,6 +91,35 @@ suite('HTML Completion', () => {
 				{ label: 'a', resultText: '<html><script>const x = { a: 1 };</script><script>x.a</script></html>' },
 			]
 		}, 'test://test/test2.html');
+	});
+});
+
+suite('Live TSServer inside the HTML script tags', () => {
+	const fixtureRoot = path.resolve(__dirname, '../../src/test/jsDocImportFixtures');
+	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
+	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
+
+	test('Imports across files when using fixtured data from the file system', async () => {
+		await testCompletionFor('<html><script>import {obj} from "./index.js" obj.| \n</script><html>', {
+			items: [
+				{ label: 'foo', kind: CompletionItemKind.Field },
+			]
+		}, indexHtmlUri, [fixtureWorkspace]);
+		await testCompletionFor('<html><script>/** @type {import("./jsDocTypes").SomeType } */\nconst a = {}; \n a.| \n</script><html>', {
+			items: [
+				{ label: 'other', kind: CompletionItemKind.Field },
+				{ label: 'property', kind: CompletionItemKind.Field },
+			]
+		}, indexHtmlUri, [fixtureWorkspace]);
+	});
+
+	test('Does not resolve imports when _not_ using the local file system', async () => {
+		await testCompletionFor('<html><script>import {obj} from "./index.js" obj.| \n</script><html>', {
+			// There's no field completions, just the basic text completion
+			count: 1, items: [
+				{ label: 'obj', kind: CompletionItemKind.Text },
+			]
+		}, 'vfs://test/index.html', [{ name: 'vfs', uri: 'vfs://test/' }]);
 	});
 });
 
